@@ -1,0 +1,40 @@
+---
+title: "Agent Orchestration Patterns"
+description: "Architecture notes on multi-agent orchestration patterns — supervisor, hierarchy, and pipeline approaches for complex AI workflows."
+date: "2025-03-01"
+published: true
+images: ["/images/notebook/agent-orchestration-placeholder.svg"]
+tags: ["Architecture", "Agents", "LLM"]
+---
+
+## Notes
+
+These are my working notes on different approaches to orchestrating multiple AI agents in a system. Each pattern has trade-offs in terms of complexity, latency, and reliability.
+
+### Supervisor Pattern
+
+A central supervisor agent coordinates specialist agents. The supervisor decides which agent to invoke based on the current task state.
+
+**Pros:** Clear control flow, easy to debug
+
+**Cons:** Single point of failure, supervisor becomes bottleneck
+
+### Hierarchical Pattern
+
+Agents are organized in a tree structure where parent agents can delegate to child agents. Each level handles increasing specificity.
+
+**Pros:** Scalable, modular
+
+**Cons:** Complex routing logic, potential for deep call stacks
+
+### Pipeline Pattern
+
+Agents are arranged in a sequential pipeline where each agent transforms the output for the next stage.
+
+**Pros:** Simple, predictable flow
+
+**Cons:** Rigid, no conditional branching
+
+## Key Insight
+
+In practice, I've found that a **hybrid approach** works best — use a supervisor for high-level routing and pipelines for well-defined sub-workflows. This balances flexibility with predictability.

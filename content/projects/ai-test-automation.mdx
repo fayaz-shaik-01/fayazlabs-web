@@ -1,0 +1,52 @@
+---
+title: "AI-Powered Test Automation Tool"
+description: "An intelligent test automation assistant that converts natural language test cases into executable Selenium/Playwright scripts using LLM-driven DOM analysis and element resolution."
+date: "2025-01-10"
+published: true
+featured: true
+image: ""
+tags: ["AI", "Automation", "Testing", "LLM"]
+stack: ["Python", "Selenium", "AWS Bedrock", "Streamlit", "LLM"]
+github: ""
+demo: ""
+---
+
+## Problem
+
+QA engineers spend excessive time manually converting test cases into automation scripts. Element selectors break frequently on dynamic web pages, and maintaining large test suites is costly.
+
+## Solution
+
+Built an intelligent assistant that:
+
+1. Accepts natural language test cases
+2. Analyzes DOM structure using LLM intelligence
+3. Resolves target elements with multi-strategy matching
+4. Generates production-quality Java/Python test code with POM structure
+
+## Architecture
+
+The system uses a three-tier element resolution strategy:
+
+- **Heuristic Matching** — Fast pattern-based resolution using HTML attributes, text content, and accessibility roles
+- **LLM-Based DOM Parsing** — Claude/GPT-4 analyzes sanitized DOM to identify the correct element with natural language understanding
+- **Vision-Based Fallback** — Screenshot analysis for edge cases where DOM parsing falls short
+
+## Stack
+
+- **Python** — Core automation logic
+- **Selenium/Playwright** — Browser automation engines
+- **AWS Bedrock** — LLM inference (Claude)
+- **Streamlit** — Interactive UI for test management
+- **Page Object Model** — Code generation pattern
+
+## Results
+
+- 60% reduction in test script creation time
+- Robust multi-strategy element resolution
+- Real-time execution monitoring via Streamlit UI
+- Automated POM-structured Java test generation
+
+## Learnings
+
+The gap between POC and production reliability requires thoughtful fallback strategies. No single AI technique handles all edge cases — combining fast heuristics with intelligent LLM reasoning creates the most resilient system.

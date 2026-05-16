@@ -1,0 +1,145 @@
+name: Ingest Content to AI Service
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'content/**'
+      - '.github/workflows/ingest-content.yml'
+  workflow_dispatch:
+    inputs:
+      force_reingest:
+        description: 'Force full rebuild of the index'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+        - 'true'
+        - 'false'
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Detect changed content files
+        id: detect
+        run: |
+          FORCE="${{ github.event.inputs.force_reingest }}"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "$FORCE" = "true" ]; then
+            echo "mode=rebuild" >> $GITHUB_OUTPUT
+            find content -name "*.mdx" -type f > upsert_files.txt
+            touch deleted_files.txt
+          else
+            echo "mode=update" >> $GITHUB_OUTPUT
+            git diff --name-only --diff-filter=d HEAD~1 HEAD | grep -E "^content/.*\.mdx$" > upsert_files.txt || true
+            git diff --name-only --diff-filter=D HEAD~1 HEAD | grep -E "^content/.*\.mdx$" > deleted_files.txt || true
+          fi
+
+          UPSERT_COUNT=$(wc -l < upsert_files.txt | tr -d ' ')
+          DELETE_COUNT=$(wc -l < deleted_files.txt | tr -d ' ')
+          echo "upsert_count=$UPSERT_COUNT" >> $GITHUB_OUTPUT
+          echo "delete_count=$DELETE_COUNT" >> $GITHUB_OUTPUT
+          echo "total=$((UPSERT_COUNT + DELETE_COUNT))" >> $GITHUB_OUTPUT
+
+      - name: Display changes
+        run: |
+          echo "Mode: ${{ steps.detect.outputs.mode }}"
+          echo "Files to upsert: ${{ steps.detect.outputs.upsert_count }}"
+          echo "Files to delete: ${{ steps.detect.outputs.delete_count }}"
+          [ -s upsert_files.txt ] && echo "--- Upsert ---" && cat upsert_files.txt
+          [ -s deleted_files.txt ] && echo "--- Delete ---" && cat deleted_files.txt
+
+      - name: Build and send index payload
+        if: steps.detect.outputs.total != '0'
+        run: |
+          # Build JSON payload using Python — no shell frontmatter parsing
+          python3 -c "
+          import json, sys
+
+          files = []
+
+          # Upsert files: send raw content, AI service handles parsing
+          with open('upsert_files.txt') as f:
+              for line in f:
+                  path = line.strip()
+                  if not path:
+                      continue
+                  try:
+                      with open(path) as content_file:
+                          content = content_file.read()
+                      files.append({
+                          'file_path': path,
+                          'content': content,
+                          'action': 'upsert'
+                      })
+                  except FileNotFoundError:
+                      print(f'Warning: {path} not found, skipping')
+
+          # Deleted files
+          with open('deleted_files.txt') as f:
+              for line in f:
+                  path = line.strip()
+                  if not path:
+                      continue
+                  files.append({
+                      'file_path': path,
+                      'content': '',
+                      'action': 'delete'
+                  })
+
+          if not files:
+              print('No files to process')
+              sys.exit(0)
+
+          payload = {
+              'files': files,
+              'webhook_secret': '${{ secrets.WEBHOOK_SECRET }}'
+          }
+
+          with open('payload.json', 'w') as f:
+              json.dump(payload, f)
+
+          print(f'Payload: {len(files)} files ({sum(1 for f in files if f[\"action\"]==\"upsert\")} upsert, {sum(1 for f in files if f[\"action\"]==\"delete\")} delete)')
+          "
+
+          # Choose endpoint based on mode
+          MODE="${{ steps.detect.outputs.mode }}"
+          if [ "$MODE" = "rebuild" ]; then
+            ENDPOINT="/ai/index/rebuild"
+          else
+            ENDPOINT="/ai/index/update"
+          fi
+
+          echo "Sending to ${{ secrets.AI_SERVICE_URL }}${ENDPOINT}..."
+          RESPONSE=$(curl -s -X POST \
+            "${{ secrets.AI_SERVICE_URL }}${ENDPOINT}" \
+            -H "Content-Type: application/json" \
+            -d @payload.json \
+            -w "\n%{http_code}")
+
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          RESPONSE_BODY=$(echo "$RESPONSE" | head -n -1)
+
+          echo "HTTP Status: $HTTP_CODE"
+          echo "Response: $RESPONSE_BODY" | head -20
+
+          if [ "$HTTP_CODE" -eq 200 ]; then
+            SUCCESS=$(echo "$RESPONSE_BODY" | python3 -c "import json,sys; print(json.load(sys.stdin).get('success', False))" 2>/dev/null || echo "unknown")
+            echo "Success: $SUCCESS"
+            if [ "$SUCCESS" = "False" ]; then
+              echo "Index operation reported errors"
+              exit 1
+            fi
+          else
+            echo "Index operation failed (HTTP $HTTP_CODE)"
+            exit 1
+          fi
+
+      - name: No content changes
+        if: steps.detect.outputs.total == '0'
+        run: echo "No content files changed. Skipping ingestion."

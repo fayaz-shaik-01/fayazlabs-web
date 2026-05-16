@@ -1,0 +1,55 @@
+---
+title: "Journal Application"
+description: "A secure Spring Boot journal application with JWT authentication, MongoDB backend, and RESTful API design following microservices patterns."
+date: "2024-06-15"
+published: true
+featured: false
+image: ""
+tags: ["Backend", "Java", "Spring Boot", "MongoDB"]
+stack: ["Java", "Spring Boot", "JWT", "MongoDB", "Docker"]
+github: ""
+demo: ""
+---
+
+## Problem
+
+Needed a personal journaling system with secure authentication, clean API design, and containerized deployment — while practicing microservices architecture patterns.
+
+## Solution
+
+Built a full-stack journal application with:
+
+- JWT-based authentication and authorization
+- RESTful API design with proper HTTP semantics
+- MongoDB for flexible document storage
+- Docker containerization for deployment readiness
+- CI/CD pipeline for automated testing
+
+## Architecture
+
+```
+Client → API Gateway → Auth Service → Journal Service → MongoDB
+                                    → User Service → MongoDB
+```
+
+## Key Features
+
+- Secure JWT token management with refresh tokens
+- Role-based access control
+- RESTful CRUD operations for journal entries
+- Tag-based organization and search
+- Containerized with Docker Compose
+- CI/CD pipeline with automated testing
+
+## Stack
+
+- **Java 17** — Core application language
+- **Spring Boot 3** — Application framework
+- **Spring Security** — Authentication and authorization
+- **MongoDB** — Document database
+- **Docker** — Containerization
+- **GitHub Actions** — CI/CD
+
+## Learnings
+
+This project reinforced the importance of clean API design and proper security practices. JWT implementation taught me about token lifecycle management, and Docker containerization simplified the deployment story significantly.
