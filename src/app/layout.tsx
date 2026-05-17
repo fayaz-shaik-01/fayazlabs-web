@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Sora, Inter, JetBrains_Mono } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
 import { Providers } from "@/components/providers";
 import { Header } from "@/components/layout/header";
 import { Footer } from "@/components/layout/footer";
@@ -91,6 +92,7 @@ export default function RootLayout({
           <ChatPanel />
           <GlobalTestRunner />
         </Providers>
+        <Analytics />
       </body>
     </html>
   );
