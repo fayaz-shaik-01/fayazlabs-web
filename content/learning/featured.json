@@ -1,0 +1,54 @@
+{
+  "featuredLessons": [
+    "linear-algebra-intuition",
+    "tokenization",
+    "attention-mechanism",
+    "rag-fundamentals",
+    "the-agent-loop"
+  ],
+  "featuredPhases": [1, 7, 10, 11, 14],
+  "highlightedTopics": [
+    {
+      "title": "Production RAG",
+      "description": "Build retrieval-augmented generation systems that scale in production.",
+      "icon": "Search",
+      "lessonSlugs": ["rag-fundamentals", "advanced-rag", "chunking-strategies-rag"],
+      "category": "architecture"
+    },
+    {
+      "title": "Agent Memory",
+      "description": "Design memory systems for persistent, context-aware AI agents.",
+      "icon": "Brain",
+      "lessonSlugs": ["agent-memory", "the-agent-loop"],
+      "category": "architecture"
+    },
+    {
+      "title": "AI API Gateway",
+      "description": "Route, rate-limit, and observe LLM traffic at scale.",
+      "icon": "Shield",
+      "lessonSlugs": ["ai-gateway", "model-serving"],
+      "category": "architecture"
+    },
+    {
+      "title": "AI Observability",
+      "description": "Monitor, trace, and debug AI systems in production.",
+      "icon": "Activity",
+      "lessonSlugs": ["ai-observability", "model-serving"],
+      "category": "architecture"
+    },
+    {
+      "title": "Context Engineering",
+      "description": "Master the art of crafting optimal context for LLM applications.",
+      "icon": "Layers",
+      "lessonSlugs": ["context-engineering", "prompt-engineering"],
+      "category": "architecture"
+    },
+    {
+      "title": "LLM Serving",
+      "description": "Deploy and serve large language models efficiently.",
+      "icon": "Server",
+      "lessonSlugs": ["model-serving", "quantization", "kv-cache-flash-attention"],
+      "category": "architecture"
+    }
+  ]
+}

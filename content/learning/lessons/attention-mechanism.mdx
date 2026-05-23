@@ -1,0 +1,175 @@
+---
+title: "Attention Mechanism — The Breakthrough"
+description: "Understand the attention mechanism that revolutionized NLP and became the foundation of transformers and modern AI."
+date: "2026-05-23"
+published: true
+lessonSlug: "attention-mechanism"
+phaseId: 5
+difficulty: "intermediate"
+estimatedMinutes: 60
+prerequisites: ["word-embeddings"]
+tags: ["Attention", "NLP", "Transformers"]
+---
+
+## The Problem Attention Solves
+
+Before attention, sequence-to-sequence models compressed an entire input sequence into a single fixed-size vector — the "bottleneck." A 500-word paragraph and a 5-word sentence both got squeezed into the same vector size.
+
+This meant information loss was inevitable. The model couldn't effectively handle long sequences because early tokens would fade from the compressed representation.
+
+**Attention** lets the model look back at all input positions when generating each output token, weighting them by relevance.
+
+## The Intuition
+
+Think of attention as a soft lookup table. Given a query ("what am I looking for?"), compare it against a set of keys ("what information is available?") and return a weighted combination of values ("the actual information").
+
+This is exactly what happens when you search — your search query is compared against document titles (keys), and the most relevant documents (values) get the highest weight.
+
+## Attention Step by Step
+
+Given an input sequence of embeddings `X = [x₁, x₂, ..., xₙ]`:
+
+### Step 1: Compute Query, Key, Value
+
+```python
+import numpy as np
+
+def attention(X, W_q, W_k, W_v):
+    """
+    X: input embeddings (seq_len, d_model)
+    W_q, W_k, W_v: learned projection matrices
+    """
+    Q = X @ W_q  # Queries: what am I looking for?
+    K = X @ W_k  # Keys: what do I contain?
+    V = X @ W_v  # Values: what information do I carry?
+    return Q, K, V
+```
+
+### Step 2: Compute Attention Scores
+
+The dot product between queries and keys measures compatibility:
+
+```python
+def compute_scores(Q, K):
+    d_k = K.shape[-1]
+    # Scale by √d_k to prevent softmax saturation
+    scores = (Q @ K.T) / np.sqrt(d_k)
+    return scores
+```
+
+**Why scale by √d_k?** Without scaling, dot products grow with dimension size. Large values push softmax outputs toward 0 and 1, creating vanishing gradients. Scaling keeps the variance manageable.
+
+### Step 3: Apply Softmax
+
+Convert scores to probabilities — each query distributes its attention across all keys:
+
+```python
+def softmax(x, axis=-1):
+    exp_x = np.exp(x - np.max(x, axis=axis, keepdims=True))
+    return exp_x / np.sum(exp_x, axis=axis, keepdims=True)
+
+# attention_weights[i][j] = how much token i attends to token j
+attention_weights = softmax(scores)
+```
+
+### Step 4: Weighted Sum of Values
+
+```python
+# output[i] = weighted combination of all values,
+# weighted by how much token i attends to each position
+output = attention_weights @ V
+```
+
+### Complete Implementation
+
+```python
+import numpy as np
+
+def scaled_dot_product_attention(Q, K, V, mask=None):
+    """
+    Scaled dot-product attention.
+    
+    Q: (seq_len, d_k) — queries
+    K: (seq_len, d_k) — keys
+    V: (seq_len, d_v) — values
+    mask: optional (seq_len, seq_len) — mask for causal attention
+    """
+    d_k = Q.shape[-1]
+    scores = (Q @ K.T) / np.sqrt(d_k)
+    
+    if mask is not None:
+        scores = np.where(mask == 0, -1e9, scores)
+    
+    weights = softmax(scores)
+    output = weights @ V
+    
+    return output, weights
+
+# Example
+seq_len, d_model, d_k = 4, 8, 4
+X = np.random.randn(seq_len, d_model)
+
+W_q = np.random.randn(d_model, d_k)
+W_k = np.random.randn(d_model, d_k)
+W_v = np.random.randn(d_model, d_k)
+
+Q, K, V = X @ W_q, X @ W_k, X @ W_v
+output, weights = scaled_dot_product_attention(Q, K, V)
+
+print(f"Input shape: {X.shape}")
+print(f"Output shape: {output.shape}")
+print(f"Attention weights:\n{weights.round(3)}")
+```
+
+## Causal Masking
+
+For autoregressive models (GPT-style), each position should only attend to previous positions — not future ones. This is enforced with a causal mask:
+
+```python
+def causal_mask(seq_len):
+    """Lower triangular mask — prevents attending to future tokens."""
+    mask = np.tril(np.ones((seq_len, seq_len)))
+    return mask
+
+mask = causal_mask(4)
+# [[1, 0, 0, 0],
+#  [1, 1, 0, 0],
+#  [1, 1, 1, 0],
+#  [1, 1, 1, 1]]
+```
+
+## Cross-Attention
+
+In encoder-decoder models (translation, summarization), the decoder attends to the encoder's output. Queries come from the decoder, keys and values come from the encoder:
+
+```python
+# Encoder output
+encoder_output = encode(source_sentence)  # (src_len, d_model)
+
+# Decoder generates Q from its own state
+Q = decoder_state @ W_q  # (tgt_len, d_k)
+
+# K and V come from encoder
+K = encoder_output @ W_k  # (src_len, d_k)
+V = encoder_output @ W_v  # (src_len, d_v)
+
+# Each decoder position attends to all encoder positions
+output, weights = scaled_dot_product_attention(Q, K, V)
+```
+
+## Why Attention Changed Everything
+
+| Before Attention | After Attention |
+|-----------------|-----------------|
+| Fixed-size bottleneck | Variable-length context |
+| O(n) sequential processing | O(1) parallel across positions |
+| Information loss for long sequences | Direct access to all positions |
+| Implicit alignment | Explicit, interpretable alignment |
+
+Attention weights are **interpretable** — you can visualize which input tokens each output token focused on. This was a major advantage over opaque RNN hidden states.
+
+## From Attention to Transformers
+
+The attention mechanism described here is the core building block of the transformer architecture. The key insight of "Attention Is All You Need" (Vaswani et al., 2017) was that you don't need recurrence or convolution at all — attention alone is sufficient for state-of-the-art sequence modeling.
+
+The next lessons build on this foundation: **self-attention** (attending within a single sequence), **multi-head attention** (parallel attention with different learned projections), and the **full transformer architecture**.

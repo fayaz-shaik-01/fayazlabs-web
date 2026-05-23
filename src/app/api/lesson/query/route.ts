@@ -1,20 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { PLATFORM_URL } from "@/lib/api";
-
-const ENDPOINT_MAP: Record<string, string> = {
-  CHAT: "/api/chat/query",
-  NOTEBOOK_QA: "/api/notebook/ask",
-  ARCHITECTURE_EXPLAIN: "/api/architecture/explain",
-  PROJECT_QUERY: "/api/projects/query",
-  LESSON_MENTOR: "/ai/rag/query",
-};
+import type { LessonContext } from "@/lib/api";
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { query, queryType = "CHAT" } = body as {
+    const { query, lessonContext } = body as {
       query: string;
-      queryType?: string;
+      lessonContext: LessonContext;
     };
 
     if (!query?.trim()) {
@@ -24,13 +17,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const endpoint = ENDPOINT_MAP[queryType] ?? ENDPOINT_MAP.CHAT;
-    const upstream = `${PLATFORM_URL}${endpoint}`;
+    if (!lessonContext?.lesson_slug) {
+      return NextResponse.json(
+        { success: false, data: null, message: "lessonContext.lesson_slug is required", error: { code: "VALIDATION", message: "lessonContext.lesson_slug is required" }, timestamp: new Date().toISOString() },
+        { status: 400 },
+      );
+    }
+
+    const upstream = `${PLATFORM_URL}/api/lesson/query`;
 
     const res = await fetch(upstream, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ query, queryType, contentFilters: [], metadata: {} }),
+      body: JSON.stringify({
+        query,
+        mode: "LESSON_MENTOR",
+        lessonContext,
+        metadata: {},
+      }),
     });
 
     const data = await res.json();
@@ -41,7 +45,7 @@ export async function POST(request: NextRequest) {
         success: false,
         data: null,
         message: "Failed to reach AI service",
-        error: { code: "SERVICE_UNAVAILABLE", message: "AI service is currently unavailable. Please try again later." },
+        error: { code: "SERVICE_UNAVAILABLE", message: "AI Mentor is currently unavailable. Please try again later." },
         timestamp: new Date().toISOString(),
       },
       { status: 503 },
