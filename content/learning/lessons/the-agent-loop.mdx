@@ -1,0 +1,231 @@
+---
+title: "The Agent Loop"
+description: "Build the fundamental agent loop from scratch — the observe-think-act cycle that powers every AI agent."
+date: "2026-05-23"
+published: true
+lessonSlug: "the-agent-loop"
+phaseId: 14
+difficulty: "intermediate"
+estimatedMinutes: 50
+prerequisites: ["function-calling"]
+tags: ["Agents", "Agent Loop", "LLM"]
+---
+
+## What Is an AI Agent?
+
+An AI agent is a system that can perceive its environment, make decisions, and take actions to achieve goals. Unlike a simple chatbot that responds to a single prompt, an agent operates in a loop — continuously observing, reasoning, and acting until its task is complete.
+
+The core pattern is deceptively simple:
+
+```
+while not done:
+    observation = observe(environment)
+    thought = think(observation, memory)
+    action = act(thought)
+    result = execute(action)
+    memory.update(result)
+```
+
+## The Observe-Think-Act Cycle
+
+### Observe
+The agent gathers information from its environment. This could be:
+- The initial user request
+- Results from a previous tool call
+- Error messages or feedback
+- New context from the environment
+
+### Think
+The LLM reasons about what to do next given the current observations and memory. This is where the model decides whether to:
+- Call a tool
+- Ask for clarification
+- Provide a final answer
+- Try a different approach
+
+### Act
+The agent executes its decision — calling a function, searching the web, writing code, or returning a response.
+
+## Building the Agent Loop
+
+Here's a complete, minimal agent loop:
+
+```python
+from openai import OpenAI
+
+client = OpenAI()
+
+def agent_loop(
+    user_message: str,
+    tools: list[dict],
+    tool_functions: dict,
+    max_iterations: int = 10
+) -> str:
+    """
+    A minimal agent loop with tool calling.
+    """
+    messages = [
+        {
+            "role": "system",
+            "content": "You are a helpful assistant. Use the provided tools "
+                       "to accomplish the user's request. Think step by step."
+        },
+        {"role": "user", "content": user_message}
+    ]
+    
+    for i in range(max_iterations):
+        # THINK: Ask the LLM what to do
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=messages,
+            tools=tools,
+            tool_choice="auto"
+        )
+        
+        message = response.choices[0].message
+        messages.append(message)
+        
+        # CHECK: Is the agent done?
+        if not message.tool_calls:
+            # No tool calls — the agent is returning a final answer
+            return message.content
+        
+        # ACT: Execute each tool call
+        for tool_call in message.tool_calls:
+            function_name = tool_call.function.name
+            arguments = json.loads(tool_call.function.arguments)
+            
+            # Execute the tool
+            result = tool_functions[function_name](**arguments)
+            
+            # OBSERVE: Feed the result back
+            messages.append({
+                "role": "tool",
+                "tool_call_id": tool_call.id,
+                "content": str(result)
+            })
+    
+    return "Agent reached maximum iterations without completing."
+```
+
+## Defining Tools
+
+Tools are the agent's interface to the world. Each tool needs a clear description so the LLM knows when and how to use it:
+
+```python
+import json
+
+tools = [
+    {
+        "type": "function",
+        "function": {
+            "name": "search_web",
+            "description": "Search the web for current information.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "The search query"
+                    }
+                },
+                "required": ["query"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "calculate",
+            "description": "Evaluate a mathematical expression.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "expression": {
+                        "type": "string",
+                        "description": "The math expression to evaluate"
+                    }
+                },
+                "required": ["expression"]
+            }
+        }
+    }
+]
+
+# Tool implementations
+def search_web(query: str) -> str:
+    # In production, call a search API
+    return f"Search results for: {query}"
+
+def calculate(expression: str) -> str:
+    try:
+        result = eval(expression)  # Use a safe math parser in production
+        return str(result)
+    except Exception as e:
+        return f"Error: {e}"
+
+tool_functions = {
+    "search_web": search_web,
+    "calculate": calculate,
+}
+```
+
+## Running the Agent
+
+```python
+result = agent_loop(
+    user_message="What is the population of Tokyo divided by the area in km²?",
+    tools=tools,
+    tool_functions=tool_functions
+)
+print(result)
+
+# The agent will:
+# 1. Call search_web("Tokyo population") 
+# 2. Call search_web("Tokyo area in km²")
+# 3. Call calculate("13960000 / 2194")
+# 4. Return: "The population density of Tokyo is approximately 6,361 people per km²"
+```
+
+## Error Handling and Resilience
+
+Production agents need to handle failures gracefully:
+
+```python
+def safe_tool_execution(func, **kwargs):
+    """Execute a tool with error handling."""
+    try:
+        result = func(**kwargs)
+        return {"status": "success", "result": result}
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+```
+
+The key insight is that errors become observations — the agent can reason about what went wrong and try a different approach. This self-correcting behavior is what makes agents powerful.
+
+## The Agent Loop vs. Chain
+
+| Chain | Agent |
+|-------|-------|
+| Fixed sequence of steps | Dynamic number of steps |
+| Predetermined tools | Chooses tools based on context |
+| Fails if any step fails | Can recover from failures |
+| Predictable execution | Flexible execution |
+| Easier to debug | Harder to debug |
+
+Use a chain when you know the exact steps. Use an agent when the path to the answer is uncertain.
+
+## What Makes a Good Agent
+
+1. **Clear tool descriptions** — The LLM can only use tools it understands
+2. **Bounded iterations** — Always set a maximum to prevent infinite loops
+3. **Error recovery** — Feed errors back as observations, not exceptions
+4. **Memory management** — Long conversations need summarization or windowing
+5. **Observability** — Log every step for debugging and improvement
+
+## What's Next
+
+This lesson builds the simplest effective agent. The next lessons extend this foundation with:
+- **ReWOO and Plan-and-Execute**: Planning before acting
+- **Reflexion**: Self-critique and improvement
+- **Memory**: Persistent context across conversations
+- **Multi-agent**: Coordinating multiple specialized agents

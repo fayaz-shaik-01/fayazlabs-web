@@ -1,0 +1,60 @@
+{
+  "paths": [
+    {
+      "id": "ai-engineer",
+      "title": "Become an AI Engineer",
+      "description": "The complete path from math foundations through production AI systems. Master ML, deep learning, LLMs, and deployment.",
+      "icon": "GraduationCap",
+      "difficulty": "beginner",
+      "estimatedHours": 200,
+      "phaseIds": [0, 1, 2, 3, 7, 10, 11, 17],
+      "premium": false,
+      "tags": ["Career", "Full Stack AI"]
+    },
+    {
+      "id": "agent-engineer",
+      "title": "Become an Agent Engineer",
+      "description": "Specialize in building autonomous AI agents. From the agent loop to multi-agent swarms and production deployment.",
+      "icon": "Bot",
+      "difficulty": "advanced",
+      "estimatedHours": 120,
+      "phaseIds": [11, 13, 14, 15, 16],
+      "premium": false,
+      "tags": ["Agents", "Specialization"]
+    },
+    {
+      "id": "master-rag",
+      "title": "Master RAG",
+      "description": "Deep dive into Retrieval-Augmented Generation. From embeddings and vector stores to advanced chunking, reranking, and multimodal RAG.",
+      "icon": "Search",
+      "difficulty": "intermediate",
+      "estimatedHours": 60,
+      "phaseIds": [5, 11, 12],
+      "featuredLessonSlugs": ["embeddings-vectors", "rag-fundamentals", "advanced-rag", "chunking-strategies-rag", "multimodal-rag"],
+      "premium": false,
+      "tags": ["RAG", "Retrieval", "Specialization"]
+    },
+    {
+      "id": "production-ai",
+      "title": "Production AI Systems",
+      "description": "Ship AI that scales. Model serving, vector databases, observability, gateways, and CI/CD for ML systems.",
+      "icon": "Server",
+      "difficulty": "advanced",
+      "estimatedHours": 80,
+      "phaseIds": [10, 11, 17],
+      "premium": false,
+      "tags": ["Production", "Infrastructure", "MLOps"]
+    },
+    {
+      "id": "ai-interview-prep",
+      "title": "AI Interview Prep",
+      "description": "Prepare for AI engineering interviews. Key concepts, system design, and hands-on coding across the full AI stack.",
+      "icon": "Target",
+      "difficulty": "intermediate",
+      "estimatedHours": 40,
+      "phaseIds": [1, 2, 3, 7, 11, 14],
+      "premium": true,
+      "tags": ["Interview", "Career"]
+    }
+  ]
+}

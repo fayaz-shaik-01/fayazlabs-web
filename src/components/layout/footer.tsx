@@ -3,14 +3,20 @@ import { Mail } from "lucide-react";
 import { GithubIcon, LinkedinIcon } from "@/components/icons";
 import { siteConfig } from "@/lib/site-config";
 
+const learningLinks = [
+  { title: "All Phases", href: "/learning#roadmap" },
+  { title: "Learning Paths", href: "/learning#paths" },
+  { title: "Featured Lessons", href: "/learning" },
+];
+
 export function Footer() {
   return (
     <footer className="relative mt-20">
       <div className="h-px w-full bg-gradient-to-r from-transparent via-primary/20 to-transparent" />
       <div className="absolute inset-0 bg-gradient-to-t from-surface-1/60 via-transparent to-transparent pointer-events-none" />
       <div className="relative mx-auto max-w-6xl px-6 py-16">
-        <div className="grid grid-cols-1 gap-10 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="space-y-4">
+        <div className="grid grid-cols-1 gap-10 sm:grid-cols-2 lg:grid-cols-5">
+          <div className="space-y-4 lg:col-span-2">
             <Link
               href="/"
               className="group flex items-center gap-2.5 font-bold text-lg tracking-[-0.02em]"
@@ -21,14 +27,14 @@ export function Footer() {
               <span className="text-foreground/80">{siteConfig.name}</span>
             </Link>
             <p className="text-body-sm text-muted-foreground/70 max-w-xs">
-              AI engineering, automation, and technical experiments.
+              AI engineering learning platform. Master AI from first principles.
             </p>
           </div>
 
           <div className="space-y-4">
             <h4 className="text-[0.6875rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground/50">Pages</h4>
             <div className="flex flex-col gap-2.5">
-              {siteConfig.nav.slice(0, 4).map((item) => (
+              {siteConfig.nav.map((item) => (
                 <Link
                   key={item.href}
                   href={item.href}
@@ -41,9 +47,9 @@ export function Footer() {
           </div>
 
           <div className="space-y-4">
-            <h4 className="text-[0.6875rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground/50">More</h4>
+            <h4 className="text-[0.6875rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground/50">Learning</h4>
             <div className="flex flex-col gap-2.5">
-              {siteConfig.nav.slice(4).map((item) => (
+              {learningLinks.map((item) => (
                 <Link
                   key={item.href}
                   href={item.href}
