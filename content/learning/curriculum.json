@@ -1,0 +1,341 @@
+{
+  "version": "1.0.0",
+  "lastUpdated": "2026-05-23",
+  "phases": [
+    {
+      "id": 0,
+      "slug": "setup-and-tooling",
+      "title": "Setup & Tooling",
+      "description": "Get your environment ready for everything that follows.",
+      "difficulty": "beginner",
+      "estimatedHours": 15,
+      "icon": "Wrench",
+      "lessons": [
+        { "id": "dev-environment", "title": "Dev Environment", "slug": "dev-environment", "order": 1, "difficulty": "beginner", "estimatedMinutes": 30, "status": "planned", "premium": false, "prerequisites": [], "tags": ["Setup", "Python", "TypeScript"], "type": "build", "languages": ["Python", "TypeScript", "Rust"] },
+        { "id": "git-and-collaboration", "title": "Git & Collaboration", "slug": "git-and-collaboration", "order": 2, "difficulty": "beginner", "estimatedMinutes": 25, "status": "planned", "premium": false, "prerequisites": [], "tags": ["Git", "Collaboration"], "type": "learn", "languages": [] },
+        { "id": "gpu-setup-and-cloud", "title": "GPU Setup & Cloud", "slug": "gpu-setup-and-cloud", "order": 3, "difficulty": "beginner", "estimatedMinutes": 40, "status": "planned", "premium": false, "prerequisites": ["dev-environment"], "tags": ["GPU", "Cloud"], "type": "build", "languages": ["Python"] },
+        { "id": "apis-and-keys", "title": "APIs & Keys", "slug": "apis-and-keys", "order": 4, "difficulty": "beginner", "estimatedMinutes": 25, "status": "planned", "premium": false, "prerequisites": ["dev-environment"], "tags": ["APIs", "Authentication"], "type": "build", "languages": ["Python", "TypeScript"] },
+        { "id": "jupyter-notebooks", "title": "Jupyter Notebooks", "slug": "jupyter-notebooks", "order": 5, "difficulty": "beginner", "estimatedMinutes": 30, "status": "planned", "premium": false, "prerequisites": ["dev-environment"], "tags": ["Jupyter", "Notebooks"], "type": "build", "languages": ["Python"] },
+        { "id": "python-environments", "title": "Python Environments", "slug": "python-environments", "order": 6, "difficulty": "beginner", "estimatedMinutes": 25, "status": "planned", "premium": false, "prerequisites": ["dev-environment"], "tags": ["Python", "Environments"], "type": "build", "languages": ["Python"] },
+        { "id": "docker-for-ai", "title": "Docker for AI", "slug": "docker-for-ai", "order": 7, "difficulty": "beginner", "estimatedMinutes": 45, "status": "planned", "premium": false, "prerequisites": ["dev-environment"], "tags": ["Docker", "Containers"], "type": "build", "languages": ["Python"] },
+        { "id": "editor-setup", "title": "Editor Setup", "slug": "editor-setup", "order": 8, "difficulty": "beginner", "estimatedMinutes": 20, "status": "planned", "premium": false, "prerequisites": [], "tags": ["IDE", "Tooling"], "type": "build", "languages": [] },
+        { "id": "data-management", "title": "Data Management", "slug": "data-management", "order": 9, "difficulty": "beginner", "estimatedMinutes": 35, "status": "planned", "premium": false, "prerequisites": ["python-environments"], "tags": ["Data", "Storage"], "type": "build", "languages": ["Python"] },
+        { "id": "terminal-and-shell", "title": "Terminal & Shell", "slug": "terminal-and-shell", "order": 10, "difficulty": "beginner", "estimatedMinutes": 25, "status": "planned", "premium": false, "prerequisites": [], "tags": ["Terminal", "Shell"], "type": "learn", "languages": [] },
+        { "id": "linux-for-ai", "title": "Linux for AI", "slug": "linux-for-ai", "order": 11, "difficulty": "beginner", "estimatedMinutes": 30, "status": "planned", "premium": false, "prerequisites": ["terminal-and-shell"], "tags": ["Linux", "Systems"], "type": "learn", "languages": [] },
+        { "id": "debugging-and-profiling", "title": "Debugging & Profiling", "slug": "debugging-and-profiling", "order": 12, "difficulty": "beginner", "estimatedMinutes": 40, "status": "planned", "premium": false, "prerequisites": ["python-environments"], "tags": ["Debugging", "Profiling"], "type": "build", "languages": ["Python"] }
+      ]
+    },
+    {
+      "id": 1,
+      "slug": "math-foundations",
+      "title": "Math Foundations",
+      "description": "The intuition behind every AI algorithm, through code.",
+      "difficulty": "beginner",
+      "estimatedHours": 45,
+      "icon": "Sigma",
+      "lessons": [
+        { "id": "linear-algebra-intuition", "title": "Linear Algebra Intuition", "slug": "linear-algebra-intuition", "order": 1, "difficulty": "beginner", "estimatedMinutes": 45, "status": "completed", "premium": false, "prerequisites": [], "tags": ["Linear Algebra", "Math", "Vectors"], "type": "learn", "languages": ["Python"] },
+        { "id": "vectors-matrices-operations", "title": "Vectors, Matrices & Operations", "slug": "vectors-matrices-operations", "order": 2, "difficulty": "beginner", "estimatedMinutes": 50, "status": "planned", "premium": false, "prerequisites": ["linear-algebra-intuition"], "tags": ["Linear Algebra", "Math"], "type": "build", "languages": ["Python"] },
+        { "id": "matrix-transformations", "title": "Matrix Transformations & Eigenvalues", "slug": "matrix-transformations", "order": 3, "difficulty": "intermediate", "estimatedMinutes": 55, "status": "planned", "premium": false, "prerequisites": ["vectors-matrices-operations"], "tags": ["Linear Algebra", "Eigenvalues"], "type": "build", "languages": ["Python"] },
+        { "id": "calculus-for-ml", "title": "Calculus for ML: Derivatives & Gradients", "slug": "calculus-for-ml", "order": 4, "difficulty": "beginner", "estimatedMinutes": 45, "status": "planned", "premium": false, "prerequisites": [], "tags": ["Calculus", "Gradients"], "type": "learn", "languages": ["Python"] },
+        { "id": "chain-rule-and-autodiff", "title": "Chain Rule & Automatic Differentiation", "slug": "chain-rule-and-autodiff", "order": 5, "difficulty": "intermediate", "estimatedMinutes": 50, "status": "planned", "premium": false, "prerequisites": ["calculus-for-ml"], "tags": ["Calculus", "Autodiff"], "type": "build", "languages": ["Python"] },
+        { "id": "probability-and-distributions", "title": "Probability & Distributions", "slug": "probability-and-distributions", "order": 6, "difficulty": "beginner", "estimatedMinutes": 45, "status": "planned", "premium": false, "prerequisites": [], "tags": ["Probability", "Statistics"], "type": "learn", "languages": ["Python"] },
+        { "id": "bayes-theorem", "title": "Bayes' Theorem & Statistical Thinking", "slug": "bayes-theorem", "order": 7, "difficulty": "intermediate", "estimatedMinutes": 40, "status": "planned", "premium": false, "prerequisites": ["probability-and-distributions"], "tags": ["Bayesian", "Statistics"], "type": "build", "languages": ["Python"] },
+        { "id": "optimization", "title": "Optimization: Gradient Descent Family", "slug": "optimization", "order": 8, "difficulty": "intermediate", "estimatedMinutes": 55, "status": "planned", "premium": false, "prerequisites": ["calculus-for-ml"], "tags": ["Optimization", "Gradient Descent"], "type": "build", "languages": ["Python"] },
+        { "id": "information-theory", "title": "Information Theory: Entropy, KL Divergence", "slug": "information-theory", "order": 9, "difficulty": "intermediate", "estimatedMinutes": 45, "status": "planned", "premium": false, "prerequisites": ["probability-and-distributions"], "tags": ["Information Theory", "Entropy"], "type": "learn", "languages": ["Python"] },
+        { "id": "dimensionality-reduction", "title": "Dimensionality Reduction: PCA, t-SNE, UMAP", "slug": "dimensionality-reduction", "order": 10, "difficulty": "intermediate", "estimatedMinutes": 50, "status": "planned", "premium": false, "prerequisites": ["linear-algebra-intuition"], "tags": ["PCA", "Dimensionality Reduction"], "type": "build", "languages": ["Python"] }
+      ]
+    },
+    {
+      "id": 2,
+      "slug": "ml-fundamentals",
+      "title": "ML Fundamentals",
+      "description": "Classical ML — still the backbone of most production AI.",
+      "difficulty": "beginner",
+      "estimatedHours": 40,
+      "icon": "BrainCircuit",
+      "lessons": [
+        { "id": "what-is-machine-learning", "title": "What Is Machine Learning", "slug": "what-is-machine-learning", "order": 1, "difficulty": "beginner", "estimatedMinutes": 30, "status": "planned", "premium": false, "prerequisites": [], "tags": ["ML", "Fundamentals"], "type": "learn", "languages": ["Python"] },
+        { "id": "linear-regression", "title": "Linear Regression from Scratch", "slug": "linear-regression", "order": 2, "difficulty": "beginner", "estimatedMinutes": 50, "status": "planned", "premium": false, "prerequisites": ["calculus-for-ml", "linear-algebra-intuition"], "tags": ["Regression", "ML"], "type": "build", "languages": ["Python"] },
+        { "id": "logistic-regression", "title": "Logistic Regression & Classification", "slug": "logistic-regression", "order": 3, "difficulty": "beginner", "estimatedMinutes": 45, "status": "planned", "premium": false, "prerequisites": ["linear-regression"], "tags": ["Classification", "ML"], "type": "build", "languages": ["Python"] },
+        { "id": "decision-trees", "title": "Decision Trees & Random Forests", "slug": "decision-trees", "order": 4, "difficulty": "beginner", "estimatedMinutes": 50, "status": "planned", "premium": false, "prerequisites": ["what-is-machine-learning"], "tags": ["Trees", "Ensemble"], "type": "build", "languages": ["Python"] },
+        { "id": "model-evaluation", "title": "Model Evaluation: Metrics, Cross-Validation", "slug": "model-evaluation", "order": 5, "difficulty": "intermediate", "estimatedMinutes": 45, "status": "planned", "premium": false, "prerequisites": ["linear-regression"], "tags": ["Evaluation", "Metrics"], "type": "build", "languages": ["Python"] },
+        { "id": "feature-engineering", "title": "Feature Engineering & Selection", "slug": "feature-engineering", "order": 6, "difficulty": "intermediate", "estimatedMinutes": 50, "status": "planned", "premium": false, "prerequisites": ["what-is-machine-learning"], "tags": ["Features", "Data"], "type": "build", "languages": ["Python"] },
+        { "id": "ensemble-methods", "title": "Ensemble Methods: Boosting, Bagging, Stacking", "slug": "ensemble-methods", "order": 7, "difficulty": "intermediate", "estimatedMinutes": 55, "status": "planned", "premium": false, "prerequisites": ["decision-trees"], "tags": ["Ensemble", "Boosting"], "type": "build", "languages": ["Python"] }
+      ]
+    },
+    {
+      "id": 3,
+      "slug": "deep-learning-core",
+      "title": "Deep Learning Core",
+      "description": "Neural networks from first principles. No frameworks until you build one.",
+      "difficulty": "intermediate",
+      "estimatedHours": 35,
+      "icon": "Network",
+      "lessons": [
+        { "id": "the-perceptron", "title": "The Perceptron: Where It All Started", "slug": "the-perceptron", "order": 1, "difficulty": "beginner", "estimatedMinutes": 35, "status": "planned", "premium": false, "prerequisites": ["linear-algebra-intuition"], "tags": ["Neural Networks", "Perceptron"], "type": "build", "languages": ["Python"] },
+        { "id": "multi-layer-networks", "title": "Multi-Layer Networks & Forward Pass", "slug": "multi-layer-networks", "order": 2, "difficulty": "intermediate", "estimatedMinutes": 50, "status": "planned", "premium": false, "prerequisites": ["the-perceptron"], "tags": ["Neural Networks", "Forward Pass"], "type": "build", "languages": ["Python"] },
+        { "id": "backpropagation", "title": "Backpropagation from Scratch", "slug": "backpropagation", "order": 3, "difficulty": "intermediate", "estimatedMinutes": 60, "status": "planned", "premium": false, "prerequisites": ["multi-layer-networks", "chain-rule-and-autodiff"], "tags": ["Backpropagation", "Training"], "type": "build", "languages": ["Python"] },
+        { "id": "activation-functions", "title": "Activation Functions: ReLU, Sigmoid, GELU & Why", "slug": "activation-functions", "order": 4, "difficulty": "intermediate", "estimatedMinutes": 35, "status": "planned", "premium": false, "prerequisites": ["the-perceptron"], "tags": ["Activations", "Neural Networks"], "type": "build", "languages": ["Python"] },
+        { "id": "loss-functions", "title": "Loss Functions: MSE, Cross-Entropy, Contrastive", "slug": "loss-functions", "order": 5, "difficulty": "intermediate", "estimatedMinutes": 40, "status": "planned", "premium": false, "prerequisites": ["backpropagation"], "tags": ["Loss Functions", "Training"], "type": "build", "languages": ["Python"] },
+        { "id": "optimizers", "title": "Optimizers: SGD, Momentum, Adam, AdamW", "slug": "optimizers", "order": 6, "difficulty": "intermediate", "estimatedMinutes": 50, "status": "planned", "premium": false, "prerequisites": ["backpropagation", "optimization"], "tags": ["Optimizers", "Training"], "type": "build", "languages": ["Python"] },
+        { "id": "intro-to-pytorch", "title": "Introduction to PyTorch", "slug": "intro-to-pytorch", "order": 7, "difficulty": "intermediate", "estimatedMinutes": 55, "status": "planned", "premium": false, "prerequisites": ["backpropagation"], "tags": ["PyTorch", "Frameworks"], "type": "build", "languages": ["Python"] }
+      ]
+    },
+    {
+      "id": 4,
+      "slug": "computer-vision",
+      "title": "Computer Vision",
+      "description": "From pixels to understanding — image, video, 3D, and world models.",
+      "difficulty": "intermediate",
+      "estimatedHours": 50,
+      "icon": "Eye",
+      "lessons": [
+        { "id": "image-fundamentals", "title": "Image Fundamentals: Pixels, Channels, Color Spaces", "slug": "image-fundamentals", "order": 1, "difficulty": "beginner", "estimatedMinutes": 30, "status": "planned", "premium": false, "prerequisites": [], "tags": ["Vision", "Images"], "type": "learn", "languages": ["Python"] },
+        { "id": "convolutions-from-scratch", "title": "Convolutions from Scratch", "slug": "convolutions-from-scratch", "order": 2, "difficulty": "intermediate", "estimatedMinutes": 50, "status": "planned", "premium": false, "prerequisites": ["image-fundamentals", "backpropagation"], "tags": ["CNN", "Convolutions"], "type": "build", "languages": ["Python"] },
+        { "id": "cnns-lenet-to-resnet", "title": "CNNs: LeNet to ResNet", "slug": "cnns-lenet-to-resnet", "order": 3, "difficulty": "intermediate", "estimatedMinutes": 55, "status": "planned", "premium": false, "prerequisites": ["convolutions-from-scratch"], "tags": ["CNN", "Architecture"], "type": "build", "languages": ["Python"] },
+        { "id": "object-detection-yolo", "title": "Object Detection — YOLO from Scratch", "slug": "object-detection-yolo", "order": 4, "difficulty": "advanced", "estimatedMinutes": 70, "status": "planned", "premium": false, "prerequisites": ["cnns-lenet-to-resnet"], "tags": ["Detection", "YOLO"], "type": "build", "languages": ["Python"] },
+        { "id": "vision-transformers", "title": "Vision Transformers (ViT)", "slug": "vision-transformers", "order": 5, "difficulty": "advanced", "estimatedMinutes": 55, "status": "planned", "premium": false, "prerequisites": ["cnns-lenet-to-resnet"], "tags": ["ViT", "Transformers"], "type": "build", "languages": ["Python"] }
+      ]
+    },
+    {
+      "id": 5,
+      "slug": "nlp-foundations",
+      "title": "NLP Foundations to Advanced",
+      "description": "Language is the interface to intelligence.",
+      "difficulty": "intermediate",
+      "estimatedHours": 55,
+      "icon": "MessageSquareText",
+      "lessons": [
+        { "id": "text-processing", "title": "Text Processing: Tokenization, Stemming, Lemmatization", "slug": "text-processing", "order": 1, "difficulty": "beginner", "estimatedMinutes": 35, "status": "planned", "premium": false, "prerequisites": [], "tags": ["NLP", "Text Processing"], "type": "build", "languages": ["Python"] },
+        { "id": "word-embeddings", "title": "Word Embeddings: Word2Vec from Scratch", "slug": "word-embeddings", "order": 2, "difficulty": "intermediate", "estimatedMinutes": 55, "status": "planned", "premium": false, "prerequisites": ["text-processing"], "tags": ["Embeddings", "Word2Vec"], "type": "build", "languages": ["Python"] },
+        { "id": "attention-mechanism", "title": "Attention Mechanism — The Breakthrough", "slug": "attention-mechanism", "order": 3, "difficulty": "intermediate", "estimatedMinutes": 60, "status": "completed", "premium": false, "prerequisites": ["word-embeddings"], "tags": ["Attention", "NLP", "Transformers"], "type": "build", "languages": ["Python"] },
+        { "id": "sequence-to-sequence", "title": "Sequence-to-Sequence Models", "slug": "sequence-to-sequence", "order": 4, "difficulty": "intermediate", "estimatedMinutes": 50, "status": "planned", "premium": false, "prerequisites": ["word-embeddings"], "tags": ["Seq2Seq", "NLP"], "type": "build", "languages": ["Python"] },
+        { "id": "chunking-strategies-rag", "title": "Chunking Strategies for RAG", "slug": "chunking-strategies-rag", "order": 5, "difficulty": "intermediate", "estimatedMinutes": 45, "status": "planned", "premium": false, "prerequisites": ["word-embeddings"], "tags": ["RAG", "Chunking"], "type": "build", "languages": ["Python"] }
+      ]
+    },
+    {
+      "id": 6,
+      "slug": "speech-and-audio",
+      "title": "Speech & Audio",
+      "description": "Hear, understand, speak.",
+      "difficulty": "intermediate",
+      "estimatedHours": 35,
+      "icon": "AudioLines",
+      "lessons": [
+        { "id": "audio-fundamentals", "title": "Audio Fundamentals: Waveforms, Sampling, FFT", "slug": "audio-fundamentals", "order": 1, "difficulty": "beginner", "estimatedMinutes": 35, "status": "planned", "premium": false, "prerequisites": [], "tags": ["Audio", "Signal Processing"], "type": "learn", "languages": ["Python"] },
+        { "id": "speech-recognition-asr", "title": "Speech Recognition (ASR)", "slug": "speech-recognition-asr", "order": 2, "difficulty": "intermediate", "estimatedMinutes": 55, "status": "planned", "premium": false, "prerequisites": ["audio-fundamentals"], "tags": ["ASR", "Speech"], "type": "build", "languages": ["Python"] },
+        { "id": "whisper-architecture", "title": "Whisper: Architecture & Fine-Tuning", "slug": "whisper-architecture", "order": 3, "difficulty": "advanced", "estimatedMinutes": 60, "status": "planned", "premium": false, "prerequisites": ["speech-recognition-asr"], "tags": ["Whisper", "ASR"], "type": "build", "languages": ["Python"] },
+        { "id": "text-to-speech", "title": "Text-to-Speech (TTS)", "slug": "text-to-speech", "order": 4, "difficulty": "intermediate", "estimatedMinutes": 50, "status": "planned", "premium": false, "prerequisites": ["audio-fundamentals"], "tags": ["TTS", "Speech"], "type": "build", "languages": ["Python"] }
+      ]
+    },
+    {
+      "id": 7,
+      "slug": "transformers-deep-dive",
+      "title": "Transformers Deep Dive",
+      "description": "The architecture that changed everything.",
+      "difficulty": "advanced",
+      "estimatedHours": 40,
+      "icon": "Cpu",
+      "lessons": [
+        { "id": "why-transformers", "title": "Why Transformers: The Problems with RNNs", "slug": "why-transformers", "order": 1, "difficulty": "intermediate", "estimatedMinutes": 30, "status": "planned", "premium": false, "prerequisites": ["attention-mechanism"], "tags": ["Transformers", "RNN"], "type": "learn", "languages": ["Python"] },
+        { "id": "self-attention-from-scratch", "title": "Self-Attention from Scratch", "slug": "self-attention-from-scratch", "order": 2, "difficulty": "intermediate", "estimatedMinutes": 55, "status": "planned", "premium": false, "prerequisites": ["attention-mechanism"], "tags": ["Self-Attention", "Transformers"], "type": "build", "languages": ["Python"] },
+        { "id": "multi-head-attention", "title": "Multi-Head Attention", "slug": "multi-head-attention", "order": 3, "difficulty": "advanced", "estimatedMinutes": 50, "status": "planned", "premium": false, "prerequisites": ["self-attention-from-scratch"], "tags": ["Multi-Head Attention", "Transformers"], "type": "build", "languages": ["Python"] },
+        { "id": "positional-encoding", "title": "Positional Encoding: Sinusoidal, RoPE, ALiBi", "slug": "positional-encoding", "order": 4, "difficulty": "advanced", "estimatedMinutes": 45, "status": "planned", "premium": false, "prerequisites": ["self-attention-from-scratch"], "tags": ["Positional Encoding", "RoPE"], "type": "build", "languages": ["Python"] },
+        { "id": "full-transformer", "title": "The Full Transformer: Encoder + Decoder", "slug": "full-transformer", "order": 5, "difficulty": "advanced", "estimatedMinutes": 70, "status": "planned", "premium": false, "prerequisites": ["multi-head-attention", "positional-encoding"], "tags": ["Transformer", "Architecture"], "type": "build", "languages": ["Python"] },
+        { "id": "kv-cache-flash-attention", "title": "KV Cache, Flash Attention & Inference Optimization", "slug": "kv-cache-flash-attention", "order": 6, "difficulty": "advanced", "estimatedMinutes": 55, "status": "planned", "premium": true, "prerequisites": ["full-transformer"], "tags": ["KV Cache", "Flash Attention", "Optimization"], "type": "build", "languages": ["Python"] }
+      ]
+    },
+    {
+      "id": 8,
+      "slug": "generative-ai",
+      "title": "Generative AI",
+      "description": "Create images, video, audio, 3D, and more.",
+      "difficulty": "advanced",
+      "estimatedHours": 35,
+      "icon": "Sparkles",
+      "lessons": [
+        { "id": "generative-models-taxonomy", "title": "Generative Models: Taxonomy & History", "slug": "generative-models-taxonomy", "order": 1, "difficulty": "intermediate", "estimatedMinutes": 30, "status": "planned", "premium": false, "prerequisites": [], "tags": ["Generative AI", "History"], "type": "learn", "languages": ["Python"] },
+        { "id": "autoencoders-vae", "title": "Autoencoders & VAE", "slug": "autoencoders-vae", "order": 2, "difficulty": "intermediate", "estimatedMinutes": 50, "status": "planned", "premium": false, "prerequisites": ["backpropagation"], "tags": ["VAE", "Autoencoders"], "type": "build", "languages": ["Python"] },
+        { "id": "gans-generator-discriminator", "title": "GANs: Generator vs Discriminator", "slug": "gans-generator-discriminator", "order": 3, "difficulty": "advanced", "estimatedMinutes": 55, "status": "planned", "premium": false, "prerequisites": ["autoencoders-vae"], "tags": ["GANs", "Generative"], "type": "build", "languages": ["Python"] },
+        { "id": "diffusion-ddpm", "title": "Diffusion Models — DDPM from Scratch", "slug": "diffusion-ddpm", "order": 4, "difficulty": "advanced", "estimatedMinutes": 65, "status": "planned", "premium": false, "prerequisites": ["autoencoders-vae"], "tags": ["Diffusion", "DDPM"], "type": "build", "languages": ["Python"] },
+        { "id": "stable-diffusion", "title": "Latent Diffusion & Stable Diffusion", "slug": "stable-diffusion", "order": 5, "difficulty": "advanced", "estimatedMinutes": 60, "status": "planned", "premium": true, "prerequisites": ["diffusion-ddpm"], "tags": ["Stable Diffusion", "Latent Diffusion"], "type": "build", "languages": ["Python"] }
+      ]
+    },
+    {
+      "id": 9,
+      "slug": "reinforcement-learning",
+      "title": "Reinforcement Learning",
+      "description": "The foundation of RLHF and game-playing AI.",
+      "difficulty": "advanced",
+      "estimatedHours": 30,
+      "icon": "Gamepad2",
+      "lessons": [
+        { "id": "mdps-states-actions", "title": "MDPs, States, Actions & Rewards", "slug": "mdps-states-actions", "order": 1, "difficulty": "intermediate", "estimatedMinutes": 35, "status": "planned", "premium": false, "prerequisites": ["probability-and-distributions"], "tags": ["RL", "MDP"], "type": "learn", "languages": ["Python"] },
+        { "id": "q-learning-sarsa", "title": "Q-Learning, SARSA", "slug": "q-learning-sarsa", "order": 2, "difficulty": "intermediate", "estimatedMinutes": 50, "status": "planned", "premium": false, "prerequisites": ["mdps-states-actions"], "tags": ["Q-Learning", "RL"], "type": "build", "languages": ["Python"] },
+        { "id": "deep-q-networks", "title": "Deep Q-Networks (DQN)", "slug": "deep-q-networks", "order": 3, "difficulty": "advanced", "estimatedMinutes": 55, "status": "planned", "premium": false, "prerequisites": ["q-learning-sarsa", "backpropagation"], "tags": ["DQN", "Deep RL"], "type": "build", "languages": ["Python"] },
+        { "id": "ppo", "title": "PPO", "slug": "ppo", "order": 4, "difficulty": "advanced", "estimatedMinutes": 55, "status": "planned", "premium": false, "prerequisites": ["deep-q-networks"], "tags": ["PPO", "Policy Gradient"], "type": "build", "languages": ["Python"] },
+        { "id": "reward-modeling-rlhf", "title": "Reward Modeling & RLHF", "slug": "reward-modeling-rlhf", "order": 5, "difficulty": "advanced", "estimatedMinutes": 60, "status": "planned", "premium": true, "prerequisites": ["ppo"], "tags": ["RLHF", "Reward Modeling"], "type": "build", "languages": ["Python"] }
+      ]
+    },
+    {
+      "id": 10,
+      "slug": "llms-from-scratch",
+      "title": "LLMs from Scratch",
+      "description": "Build, train, and understand large language models.",
+      "difficulty": "advanced",
+      "estimatedHours": 50,
+      "icon": "BookText",
+      "lessons": [
+        { "id": "tokenization", "title": "Tokenizers: BPE, WordPiece, SentencePiece", "slug": "tokenization", "order": 1, "difficulty": "intermediate", "estimatedMinutes": 45, "status": "completed", "premium": false, "prerequisites": ["text-processing"], "tags": ["Tokenization", "BPE", "NLP"], "type": "build", "languages": ["Python"] },
+        { "id": "building-a-tokenizer", "title": "Building a Tokenizer from Scratch", "slug": "building-a-tokenizer", "order": 2, "difficulty": "intermediate", "estimatedMinutes": 55, "status": "planned", "premium": false, "prerequisites": ["tokenization"], "tags": ["Tokenizer", "Implementation"], "type": "build", "languages": ["Python"] },
+        { "id": "data-pipelines-pretraining", "title": "Data Pipelines for Pre-Training", "slug": "data-pipelines-pretraining", "order": 3, "difficulty": "advanced", "estimatedMinutes": 50, "status": "planned", "premium": false, "prerequisites": ["building-a-tokenizer"], "tags": ["Data Pipelines", "Pre-Training"], "type": "build", "languages": ["Python"] },
+        { "id": "pre-training-mini-gpt", "title": "Pre-Training a Mini GPT (124M)", "slug": "pre-training-mini-gpt", "order": 4, "difficulty": "advanced", "estimatedMinutes": 90, "status": "planned", "premium": false, "prerequisites": ["data-pipelines-pretraining", "full-transformer"], "tags": ["GPT", "Pre-Training"], "type": "build", "languages": ["Python"] },
+        { "id": "instruction-tuning-sft", "title": "Instruction Tuning — SFT", "slug": "instruction-tuning-sft", "order": 5, "difficulty": "advanced", "estimatedMinutes": 60, "status": "planned", "premium": true, "prerequisites": ["pre-training-mini-gpt"], "tags": ["SFT", "Fine-Tuning"], "type": "build", "languages": ["Python"] },
+        { "id": "quantization", "title": "Quantization: INT8, GPTQ, AWQ, GGUF", "slug": "quantization", "order": 6, "difficulty": "advanced", "estimatedMinutes": 55, "status": "planned", "premium": true, "prerequisites": ["pre-training-mini-gpt"], "tags": ["Quantization", "Optimization"], "type": "build", "languages": ["Python", "Rust"] }
+      ]
+    },
+    {
+      "id": 11,
+      "slug": "llm-engineering",
+      "title": "LLM Engineering",
+      "description": "Put LLMs to work in production.",
+      "difficulty": "advanced",
+      "estimatedHours": 40,
+      "icon": "Cog",
+      "lessons": [
+        { "id": "prompt-engineering", "title": "Prompt Engineering: Techniques & Patterns", "slug": "prompt-engineering", "order": 1, "difficulty": "intermediate", "estimatedMinutes": 40, "status": "planned", "premium": false, "prerequisites": [], "tags": ["Prompting", "LLM"], "type": "build", "languages": ["Python"] },
+        { "id": "few-shot-cot", "title": "Few-Shot, CoT, Tree-of-Thought", "slug": "few-shot-cot", "order": 2, "difficulty": "intermediate", "estimatedMinutes": 45, "status": "planned", "premium": false, "prerequisites": ["prompt-engineering"], "tags": ["CoT", "Prompting"], "type": "build", "languages": ["Python"] },
+        { "id": "embeddings-vectors", "title": "Embeddings & Vector Representations", "slug": "embeddings-vectors", "order": 3, "difficulty": "intermediate", "estimatedMinutes": 45, "status": "planned", "premium": false, "prerequisites": ["word-embeddings"], "tags": ["Embeddings", "Vectors"], "type": "build", "languages": ["Python"] },
+        { "id": "context-engineering", "title": "Context Engineering", "slug": "context-engineering", "order": 4, "difficulty": "advanced", "estimatedMinutes": 50, "status": "planned", "premium": false, "prerequisites": ["prompt-engineering"], "tags": ["Context", "LLM Engineering"], "type": "build", "languages": ["Python", "TypeScript"] },
+        { "id": "rag-fundamentals", "title": "RAG: Retrieval-Augmented Generation", "slug": "rag-fundamentals", "order": 5, "difficulty": "intermediate", "estimatedMinutes": 55, "status": "completed", "premium": false, "prerequisites": ["embeddings-vectors"], "tags": ["RAG", "Retrieval", "LLM"], "type": "build", "languages": ["Python", "TypeScript"] },
+        { "id": "advanced-rag", "title": "Advanced RAG: Chunking, Reranking", "slug": "advanced-rag", "order": 6, "difficulty": "advanced", "estimatedMinutes": 60, "status": "planned", "premium": true, "prerequisites": ["rag-fundamentals"], "tags": ["RAG", "Advanced"], "type": "build", "languages": ["Python"] },
+        { "id": "fine-tuning-lora", "title": "Fine-Tuning with LoRA & QLoRA", "slug": "fine-tuning-lora", "order": 7, "difficulty": "advanced", "estimatedMinutes": 55, "status": "planned", "premium": true, "prerequisites": ["rag-fundamentals"], "tags": ["LoRA", "Fine-Tuning"], "type": "build", "languages": ["Python"] }
+      ]
+    },
+    {
+      "id": 12,
+      "slug": "multimodal-ai",
+      "title": "Multimodal AI",
+      "description": "Vision + language + audio — unified intelligence.",
+      "difficulty": "advanced",
+      "estimatedHours": 30,
+      "icon": "Layers",
+      "lessons": [
+        { "id": "multimodal-foundations", "title": "Multimodal Foundations: CLIP, ALIGN", "slug": "multimodal-foundations", "order": 1, "difficulty": "advanced", "estimatedMinutes": 50, "status": "planned", "premium": false, "prerequisites": ["vision-transformers", "word-embeddings"], "tags": ["Multimodal", "CLIP"], "type": "build", "languages": ["Python"] },
+        { "id": "vision-language-models", "title": "Vision-Language Models", "slug": "vision-language-models", "order": 2, "difficulty": "advanced", "estimatedMinutes": 55, "status": "planned", "premium": false, "prerequisites": ["multimodal-foundations"], "tags": ["VLM", "Multimodal"], "type": "build", "languages": ["Python"] },
+        { "id": "multimodal-rag", "title": "Multimodal RAG", "slug": "multimodal-rag", "order": 3, "difficulty": "advanced", "estimatedMinutes": 50, "status": "planned", "premium": true, "prerequisites": ["rag-fundamentals", "multimodal-foundations"], "tags": ["Multimodal RAG", "Retrieval"], "type": "build", "languages": ["Python"] }
+      ]
+    },
+    {
+      "id": 13,
+      "slug": "tools-and-protocols",
+      "title": "Tools & Protocols",
+      "description": "The interfaces between AI and the real world.",
+      "difficulty": "intermediate",
+      "estimatedHours": 40,
+      "icon": "Plug",
+      "lessons": [
+        { "id": "the-tool-interface", "title": "The Tool Interface", "slug": "the-tool-interface", "order": 1, "difficulty": "intermediate", "estimatedMinutes": 30, "status": "planned", "premium": false, "prerequisites": [], "tags": ["Tools", "Function Calling"], "type": "learn", "languages": ["Python"] },
+        { "id": "function-calling", "title": "Function Calling Deep Dive", "slug": "function-calling", "order": 2, "difficulty": "intermediate", "estimatedMinutes": 45, "status": "planned", "premium": false, "prerequisites": ["the-tool-interface"], "tags": ["Function Calling", "LLM"], "type": "build", "languages": ["Python"] },
+        { "id": "mcp-fundamentals", "title": "MCP Fundamentals", "slug": "mcp-fundamentals", "order": 3, "difficulty": "intermediate", "estimatedMinutes": 40, "status": "planned", "premium": false, "prerequisites": ["function-calling"], "tags": ["MCP", "Protocols"], "type": "learn", "languages": ["Python"] },
+        { "id": "building-mcp-server", "title": "Building an MCP Server", "slug": "building-mcp-server", "order": 4, "difficulty": "intermediate", "estimatedMinutes": 55, "status": "planned", "premium": false, "prerequisites": ["mcp-fundamentals"], "tags": ["MCP", "Server"], "type": "build", "languages": ["Python"] },
+        { "id": "a2a-protocol", "title": "A2A Protocol", "slug": "a2a-protocol", "order": 5, "difficulty": "advanced", "estimatedMinutes": 50, "status": "planned", "premium": false, "prerequisites": ["mcp-fundamentals"], "tags": ["A2A", "Agent Protocol"], "type": "build", "languages": ["Python"] }
+      ]
+    },
+    {
+      "id": 14,
+      "slug": "agent-engineering",
+      "title": "Agent Engineering",
+      "description": "Build agents from first principles — loop, memory, planning, and production.",
+      "difficulty": "advanced",
+      "estimatedHours": 55,
+      "icon": "Bot",
+      "lessons": [
+        { "id": "the-agent-loop", "title": "The Agent Loop", "slug": "the-agent-loop", "order": 1, "difficulty": "intermediate", "estimatedMinutes": 50, "status": "completed", "premium": false, "prerequisites": ["function-calling"], "tags": ["Agents", "Agent Loop", "LLM"], "type": "build", "languages": ["Python"] },
+        { "id": "rewoo-plan-execute", "title": "ReWOO and Plan-and-Execute", "slug": "rewoo-plan-execute", "order": 2, "difficulty": "advanced", "estimatedMinutes": 55, "status": "planned", "premium": false, "prerequisites": ["the-agent-loop"], "tags": ["Planning", "Agents"], "type": "build", "languages": ["Python"] },
+        { "id": "reflexion-verbal-rl", "title": "Reflexion and Verbal Reinforcement Learning", "slug": "reflexion-verbal-rl", "order": 3, "difficulty": "advanced", "estimatedMinutes": 50, "status": "planned", "premium": false, "prerequisites": ["the-agent-loop"], "tags": ["Reflexion", "Self-Improvement"], "type": "build", "languages": ["Python"] },
+        { "id": "agent-memory", "title": "Memory — Virtual Context and MemGPT", "slug": "agent-memory", "order": 4, "difficulty": "advanced", "estimatedMinutes": 60, "status": "planned", "premium": false, "prerequisites": ["the-agent-loop"], "tags": ["Memory", "MemGPT", "Agents"], "type": "build", "languages": ["Python"] },
+        { "id": "anthropic-workflow-patterns", "title": "Anthropic's Workflow Patterns", "slug": "anthropic-workflow-patterns", "order": 5, "difficulty": "advanced", "estimatedMinutes": 45, "status": "planned", "premium": false, "prerequisites": ["the-agent-loop"], "tags": ["Patterns", "Workflows"], "type": "build", "languages": ["Python"] },
+        { "id": "langgraph-agents", "title": "LangGraph Agent Framework", "slug": "langgraph-agents", "order": 6, "difficulty": "advanced", "estimatedMinutes": 55, "status": "planned", "premium": true, "prerequisites": ["the-agent-loop"], "tags": ["LangGraph", "Frameworks"], "type": "build", "languages": ["Python"] }
+      ]
+    },
+    {
+      "id": 15,
+      "slug": "autonomous-systems",
+      "title": "Autonomous Systems",
+      "description": "Self-improving agents, safety boundaries, and responsible autonomy.",
+      "difficulty": "advanced",
+      "estimatedHours": 35,
+      "icon": "Orbit",
+      "lessons": [
+        { "id": "levels-of-autonomy", "title": "The Five Levels of Agent Autonomy", "slug": "levels-of-autonomy", "order": 1, "difficulty": "intermediate", "estimatedMinutes": 30, "status": "planned", "premium": false, "prerequisites": ["the-agent-loop"], "tags": ["Autonomy", "Agents"], "type": "learn", "languages": ["Python"] },
+        { "id": "autonomous-coding-agents", "title": "Autonomous Coding Agent Landscape", "slug": "autonomous-coding-agents", "order": 2, "difficulty": "advanced", "estimatedMinutes": 45, "status": "planned", "premium": false, "prerequisites": ["levels-of-autonomy"], "tags": ["Coding Agents", "SWE-bench"], "type": "learn", "languages": ["Python"] },
+        { "id": "durable-execution", "title": "Durable Execution for Long-Running Agents", "slug": "durable-execution", "order": 3, "difficulty": "advanced", "estimatedMinutes": 50, "status": "planned", "premium": true, "prerequisites": ["autonomous-coding-agents"], "tags": ["Durable Execution", "Production"], "type": "learn", "languages": ["Python"] },
+        { "id": "kill-switches-canaries", "title": "Kill Switches, Circuit Breakers, Canary Tokens", "slug": "kill-switches-canaries", "order": 4, "difficulty": "advanced", "estimatedMinutes": 40, "status": "planned", "premium": false, "prerequisites": ["levels-of-autonomy"], "tags": ["Safety", "Circuit Breakers"], "type": "learn", "languages": ["Python"] }
+      ]
+    },
+    {
+      "id": 16,
+      "slug": "multi-agent-swarms",
+      "title": "Multi-Agent & Swarms",
+      "description": "Coordination, emergence, and collective intelligence.",
+      "difficulty": "advanced",
+      "estimatedHours": 40,
+      "icon": "Users",
+      "lessons": [
+        { "id": "why-multi-agent", "title": "Why Multi-Agent", "slug": "why-multi-agent", "order": 1, "difficulty": "intermediate", "estimatedMinutes": 25, "status": "planned", "premium": false, "prerequisites": ["the-agent-loop"], "tags": ["Multi-Agent", "Architecture"], "type": "learn", "languages": ["TypeScript"] },
+        { "id": "supervisor-orchestrator", "title": "Supervisor / Orchestrator-Worker Pattern", "slug": "supervisor-orchestrator", "order": 2, "difficulty": "advanced", "estimatedMinutes": 55, "status": "planned", "premium": false, "prerequisites": ["why-multi-agent"], "tags": ["Supervisor", "Orchestrator"], "type": "build", "languages": ["Python"] },
+        { "id": "society-of-mind-debate", "title": "Society of Mind and Multi-Agent Debate", "slug": "society-of-mind-debate", "order": 3, "difficulty": "advanced", "estimatedMinutes": 50, "status": "planned", "premium": false, "prerequisites": ["supervisor-orchestrator"], "tags": ["Debate", "Multi-Agent"], "type": "build", "languages": ["Python"] },
+        { "id": "shared-memory-blackboard", "title": "Shared Memory and Blackboard Patterns", "slug": "shared-memory-blackboard", "order": 4, "difficulty": "advanced", "estimatedMinutes": 50, "status": "planned", "premium": true, "prerequisites": ["supervisor-orchestrator"], "tags": ["Shared Memory", "Blackboard"], "type": "build", "languages": ["Python"] }
+      ]
+    },
+    {
+      "id": 17,
+      "slug": "infrastructure-production",
+      "title": "Infrastructure & Production",
+      "description": "Ship AI systems that scale, observe, and self-heal.",
+      "difficulty": "advanced",
+      "estimatedHours": 45,
+      "icon": "Server",
+      "lessons": [
+        { "id": "model-serving", "title": "Model Serving: vLLM, TGI, Triton", "slug": "model-serving", "order": 1, "difficulty": "advanced", "estimatedMinutes": 55, "status": "planned", "premium": false, "prerequisites": [], "tags": ["Serving", "vLLM", "Infrastructure"], "type": "build", "languages": ["Python"] },
+        { "id": "vector-databases", "title": "Vector Databases: Postgres, Pinecone, Weaviate", "slug": "vector-databases", "order": 2, "difficulty": "intermediate", "estimatedMinutes": 45, "status": "planned", "premium": false, "prerequisites": ["embeddings-vectors"], "tags": ["Vector DB", "pgvector"], "type": "build", "languages": ["Python"] },
+        { "id": "ai-observability", "title": "AI Observability", "slug": "ai-observability", "order": 3, "difficulty": "advanced", "estimatedMinutes": 50, "status": "planned", "premium": false, "prerequisites": ["model-serving"], "tags": ["Observability", "Monitoring"], "type": "build", "languages": ["Python"] },
+        { "id": "ai-gateway", "title": "AI API Gateway", "slug": "ai-gateway", "order": 4, "difficulty": "advanced", "estimatedMinutes": 55, "status": "planned", "premium": true, "prerequisites": ["model-serving"], "tags": ["Gateway", "API", "Production"], "type": "build", "languages": ["Python", "TypeScript"] },
+        { "id": "ci-cd-for-ml", "title": "CI/CD for ML", "slug": "ci-cd-for-ml", "order": 5, "difficulty": "advanced", "estimatedMinutes": 50, "status": "planned", "premium": false, "prerequisites": [], "tags": ["CI/CD", "MLOps"], "type": "build", "languages": ["Python"] }
+      ]
+    },
+    {
+      "id": 18,
+      "slug": "ethics-safety-alignment",
+      "title": "Ethics, Safety & Alignment",
+      "description": "Build AI that is safe, fair, and aligned with human values.",
+      "difficulty": "intermediate",
+      "estimatedHours": 35,
+      "icon": "Shield",
+      "lessons": [
+        { "id": "rlhf-alignment", "title": "RLHF and Alignment Fundamentals", "slug": "rlhf-alignment", "order": 1, "difficulty": "intermediate", "estimatedMinutes": 40, "status": "planned", "premium": false, "prerequisites": [], "tags": ["RLHF", "Alignment"], "type": "learn", "languages": ["Python"] },
+        { "id": "constitutional-ai", "title": "Constitutional AI & RLAIF", "slug": "constitutional-ai", "order": 2, "difficulty": "advanced", "estimatedMinutes": 45, "status": "planned", "premium": false, "prerequisites": ["rlhf-alignment"], "tags": ["Constitutional AI", "Safety"], "type": "learn", "languages": ["Python"] },
+        { "id": "red-teaming", "title": "Red-Teaming: PAIR & Automated Attacks", "slug": "red-teaming", "order": 3, "difficulty": "advanced", "estimatedMinutes": 50, "status": "planned", "premium": false, "prerequisites": [], "tags": ["Red Teaming", "Security"], "type": "build", "languages": ["Python"] },
+        { "id": "bias-fairness", "title": "Bias & Representational Harm", "slug": "bias-fairness", "order": 4, "difficulty": "intermediate", "estimatedMinutes": 35, "status": "planned", "premium": false, "prerequisites": [], "tags": ["Bias", "Fairness"], "type": "build", "languages": ["Python"] },
+        { "id": "regulatory-frameworks", "title": "Regulatory Frameworks: EU, US, UK", "slug": "regulatory-frameworks", "order": 5, "difficulty": "beginner", "estimatedMinutes": 30, "status": "planned", "premium": false, "prerequisites": [], "tags": ["Regulation", "Policy"], "type": "learn", "languages": [] }
+      ]
+    },
+    {
+      "id": 19,
+      "slug": "capstone-projects",
+      "title": "Capstone Projects",
+      "description": "End-to-end shippable products. 20-40 hours each.",
+      "difficulty": "advanced",
+      "estimatedHours": 100,
+      "icon": "Rocket",
+      "lessons": [
+        { "id": "coding-agent-capstone", "title": "Terminal-Native Coding Agent", "slug": "coding-agent-capstone", "order": 1, "difficulty": "advanced", "estimatedMinutes": 1800, "status": "planned", "premium": true, "prerequisites": ["the-agent-loop", "function-calling", "autonomous-coding-agents"], "tags": ["Capstone", "Coding Agent"], "type": "build", "languages": ["TypeScript", "Python"] },
+        { "id": "rag-codebase-capstone", "title": "RAG over Codebase (Cross-Repo Semantic Search)", "slug": "rag-codebase-capstone", "order": 2, "difficulty": "advanced", "estimatedMinutes": 1200, "status": "planned", "premium": true, "prerequisites": ["rag-fundamentals", "advanced-rag"], "tags": ["Capstone", "RAG", "Code Search"], "type": "build", "languages": ["Python", "TypeScript"] },
+        { "id": "ai-tutor-capstone", "title": "Personalized AI Tutor", "slug": "ai-tutor-capstone", "order": 3, "difficulty": "advanced", "estimatedMinutes": 1500, "status": "planned", "premium": true, "prerequisites": ["rag-fundamentals", "the-agent-loop", "agent-memory"], "tags": ["Capstone", "AI Tutor", "Personalization"], "type": "build", "languages": ["Python", "TypeScript"] },
+        { "id": "multi-agent-platform-capstone", "title": "Multi-Agent Research Platform", "slug": "multi-agent-platform-capstone", "order": 4, "difficulty": "advanced", "estimatedMinutes": 1800, "status": "planned", "premium": true, "prerequisites": ["supervisor-orchestrator", "shared-memory-blackboard"], "tags": ["Capstone", "Multi-Agent", "Platform"], "type": "build", "languages": ["Python"] }
+      ]
+    }
+  ]
+}

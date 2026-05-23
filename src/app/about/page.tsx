@@ -83,7 +83,7 @@ export default function AboutPage() {
           Now, I&apos;m deepening my work in AI engineering — building browser agents,
           experimenting with agent orchestration, and exploring how LLMs can
           transform software development workflows. I write about what I learn and
-          share architecture notes from my engineering notebook.
+          share architecture notes on my learning platform.
         </p>
       </motion.div>
 

@@ -1,8 +1,9 @@
-import { posts, projects, notebooks } from "#site/content";
+import { posts, projects, notebooks, lessons } from "#site/content";
 
 export type Post = (typeof posts)[number];
 export type Project = (typeof projects)[number];
 export type Notebook = (typeof notebooks)[number];
+export type Lesson = (typeof lessons)[number];
 
 export function getPublishedPosts() {
   return posts
@@ -52,4 +53,16 @@ export function getPublishedNotebooks() {
   return notebooks
     .filter((notebook) => notebook.published)
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+}
+
+export function getPublishedLessons() {
+  return lessons
+    .filter((lesson) => lesson.published)
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+}
+
+export function getLessonBySlug(slug: string) {
+  return lessons.find(
+    (lesson) => lesson.lessonSlug === slug && lesson.published
+  );
 }

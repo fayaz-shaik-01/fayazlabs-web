@@ -66,6 +66,27 @@ const notebooks = defineCollection({
     .transform(computedFields),
 });
 
+const lessons = defineCollection({
+  name: "Lesson",
+  pattern: "learning/lessons/**/*.mdx",
+  schema: s
+    .object({
+      slug: s.path(),
+      title: s.string().max(200),
+      description: s.string().max(500),
+      date: s.isodate(),
+      published: s.boolean().default(true),
+      lessonSlug: s.string(),
+      phaseId: s.number(),
+      difficulty: s.enum(["beginner", "intermediate", "advanced"]),
+      estimatedMinutes: s.number().default(30),
+      prerequisites: s.array(s.string()).default([]),
+      tags: s.array(s.string()).default([]),
+      body: s.mdx(),
+    })
+    .transform(computedFields),
+});
+
 export default defineConfig({
   root: "content",
   output: {
@@ -75,7 +96,7 @@ export default defineConfig({
     name: "[name]-[hash:6].[ext]",
     clean: true,
   },
-  collections: { posts, projects, notebooks },
+  collections: { posts, projects, notebooks, lessons },
   mdx: {
     rehypePlugins: [
       rehypeSlug,

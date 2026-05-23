@@ -26,13 +26,23 @@ function CopyButton({ text }: { readonly text: string }) {
   );
 }
 
+function extractText(node: React.ReactNode): string {
+  if (node == null || typeof node === "boolean") return "";
+  if (typeof node === "string" || typeof node === "number") return String(node);
+  if (Array.isArray(node)) return node.map(extractText).join("");
+  if (typeof node === "object" && "props" in node) {
+    return extractText((node as React.ReactElement<{ children?: React.ReactNode }>).props.children);
+  }
+  return "";
+}
+
 function Pre({
   children,
   ...props
 }: React.HTMLAttributes<HTMLPreElement>) {
   const textContent =
     typeof children === "object" && children !== null && "props" in children
-      ? String((children as React.ReactElement<{ children?: string }>).props.children || "")
+      ? extractText((children as React.ReactElement<{ children?: React.ReactNode }>).props.children)
       : "";
 
   return (
