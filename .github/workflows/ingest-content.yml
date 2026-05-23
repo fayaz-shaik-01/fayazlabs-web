@@ -51,13 +51,13 @@ jobs:
           echo "Mode: ${{ steps.detect.outputs.mode }}"
           echo "Files to upsert: ${{ steps.detect.outputs.upsert_count }}"
           echo "Files to delete: ${{ steps.detect.outputs.delete_count }}"
-          [ -s upsert_files.txt ] && echo "--- Upsert ---" && cat upsert_files.txt
-          [ -s deleted_files.txt ] && echo "--- Delete ---" && cat deleted_files.txt
+          [ -s upsert_files.txt ] && echo "--- Upsert ---" && cat upsert_files.txt || true
+          [ -s deleted_files.txt ] && echo "--- Delete ---" && cat deleted_files.txt || true
 
       - name: Build and send index payload
         if: steps.detect.outputs.total != '0'
         run: |
-          # Build JSON payload using Python — no shell frontmatter parsing
+          # Build JSON payload using Python — matches AdminIngestRequest format
           python3 -c "
           import json, sys
 
@@ -73,7 +73,7 @@ jobs:
                       with open(path) as content_file:
                           content = content_file.read()
                       files.append({
-                          'file_path': path,
+                          'filePath': path,
                           'content': content,
                           'action': 'upsert'
                       })
@@ -87,7 +87,7 @@ jobs:
                   if not path:
                       continue
                   files.append({
-                      'file_path': path,
+                      'filePath': path,
                       'content': '',
                       'action': 'delete'
                   })
@@ -96,29 +96,26 @@ jobs:
               print('No files to process')
               sys.exit(0)
 
+          MODE='${{ steps.detect.outputs.mode }}'
+          clear_existing = 'true' if MODE == 'rebuild' else 'false'
+
           payload = {
               'files': files,
-              'webhook_secret': '${{ secrets.WEBHOOK_SECRET }}'
+              'clearExisting': clear_existing
           }
 
           with open('payload.json', 'w') as f:
               json.dump(payload, f)
 
           print(f'Payload: {len(files)} files ({sum(1 for f in files if f[\"action\"]==\"upsert\")} upsert, {sum(1 for f in files if f[\"action\"]==\"delete\")} delete)')
+          print(f'clearExisting: {clear_existing}')
           "
 
-          # Choose endpoint based on mode
-          MODE="${{ steps.detect.outputs.mode }}"
-          if [ "$MODE" = "rebuild" ]; then
-            ENDPOINT="/ai/index/rebuild"
-          else
-            ENDPOINT="/ai/index/update"
-          fi
-
-          echo "Sending to ${{ secrets.AI_SERVICE_URL }}${ENDPOINT}..."
+          echo "Sending to ${{ secrets.PLATFORM_URL }}/api/admin/ingest..."
           RESPONSE=$(curl -s -X POST \
-            "${{ secrets.AI_SERVICE_URL }}${ENDPOINT}" \
+            "${{ secrets.PLATFORM_URL }}/api/admin/ingest" \
             -H "Content-Type: application/json" \
+            -H "X-Admin-Ingest-Secret: ${{ secrets.ADMIN_INGEST_SECRET }}" \
             -d @payload.json \
             -w "\n%{http_code}")
 
