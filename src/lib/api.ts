@@ -1,4 +1,4 @@
-const PLATFORM_URL = process.env.NEXT_PUBLIC_PLATFORM_URL ?? "http://localhost:8080";
+const PLATFORM_URL = process.env.PLATFORM_URL ?? process.env.NEXT_PUBLIC_PLATFORM_URL ?? "http://localhost:8080";
 
 export interface ChatMessage {
   id: string;
@@ -39,7 +39,14 @@ export interface ChatQueryResponse {
   metadata: QueryMetadata;
 }
 
-export type QueryType = "CHAT" | "NOTEBOOK_QA" | "ARCHITECTURE_EXPLAIN" | "PROJECT_QUERY";
+export type QueryType = "CHAT" | "NOTEBOOK_QA" | "ARCHITECTURE_EXPLAIN" | "PROJECT_QUERY" | "LESSON_MENTOR";
+
+export interface LessonContext {
+  lesson_slug: string;
+  phase: number;
+  tags: string[];
+  has_authored_content: boolean;
+}
 
 export async function sendChatQuery(
   query: string,
@@ -54,6 +61,30 @@ export async function sendChatQuery(
   if (!res.ok) {
     const text = await res.text().catch(() => "Unknown error");
     throw new Error(`Chat request failed: ${text}`);
+  }
+
+  const json: ApiResponse<ChatQueryResponse> = await res.json();
+
+  if (!json.success || !json.data) {
+    throw new Error(json.error?.message ?? json.message ?? "Unknown error");
+  }
+
+  return json.data;
+}
+
+export async function sendLessonMentorQuery(
+  query: string,
+  lessonContext: LessonContext,
+): Promise<ChatQueryResponse> {
+  const res = await fetch("/api/lesson/query", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ query, lessonContext }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "Unknown error");
+    throw new Error(`Lesson mentor request failed: ${text}`);
   }
 
   const json: ApiResponse<ChatQueryResponse> = await res.json();
