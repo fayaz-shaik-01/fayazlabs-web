@@ -99,43 +99,62 @@ jobs:
           MODE='${{ steps.detect.outputs.mode }}'
           clear_existing = 'true' if MODE == 'rebuild' else 'false'
 
-          payload = {
-              'files': files,
-              'clearExisting': clear_existing
-          }
+          # Save files list for batching
+          with open('files.json', 'w') as f:
+              json.dump(files, f)
 
-          with open('payload.json', 'w') as f:
-              json.dump(payload, f)
-
-          print(f'Payload: {len(files)} files ({sum(1 for f in files if f[\"action\"]==\"upsert\")} upsert, {sum(1 for f in files if f[\"action\"]==\"delete\")} delete)')
+          print(f'Total files: {len(files)} ({sum(1 for f in files if f[\"action\"]==\"upsert\")} upsert, {sum(1 for f in files if f[\"action\"]==\"delete\")} delete)')
           print(f'clearExisting: {clear_existing}')
           "
 
-          echo "Sending to ${{ secrets.PLATFORM_URL }}/api/admin/ingest..."
-          RESPONSE=$(curl -s -X POST \
-            "${{ secrets.PLATFORM_URL }}/api/admin/ingest" \
-            -H "Content-Type: application/json" \
-            -H "X-Admin-Ingest-Secret: ${{ secrets.ADMIN_INGEST_SECRET }}" \
-            -d @payload.json \
-            -w "\n%{http_code}")
+          # Send files in batches to avoid 8KB payload limit
+          python3 -c "
+          import json, subprocess, sys
 
-          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
-          RESPONSE_BODY=$(echo "$RESPONSE" | head -n -1)
+          with open('files.json') as f:
+              files = json.load(f)
 
-          echo "HTTP Status: $HTTP_CODE"
-          echo "Response: $RESPONSE_BODY" | head -20
+          MODE='${{ steps.detect.outputs.mode }}'
+          clear_existing = 'true' if MODE == 'rebuild' else 'false'
 
-          if [ "$HTTP_CODE" -eq 200 ]; then
-            SUCCESS=$(echo "$RESPONSE_BODY" | python3 -c "import json,sys; print(json.load(sys.stdin).get('success', False))" 2>/dev/null || echo "unknown")
-            echo "Success: $SUCCESS"
-            if [ "$SUCCESS" = "False" ]; then
-              echo "Index operation reported errors"
-              exit 1
-            fi
-          else
-            echo "Index operation failed (HTTP $HTTP_CODE)"
-            exit 1
-          fi
+          # Send 2 files per batch (conservative for MDX content)
+          batch_size = 2
+          total_batches = (len(files) + batch_size - 1) // batch_size
+
+          for i in range(0, len(files), batch_size):
+              batch = files[i:i + batch_size]
+              batch_num = (i // batch_size) + 1
+
+              payload = {
+                  'files': batch,
+                  'clearExisting': clear_existing if i == 0 else 'false'  # Only clear on first batch
+              }
+
+              with open('payload.json', 'w') as f:
+                  json.dump(payload, f)
+
+              print(f'Sending batch {batch_num}/{total_batches} ({len(batch)} files)...')
+              result = subprocess.run([
+                  'curl', '-s', '-X', 'POST',
+                  '${{ secrets.PLATFORM_URL }}/api/admin/ingest',
+                  '-H', 'Content-Type: application/json',
+                  '-H', 'X-Admin-Ingest-Secret: ${{ secrets.ADMIN_INGEST_SECRET }}',
+                  '-d', '@payload.json',
+                  '-w', '\n%{http_code}'
+              ], capture_output=True, text=True)
+
+              output = result.stdout
+              http_code = output.split('\n')[-1]
+              response_body = '\n'.join(output.split('\n')[:-1])
+
+              print(f'Batch {batch_num} HTTP Status: {http_code}')
+
+              if http_code != '200':
+                  print(f'Batch {batch_num} failed: {response_body}')
+                  sys.exit(1)
+
+          print('All batches sent successfully')
+          "
 
       - name: No content changes
         if: steps.detect.outputs.total == '0'
