@@ -1,0 +1,193 @@
+{
+  "id": "track_ai_agents",
+  "slug": "ai-agents",
+  "title": "AI Agents",
+  "description": "Design and build autonomous AI agents — planning, tool use, memory, and multi-agent systems.",
+  "icon": "Bot",
+  "order": 3,
+  "difficulty": "advanced",
+  "premium": false,
+  "tags": ["Agents", "Planning", "Tools"],
+  "modules": [
+    {
+      "id": "module_agent_fundamentals",
+      "slug": "fundamentals",
+      "title": "Agent Fundamentals",
+      "description": "Core concepts and patterns for building AI agents.",
+      "icon": "Play",
+      "order": 1,
+      "premium": false,
+      "prerequisites": [],
+      "lessons": [
+        {
+          "id": "lesson_the_agent_loop",
+          "slug": "the-agent-loop",
+          "title": "The Agent Loop",
+          "order": 1,
+          "status": "published",
+          "difficulty": "intermediate",
+          "estimatedMinutes": 50,
+          "premium": false,
+          "lessonType": "build",
+          "hasContent": true
+        },
+        {
+          "id": "lesson_agentic_patterns",
+          "slug": "agentic-patterns",
+          "title": "Practical Agentic AI Patterns",
+          "order": 2,
+          "status": "published",
+          "difficulty": "intermediate",
+          "estimatedMinutes": 25,
+          "premium": false,
+          "lessonType": "reference",
+          "hasContent": true
+        },
+        {
+          "id": "lesson_react_pattern",
+          "slug": "react-pattern",
+          "title": "ReAct Pattern",
+          "order": 3,
+          "status": "planned",
+          "difficulty": "intermediate",
+          "estimatedMinutes": 40,
+          "premium": false,
+          "lessonType": "build",
+          "hasContent": false
+        }
+      ]
+    },
+    {
+      "id": "module_planning",
+      "slug": "planning",
+      "title": "Planning",
+      "description": "How agents decompose and execute complex tasks.",
+      "icon": "Route",
+      "order": 2,
+      "premium": false,
+      "prerequisites": ["fundamentals"],
+      "lessons": [
+        {
+          "id": "lesson_plan_and_execute",
+          "slug": "plan-and-execute",
+          "title": "Plan-and-Execute Agents",
+          "order": 1,
+          "status": "planned",
+          "difficulty": "advanced",
+          "estimatedMinutes": 50,
+          "premium": false,
+          "lessonType": "build",
+          "hasContent": false
+        }
+      ]
+    },
+    {
+      "id": "module_memory",
+      "slug": "memory",
+      "title": "Agent Memory",
+      "description": "Design memory systems for persistent, context-aware agents.",
+      "icon": "Database",
+      "order": 3,
+      "premium": false,
+      "prerequisites": ["fundamentals"],
+      "lessons": [
+        {
+          "id": "lesson_vector_memory",
+          "slug": "vector-memory",
+          "title": "Vector Memory Systems",
+          "order": 1,
+          "status": "planned",
+          "difficulty": "advanced",
+          "estimatedMinutes": 50,
+          "premium": false,
+          "lessonType": "build",
+          "hasContent": false
+        }
+      ]
+    },
+    {
+      "id": "module_tools",
+      "slug": "tools",
+      "title": "Tool Use",
+      "description": "Give agents the ability to interact with the real world.",
+      "icon": "Wrench",
+      "order": 4,
+      "premium": false,
+      "prerequisites": ["fundamentals"],
+      "lessons": [
+        {
+          "id": "lesson_function_calling",
+          "slug": "function-calling",
+          "title": "Function Calling",
+          "order": 1,
+          "status": "planned",
+          "difficulty": "intermediate",
+          "estimatedMinutes": 40,
+          "premium": false,
+          "lessonType": "build",
+          "hasContent": false
+        },
+        {
+          "id": "lesson_mcp",
+          "slug": "mcp",
+          "title": "Model Context Protocol",
+          "order": 2,
+          "status": "planned",
+          "difficulty": "advanced",
+          "estimatedMinutes": 45,
+          "premium": false,
+          "lessonType": "build",
+          "hasContent": false
+        }
+      ]
+    },
+    {
+      "id": "module_multi_agent",
+      "slug": "multi-agent",
+      "title": "Multi-Agent Systems",
+      "description": "Orchestrate multiple agents for complex workflows.",
+      "icon": "Users",
+      "order": 5,
+      "premium": false,
+      "prerequisites": ["fundamentals", "tools"],
+      "lessons": [
+        {
+          "id": "lesson_orchestration_patterns",
+          "slug": "orchestration-patterns",
+          "title": "Agent Orchestration Patterns",
+          "order": 1,
+          "status": "published",
+          "difficulty": "advanced",
+          "estimatedMinutes": 20,
+          "premium": false,
+          "lessonType": "reference",
+          "hasContent": true
+        },
+        {
+          "id": "lesson_supervisor_pattern",
+          "slug": "supervisor-pattern",
+          "title": "Supervisor Pattern",
+          "order": 2,
+          "status": "planned",
+          "difficulty": "advanced",
+          "estimatedMinutes": 45,
+          "premium": false,
+          "lessonType": "build",
+          "hasContent": false
+        },
+        {
+          "id": "lesson_swarm_architecture",
+          "slug": "swarm-architecture",
+          "title": "Swarm Architecture",
+          "order": 3,
+          "status": "planned",
+          "difficulty": "advanced",
+          "estimatedMinutes": 50,
+          "premium": true,
+          "lessonType": "build",
+          "hasContent": false
+        }
+      ]
+    }
+  ]
+}

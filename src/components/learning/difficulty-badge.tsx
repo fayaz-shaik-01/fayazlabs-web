@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import type { Difficulty } from "@/lib/learning";
+import type { Difficulty } from "@/lib/curriculum";
 
 const config: Record<Difficulty, { label: string; className: string }> = {
   beginner: {

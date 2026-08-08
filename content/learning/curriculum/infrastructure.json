@@ -1,0 +1,121 @@
+{
+  "id": "track_infrastructure",
+  "slug": "infrastructure",
+  "title": "Infrastructure",
+  "description": "Deploy, serve, observe, and scale AI systems in production.",
+  "icon": "Server",
+  "order": 6,
+  "difficulty": "advanced",
+  "premium": false,
+  "tags": ["Infrastructure", "Serving", "Observability"],
+  "modules": [
+    {
+      "id": "module_serving",
+      "slug": "serving",
+      "title": "Model Serving",
+      "description": "Production-grade model serving infrastructure.",
+      "icon": "Globe",
+      "order": 1,
+      "premium": false,
+      "prerequisites": [],
+      "lessons": [
+        {
+          "id": "lesson_vllm",
+          "slug": "vllm",
+          "title": "vLLM: High-Throughput LLM Serving",
+          "order": 1,
+          "status": "planned",
+          "difficulty": "advanced",
+          "estimatedMinutes": 50,
+          "premium": true,
+          "lessonType": "build",
+          "hasContent": false
+        },
+        {
+          "id": "lesson_triton",
+          "slug": "triton",
+          "title": "Triton Inference Server",
+          "order": 2,
+          "status": "planned",
+          "difficulty": "advanced",
+          "estimatedMinutes": 55,
+          "premium": true,
+          "lessonType": "build",
+          "hasContent": false
+        }
+      ]
+    },
+    {
+      "id": "module_observability",
+      "slug": "observability",
+      "title": "AI Observability",
+      "description": "Monitor, trace, and debug AI systems in production.",
+      "icon": "Activity",
+      "order": 2,
+      "premium": false,
+      "prerequisites": [],
+      "lessons": [
+        {
+          "id": "lesson_ai_observability",
+          "slug": "ai-observability",
+          "title": "AI Observability",
+          "order": 1,
+          "status": "planned",
+          "difficulty": "intermediate",
+          "estimatedMinutes": 40,
+          "premium": false,
+          "lessonType": "learn",
+          "hasContent": false
+        }
+      ]
+    },
+    {
+      "id": "module_databases",
+      "slug": "databases",
+      "title": "AI Databases",
+      "description": "Vector databases and storage systems for AI workloads.",
+      "icon": "Database",
+      "order": 3,
+      "premium": false,
+      "prerequisites": [],
+      "lessons": [
+        {
+          "id": "lesson_vector_databases",
+          "slug": "vector-databases",
+          "title": "Vector Databases",
+          "order": 1,
+          "status": "planned",
+          "difficulty": "intermediate",
+          "estimatedMinutes": 45,
+          "premium": false,
+          "lessonType": "build",
+          "hasContent": false
+        }
+      ]
+    },
+    {
+      "id": "module_labs",
+      "slug": "labs",
+      "title": "Infrastructure Labs",
+      "description": "Hands-on labs building production AI infrastructure.",
+      "icon": "FlaskConical",
+      "order": 4,
+      "premium": false,
+      "prerequisites": [],
+      "lessons": [
+        {
+          "id": "lesson_ai_test_automation",
+          "slug": "ai-test-automation",
+          "title": "Building AI-Powered Test Automation",
+          "order": 1,
+          "status": "published",
+          "difficulty": "advanced",
+          "estimatedMinutes": 35,
+          "premium": false,
+          "lessonType": "lab",
+          "hasContent": true
+        }
+      ]
+    }
+  ]
+}

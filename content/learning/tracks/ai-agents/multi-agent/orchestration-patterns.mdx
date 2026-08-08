@@ -1,0 +1,69 @@
+---
+title: "Agent Orchestration Patterns"
+description: "Architecture notes on multi-agent orchestration patterns — supervisor, hierarchy, and pipeline approaches for complex AI workflows."
+summary: "Compares supervisor, hierarchical, and pipeline multi-agent orchestration patterns with tradeoffs and practical hybrid recommendations."
+date: "2025-03-01"
+published: true
+track: "ai-agents"
+module: "multi-agent"
+lesson: "orchestration-patterns"
+difficulty: "advanced"
+estimatedMinutes: 20
+prerequisites: ["fundamentals"]
+tags: ["Architecture", "Agents", "LLM", "Multi-Agent"]
+learningObjectives:
+  - "Compare supervisor, hierarchical, and pipeline orchestration patterns"
+  - "Evaluate tradeoffs between orchestration approaches"
+  - "Design hybrid orchestration for production systems"
+concepts:
+  - "supervisor-pattern"
+  - "hierarchical-orchestration"
+  - "pipeline-pattern"
+  - "multi-agent-systems"
+relatedLessons:
+  - "ai-agents/fundamentals/the-agent-loop"
+  - "ai-agents/fundamentals/agentic-patterns"
+  - "ai-agents/multi-agent/supervisor-pattern"
+lessonType: "reference"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/ai-agents/multi-agent/orchestration-patterns"
+references: []
+recommendedBackground:
+  - "agent-loop"
+  - "agentic-patterns"
+mentorPriority: "medium"
+---
+
+## Notes
+
+These are working notes on different approaches to orchestrating multiple AI agents in a system. Each pattern has trade-offs in terms of complexity, latency, and reliability.
+
+### Supervisor Pattern
+
+A central supervisor agent coordinates specialist agents. The supervisor decides which agent to invoke based on the current task state.
+
+**Pros:** Clear control flow, easy to debug
+
+**Cons:** Single point of failure, supervisor becomes bottleneck
+
+### Hierarchical Pattern
+
+Agents are organized in a tree structure where parent agents can delegate to child agents. Each level handles increasing specificity.
+
+**Pros:** Scalable, modular
+
+**Cons:** Complex routing logic, potential for deep call stacks
+
+### Pipeline Pattern
+
+Agents are arranged in a sequential pipeline where each agent transforms the output for the next stage.
+
+**Pros:** Simple, predictable flow
+
+**Cons:** Rigid, no conditional branching
+
+## Key Insight
+
+In practice, I've found that a **hybrid approach** works best — use a supervisor for high-level routing and pipelines for well-defined sub-workflows. This balances flexibility with predictability.

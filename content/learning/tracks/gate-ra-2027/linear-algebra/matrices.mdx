@@ -1,0 +1,2005 @@
+---
+title: "Matrices — Complete Knowledge File"
+description: "Master matrices from absolute scratch to GATE-exam confidence. Covers types, operations, properties, transpose, symmetric matrices, and exam strategies."
+summary: "A comprehensive guide to matrices for GATE RA 2027 — from basic definitions to advanced properties, with worked examples and exam tips."
+date: "2026-07-26"
+published: true
+track: "gate-ra-2027"
+module: "linear-algebra"
+lesson: "matrices"
+difficulty: "beginner"
+estimatedMinutes: 90
+prerequisites: []
+tags: ["GATE", "Mathematics", "Linear Algebra", "Matrices"]
+learningObjectives:
+  - "Understand what a matrix is and why it was developed"
+  - "Identify all types of matrices (square, diagonal, symmetric, etc.)"
+  - "Perform matrix addition, subtraction, scalar multiplication, and matrix multiplication"
+  - "Compute the transpose and understand its properties"
+  - "Apply matrix concepts to solve GATE-level problems"
+concepts:
+  - "matrix-definition"
+  - "matrix-types"
+  - "matrix-operations"
+  - "transpose"
+  - "symmetric-matrices"
+relatedLessons:
+  - "gate-ra-2027/linear-algebra/determinants"
+  - "gate-ra-2027/linear-algebra/adjoint-and-inverse"
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/gate-ra-2027/linear-algebra/matrices"
+references: []
+visualizations:
+  - id: transform-2d
+    config:
+      matrix: [[0, -1], [1, 0]]
+      showGrid: true
+      showEigenvectors: false
+  - id: matrix-display
+    config:
+      matrix: [[2, 1], [3, 2], [1, 2]]
+      label: R
+  - id: graph-2d
+    config:
+      functions:
+        - expr: sin(x)
+          label: sin(x)
+          color: "#3b82f6"
+      xRange: [-6.28, 6.28]
+      title: Example Function Plot
+knowledgeObjects:
+  - id: ko_matrix_definition
+    type: definition
+    title: "Matrix"
+    plainEnglish: "A rectangular array of numbers arranged in rows and columns"
+    prerequisites: []
+    usedIn: [ko_matrix_operations, ko_transpose, ko_symmetric_matrices]
+    difficulty: beginner
+    tags: ["matrix", "definition"]
+    examRelevance:
+      gate: high
+  - id: ko_matrix_order
+    type: concept
+    title: "Order of a Matrix"
+    plainEnglish: "The dimensions m×n representing rows × columns"
+    prerequisites: [ko_matrix_definition]
+    usedIn: [ko_matrix_operations]
+    difficulty: beginner
+    tags: ["matrix", "order", "dimension"]
+    examRelevance:
+      gate: medium
+  - id: ko_matrix_equality
+    type: definition
+    title: "Equality of Matrices"
+    plainEnglish: "Two matrices are equal iff they have the same order AND every corresponding element is equal"
+    prerequisites: [ko_matrix_definition, ko_matrix_order]
+    usedIn: []
+    difficulty: beginner
+    tags: ["matrix", "equality"]
+    examRelevance:
+      gate: medium
+  - id: ko_matrix_types
+    type: concept
+    title: "Types of Matrices"
+    plainEnglish: "Classification of matrices by shape (row, column, square) and structure (diagonal, symmetric, orthogonal, etc.)"
+    prerequisites: [ko_matrix_definition]
+    usedIn: [ko_symmetric_matrices, ko_orthogonal_matrix]
+    difficulty: beginner
+    tags: ["matrix", "types", "classification"]
+    examRelevance:
+      gate: high
+  - id: ko_matrix_operations
+    type: concept
+    title: "Matrix Operations"
+    plainEnglish: "Addition, subtraction, scalar multiplication, and matrix multiplication of matrices"
+    prerequisites: [ko_matrix_definition, ko_matrix_order]
+    usedIn: [ko_transpose]
+    difficulty: beginner
+    tags: ["matrix", "operations", "multiplication"]
+    examRelevance:
+      gate: high
+  - id: ko_matrix_multiplication_rule
+    type: formula
+    title: "Matrix Multiplication"
+    latex: "(AB)_{ij} = \\sum_{k=1}^{n} a_{ik} b_{kj}"
+    plainEnglish: "Element (i,j) of AB is the dot product of row i of A and column j of B"
+    prerequisites: [ko_matrix_definition, ko_matrix_order]
+    usedIn: [ko_transpose]
+    difficulty: beginner
+    tags: ["matrix", "multiplication", "formula"]
+    examRelevance:
+      gate: high
+  - id: ko_transpose
+    type: definition
+    title: "Transpose of a Matrix"
+    plainEnglish: "The matrix obtained by interchanging rows and columns"
+    latex: "(A^T)_{ij} = a_{ji}"
+    prerequisites: [ko_matrix_definition]
+    usedIn: [ko_symmetric_matrices, ko_orthogonal_matrix]
+    difficulty: beginner
+    tags: ["transpose", "matrix"]
+    examRelevance:
+      gate: high
+  - id: ko_symmetric_matrices
+    type: concept
+    title: "Symmetric and Skew-Symmetric Matrices"
+    plainEnglish: "Symmetric: A^T = A. Skew-symmetric: A^T = -A with zero diagonal."
+    prerequisites: [ko_transpose, ko_matrix_types]
+    usedIn: []
+    difficulty: intermediate
+    tags: ["symmetric", "skew-symmetric", "matrix"]
+    examRelevance:
+      gate: high
+  - id: ko_orthogonal_matrix
+    type: definition
+    title: "Orthogonal Matrix"
+    plainEnglish: "A square matrix Q where Q^T Q = I, meaning the inverse equals the transpose"
+    latex: "Q^T Q = Q Q^T = I"
+    prerequisites: [ko_transpose, ko_matrix_types]
+    usedIn: []
+    difficulty: intermediate
+    tags: ["orthogonal", "rotation", "matrix"]
+    examRelevance:
+      gate: high
+  - id: ko_symmetric_decomposition
+    type: formula
+    title: "Symmetric + Skew-Symmetric Decomposition"
+    latex: "A = \\frac{A + A^T}{2} + \\frac{A - A^T}{2}"
+    plainEnglish: "Any square matrix can be uniquely written as the sum of a symmetric and a skew-symmetric matrix"
+    prerequisites: [ko_symmetric_matrices, ko_transpose]
+    usedIn: []
+    difficulty: intermediate
+    tags: ["decomposition", "symmetric", "matrix"]
+    examRelevance:
+      gate: high
+---
+
+# Matrices — Complete Knowledge File
+## GATE RA 2027 | Engineering Mathematics | Linear Algebra | Topic 01
+
+> **Target Audience:** First-year B.Tech graduate with no prior exposure to matrix theory beyond basic high-school level.
+> **Goal:** Master matrices from absolute scratch to GATE-exam confidence.
+
+---
+
+# 1. Overview
+
+## 1.1 What is a Matrix?
+
+At the simplest level, a **matrix** is a **rectangular table of numbers** arranged in horizontal **rows** and vertical **columns**, enclosed in square brackets.
+
+Here is a matrix:
+
+$$
+A = \begin{bmatrix} 1 & 2 & 3 \\ 4 & 5 & 6 \end{bmatrix}
+$$
+
+This matrix has **2 rows** and **3 columns**. We say its **order** (or **size** or **dimension**) is $2 \times 3$ (read "2 by 3").
+
+The numbers inside are called **elements** or **entries**. Each element has an address given by its row number and column number. We write $a_{ij}$ to mean "the element in row $i$ and column $j$."
+
+For the matrix above:
+- $a_{11} = 1$ (row 1, column 1)
+- $a_{12} = 2$ (row 1, column 2)
+- $a_{13} = 3$ (row 1, column 3)
+- $a_{21} = 4$ (row 2, column 1)
+- $a_{22} = 5$ (row 2, column 2)
+- $a_{23} = 6$ (row 2, column 3)
+
+> **Think of it like a spreadsheet.** Row number = row in Excel. Column number = column in Excel. Cell (2,3) = row 2, column 3.
+
+The general notation for an $m \times n$ matrix (m rows, n columns):
+
+$$
+A = \begin{bmatrix} a_{11} & a_{12} & \cdots & a_{1n} \\ a_{21} & a_{22} & \cdots & a_{2n} \\ \vdots & \vdots & \ddots & \vdots \\ a_{m1} & a_{m2} & \cdots & a_{mn} \end{bmatrix}
+$$
+
+We write this compactly as $A = [a_{ij}]_{m \times n}$ or simply $A = [a_{ij}]$ when the size is clear.
+
+## 1.2 Why Were Matrices Developed?
+
+Imagine you need to solve this system of equations:
+
+$$
+2x + 3y = 8
+$$
+$$
+x - y = 1
+$$
+
+You probably learned to solve this by substitution or elimination in school. Now imagine you have **100 equations with 100 unknowns** — say in a circuit with 100 nodes, or a robot with many joints. Writing out every equation and solving by hand becomes impossible.
+
+Matrices were invented to handle this. You can write the above system as:
+
+$$
+\begin{bmatrix} 2 & 3 \\ 1 & -1 \end{bmatrix} \begin{bmatrix} x \\ y \end{bmatrix} = \begin{bmatrix} 8 \\ 1 \end{bmatrix}
+$$
+
+Or compactly: $A\mathbf{x} = \mathbf{b}$
+
+Now the entire system is one equation. You can solve it using matrix operations — and computers can do this for millions of equations in seconds.
+
+**Historical note:** The idea originated in ancient China (~200 BC, "The Nine Chapters on the Mathematical Art"), where mathematicians arranged numbers in rectangular arrays to solve simultaneous equations. Arthur Cayley formalized matrix algebra in 1858 in England.
+
+## 1.3 Why Are Matrices Important in Engineering?
+
+Matrices are not just a mathematical curiosity. They are the **fundamental language** of modern engineering:
+
+**In Robotics (directly relevant to GATE RA):**
+- When a robot arm moves, each joint rotation is described by a **rotation matrix** (a $3 \times 3$ matrix)
+- The position and orientation of the robot's hand (end-effector) in 3D space is described by a **$4 \times 4$ homogeneous transformation matrix**
+- To move a 6-joint robot arm, you multiply six $4 \times 4$ matrices together — this is called **forward kinematics**
+- The relationship between joint speeds and end-effector speed is given by the **Jacobian matrix**
+
+**In Control Systems (Part B1):**
+- Every physical system (motor, circuit, vehicle) is modeled as: $\dot{\mathbf{x}} = A\mathbf{x} + B\mathbf{u}$
+- Here $A$ is a matrix that captures the system's dynamics. Its properties (eigenvalues, rank) tell you whether the system is stable, controllable, or observable.
+
+**In Circuit Analysis:**
+- Nodal analysis writes all circuit equations as $Y\mathbf{V} = \mathbf{I}$ where $Y$ is the admittance matrix
+- Mesh analysis does the same with impedance matrices
+
+**In Signal Processing:**
+- The Discrete Fourier Transform (DFT) is a matrix multiplication: $\mathbf{X} = W\mathbf{x}$
+- Filtering, correlation, and spectral analysis all use matrix operations
+
+**In Machine Learning and AI:**
+- Neural networks are sequences of matrix multiplications followed by nonlinear functions
+- All data is stored and processed as matrices
+
+**Bottom line:** If you can't work with matrices fluently, you cannot do robotics, control systems, signal processing, or any modern engineering. This is the most important single skill in engineering mathematics.
+
+## 1.4 Where Exactly Are Matrices Used? (Application Table)
+
+| Domain | Specific Application | Matrix Type |
+|--------|---------------------|-------------|
+| Robotics | Joint rotations | $3 \times 3$ rotation matrix |
+| Robotics | Position + orientation | $4 \times 4$ homogeneous transformation |
+| Robotics | Velocity mapping | Jacobian matrix |
+| Control Systems | System dynamics | State matrix $A$ |
+| Control Systems | Input coupling | Input matrix $B$ |
+| Control Systems | Output measurement | Output matrix $C$ |
+| Electrical Circuits | Node voltage equations | Admittance matrix $Y$ |
+| Electrical Circuits | Mesh current equations | Impedance matrix $Z$ |
+| Signal Processing | Frequency analysis | DFT matrix |
+| Structural Analysis | Force-displacement | Stiffness matrix $K$ |
+| Computer Graphics | 3D rendering | Projection matrices |
+| Machine Learning | Data representation | Data matrix $X$ |
+
+---
+
+# 2. Prerequisites
+
+You need to know these concepts before starting. If any of these are unfamiliar, review them first.
+
+| Concept | What You Need to Know | Where You Learned It |
+|---------|----------------------|---------------------|
+| **Real numbers** | Addition, subtraction, multiplication, division of real numbers | Class 9–10 |
+| **Variables** | What $x$, $y$, $z$ represent in an equation | Class 8–9 |
+| **Linear equations** | How to solve $2x + 3y = 7$ type equations | Class 10 |
+| **Trigonometry basics** | $\sin\theta$, $\cos\theta$ values for standard angles | Class 11 |
+| **Coordinate geometry** | Points in 2D as $(x, y)$ | Class 10–11 |
+| **Vectors (basic)** | A vector as a list of numbers like $\begin{bmatrix}3\\4\end{bmatrix}$ | Class 11–12 |
+
+**You do NOT need to know:** Determinants, eigenvalues, calculus, or any advanced math. We build everything from scratch.
+
+---
+
+# 3. Learning Objectives
+
+By the end of this topic, you will be able to:
+
+1. ✅ Define a matrix and identify its order, elements, rows, columns
+2. ✅ Classify any matrix into its correct type (12+ types covered)
+3. ✅ Perform matrix addition and subtraction
+4. ✅ Perform scalar multiplication
+5. ✅ Perform matrix multiplication (the most important operation)
+6. ✅ Compute the transpose of any matrix
+7. ✅ Prove and apply all properties of transpose
+8. ✅ Decompose any square matrix into symmetric + skew-symmetric parts
+9. ✅ Understand orthogonal matrices and their connection to rotations
+10. ✅ Compute powers of matrices using the nilpotent decomposition trick
+11. ✅ Apply matrices to robotics, control systems, and circuit problems
+12. ✅ Solve 35+ practice problems including GATE-level questions
+13. ✅ Identify and avoid common exam traps
+
+---
+
+# 4. Big Picture
+
+## 4.1 Where Does This Topic Fit?
+
+```
+GATE RA 2027 Syllabus
+└── Part A: Common Section (60 marks)
+    └── Section A.1: Engineering Mathematics (~15-20 marks)
+        └── Linear Algebra
+            ├── ★ MATRICES ★ (YOU ARE HERE)
+            │     ↓ everything below depends on this
+            ├── Determinants
+            ├── Adjoint & Inverse of a Matrix
+            ├── Rank of a Matrix
+            ├── System of Linear Equations
+            ├── Eigenvalues & Eigenvectors
+            └── Trace of a Matrix
+```
+
+## 4.2 Why Study Matrices First?
+
+Matrices are the **foundation brick** of linear algebra. Without them:
+- You can't define determinants (which operate ON matrices)
+- You can't find the inverse (which IS a matrix)
+- You can't talk about rank (a property OF a matrix)
+- You can't set up systems of equations (which USE matrices)
+- You can't find eigenvalues (which are properties OF a matrix)
+
+Think of it like learning the alphabet before writing sentences. Matrices are the alphabet of linear algebra.
+
+## 4.3 How Matrices Connect to Other GATE RA Subjects
+
+```
+                    MATRICES
+                   /    |    \
+                  /     |     \
+                 /      |      \
+    ROBOTICS    CONTROL SYS   SIGNALS
+    - Rotation     - State      - DFT
+      matrices       space       matrix
+    - Homogeneous  - A, B, C,   - Filter
+      transforms     D matrices   matrices
+    - Jacobian     - Stability  - Correlation
+                     analysis     matrices
+```
+
+Every single subject in GATE RA uses matrices. Master them now, and every future topic becomes easier.
+
+---
+
+# 5. Intuitive Explanation
+
+Before we dive into formulas, let's build intuition using everyday examples.
+
+## 5.1 Analogy 1: The Marks Table
+
+Your class has 4 students and 3 subjects. The marks table:
+
+| Student | Math | Physics | Chemistry |
+|---------|------|---------|-----------|
+| Alice | 90 | 85 | 78 |
+| Bob | 75 | 92 | 88 |
+| Charlie | 88 | 70 | 95 |
+| Dave | 65 | 80 | 72 |
+
+This entire table IS a matrix:
+
+$$
+M = \begin{bmatrix} 90 & 85 & 78 \\ 75 & 92 & 88 \\ 88 & 70 & 95 \\ 65 & 80 & 72 \end{bmatrix}_{4 \times 3}
+$$
+
+- Each **row** represents one student's marks across all subjects
+- Each **column** represents one subject's marks across all students
+- $m_{23} = 88$ means "Student 2 (Bob), Subject 3 (Chemistry) = 88 marks"
+
+## 5.2 Analogy 2: A Machine That Transforms Arrows
+
+Imagine you have an arrow (vector) pointing in some direction. A matrix is like a **machine** that takes this arrow and produces a new arrow — it might rotate it, stretch it, flip it, or squash it.
+
+Example in 2D: You have an arrow pointing East, represented as $\begin{bmatrix}1\\0\end{bmatrix}$.
+
+If you apply the matrix $\begin{bmatrix}0 & -1\\1 & 0\end{bmatrix}$:
+
+$$
+\begin{bmatrix}0 & -1\\1 & 0\end{bmatrix} \begin{bmatrix}1\\0\end{bmatrix} = \begin{bmatrix}0(1)+(-1)(0)\\1(1)+0(0)\end{bmatrix} = \begin{bmatrix}0\\1\end{bmatrix}
+$$
+
+The arrow now points North! The matrix **rotated** the arrow by $90°$ counterclockwise.
+
+This is EXACTLY how rotation matrices work in robotics. Each joint of a robot arm has a rotation matrix that describes how it rotates things.
+
+<Visualization id="transform-2d" matrix={[[0, -1], [1, 0]]} showGrid={true} showEigenvectors={false} />
+
+## 5.3 Analogy 3: Mixing Ingredients
+
+Suppose:
+- Recipe A (cake) needs: 2 cups flour, 3 eggs, 1 cup sugar
+- Recipe B (pie) needs: 1 cup flour, 2 eggs, 2 cups sugar
+
+Encode as a matrix (rows = ingredients, columns = recipes):
+
+$$
+R = \begin{bmatrix} 2 & 1 \\ 3 & 2 \\ 1 & 2 \end{bmatrix}
+$$
+
+Now you want to make 3 cakes and 2 pies. The quantities vector is $\mathbf{q} = \begin{bmatrix}3\\2\end{bmatrix}$.
+
+Total ingredients needed = $R\mathbf{q}$:
+
+$$
+\begin{bmatrix} 2 & 1 \\ 3 & 2 \\ 1 & 2 \end{bmatrix} \begin{bmatrix}3\\2\end{bmatrix} = \begin{bmatrix} 2(3)+1(2) \\ 3(3)+2(2) \\ 1(3)+2(2) \end{bmatrix} = \begin{bmatrix} 8 \\ 13 \\ 7 \end{bmatrix}
+$$
+
+You need 8 cups flour, 13 eggs, 7 cups sugar. **Matrix multiplication computed all three totals simultaneously.**
+
+<Visualization id="matrix-display" matrix={[[2, 1], [3, 2], [1, 2]]} label="R" />
+
+## 5.4 Analogy 4: The GPS Coordinate Transformer
+
+Your car's GPS knows your position relative to a satellite. But you want your position relative to a landmark. This "change of reference frame" is done by multiplying your position vector by a transformation matrix.
+
+In robotics, the same idea is used constantly: each joint of a robot has its own coordinate frame, and transformation matrices convert between frames.
+
+---
+
+# 6. Formal Definitions
+
+Now let's formalize everything with precise mathematical definitions.
+
+## Definition 6.1: Matrix
+
+<DefinitionCard term="Matrix" analogy="A spreadsheet where each cell holds a number. Row number = row in Excel. Column number = column in Excel.">
+A **matrix** of order $m \times n$ is a rectangular array of $m \times n$ real (or complex) numbers arranged in $m$ rows and $n$ columns.
+</DefinitionCard>
+
+<FormulaCard name="Matrix Notation" description="Each element has an address (row i, column j). The matrix is the collection of all these elements.">
+$$A = [a_{ij}]_{m \times n} \quad \text{where } 1 \leq i \leq m, \; 1 \leq j \leq n$$
+</FormulaCard>
+
+The number $m \times n$ (total number of elements) tells you how much information the matrix stores.
+
+**Example:** A $3 \times 2$ matrix has 3 rows, 2 columns, and $3 \times 2 = 6$ elements.
+
+## Definition 6.2: Equality of Matrices
+
+> Two matrices $A = [a_{ij}]_{m \times n}$ and $B = [b_{ij}]_{p \times q}$ are **equal** (written $A = B$) if and only if:
+> 1. They have the same order: $m = p$ AND $n = q$
+> 2. Every corresponding element is equal: $a_{ij} = b_{ij}$ for ALL $i$ and $j$
+
+This means: even if two matrices have the same elements, they are NOT equal if they have different sizes.
+
+**Example:**
+$$\begin{bmatrix} 1 & 2 & 3 \end{bmatrix}_{1 \times 3} \neq \begin{bmatrix} 1 \\ 2 \\ 3 \end{bmatrix}_{3 \times 1}$$
+
+Same numbers, but different shapes → NOT equal.
+
+**Example of finding unknowns using equality:**
+
+If $\begin{bmatrix} x+1 & 2 \\ 3 & y-4 \end{bmatrix} = \begin{bmatrix} 5 & 2 \\ 3 & 7 \end{bmatrix}$
+
+Then: $x+1 = 5 \implies x = 4$ and $y - 4 = 7 \implies y = 11$.
+
+## Definition 6.3: Transpose of a Matrix
+
+> The **transpose** of a matrix $A = [a_{ij}]_{m \times n}$, denoted $A^T$ (also written $A'$), is the $n \times m$ matrix obtained by **interchanging rows and columns**.
+>
+> $(A^T)_{ij} = a_{ji}$
+
+**In simple words:** The first row of $A$ becomes the first column of $A^T$. The second row becomes the second column. And so on.
+
+**Step-by-step example:**
+
+$$
+A = \begin{bmatrix} 1 & 2 & 3 \\ 4 & 5 & 6 \end{bmatrix}_{2 \times 3}
+$$
+
+- Row 1 of $A$: $[1, 2, 3]$ → becomes Column 1 of $A^T$
+- Row 2 of $A$: $[4, 5, 6]$ → becomes Column 2 of $A^T$
+
+$$
+A^T = \begin{bmatrix} 1 & 4 \\ 2 & 5 \\ 3 & 6 \end{bmatrix}_{3 \times 2}
+$$
+
+Notice: $A$ was $2 \times 3$, $A^T$ is $3 \times 2$. The dimensions swap.
+
+**Another example (square matrix):**
+
+$$
+B = \begin{bmatrix} 1 & 2 \\ 3 & 4 \end{bmatrix} \implies B^T = \begin{bmatrix} 1 & 3 \\ 2 & 4 \end{bmatrix}
+$$
+
+For square matrices, transpose is like reflecting across the **main diagonal** (the line from top-left to bottom-right).
+
+---
+
+# 7. Mathematical Foundations
+
+This is the largest and most important section. We cover every type of matrix and every operation in full detail.
+
+## 7.1 Types of Matrices — Complete Classification
+
+### 7.1.1 Classification by Shape
+
+**Row Matrix (Row Vector):**
+A matrix with exactly **1 row** and $n$ columns.
+
+$$\begin{bmatrix} 3 & -1 & 7 & 2 \end{bmatrix}_{1 \times 4}$$
+
+Think of it as a single horizontal list of numbers.
+
+**Column Matrix (Column Vector):**
+A matrix with $m$ rows and exactly **1 column**.
+
+$$\begin{bmatrix} 3 \\ -1 \\ 7 \end{bmatrix}_{3 \times 1}$$
+
+Think of it as a single vertical list. In physics and robotics, forces, velocities, and positions are usually column vectors.
+
+**Square Matrix:**
+A matrix where the number of rows **equals** the number of columns: $m = n$.
+
+$$\begin{bmatrix} 1 & 2 \\ 3 & 4 \end{bmatrix}_{2 \times 2}, \qquad \begin{bmatrix} 1 & 0 & 0 \\ 0 & 2 & 0 \\ 0 & 0 & 3 \end{bmatrix}_{3 \times 3}$$
+
+Square matrices are special because most important matrix properties (determinant, eigenvalues, trace, inverse) are defined **only for square matrices**.
+
+The elements $a_{11}, a_{22}, a_{33}, \ldots, a_{nn}$ form the **main diagonal** (also called **principal diagonal** or **leading diagonal**).
+
+**Rectangular Matrix:**
+Any matrix where $m \neq n$. Example: $2 \times 3$, $4 \times 1$, etc.
+
+### 7.1.2 Classification by Structure (Square Matrices Only)
+
+From this point, assume all matrices are **square** ($n \times n$) unless stated otherwise.
+
+---
+
+**DIAGONAL MATRIX:**
+
+> A square matrix where **all elements OUTSIDE the main diagonal are zero**: $a_{ij} = 0$ whenever $i \neq j$.
+
+$$
+D = \begin{bmatrix} 5 & 0 & 0 \\ 0 & -3 & 0 \\ 0 & 0 & 7 \end{bmatrix}
+$$
+
+We write this as $D = \text{diag}(5, -3, 7)$.
+
+**Why diagonal matrices are special:** They are the easiest matrices to work with because:
+- Powers: $D^k = \text{diag}(d_1^k, d_2^k, \ldots, d_n^k)$ — just raise each diagonal entry to the power
+- Multiplication: Two diagonal matrices multiply element-wise on the diagonal
+- Inverse: $D^{-1} = \text{diag}(1/d_1, 1/d_2, \ldots, 1/d_n)$ (if no $d_i$ is zero)
+
+**Example of power:**
+$$
+\begin{bmatrix} 2 & 0 \\ 0 & 3 \end{bmatrix}^4 = \begin{bmatrix} 2^4 & 0 \\ 0 & 3^4 \end{bmatrix} = \begin{bmatrix} 16 & 0 \\ 0 & 81 \end{bmatrix}
+$$
+
+---
+
+**SCALAR MATRIX:**
+
+> A diagonal matrix where **all diagonal elements are equal**.
+
+$$
+S = \begin{bmatrix} k & 0 & 0 \\ 0 & k & 0 \\ 0 & 0 & k \end{bmatrix} = kI
+$$
+
+where $I$ is the identity matrix. A scalar matrix is just a scalar multiple of the identity matrix.
+
+Example: $3I_3 = \begin{bmatrix} 3 & 0 & 0 \\ 0 & 3 & 0 \\ 0 & 0 & 3 \end{bmatrix}$
+
+**Key property:** Scalar matrices **commute with every matrix** of the same size: $(kI)A = A(kI) = kA$.
+
+---
+
+**IDENTITY MATRIX ($I_n$):**
+
+> The scalar matrix with $k = 1$. All diagonal entries are 1, all others are 0.
+
+$$
+I_2 = \begin{bmatrix} 1 & 0 \\ 0 & 1 \end{bmatrix}, \qquad I_3 = \begin{bmatrix} 1 & 0 & 0 \\ 0 & 1 & 0 \\ 0 & 0 & 1 \end{bmatrix}
+$$
+
+**The identity matrix is the "1" of matrix multiplication.** Just as $1 \times a = a$ for any number, $IA = AI = A$ for any matrix $A$ of compatible size.
+
+**Why it's called "identity":** It doesn't change anything it multiplies. It's the identity element of matrix multiplication.
+
+**Formal notation:** Using the Kronecker delta: $(I)_{ij} = \delta_{ij}$ where $\delta_{ij} = 1$ if $i = j$, and $\delta_{ij} = 0$ if $i \neq j$.
+
+---
+
+**ZERO MATRIX ($O$):**
+
+> A matrix where **every element is zero**.
+
+$$
+O_{2 \times 3} = \begin{bmatrix} 0 & 0 & 0 \\ 0 & 0 & 0 \end{bmatrix}
+$$
+
+**The zero matrix is the "0" of matrix addition.** $A + O = A$ for any matrix $A$ of the same size.
+
+<Warning title="GATE Trap — Zero Product">
+$AO = OA = O$ always. But $AB = O$ does **NOT** mean $A = O$ or $B = O$! Matrices can multiply to give zero without either being zero. We'll see a concrete example later.
+</Warning>
+
+---
+
+**UPPER TRIANGULAR MATRIX:**
+
+> A square matrix where all elements **below** the main diagonal are zero: $a_{ij} = 0$ for $i > j$.
+
+$$
+U = \begin{bmatrix} 1 & 2 & 3 \\ 0 & 4 & 5 \\ 0 & 0 & 6 \end{bmatrix}
+$$
+
+Visually: everything below the diagonal is zero, everything on or above can be anything.
+
+**Key property:** The product of two upper triangular matrices is also upper triangular. The diagonal elements of the product are the products of the corresponding diagonal elements.
+
+---
+
+**LOWER TRIANGULAR MATRIX:**
+
+> A square matrix where all elements **above** the main diagonal are zero: $a_{ij} = 0$ for $i < j$.
+
+$$
+L = \begin{bmatrix} 1 & 0 & 0 \\ 2 & 3 & 0 \\ 4 & 5 & 6 \end{bmatrix}
+$$
+
+**Note:** The transpose of an upper triangular matrix is lower triangular, and vice versa.
+
+---
+
+**SYMMETRIC MATRIX:**
+
+> A square matrix that equals its own transpose: $A^T = A$, which means $a_{ij} = a_{ji}$ for all $i, j$.
+
+$$
+A = \begin{bmatrix} 1 & 2 & 3 \\ 2 & 5 & 6 \\ 3 & 6 & 9 \end{bmatrix}
+$$
+
+Check: $a_{12} = 2 = a_{21}$ ✓, $a_{13} = 3 = a_{31}$ ✓, $a_{23} = 6 = a_{32}$ ✓.
+
+**Visual:** The matrix is a mirror image across the main diagonal.
+
+**How many independent elements?**
+- The diagonal has $n$ elements (can be anything)
+- The upper triangle has $\frac{n(n-1)}{2}$ elements
+- The lower triangle is determined by the upper triangle
+- Total independent elements: $n + \frac{n(n-1)}{2} = \frac{n(n+1)}{2}$
+
+For $3 \times 3$: $\frac{3 \times 4}{2} = 6$ independent elements out of $9$ total.
+
+**Where symmetric matrices appear:**
+- Stiffness matrices in structural analysis
+- Covariance matrices in statistics
+- Inertia tensors in dynamics
+- Distance matrices in graph theory
+
+---
+
+**SKEW-SYMMETRIC (ANTI-SYMMETRIC) MATRIX:**
+
+> A square matrix where $A^T = -A$, which means $a_{ij} = -a_{ji}$ for all $i, j$.
+
+$$
+A = \begin{bmatrix} 0 & 2 & -3 \\ -2 & 0 & 5 \\ 3 & -5 & 0 \end{bmatrix}
+$$
+
+**Critical observation about diagonal elements:**
+
+For a skew-symmetric matrix, what happens when $i = j$?
+
+$$a_{ii} = -a_{ii} \implies 2a_{ii} = 0 \implies a_{ii} = 0$$
+
+> **All diagonal elements of a skew-symmetric matrix MUST be zero.**
+
+This is a very common GATE question. If someone gives you a matrix and asks "can this be skew-symmetric?" — check the diagonal first. If any diagonal element is non-zero, the answer is NO.
+
+**How many independent elements?**
+- Diagonal: all must be 0 (no freedom)
+- Upper triangle: $\frac{n(n-1)}{2}$ elements (free to choose)
+- Lower triangle: determined by upper ($a_{ji} = -a_{ij}$)
+- Total: $\frac{n(n-1)}{2}$
+
+For $3 \times 3$: $\frac{3 \times 2}{2} = 3$ independent elements.
+
+**Where skew-symmetric matrices appear:**
+- Cross product in 3D can be written as a skew-symmetric matrix multiplication:
+  $\mathbf{a} \times \mathbf{b} = [\mathbf{a}]_\times \mathbf{b}$ where $[\mathbf{a}]_\times$ is skew-symmetric
+- Angular velocity representation in robotics
+- The "hat map" in Lie algebra (advanced robotics)
+
+---
+
+**ORTHOGONAL MATRIX:**
+
+> A square matrix $Q$ such that $Q^T Q = Q Q^T = I$.
+
+This means $Q^{-1} = Q^T$ — the inverse equals the transpose! (Normally, finding an inverse is hard. For orthogonal matrices, you just transpose.)
+
+**Why "orthogonal"?** Because the columns (and rows) of $Q$ are mutually **orthogonal** (perpendicular) and have **unit length** (length 1). Together, we say they form an **orthonormal** set.
+
+**Example:** The 2D rotation matrix:
+
+$$
+R(\theta) = \begin{bmatrix} \cos\theta & -\sin\theta \\ \sin\theta & \cos\theta \end{bmatrix}
+$$
+
+Let's verify for $\theta = 30°$:
+
+$$
+R = \begin{bmatrix} \frac{\sqrt{3}}{2} & -\frac{1}{2} \\ \frac{1}{2} & \frac{\sqrt{3}}{2} \end{bmatrix}
+$$
+
+$$
+R^T R = \begin{bmatrix} \frac{\sqrt{3}}{2} & \frac{1}{2} \\ -\frac{1}{2} & \frac{\sqrt{3}}{2} \end{bmatrix} \begin{bmatrix} \frac{\sqrt{3}}{2} & -\frac{1}{2} \\ \frac{1}{2} & \frac{\sqrt{3}}{2} \end{bmatrix}
+$$
+
+$$= \begin{bmatrix} \frac{3}{4}+\frac{1}{4} & -\frac{\sqrt{3}}{4}+\frac{\sqrt{3}}{4} \\ -\frac{\sqrt{3}}{4}+\frac{\sqrt{3}}{4} & \frac{1}{4}+\frac{3}{4} \end{bmatrix} = \begin{bmatrix} 1 & 0 \\ 0 & 1 \end{bmatrix} = I \quad ✓$$
+
+**Properties of orthogonal matrices (memorize these):**
+
+| # | Property | Explanation |
+|---|----------|-------------|
+| 1 | $Q^{-1} = Q^T$ | Inverse is just the transpose |
+| 2 | $\det(Q) = \pm 1$ | Proved below |
+| 3 | Rows are orthonormal | Each row has length 1, any two rows are perpendicular |
+| 4 | Columns are orthonormal | Same for columns |
+| 5 | **Preserves lengths** | $\|Q\mathbf{x}\| = \|\mathbf{x}\|$ for any vector $\mathbf{x}$ |
+| 6 | **Preserves angles** | Angle between $Q\mathbf{x}$ and $Q\mathbf{y}$ = angle between $\mathbf{x}$ and $\mathbf{y}$ |
+| 7 | Product of two orthogonal is orthogonal | If $Q_1, Q_2$ orthogonal, so is $Q_1 Q_2$ |
+| 8 | $Q^T$ is orthogonal | Transpose of orthogonal is orthogonal |
+
+**Proof that $|\det(Q)| = 1$:**
+
+$$Q^T Q = I$$
+$$\det(Q^T Q) = \det(I)$$
+$$\det(Q^T) \cdot \det(Q) = 1$$
+
+But $\det(Q^T) = \det(Q)$ (a property of determinants, covered in next topic). So:
+
+$$[\det(Q)]^2 = 1 \implies \det(Q) = \pm 1$$
+
+<RealWorldExample title="Robotics — Rotation Matrices">
+- If $\det(Q) = +1$: the matrix represents a **proper rotation** (no reflection). All rotation matrices in robotics have $\det = +1$.
+- If $\det(Q) = -1$: the matrix includes a **reflection** (mirror image). This is physically impossible for a rigid body rotation.
+- Every joint of a robot arm has a rotation matrix. The full arm pose is computed by multiplying all joint rotation matrices together.
+</RealWorldExample>
+
+<ExamTip exam="GATE">
+Orthogonal matrix questions appear almost every year. **Memorize these three properties:** (1) $Q^{-1} = Q^T$, (2) $\det(Q) = \pm 1$, (3) columns/rows are orthonormal. If any row/column has length $\neq 1$, the matrix is NOT orthogonal.
+</ExamTip>
+
+---
+
+**IDEMPOTENT MATRIX:**
+
+> A square matrix where $A^2 = A$ (multiplying it by itself gives itself back).
+
+**Example:**
+$$
+P = \begin{bmatrix} 1 & 0 \\ 0 & 0 \end{bmatrix}, \quad P^2 = \begin{bmatrix} 1 & 0 \\ 0 & 0 \end{bmatrix} \begin{bmatrix} 1 & 0 \\ 0 & 0 \end{bmatrix} = \begin{bmatrix} 1 & 0 \\ 0 & 0 \end{bmatrix} = P \quad ✓
+$$
+
+**Another example:**
+$$
+P = \begin{bmatrix} 1 & 1 \\ 0 & 0 \end{bmatrix}, \quad P^2 = \begin{bmatrix} 1 & 1 \\ 0 & 0 \end{bmatrix} \begin{bmatrix} 1 & 1 \\ 0 & 0 \end{bmatrix} = \begin{bmatrix} 1+0 & 1+0 \\ 0 & 0 \end{bmatrix} = \begin{bmatrix} 1 & 1 \\ 0 & 0 \end{bmatrix} = P \quad ✓
+$$
+
+**Key consequence:** If $A^2 = A$, then for any $n \geq 1$: $A^n = A$.
+
+Proof: $A^3 = A \cdot A^2 = A \cdot A = A^2 = A$. By induction, $A^n = A$.
+
+**Physical meaning:** Idempotent matrices represent **projections**. If you project a vector onto a plane, projecting it again does nothing — it's already on the plane. That's idempotency.
+
+> **GATE trap:** $A^2 = A$ does NOT mean $A = O$ or $A = I$. The example above ($P = \begin{bmatrix}1&0\\0&0\end{bmatrix}$) is neither $O$ nor $I$.
+
+---
+
+**INVOLUTORY MATRIX:**
+
+> A square matrix where $A^2 = I$.
+
+This means $A$ is its own inverse: $A^{-1} = A$.
+
+**Example:**
+$$
+A = \begin{bmatrix} 1 & 0 \\ 0 & -1 \end{bmatrix}, \quad A^2 = \begin{bmatrix} 1 & 0 \\ 0 & 1 \end{bmatrix} = I \quad ✓
+$$
+
+**Powers of involutory matrices:**
+- $A^1 = A$
+- $A^2 = I$
+- $A^3 = A \cdot A^2 = A \cdot I = A$
+- $A^4 = A \cdot A^3 = A \cdot A = I$
+- Pattern: $A^{\text{even}} = I$, $A^{\text{odd}} = A$
+
+---
+
+**NILPOTENT MATRIX:**
+
+> A square matrix where $A^k = O$ (the zero matrix) for some positive integer $k$.
+> The smallest such $k$ is called the **index of nilpotency**.
+
+**Example (index 2):**
+$$
+N = \begin{bmatrix} 0 & 1 \\ 0 & 0 \end{bmatrix}, \quad N^2 = \begin{bmatrix} 0 & 0 \\ 0 & 0 \end{bmatrix} = O \quad ✓
+$$
+
+**Example (index 3):**
+$$
+N = \begin{bmatrix} 0 & 1 & 0 \\ 0 & 0 & 1 \\ 0 & 0 & 0 \end{bmatrix}
+$$
+
+$$N^2 = \begin{bmatrix} 0 & 0 & 1 \\ 0 & 0 & 0 \\ 0 & 0 & 0 \end{bmatrix} \neq O, \quad N^3 = \begin{bmatrix} 0 & 0 & 0 \\ 0 & 0 & 0 \\ 0 & 0 & 0 \end{bmatrix} = O$$
+
+Let me verify $N^2$ step by step:
+
+$$N^2 = \begin{bmatrix} 0 & 1 & 0 \\ 0 & 0 & 1 \\ 0 & 0 & 0 \end{bmatrix}\begin{bmatrix} 0 & 1 & 0 \\ 0 & 0 & 1 \\ 0 & 0 & 0 \end{bmatrix}$$
+
+Row 1 × Col 1: $0(0)+1(0)+0(0) = 0$
+Row 1 × Col 2: $0(1)+1(0)+0(0) = 0$
+Row 1 × Col 3: $0(0)+1(1)+0(0) = 1$
+Row 2 × Col 1: $0(0)+0(0)+1(0) = 0$
+Row 2 × Col 2: $0(1)+0(0)+1(0) = 0$
+Row 2 × Col 3: $0(0)+0(1)+1(0) = 0$
+Row 3: all zeros.
+
+$$N^2 = \begin{bmatrix} 0 & 0 & 1 \\ 0 & 0 & 0 \\ 0 & 0 & 0 \end{bmatrix} ✓$$
+
+$N^3 = N \cdot N^2$: Row 1 × Col 3 of $N^2$ = $0(1)+1(0)+0(0) = 0$. All entries become 0. $N^3 = O$ ✓.
+
+**Key fact:** Any strictly upper triangular $n \times n$ matrix is nilpotent with index ≤ $n$.
+
+**Why nilpotent matrices matter for GATE:** They enable the powerful "binomial trick" for computing matrix powers (Section 8.4).
+
+---
+
+**HERMITIAN MATRIX** (brief mention — mainly for completeness):
+
+> A complex matrix where $A^* = A$, where $A^* = \overline{A^T}$ (conjugate transpose).
+
+For real matrices, Hermitian = symmetric ($A^T = A$). GATE RA mostly deals with real matrices, so know this definition but focus on symmetric matrices.
+
+---
+
+### 7.1.3 Summary Classification Table
+
+| Type | Symbol/Condition | Key Property | GATE Frequency |
+|------|-----------------|--------------|:--------------:|
+| Diagonal | $a_{ij}=0, i\neq j$ | Easy powers | Medium |
+| Scalar | $\text{diag}(k,k,...,k)$ | Commutes with all | Low |
+| Identity | $I_n$ | Multiplicative identity | Every exam |
+| Zero | $O$ | Additive identity | Medium |
+| Upper Triangular | $a_{ij}=0, i>j$ | Product is UT | Medium |
+| Lower Triangular | $a_{ij}=0, i<j$ | Transpose → UT | Medium |
+| Symmetric | $A^T=A$ | $\frac{n(n+1)}{2}$ free elements | High |
+| Skew-Symmetric | $A^T=-A$ | Diagonal = 0 | High |
+| Orthogonal | $Q^TQ=I$ | $\det=\pm1$, preserves length | Very High |
+| Idempotent | $A^2=A$ | $A^n=A$ | Medium |
+| Involutory | $A^2=I$ | $A^{-1}=A$ | Low-Medium |
+| Nilpotent | $A^k=O$ | Used in power trick | High |
+
+<ConceptCheckpoint
+  question="A skew-symmetric matrix has the property A^T = -A. What must be true about its diagonal elements?"
+  options={["All diagonal elements are 1", "All diagonal elements are 0", "Diagonal elements can be any value", "All diagonal elements are -1"]}
+  correctIndex={1}
+  explanation="For a skew-symmetric matrix, a_ii = -a_ii, which means 2·a_ii = 0, so a_ii = 0. All diagonal elements must be zero."
+/>
+
+<MemoryTrick>
+**Symmetric vs Skew-Symmetric memory trick:** Think of a mirror. A **symmetric** matrix is a perfect mirror across the diagonal (same on both sides). A **skew-symmetric** matrix is a *negative* mirror (opposite signs). And in a negative mirror, your own reflection (the diagonal) vanishes — that's why diagonal = 0.
+</MemoryTrick>
+
+---
+
+### 7.1.4 Sub-Matrices and Minors (Preview for Determinants)
+
+**Sub-matrix:** A matrix obtained by **deleting some rows and/or columns** from the original matrix.
+
+**Example:** From $A = \begin{bmatrix}1&2&3\\4&5&6\\7&8&9\end{bmatrix}$, deleting row 2 and column 3 gives the sub-matrix $\begin{bmatrix}1&2\\7&8\end{bmatrix}$.
+
+**Minor $M_{ij}$:** The determinant of the sub-matrix obtained by deleting row $i$ and column $j$ from a square matrix. (Determinants are defined in the next topic file.)
+
+**Principal sub-matrix:** A sub-matrix obtained by deleting the **same-numbered** rows and columns. For example, deleting row 2 and column 2 from a $3 \times 3$ matrix.
+
+> **Why this matters:** Minors are the building blocks for computing determinants (cofactor expansion), adjoint matrices, and rank. You'll use these extensively starting from the next topic.
+
+---
+
+## 7.2 Matrix Operations — Full Detail
+
+### 7.2.1 Matrix Addition and Subtraction
+
+**Rule:** You can add (or subtract) two matrices **only if they have the same order**. If both are $m \times n$, you add corresponding elements.
+
+$$C = A + B \quad \text{means} \quad c_{ij} = a_{ij} + b_{ij} \text{ for every } i, j$$
+
+**Detailed example:**
+
+$$
+\begin{bmatrix} 1 & 2 & 3 \\ 4 & 5 & 6 \end{bmatrix} + \begin{bmatrix} 10 & 20 & 30 \\ 40 & 50 & 60 \end{bmatrix} = \begin{bmatrix} 1+10 & 2+20 & 3+30 \\ 4+40 & 5+50 & 6+60 \end{bmatrix} = \begin{bmatrix} 11 & 22 & 33 \\ 44 & 55 & 66 \end{bmatrix}
+$$
+
+**Subtraction works the same way:**
+
+$$
+\begin{bmatrix} 10 & 20 \\ 30 & 40 \end{bmatrix} - \begin{bmatrix} 1 & 2 \\ 3 & 4 \end{bmatrix} = \begin{bmatrix} 9 & 18 \\ 27 & 36 \end{bmatrix}
+$$
+
+**What if the sizes don't match?**
+
+$$\begin{bmatrix} 1 & 2 \\ 3 & 4 \end{bmatrix}_{2\times2} + \begin{bmatrix} 1 & 2 & 3 \end{bmatrix}_{1\times3} = \text{UNDEFINED (cannot be computed)}$$
+
+### 7.2.2 Scalar Multiplication
+
+**Rule:** Multiply **every element** of the matrix by the scalar (number).
+
+$$kA = [k \cdot a_{ij}]$$
+
+**Detailed example:**
+
+$$
+3 \times \begin{bmatrix} 1 & -2 \\ 4 & 0 \\ -1 & 5 \end{bmatrix} = \begin{bmatrix} 3(1) & 3(-2) \\ 3(4) & 3(0) \\ 3(-1) & 3(5) \end{bmatrix} = \begin{bmatrix} 3 & -6 \\ 12 & 0 \\ -3 & 15 \end{bmatrix}
+$$
+
+**Special case:** $(-1) \times A = -A$ (negation of every element).
+
+### 7.2.3 Matrix Multiplication — The Most Important Operation
+
+This is where most beginners struggle, so we'll go extra slow.
+
+**When can you multiply two matrices?**
+
+You can compute $AB$ only when:
+$$\text{Number of COLUMNS of } A = \text{Number of ROWS of } B$$
+
+If $A$ is $m \times \mathbf{n}$ and $B$ is $\mathbf{n} \times p$, then $AB$ exists and has size $m \times p$.
+
+<MemoryTrick>
+Write the sizes next to each other:
+
+$$A: (m \times \underbrace{n)}_{\text{must}} \quad B: \underbrace{(n}_{\text{match}} \times p) \quad \Rightarrow \quad AB: (m \times p)$$
+
+The **inner** dimensions must match. The **outer** dimensions give the result size. Think: "inner dimensions shake hands and disappear."
+</MemoryTrick>
+
+**Examples of what's allowed and what's not:**
+
+| $A$ size | $B$ size | $AB$ exists? | $AB$ size | $BA$ exists? | $BA$ size |
+|----------|----------|:------------:|:---------:|:------------:|:---------:|
+| $2 \times 3$ | $3 \times 4$ | ✅ Yes | $2 \times 4$ | ❌ No | — |
+| $3 \times 3$ | $3 \times 3$ | ✅ Yes | $3 \times 3$ | ✅ Yes | $3 \times 3$ |
+| $2 \times 3$ | $2 \times 3$ | ❌ No | — | ❌ No | — |
+| $1 \times 5$ | $5 \times 1$ | ✅ Yes | $1 \times 1$ | ✅ Yes | $5 \times 5$ |
+| $4 \times 1$ | $1 \times 4$ | ✅ Yes | $4 \times 4$ | ✅ Yes | $1 \times 1$ |
+
+> **Important:** Notice that even when BOTH $AB$ and $BA$ exist, they may have **different sizes** (see row 4 and 5). And even when they have the same size, they are usually **not equal** (non-commutativity).
+
+**How to compute each element:**
+
+The element in row $i$ and column $j$ of $AB$ is computed by:
+
+$$
+(AB)_{ij} = \sum_{k=1}^{n} a_{ik} \cdot b_{kj} = a_{i1}b_{1j} + a_{i2}b_{2j} + \cdots + a_{in}b_{nj}
+$$
+
+In words: take the $i$-th **row** of $A$ and the $j$-th **column** of $B$, multiply corresponding elements, and add them all up. This is the **dot product** of that row with that column.
+
+**Fully worked example ($2 \times 2$):**
+
+$$
+A = \begin{bmatrix} 1 & 2 \\ 3 & 4 \end{bmatrix}, \quad B = \begin{bmatrix} 5 & 6 \\ 7 & 8 \end{bmatrix}
+$$
+
+We compute $C = AB$ element by element.
+
+**Element $c_{11}$:** Row 1 of $A$ = $[1, 2]$, Column 1 of $B$ = $[5, 7]^T$
+$$c_{11} = 1 \times 5 + 2 \times 7 = 5 + 14 = 19$$
+
+**Element $c_{12}$:** Row 1 of $A$ = $[1, 2]$, Column 2 of $B$ = $[6, 8]^T$
+$$c_{12} = 1 \times 6 + 2 \times 8 = 6 + 16 = 22$$
+
+**Element $c_{21}$:** Row 2 of $A$ = $[3, 4]$, Column 1 of $B$ = $[5, 7]^T$
+$$c_{21} = 3 \times 5 + 4 \times 7 = 15 + 28 = 43$$
+
+**Element $c_{22}$:** Row 2 of $A$ = $[3, 4]$, Column 2 of $B$ = $[6, 8]^T$
+$$c_{22} = 3 \times 6 + 4 \times 8 = 18 + 32 = 50$$
+
+$$
+AB = \begin{bmatrix} 19 & 22 \\ 43 & 50 \end{bmatrix}
+$$
+
+**Fully worked example ($2 \times 3$ times $3 \times 2$):**
+
+$$
+A = \begin{bmatrix} 1 & 0 & 2 \\ -1 & 3 & 1 \end{bmatrix}_{2 \times 3}, \quad B = \begin{bmatrix} 3 & 1 \\ 2 & 1 \\ 1 & 0 \end{bmatrix}_{3 \times 2}
+$$
+
+$A$ is $2 \times \mathbf{3}$, $B$ is $\mathbf{3} \times 2$. Inner dimensions match (3 = 3). Result is $2 \times 2$.
+
+$c_{11} = 1(3) + 0(2) + 2(1) = 3 + 0 + 2 = 5$
+$c_{12} = 1(1) + 0(1) + 2(0) = 1 + 0 + 0 = 1$
+$c_{21} = (-1)(3) + 3(2) + 1(1) = -3 + 6 + 1 = 4$
+$c_{22} = (-1)(1) + 3(1) + 1(0) = -1 + 3 + 0 = 2$
+
+$$AB = \begin{bmatrix} 5 & 1 \\ 4 & 2 \end{bmatrix}$$
+
+**Fully worked example (matrix × vector):**
+
+This is the most common operation in robotics and control systems.
+
+$$
+A\mathbf{x} = \begin{bmatrix} 2 & 1 \\ -1 & 3 \\ 0 & 4 \end{bmatrix} \begin{bmatrix} 3 \\ -2 \end{bmatrix}
+$$
+
+$A$ is $3 \times \mathbf{2}$, $\mathbf{x}$ is $\mathbf{2} \times 1$. Result is $3 \times 1$.
+
+$$= \begin{bmatrix} 2(3) + 1(-2) \\ (-1)(3) + 3(-2) \\ 0(3) + 4(-2) \end{bmatrix} = \begin{bmatrix} 6 - 2 \\ -3 - 6 \\ 0 - 8 \end{bmatrix} = \begin{bmatrix} 4 \\ -9 \\ -8 \end{bmatrix}$$
+
+**Computational Complexity:**
+
+For multiplying an $m \times n$ matrix by an $n \times p$ matrix:
+- Each element of the result requires $n$ multiplications and $n-1$ additions
+- There are $m \times p$ elements in the result
+- Total: $O(m \cdot n \cdot p)$ operations
+
+For two $n \times n$ matrices: $O(n^3)$.
+
+This means doubling the matrix size makes multiplication $2^3 = 8$ times slower. This is why efficient matrix algorithms matter in large-scale robotics simulations.
+
+### 7.2.4 Trace of a Matrix (Preview)
+
+> The **trace** of a square matrix $A$, denoted $\text{tr}(A)$, is the **sum of its diagonal elements**:
+>
+> $$\text{tr}(A) = a_{11} + a_{22} + \cdots + a_{nn} = \sum_{i=1}^{n} a_{ii}$$
+
+**Example:** $\text{tr}\begin{bmatrix}1&2&3\\4&5&6\\7&8&9\end{bmatrix} = 1 + 5 + 9 = 15$
+
+Trace has its own dedicated topic file (07_Trace.md), but you'll need this definition for some practice problems in this file. Key properties used here:
+
+- $\text{tr}(A + B) = \text{tr}(A) + \text{tr}(B)$
+- $\text{tr}(kA) = k \cdot \text{tr}(A)$
+- $\text{tr}(AB) = \text{tr}(BA)$ (even though $AB \neq BA$ in general!)
+- For any skew-symmetric matrix $A$: $\text{tr}(A) = 0$ (because all diagonal elements are 0)
+
+---
+
+# 8. Theoretical Concepts
+
+## 8.1 Non-Commutativity of Matrix Multiplication
+
+> **Matrix multiplication is NOT commutative.** $AB \neq BA$ in general.
+
+**Example:** $A = \begin{bmatrix}1&2\\0&1\end{bmatrix}$, $B = \begin{bmatrix}0&1\\1&0\end{bmatrix}$
+
+$AB = \begin{bmatrix}2&1\\1&0\end{bmatrix}$, $BA = \begin{bmatrix}0&1\\1&2\end{bmatrix}$. Different!
+
+**Robotics meaning:** Rotate about X then Z ≠ rotate about Z then X. Order of transformation matrices matters.
+
+**When IS $AB = BA$?** Only in special cases: one is $I$, one is $O$, one is $kI$, both diagonal, $B = A^k$, or $B = A^{-1}$.
+
+## 8.2 Zero Divisors
+
+> $AB = O$ does NOT imply $A = O$ or $B = O$.
+
+**Example:** $\begin{bmatrix}1&1\\2&2\end{bmatrix}\begin{bmatrix}1&-1\\-1&1\end{bmatrix} = \begin{bmatrix}0&0\\0&0\end{bmatrix}$
+
+Both matrices are non-zero, yet their product is zero. Also: $AB = AC \not\Rightarrow B = C$ unless $A$ is invertible.
+
+> **Intuition:** Think of it like projecting shadows. If you shine a light straight down on a fence (matrix $A$), it casts a shadow. If you then shine a light from the side on that shadow (matrix $B$), the shadow might vanish entirely — even though neither the fence nor the light is "zero." The second operation sent everything into the blind spot (null space) of the first.
+
+## 8.3 Symmetric + Skew-Symmetric Decomposition
+
+> **Theorem:** Every square matrix $A$ can be UNIQUELY written as $A = S + K$ where:
+> $S = \frac{A+A^T}{2}$ (symmetric), $K = \frac{A-A^T}{2}$ (skew-symmetric)
+
+**Proof of existence:** $S^T = \frac{A^T+A}{2} = S$ ✓ (symmetric). $K^T = \frac{A^T-A}{2} = -K$ ✓ (skew-symmetric). $S+K = \frac{A+A^T}{2} + \frac{A-A^T}{2} = \frac{2A}{2} = A$ ✓.
+
+**Proof of uniqueness:** Suppose $A = S_1 + K_1 = S_2 + K_2$. Then $S_1 - S_2 = K_2 - K_1$. The left side is symmetric (difference of symmetric matrices), the right side is skew-symmetric (difference of skew-symmetric matrices). Let $M = S_1 - S_2$. Then $M^T = M$ (symmetric) and $M^T = -M$ (skew-symmetric). So $M = -M$, giving $2M = O$, hence $M = O$. Therefore $S_1 = S_2$ and $K_1 = K_2$. $\blacksquare$
+
+**Example:** $A = \begin{bmatrix}4&2\\-6&8\end{bmatrix}$. $S = \begin{bmatrix}4&-2\\-2&8\end{bmatrix}$, $K = \begin{bmatrix}0&4\\-4&0\end{bmatrix}$.
+
+## 8.4 Powers of Matrices — The Nilpotent Decomposition Trick
+
+If $A = \alpha I + N$ where $N^2 = O$:
+$$A^n = \alpha^n I + n\alpha^{n-1}N$$
+
+If $N^3 = O$:
+$$A^n = \alpha^n I + n\alpha^{n-1}N + \frac{n(n-1)}{2}\alpha^{n-2}N^2$$
+
+**How to spot it:** All diagonal entries equal → write $A = aI + N$.
+
+**Example:** $A = \begin{bmatrix}5&3\\0&5\end{bmatrix}$. $N = A - 5I = \begin{bmatrix}0&3\\0&0\end{bmatrix}$, $N^2 = O$.
+$A^{100} = 5^{100}I + 100 \cdot 5^{99}N = \begin{bmatrix}5^{100}&300 \cdot 5^{99}\\0&5^{100}\end{bmatrix}$.
+
+## 8.5 Block Matrices
+
+> **Intuition:** Just as you can group digits in a number (e.g., a phone number "555-1234" instead of "5551234"), you can group elements of a matrix into **blocks** (sub-matrices) and treat each block as if it were a single element. This is called **block (or partitioned) matrix** representation.
+
+**Why block matrices matter:** In robotics, the $4 \times 4$ homogeneous transformation matrix naturally decomposes into meaningful blocks:
+
+$$T = \begin{bmatrix}R_{3\times3}&\mathbf{d}_{3\times1}\\\mathbf{0}_{1\times3}&1\end{bmatrix}$$
+
+- $R$ = rotation block (what direction things point)
+- $\mathbf{d}$ = translation block (where things are in space)
+- $\mathbf{0}^T$ and $1$ = structural padding
+
+**Block multiplication rule:** If the blocks are of compatible sizes, you can multiply block matrices using the same row-by-column rule, treating each block like a single element:
+
+$$T_1 T_2 = \begin{bmatrix}R_1&\mathbf{d}_1\\\mathbf{0}^T&1\end{bmatrix}\begin{bmatrix}R_2&\mathbf{d}_2\\\mathbf{0}^T&1\end{bmatrix} = \begin{bmatrix}R_1R_2 & R_1\mathbf{d}_2+\mathbf{d}_1\\\mathbf{0}^T&1\end{bmatrix}$$
+
+This is exactly how robot forward kinematics chains multiple joint transformations together.
+
+## 8.6 Properties of Symmetric and Skew-Symmetric Matrices
+
+| Property | Symmetric ($A^T=A$) | Skew-Symmetric ($A^T=-A$) |
+|----------|---------------------|---------------------------|
+| Diagonal | Any values | Must be 0 |
+| $A+B$ | Symmetric | Skew-symmetric |
+| $A^2$ | Symmetric | **Symmetric** (not skew!) |
+| $A^{2k+1}$ | Symmetric | Skew-symmetric |
+| $\det$ (odd $n$) | Any value | Must be 0 |
+| Indep. elements | $n(n+1)/2$ | $n(n-1)/2$ |
+
+> **GATE trap:** $A^2$ is symmetric even when $A$ is skew-symmetric: $(A^2)^T = (A^T)^2 = (-A)^2 = A^2$.
+
+---
+
+# 9. Graphical Explanations
+
+## 9.1 Matrix as a Grid
+
+A matrix is a rectangular grid — think spreadsheet:
+
+```
+         Col 1   Col 2   Col 3
+       ┌───────┬───────┬───────┐
+Row 1  │ a₁₁   │ a₁₂   │ a₁₃   │
+       ├───────┼───────┼───────┤
+Row 2  │ a₂₁   │ a₂₂   │ a₂₃   │
+       └───────┴───────┴───────┘
+              2 × 3 matrix
+```
+
+## 9.2 Transpose — Reflection Across the Diagonal
+
+```
+Original A (2×3)          Transpose A^T (3×2)
+
+  1  2  3                   1  4
+  4  5  6                   2  5
+                            3  6
+
+  Row 1 → Column 1         Row 1 of A^T = Column 1 of A
+  Row 2 → Column 2         Row 2 of A^T = Column 2 of A
+```
+
+For square matrices, transpose = reflection across the main diagonal:
+
+```
+  ┌─────────┐               ┌─────────┐
+  │ 1   2   │    Transpose   │ 1   3   │
+  │         │  ──────────→   │         │
+  │ 3   4   │   (reflect)    │ 2   4   │
+  └─────────┘               └─────────┘
+        ╲ diagonal stays          ╲ diagonal stays
+         ╲ the same                ╲ the same
+```
+
+## 9.3 Matrix Multiplication — Dimension Matching
+
+```
+     A              B              C = AB
+  ┌───────┐     ┌───────┐     ┌───────┐
+  │ m × n │  ×  │ n × p │  =  │ m × p │
+  └───────┘     └───────┘     └───────┘
+        └────┬────┘                │
+         must match          outer dims
+                             give result
+```
+
+Computing one element $c_{ij}$:
+
+```
+  A                    B                  C
+  ┌─────────────┐   ┌──┬──┬──┐    ┌──┬──┬──┐
+  │ → → → → → → │ × │  │↓ │  │ =  │  │c │  │
+  │             │   │  │↓ │  │    │  │ij│  │
+  │             │   │  │↓ │  │    │  │  │  │
+  └─────────────┘   └──┴──┴──┘    └──┴──┴──┘
+  Row i of A      Col j of B     Dot product
+```
+
+## 9.4 Geometric Effect of 2D Matrices
+
+How different $2 \times 2$ matrices transform the unit square:
+
+```
+Identity I:          Scaling diag(2,1):     Rotation R(45°):
+  ┌──┐                ┌──────┐               ╱╲
+  │  │                │      │              ╱  ╲
+  │  │     →          │      │    →        ╱    ╲
+  └──┘                └──────┘              ╲  ╱
+  (no change)         (stretch x by 2)       ╲╱
+                                           (rotate 45°)
+
+Shear:               Singular:
+  ┌──╱                │
+  │╱  │               │     ←  Collapses 2D
+  │   │    →          │        to 1D (a line)
+  └───┘               │        det = 0
+  (parallelogram)
+```
+
+## 9.5 Matrix Type Classification Flowchart
+
+```
+                    Is it a matrix?
+                         │
+                    ┌────┴────┐
+                    │ Square? │
+                    └────┬────┘
+              ┌─── YES ──┴── NO ──┐
+              │                    │
+         ┌────┴────┐         Rectangular
+         │         │         (Row/Column
+    ┌────┴────┐    │          vector if
+    │All off- │    │          m=1 or n=1)
+    │diag = 0?│    │
+    └────┬────┘    │
+    YES  │   NO    │
+    │    │         │
+ Diagonal│    ┌────┴────────┐
+    │    │    │ A^T = A?     │
+    │    │    ├── YES: Symmetric
+    │    │    │ A^T = -A?    │
+    │    │    ├── YES: Skew-Symmetric
+    │    │    │ Q^TQ = I?    │
+    │    │    ├── YES: Orthogonal
+    │    │    │ A^2 = A?     │
+    │    │    ├── YES: Idempotent
+    │    │    │ A^2 = I?     │
+    │    │    ├── YES: Involutory
+    │    │    │ A^k = O?     │
+    │    │    └── YES: Nilpotent
+    │    │
+    ├── All diag same? ── YES: Scalar
+    │     │                    │
+    │     └── All = 1? ── YES: Identity
+    │
+    └── All = 0? ── YES: Zero Matrix
+```
+
+---
+
+# 10. Important Properties — Summary
+
+## 10.1 Properties of Matrix Addition
+
+For matrices $A$, $B$, $C$ of the same order $m \times n$:
+
+| Property | Statement | Proof Sketch |
+|----------|-----------|--------------|
+| Commutative | $A + B = B + A$ | $(A+B)_{ij} = a_{ij}+b_{ij} = b_{ij}+a_{ij} = (B+A)_{ij}$ |
+| Associative | $(A+B)+C = A+(B+C)$ | Both sides equal $a_{ij}+b_{ij}+c_{ij}$ element-wise |
+| Additive identity | $A + O = A$ | $a_{ij} + 0 = a_{ij}$ |
+| Additive inverse | $A + (-A) = O$ | $a_{ij} + (-a_{ij}) = 0$ |
+
+## 10.2 Properties of Matrix Multiplication
+
+For matrices of compatible dimensions:
+
+| Property | Statement | Holds? |
+|----------|-----------|:------:|
+| Associative | $(AB)C = A(BC)$ | ✅ |
+| Left distributive | $A(B+C) = AB + AC$ | ✅ |
+| Right distributive | $(A+B)C = AC + BC$ | ✅ |
+| Commutative | $AB = BA$ | ❌ |
+| Zero product rule | $AB = O \Rightarrow A=O$ or $B=O$ | ❌ |
+| Cancellation | $AB = AC \Rightarrow B = C$ | ❌ (unless $A$ invertible) |
+
+**Proof of associativity** ($(AB)C = A(BC)$):
+
+$$((AB)C)_{ij} = \sum_l \left(\sum_k a_{ik}b_{kl}\right)c_{lj} = \sum_k \sum_l a_{ik}b_{kl}c_{lj} = \sum_k a_{ik}\left(\sum_l b_{kl}c_{lj}\right) = (A(BC))_{ij} \quad \blacksquare$$
+
+**Proof of left distributivity** ($A(B+C) = AB + AC$):
+
+$$(A(B+C))_{ij} = \sum_k a_{ik}(b_{kj}+c_{kj}) = \sum_k a_{ik}b_{kj} + \sum_k a_{ik}c_{kj} = (AB)_{ij} + (AC)_{ij} \quad \blacksquare$$
+
+## 10.3 Properties of Transpose
+
+| Property | Statement |
+|----------|-----------|
+| Double transpose | $(A^T)^T = A$ |
+| Sum | $(A+B)^T = A^T + B^T$ |
+| Scalar | $(kA)^T = kA^T$ |
+| **Product (reversal)** | $(AB)^T = B^T A^T$ |
+
+**Proof of $(AB)^T = B^TA^T$:**
+
+$$((AB)^T)_{ij} = (AB)_{ji} = \sum_k a_{jk}b_{ki}$$
+
+$$(B^TA^T)_{ij} = \sum_k (B^T)_{ik}(A^T)_{kj} = \sum_k b_{ki} a_{jk}$$
+
+Both sums are identical. $\blacksquare$
+
+> **Mnemonic — "Shoes and Socks" rule:** When you get dressed, you put socks on first, then shoes. When you undress (transpose/reverse), you take shoes off first, then socks. $(AB)^T = B^T A^T$. This extends: $(ABC)^T = C^T B^T A^T$.
+
+## 10.4 Orthogonal Matrix Properties Summary
+
+$Q^TQ=I$, $Q^{-1}=Q^T$, $|\det(Q)|=1$, preserves lengths ($\|Q\mathbf{x}\| = \|\mathbf{x}\|$), preserves angles, product of orthogonal matrices is orthogonal.
+
+---
+
+# 11. Algorithms
+
+**Matrix Mult ($2\times2$ shortcut):** $\begin{bmatrix}a&b\\c&d\end{bmatrix}\begin{bmatrix}e&f\\g&h\end{bmatrix} = \begin{bmatrix}ae+bg&af+bh\\ce+dg&cf+dh\end{bmatrix}$
+
+**Decomposition:** $S=(A+A^T)/2$, $K=(A-A^T)/2$. Verify $S+K=A$.
+
+**Power trick:** $A=\alpha I+N$, check $N^2=O$, apply $A^n=\alpha^nI+n\alpha^{n-1}N$.
+
+---
+
+# 12. Engineering Applications
+
+## 12.1 Robotics — Rotation Matrices
+
+Every rotation in 2D is described by the **2D rotation matrix:**
+
+$$R(\theta) = \begin{bmatrix}\cos\theta & -\sin\theta \\ \sin\theta & \cos\theta\end{bmatrix}$$
+
+This matrix rotates any vector by angle $\theta$ counterclockwise. It is **orthogonal** ($R^T R = I$) and has $\det(R) = +1$ (proper rotation, no reflection).
+
+**Key insight:** If a robot joint rotates by $\theta_1$ and then another joint rotates by $\theta_2$, the combined rotation is $R(\theta_1) \cdot R(\theta_2) = R(\theta_1 + \theta_2)$. This is how forward kinematics works — you multiply rotation matrices for each joint.
+
+In 3D robotics, rotations about the $x$, $y$, $z$ axes are:
+
+$$R_x(\theta) = \begin{bmatrix}1&0&0\\0&\cos\theta&-\sin\theta\\0&\sin\theta&\cos\theta\end{bmatrix}, \quad R_y(\theta) = \begin{bmatrix}\cos\theta&0&\sin\theta\\0&1&0\\-\sin\theta&0&\cos\theta\end{bmatrix}, \quad R_z(\theta) = \begin{bmatrix}\cos\theta&-\sin\theta&0\\\sin\theta&\cos\theta&0\\0&0&1\end{bmatrix}$$
+
+All three are orthogonal with $\det = +1$.
+
+## 12.2 Robotics — Homogeneous Transformation Matrices
+
+To describe both rotation AND translation of a robot link, we use a $4 \times 4$ **homogeneous transformation matrix:**
+
+$$T = \begin{bmatrix} R_{3\times3} & \mathbf{d}_{3\times1} \\ \mathbf{0}_{1\times3} & 1 \end{bmatrix}$$
+
+where $R$ is the rotation and $\mathbf{d}$ is the translation. The product of two such transforms follows block multiplication:
+
+$$T_1 T_2 = \begin{bmatrix}R_1 R_2 & R_1 \mathbf{d}_2 + \mathbf{d}_1 \\ \mathbf{0}^T & 1\end{bmatrix}$$
+
+For a 6-joint robot arm, the end-effector pose is: $T_{\text{total}} = T_1 \cdot T_2 \cdot T_3 \cdot T_4 \cdot T_5 \cdot T_6$.
+
+## 12.3 Control Systems — State-Space Representation
+
+Every linear time-invariant (LTI) system is modeled as:
+
+$$\dot{\mathbf{x}} = A\mathbf{x} + B\mathbf{u}, \quad \mathbf{y} = C\mathbf{x} + D\mathbf{u}$$
+
+- $A$ = **state matrix** ($n \times n$) — its eigenvalues determine system stability
+- $B$ = **input matrix** ($n \times m$) — how inputs affect states
+- $C$ = **output matrix** ($p \times n$) — how states map to outputs
+- $D$ = **feedthrough matrix** ($p \times m$) — direct input-to-output coupling
+
+**Example:** A DC motor with position $x_1$ and velocity $x_2$:
+
+$$\begin{bmatrix}\dot{x}_1\\\dot{x}_2\end{bmatrix} = \begin{bmatrix}0&1\\0&-b/J\end{bmatrix}\begin{bmatrix}x_1\\x_2\end{bmatrix} + \begin{bmatrix}0\\K/J\end{bmatrix}u$$
+
+The $A$ matrix here is upper triangular — its eigenvalues are the diagonal entries ($0$ and $-b/J$).
+
+## 12.4 Circuit Analysis — Nodal and Mesh Matrices
+
+In nodal analysis, Kirchhoff's Current Law at every node gives:
+
+$$Y \mathbf{V} = \mathbf{I}$$
+
+where $Y$ is the **admittance matrix** (symmetric for passive circuits), $\mathbf{V}$ is the node voltage vector, and $\mathbf{I}$ is the current source vector. Solving this is a direct application of $A\mathbf{x} = \mathbf{b}$.
+
+## 12.5 Signal Processing — DFT as Matrix Multiplication
+
+The Discrete Fourier Transform of an $N$-point signal $\mathbf{x}$ is:
+
+$$\mathbf{X} = W_N \mathbf{x}$$
+
+where $W_N$ is the $N \times N$ DFT matrix with entries $w_{jk} = e^{-i 2\pi jk/N}$. This is a unitary matrix (orthogonal in the complex sense) — inverse DFT is simply $W_N^{-1} = \frac{1}{N} W_N^*$.
+
+---
+
+# 13. Worked Examples
+
+## 13.1 Easy — Basic Matrix Multiplication ($2 \times 2$)
+
+**Problem:** Compute $AB$ where $A = \begin{bmatrix}2&1\\3&-1\end{bmatrix}$, $B = \begin{bmatrix}1&0\\-1&2\end{bmatrix}$.
+
+**Solution:**
+
+Step 1: Check dimensions. $A$ is $2 \times 2$, $B$ is $2 \times 2$. Inner dimensions match (2 = 2). Result will be $2 \times 2$.
+
+Step 2: Compute each element using row-of-$A$ × column-of-$B$:
+
+$c_{11}$: Row 1 of $A$ = $[2, 1]$, Col 1 of $B$ = $[1, -1]^T$
+$$c_{11} = 2(1) + 1(-1) = 2 - 1 = 1$$
+
+$c_{12}$: Row 1 of $A$ = $[2, 1]$, Col 2 of $B$ = $[0, 2]^T$
+$$c_{12} = 2(0) + 1(2) = 0 + 2 = 2$$
+
+$c_{21}$: Row 2 of $A$ = $[3, -1]$, Col 1 of $B$ = $[1, -1]^T$
+$$c_{21} = 3(1) + (-1)(-1) = 3 + 1 = 4$$
+
+$c_{22}$: Row 2 of $A$ = $[3, -1]$, Col 2 of $B$ = $[0, 2]^T$
+$$c_{22} = 3(0) + (-1)(2) = 0 - 2 = -2$$
+
+$$\boxed{AB = \begin{bmatrix}1&2\\4&-2\end{bmatrix}}$$
+
+---
+
+## 13.2 Intermediate — Symmetric + Skew-Symmetric Decomposition
+
+**Problem:** Decompose $A = \begin{bmatrix}1&3&-5\\-3&2&4\\5&-4&7\end{bmatrix}$ into its symmetric and skew-symmetric parts.
+
+**Solution:**
+
+Step 1: Find $A^T$ (interchange rows and columns):
+
+$$A^T = \begin{bmatrix}1&-3&5\\3&2&-4\\-5&4&7\end{bmatrix}$$
+
+Step 2: Compute symmetric part $S = \frac{A + A^T}{2}$:
+
+$$A + A^T = \begin{bmatrix}1+1&3+(-3)&-5+5\\-3+3&2+2&4+(-4)\\5+(-5)&-4+4&7+7\end{bmatrix} = \begin{bmatrix}2&0&0\\0&4&0\\0&0&14\end{bmatrix}$$
+
+$$S = \frac{1}{2}\begin{bmatrix}2&0&0\\0&4&0\\0&0&14\end{bmatrix} = \begin{bmatrix}1&0&0\\0&2&0\\0&0&7\end{bmatrix}$$
+
+**Check:** $S^T = S$ ✓ (it's diagonal, so automatically symmetric).
+
+Step 3: Compute skew-symmetric part $K = \frac{A - A^T}{2}$:
+
+$$A - A^T = \begin{bmatrix}1-1&3-(-3)&-5-5\\-3-3&2-2&4-(-4)\\5-(-5)&-4-4&7-7\end{bmatrix} = \begin{bmatrix}0&6&-10\\-6&0&8\\10&-8&0\end{bmatrix}$$
+
+$$K = \frac{1}{2}\begin{bmatrix}0&6&-10\\-6&0&8\\10&-8&0\end{bmatrix} = \begin{bmatrix}0&3&-5\\-3&0&4\\5&-4&0\end{bmatrix}$$
+
+**Check:** $K^T = -K$ ✓ and diagonal = 0 ✓.
+
+Step 4: Verify $S + K = A$:
+
+$$\begin{bmatrix}1&0&0\\0&2&0\\0&0&7\end{bmatrix} + \begin{bmatrix}0&3&-5\\-3&0&4\\5&-4&0\end{bmatrix} = \begin{bmatrix}1&3&-5\\-3&2&4\\5&-4&7\end{bmatrix} = A \quad ✓$$
+
+$$\boxed{S = \begin{bmatrix}1&0&0\\0&2&0\\0&0&7\end{bmatrix}, \quad K = \begin{bmatrix}0&3&-5\\-3&0&4\\5&-4&0\end{bmatrix}}$$
+
+---
+
+## 13.3 Advanced GATE-style — Computing $A^{2027}$ Using the Nilpotent Trick
+
+**Problem:** If $A = \begin{bmatrix}1&1\\0&1\end{bmatrix}$, find $A^{2027}$.
+
+**Solution:**
+
+Step 1: Observe that all diagonal entries are equal ($= 1$). This is the signal to use the nilpotent decomposition.
+
+Step 2: Write $A = \alpha I + N$ where $\alpha = 1$:
+
+$$N = A - 1 \cdot I = \begin{bmatrix}1&1\\0&1\end{bmatrix} - \begin{bmatrix}1&0\\0&1\end{bmatrix} = \begin{bmatrix}0&1\\0&0\end{bmatrix}$$
+
+Step 3: Check if $N$ is nilpotent:
+
+$$N^2 = \begin{bmatrix}0&1\\0&0\end{bmatrix}\begin{bmatrix}0&1\\0&0\end{bmatrix} = \begin{bmatrix}0(0)+1(0)&0(1)+1(0)\\0(0)+0(0)&0(1)+0(0)\end{bmatrix} = \begin{bmatrix}0&0\\0&0\end{bmatrix} = O \quad ✓$$
+
+$N^2 = O$, so $N$ is nilpotent with index 2.
+
+Step 4: Apply the formula $A^n = \alpha^n I + n\alpha^{n-1} N$ (valid because $N^2 = O$):
+
+$$A^{2027} = 1^{2027} I + 2027 \cdot 1^{2026} N = I + 2027N$$
+
+$$= \begin{bmatrix}1&0\\0&1\end{bmatrix} + 2027\begin{bmatrix}0&1\\0&0\end{bmatrix} = \begin{bmatrix}1&0\\0&1\end{bmatrix} + \begin{bmatrix}0&2027\\0&0\end{bmatrix}$$
+
+$$\boxed{A^{2027} = \begin{bmatrix}1&2027\\0&1\end{bmatrix}}$$
+
+**Quick verification:** $A^2 = \begin{bmatrix}1&2\\0&1\end{bmatrix}$, $A^3 = \begin{bmatrix}1&3\\0&1\end{bmatrix}$. Pattern: $A^n = \begin{bmatrix}1&n\\0&1\end{bmatrix}$ ✓.
+
+---
+
+## 13.4 Numerical — $3 \times 3$ Matrix Multiplication
+
+**Problem:** Compute $AB$ where $A = \begin{bmatrix}1&2&0\\-1&0&3\\2&1&-1\end{bmatrix}$, $B = \begin{bmatrix}2&-1\\0&3\\1&4\end{bmatrix}$.
+
+**Solution:**
+
+Step 1: Dimensions — $A$ is $3 \times 3$, $B$ is $3 \times 2$. Inner dims match (3 = 3). Result: $3 \times 2$.
+
+Step 2: Compute element by element.
+
+$c_{11}$: Row 1 of $A$ · Col 1 of $B$ = $1(2) + 2(0) + 0(1) = 2 + 0 + 0 = 2$
+
+$c_{12}$: Row 1 of $A$ · Col 2 of $B$ = $1(-1) + 2(3) + 0(4) = -1 + 6 + 0 = 5$
+
+$c_{21}$: Row 2 of $A$ · Col 1 of $B$ = $(-1)(2) + 0(0) + 3(1) = -2 + 0 + 3 = 1$
+
+$c_{22}$: Row 2 of $A$ · Col 2 of $B$ = $(-1)(-1) + 0(3) + 3(4) = 1 + 0 + 12 = 13$
+
+$c_{31}$: Row 3 of $A$ · Col 1 of $B$ = $2(2) + 1(0) + (-1)(1) = 4 + 0 - 1 = 3$
+
+$c_{32}$: Row 3 of $A$ · Col 2 of $B$ = $2(-1) + 1(3) + (-1)(4) = -2 + 3 - 4 = -3$
+
+$$\boxed{AB = \begin{bmatrix}2&5\\1&13\\3&-3\end{bmatrix}}$$
+
+---
+
+## 13.5 Conceptual — Proving the Cayley Transform Produces an Orthogonal Matrix
+
+**Problem:** If $A$ is a real skew-symmetric matrix ($A^T = -A$) and $(I+A)$ is invertible, show that $B = (I-A)(I+A)^{-1}$ is orthogonal.
+
+**Solution:**
+
+Step 1: We need to show $B^T B = I$.
+
+Step 2: Find $B^T$. Using $(XY)^T = Y^T X^T$:
+
+$$B^T = [(I-A)(I+A)^{-1}]^T = [(I+A)^{-1}]^T (I-A)^T$$
+
+Since $(I+A)^T = I^T + A^T = I + (-A) = I - A$, we get $[(I+A)^T]^{-1} = (I-A)^{-1}$.
+Also $(I-A)^T = I - A^T = I - (-A) = I + A$.
+
+$$B^T = (I-A)^{-1}(I+A)$$
+
+Step 3: Key observation — $I+A$ and $I-A$ commute:
+
+$$(I+A)(I-A) = I - A + A - A^2 = I - A^2$$
+$$(I-A)(I+A) = I + A - A - A^2 = I - A^2$$
+
+Both equal $I - A^2$, so $(I+A)(I-A) = (I-A)(I+A)$ ✓.
+
+This means $(I+A)^{-1}$ commutes with $(I-A)$, and $(I-A)^{-1}$ commutes with $(I+A)$.
+
+Step 4: Compute $B^T B$:
+
+$$B^T B = (I-A)^{-1}(I+A) \cdot (I-A)(I+A)^{-1}$$
+
+Since $(I+A)$ and $(I-A)$ commute, so do their inverses:
+
+$$= (I-A)^{-1} \cdot (I+A)(I-A) \cdot (I+A)^{-1}$$
+$$= (I-A)^{-1} \cdot (I-A)(I+A) \cdot (I+A)^{-1}$$
+$$= I \cdot I = I$$
+
+$$\boxed{B^T B = I, \text{ so } B \text{ is orthogonal.} \quad \blacksquare}$$
+
+---
+
+## 13.6 Real-World — Robot Arm Joint Rotation
+
+**Problem:** A 2D planar robot has two revolute joints. Joint 1 rotates by $\theta_1 = 90°$ and Joint 2 rotates by $\theta_2 = 45°$. A point at position $\mathbf{p} = \begin{bmatrix}1\\0\end{bmatrix}$ (relative to Joint 2's frame) undergoes both rotations. Find the final position relative to the base frame.
+
+**Solution:**
+
+Step 1: Write the rotation matrices.
+
+$$R_1 = R(90°) = \begin{bmatrix}\cos 90° & -\sin 90° \\ \sin 90° & \cos 90°\end{bmatrix} = \begin{bmatrix}0 & -1 \\ 1 & 0\end{bmatrix}$$
+
+$$R_2 = R(45°) = \begin{bmatrix}\cos 45° & -\sin 45° \\ \sin 45° & \cos 45°\end{bmatrix} = \begin{bmatrix}\frac{\sqrt{2}}{2} & -\frac{\sqrt{2}}{2} \\ \frac{\sqrt{2}}{2} & \frac{\sqrt{2}}{2}\end{bmatrix}$$
+
+Step 2: The total rotation from base to end-effector is $R_{\text{total}} = R_1 \cdot R_2$ (Joint 1 first, then Joint 2):
+
+$$R_1 R_2 = \begin{bmatrix}0 & -1 \\ 1 & 0\end{bmatrix}\begin{bmatrix}\frac{\sqrt{2}}{2} & -\frac{\sqrt{2}}{2} \\ \frac{\sqrt{2}}{2} & \frac{\sqrt{2}}{2}\end{bmatrix}$$
+
+$c_{11} = 0 \cdot \frac{\sqrt{2}}{2} + (-1) \cdot \frac{\sqrt{2}}{2} = -\frac{\sqrt{2}}{2}$
+
+$c_{12} = 0 \cdot (-\frac{\sqrt{2}}{2}) + (-1) \cdot \frac{\sqrt{2}}{2} = -\frac{\sqrt{2}}{2}$
+
+$c_{21} = 1 \cdot \frac{\sqrt{2}}{2} + 0 \cdot \frac{\sqrt{2}}{2} = \frac{\sqrt{2}}{2}$
+
+$c_{22} = 1 \cdot (-\frac{\sqrt{2}}{2}) + 0 \cdot \frac{\sqrt{2}}{2} = -\frac{\sqrt{2}}{2}$
+
+$$R_{\text{total}} = \begin{bmatrix}-\frac{\sqrt{2}}{2} & -\frac{\sqrt{2}}{2} \\ \frac{\sqrt{2}}{2} & -\frac{\sqrt{2}}{2}\end{bmatrix}$$
+
+This equals $R(135°)$ — exactly $90° + 45° = 135°$. Rotation matrices compose by addition of angles ✓.
+
+Step 3: Apply to the point:
+
+$$\mathbf{p}_{\text{final}} = R_{\text{total}} \cdot \mathbf{p} = \begin{bmatrix}-\frac{\sqrt{2}}{2} & -\frac{\sqrt{2}}{2} \\ \frac{\sqrt{2}}{2} & -\frac{\sqrt{2}}{2}\end{bmatrix}\begin{bmatrix}1\\0\end{bmatrix} = \begin{bmatrix}-\frac{\sqrt{2}}{2}\\\frac{\sqrt{2}}{2}\end{bmatrix} \approx \begin{bmatrix}-0.707\\0.707\end{bmatrix}$$
+
+$$\boxed{\mathbf{p}_{\text{final}} = \begin{bmatrix}-\frac{\sqrt{2}}{2}\\\frac{\sqrt{2}}{2}\end{bmatrix} \approx (-0.707, \; 0.707)}$$
+
+**Physical meaning:** The point originally at $(1, 0)$ has been rotated $135°$ counterclockwise and now sits in the second quadrant, at $45°$ above the negative $x$-axis. Its distance from the origin is still 1 — rotation preserves length (orthogonal matrix property).
+
+---
+
+# 14. Common Mistakes
+
+| # | Mistake | Correction |
+|---|---------|------------|
+| 1 | $AB = BA$ | Not commutative |
+| 2 | $(AB)^T = A^TB^T$ | $(AB)^T = B^TA^T$ |
+| 3 | $AB=O \Rightarrow A=O$ or $B=O$ | Zero divisors exist |
+| 4 | $AB=AC \Rightarrow B=C$ | Only if $A$ invertible |
+| 5 | Skew-symmetric diagonal ≠ 0 | Must be 0 |
+| 6 | Sym × Sym = Sym | Only if they commute |
+| 7 | $A^2$ of skew is skew | $A^2$ is symmetric! |
+| 8 | Multiplying incompatible sizes | Check: cols($A$) must equal rows($B$) BEFORE computing |
+| 9 | Confusing $A^T$ for $A^{-1}$ | $A^T = A^{-1}$ ONLY for orthogonal matrices, not in general |
+| 10 | Assuming $(A+B)^2 = A^2 + 2AB + B^2$ | Correct: $(A+B)^2 = A^2 + AB + BA + B^2$ (no "2AB" unless $AB = BA$) |
+
+---
+
+# 15. Connections
+
+## 15.1 Prerequisites (What You Need Before This Topic)
+
+| Topic | How It's Used Here |
+|-------|--------------------|
+| Real number arithmetic | All matrix entries are real numbers; addition/multiplication of entries |
+| Basic algebra | Solving equations like $x + 1 = 5$ when finding unknown matrix elements |
+| Trigonometry basics | $\sin\theta$, $\cos\theta$ needed for rotation matrices |
+
+## 15.2 Downstream Topics (What Depends on Matrices)
+
+| Topic | How Matrices Feed Into It |
+|-------|---------------------------|
+| **Determinants** | Determinant is a scalar computed FROM a square matrix; uses cofactor expansion along rows/columns |
+| **Adjoint & Inverse** | Adjoint is the transpose of the cofactor matrix; inverse is $A^{-1} = \frac{1}{\det(A)} \text{adj}(A)$ |
+| **Rank** | Rank is a property of a matrix — the number of linearly independent rows (or columns) |
+| **System of Linear Equations** | Written as $A\mathbf{x} = \mathbf{b}$; solved using matrix operations (inverse, row reduction) |
+| **Eigenvalues & Eigenvectors** | Eigenvalues are scalars $\lambda$ such that $A\mathbf{v} = \lambda\mathbf{v}$ for non-zero $\mathbf{v}$ |
+| **Trace** | Trace = sum of diagonal elements of a square matrix = sum of eigenvalues |
+
+## 15.3 Cross-Subject Connections
+
+| Subject | Connection |
+|---------|------------|
+| **Robotics** | Rotation matrices describe joint orientations; homogeneous transforms ($4\times4$) combine rotation + translation; Jacobian maps joint velocities to end-effector velocities |
+| **Control Systems** | State-space model $\dot{\mathbf{x}} = A\mathbf{x} + B\mathbf{u}$ — the $A$ matrix's eigenvalues determine stability; controllability/observability depend on matrix rank |
+| **Signals & Systems** | DFT is a matrix-vector multiplication $\mathbf{X} = W\mathbf{x}$; convolution can be written as matrix multiplication (Toeplitz matrix) |
+| **Circuit Analysis** | Nodal analysis yields $Y\mathbf{V} = \mathbf{I}$ (admittance matrix × voltage vector = current vector) |
+| **Probability & Statistics** | Covariance matrix captures correlations between random variables; used in Kalman filtering for robotics |
+| **Numerical Methods** | Iterative solvers (Gauss-Seidel, Jacobi) for large linear systems use matrix decompositions |
+
+---
+
+# 16. Formula Sheet
+
+**Dimension Rules:**
+- $A_{m \times n} + B_{m \times n}$: requires same order → result $m \times n$
+- $A_{m \times n} \cdot B_{n \times p}$: inner dims must match → result $m \times p$
+- $(A^T)_{n \times m}$: rows and columns swap
+
+**Matrix Multiplication:**
+$$\boxed{(AB)_{ij} = \sum_{k=1}^{n} a_{ik} b_{kj}}$$
+
+**Properties of Addition:**
+- $A + B = B + A$ (commutative)
+- $(A + B) + C = A + (B + C)$ (associative)
+- $A + O = A$ (identity)
+- $A + (-A) = O$ (inverse)
+
+**Properties of Multiplication:**
+- $(AB)C = A(BC)$ (associative)
+- $A(B + C) = AB + AC$ (left distributive)
+- $(A + B)C = AC + BC$ (right distributive)
+- $AB \neq BA$ in general (NOT commutative)
+- $AI = IA = A$ (identity)
+
+**Transpose Properties:**
+- $(A^T)^T = A$
+- $(A + B)^T = A^T + B^T$
+- $(kA)^T = kA^T$
+- $\boxed{(AB)^T = B^T A^T}$ ← "Shoes and Socks" rule
+
+**Symmetric + Skew-Symmetric Decomposition:**
+$$\boxed{A = \underbrace{\frac{A + A^T}{2}}_{\text{symmetric}} + \underbrace{\frac{A - A^T}{2}}_{\text{skew-symmetric}}}$$
+
+**Orthogonal Matrices:**
+- $Q^T Q = I \Rightarrow Q^{-1} = Q^T$
+- $|\det(Q)| = 1$
+- Preserves lengths: $\|Q\mathbf{x}\| = \|\mathbf{x}\|$
+
+**2D Rotation Matrix:**
+$$\boxed{R(\theta) = \begin{bmatrix}\cos\theta & -\sin\theta \\ \sin\theta & \cos\theta\end{bmatrix}}$$
+
+**Nilpotent Power Trick:**
+- If $A = \alpha I + N$ with $N^2 = O$: $\boxed{A^n = \alpha^n I + n\alpha^{n-1} N}$
+- If $N^3 = O$: $A^n = \alpha^n I + n\alpha^{n-1} N + \frac{n(n-1)}{2}\alpha^{n-2} N^2$
+
+**Independent Elements Count:**
+
+| Matrix Type | Independent Elements |
+|-------------|---------------------|
+| General $n \times n$ | $n^2$ |
+| Symmetric | $\frac{n(n+1)}{2}$ |
+| Skew-symmetric | $\frac{n(n-1)}{2}$ |
+| Diagonal | $n$ |
+| Upper/Lower Triangular | $\frac{n(n+1)}{2}$ |
+
+**Special Matrix Properties:**
+
+| Type | Condition | Power Rule |
+|------|-----------|-----------|
+| Idempotent | $A^2 = A$ | $A^n = A$ |
+| Involutory | $A^2 = I$ | $A^{\text{even}} = I$, $A^{\text{odd}} = A$ |
+| Nilpotent (index $k$) | $A^k = O$ | $A^m = O$ for all $m \geq k$ |
+| Orthogonal | $Q^T Q = I$ | $\det = \pm 1$, preserves lengths |
+
+**Skew-Symmetric Special Rules:**
+- All diagonal elements = 0
+- $\det(A) = 0$ when $n$ is odd
+- $A^2$ is symmetric (not skew!)
+
+---
+
+# 17. Quick Revision
+
+1. **Matrix order:** $m \times n$ means $m$ rows and $n$ columns. Element $a_{ij}$ = row $i$, column $j$.
+2. **Addition rule:** Only matrices of the **same order** can be added — add element by element.
+3. **Multiplication rule:** $A_{m \times n} \cdot B_{n \times p}$ — inner dimensions must match. Result is $m \times p$.
+4. **NOT commutative:** $AB \neq BA$ in general. Order of multiplication matters (especially in rotations).
+5. **Transpose reversal:** $(AB)^T = B^T A^T$ — the "shoes and socks" rule. Order reverses.
+6. **Zero divisors:** $AB = O$ does NOT mean $A = O$ or $B = O$. Can't cancel: $AB = AC \not\Rightarrow B = C$.
+7. **Symmetric:** $A^T = A$, with $\frac{n(n+1)}{2}$ independent elements. **Skew-symmetric:** $A^T = -A$, diagonal must be 0, with $\frac{n(n-1)}{2}$ independent elements.
+8. **Orthogonal:** $Q^T Q = I$, so $Q^{-1} = Q^T$. $|\det(Q)| = 1$. Preserves lengths and angles.
+9. **Decomposition:** Every square matrix $A$ uniquely splits as $S + K$ where $S = \frac{A+A^T}{2}$ (symmetric) and $K = \frac{A-A^T}{2}$ (skew-symmetric).
+10. **Power trick:** If $A = \alpha I + N$ and $N^2 = O$, then $A^n = \alpha^n I + n\alpha^{n-1} N$. Also: $A^2$ of a skew-symmetric matrix is **symmetric** (not skew!).
+
+---
+
+# 18. Flashcards (25)
+
+| # | Q | A |
+|---|---|---|
+| 1 | Order of matrix? | $m \times n$ |
+| 2 | $a_{23}$ means? | Row 2, Col 3 |
+| 3 | When add? | Same order |
+| 4 | When $AB$ exists? | Cols($A$)=Rows($B$) |
+| 5 | $AB$ size ($3\times5 \cdot 5\times2$)? | $3\times2$ |
+| 6 | $AB=BA$? | Not in general |
+| 7 | $(AB)^T$? | $B^TA^T$ |
+| 8 | Symmetric? | $A^T=A$ |
+| 9 | Skew-sym diagonal? | All zero |
+| 10 | Orthogonal? | $Q^TQ=I$ |
+| 11 | $\det(Q)$ orth? | $\pm1$ |
+| 12 | $AB=O$ implies? | Nothing |
+| 13 | Decomposition? | $S=(A+A^T)/2$, $K=(A-A^T)/2$ |
+| 14 | Idempotent? | $A^2=A$ |
+| 15 | Nilpotent idx $k$? | $A^k=O, A^{k-1}\neq O$ |
+| 16 | Involutory? | $A^2=I$ |
+| 17 | Sym free elements? | $n(n+1)/2$ |
+| 18 | Skew free elements? | $n(n-1)/2$ |
+| 19 | Power trick? | $A=\alpha I+N, N^2=O: A^n=\alpha^nI+n\alpha^{n-1}N$ |
+| 20 | $A^2$ when $A$ skew? | Symmetric |
+| 21 | Rotation det? | $+1$ |
+| 22 | $Q^{-1}$ orth? | $Q^T$ |
+| 23 | $AB=AC \Rightarrow B=C$? | Only if $A$ invertible |
+| 24 | $A^{2027}$ for $\begin{bmatrix}1&1\\0&1\end{bmatrix}$? | $\begin{bmatrix}1&2027\\0&1\end{bmatrix}$ |
+| 25 | Block transform matrix? | $\begin{bmatrix}R&d\\0&1\end{bmatrix}$ |
+
+---
+
+# 19. Practice Problems
+
+## 19.1 Conceptual (10)
+
+**Q1.** If $A$ is $3\times4$ and $B$ is $4\times2$, what is the order of $AB$? Does $BA$ exist?
+
+**Q2.** If $A$ is symmetric and $B$ is skew-symmetric (both $n\times n$), is $AB$ necessarily symmetric? Explain.
+
+**Q3.** If $A$ is $n\times n$ skew-symmetric and $n$ is odd, prove $\det(A)=0$.
+
+**Q4.** True or False: $A^2=A \implies A=O$ or $A=I$. Justify with example.
+
+**Q5.** If $A$ is orthogonal, what is $A^TA + AA^T$?
+
+**Q6.** Can a non-square matrix be symmetric? Why?
+
+**Q7.** Under what condition is the product of two symmetric matrices also symmetric?
+
+**Q8.** How many independent elements does a $5\times5$ symmetric matrix have?
+
+**Q9.** How many independent elements does a $4\times4$ skew-symmetric matrix have?
+
+**Q10.** If $A$ is nilpotent with index 3, what is $(I-A)^{-1}$? Prove it.
+
+## 19.2 Numerical (10)
+
+**Q11.** Compute $AB$ and $BA$: $A=\begin{bmatrix}1&2\\3&4\end{bmatrix}$, $B=\begin{bmatrix}0&1\\1&0\end{bmatrix}$. Are they equal?
+
+**Q12.** Decompose $A=\begin{bmatrix}2&4\\-6&8\end{bmatrix}$ into symmetric + skew-symmetric parts.
+
+**Q13.** $A=\begin{bmatrix}1&2\\0&1\end{bmatrix}$. Compute $A^5$.
+
+**Q14.** Verify $R_{30°}$ is orthogonal by computing $R^TR$.
+
+**Q15.** $A=\begin{bmatrix}0&1&0\\0&0&1\\0&0&0\end{bmatrix}$. Find $A^2$, $A^3$. What type is $A$?
+
+**Q16.** $A=\begin{bmatrix}2&-1\\-1&2\end{bmatrix}$. Compute $A^2-4A+3I$.
+
+**Q17.** Find general $A^n$ for $A=\begin{bmatrix}1&1\\0&1\end{bmatrix}$. Verify for $n=1,2,3$.
+
+**Q18.** Verify $(AB)^T = B^TA^T$ for $A=\begin{bmatrix}1&2\\3&4\\5&6\end{bmatrix}$, $B=\begin{bmatrix}1&0&1\\0&1&1\end{bmatrix}$.
+
+**Q19.** Find $A^{100}$ for $A=\begin{bmatrix}3&1\\0&3\end{bmatrix}$.
+
+**Q20.** Robot at $\begin{bmatrix}1\\0\end{bmatrix}$. Rotate $90°$ then $45°$. Find final position.
+
+## 19.3 Assertion-Reason (5)
+
+*(a) Both true, R explains A (b) Both true, R doesn't explain A (c) A true, R false (d) A false*
+
+**Q21.** A: $3\times3$ skew-symmetric has $\det=0$. R: $\det(A^T)=\det(A)$.
+
+**Q22.** A: $Q^T$ is orthogonal if $Q$ is. R: Product of orthogonal matrices is orthogonal.
+
+**Q23.** A: If $A$ sym, $B$ skew, then $\text{tr}(AB)=0$. R: Trace of skew-symmetric is 0.
+
+**Q24.** A: $(A+A^T)$ is always symmetric. R: Sum of symmetric matrices is symmetric.
+
+**Q25.** A: $AB=BA$ for all $2\times2$ matrices. R: $2\times2$ matrices form a commutative ring.
+
+## 19.4 Multiple-Select (5)
+
+**Q26.** Always true for orthogonal $Q$? (a) $\det(Q)=1$ (b) $|\det(Q)|=1$ (c) $Q^{-1}=Q^T$ (d) $Q^2=I$
+
+**Q27.** For $4\times4$ skew-symmetric $A$? (a) $\text{tr}(A)=0$ (b) 6 independent elements (c) $A^T=A$ (d) $A+A^T=O$
+
+**Q28.** Which guarantee $A=O$? (a) $AB=O$ for all $B$ (b) $AB=O$ for some $B\neq O$ (c) $A\mathbf{x}=\mathbf{0}$ for all $\mathbf{x}$ (d) $\text{tr}(A)=0$
+
+**Q29.** Which are idempotent? (a) $I$ (b) $O$ (c) $\begin{bmatrix}1&0\\0&0\end{bmatrix}$ (d) $\begin{bmatrix}1&1\\0&0\end{bmatrix}$
+
+**Q30.** Always possible for any $n\times n$ real $A$? (a) $A=S+K$ (sym+skew) (b) $A=LU$ (c) $A=QR$ (d) $A=A^T$
+
+## 19.5 Difficult GATE-Style (5)
+
+**Q31.** $A^2=5A-6I$. Find $A^{-1}$ in terms of $A$ and $I$.
+
+**Q32.** $P$ is $2\times2$, $P^2=P$, $P\neq O$, $P\neq I$. Find $\text{tr}(P)$. [NAT]
+
+**Q33.** $A$ is real, $A^TA=O$. Prove $A=O$.
+
+**Q34.** $A^3=O$, $A^2\neq O$. Find $(I-A)^{-1}$.
+
+**Q35.** $A=\begin{bmatrix}1&1\\0&1\end{bmatrix}$. Find element $(1,2)$ of $A^{2027}$. [NAT]
+
+---
+
+# 20. Detailed Solutions
+
+**S1.** $AB$ is $3\times2$. For $BA$: cols of $B$ (2) ≠ rows of $A$ (3). **$BA$ does not exist.**
+
+**S2.** $(AB)^T=B^TA^T=(-B)A=-BA$. Need $AB=-BA$ for symmetry. Not guaranteed. **No.**
+
+**S3.** $A^T=-A \implies \det(A^T)=\det(-A)$. $\det(A^T)=\det(A)$, $\det(-A)=(-1)^n\det(A)$. For odd $n$: $\det(A)=-\det(A) \implies \det(A)=0$. ∎
+
+**S4.** **False.** $\begin{bmatrix}1&0\\0&0\end{bmatrix}$ satisfies $A^2=A$ but isn't $O$ or $I$.
+
+**S5.** $Q^TQ=I$, $QQ^T=I$. Sum $= 2I$.
+
+**S6.** No. $A^T=A$ requires same dimensions after transpose, so $m=n$.
+
+**S7.** $(AB)^T=BA$. Need $AB=BA$. **When $A,B$ commute.**
+
+**S8.** $5(6)/2 = \boxed{15}$.
+
+**S9.** $4(3)/2 = \boxed{6}$.
+
+**S10.** $(I-A)^{-1}=I+A+A^2$. Verify: $(I-A)(I+A+A^2)=I+A+A^2-A-A^2-A^3=I$. ✓
+
+**S11.** $AB=\begin{bmatrix}2&1\\4&3\end{bmatrix}$, $BA=\begin{bmatrix}3&4\\1&2\end{bmatrix}$. **Not equal.**
+
+**S12.** $S=\begin{bmatrix}2&-1\\-1&8\end{bmatrix}$, $K=\begin{bmatrix}0&5\\-5&0\end{bmatrix}$. Verify $S+K=A$ ✓.
+
+**S13.** $A=I+N$, $N=\begin{bmatrix}0&2\\0&0\end{bmatrix}$, $N^2=O$. $A^5=I+5N=\begin{bmatrix}1&10\\0&1\end{bmatrix}$.
+
+**S14.** $R^TR=\begin{bmatrix}\cos^230°+\sin^230°&0\\0&\cos^230°+\sin^230°\end{bmatrix}=I$ ✓.
+
+**S15.** $A^2=\begin{bmatrix}0&0&1\\0&0&0\\0&0&0\end{bmatrix}$, $A^3=O$. **Nilpotent, index 3.**
+
+**S16.** $A^2=\begin{bmatrix}5&-4\\-4&5\end{bmatrix}$. $A^2-4A+3I=O$. (Cayley-Hamilton: $A$ satisfies its characteristic equation.)
+
+**S17.** $A=I+N$, $N=\begin{bmatrix}0&1\\0&0\end{bmatrix}$, $N^2=O$. $A^n=\begin{bmatrix}1&n\\0&1\end{bmatrix}$. Check: $n=1$: $\begin{bmatrix}1&1\\0&1\end{bmatrix}$ ✓, $n=2$: $\begin{bmatrix}1&2\\0&1\end{bmatrix}$ ✓, $n=3$: $\begin{bmatrix}1&3\\0&1\end{bmatrix}$ ✓.
+
+**S18.** $AB=\begin{bmatrix}1&2&3\\3&4&7\\5&6&11\end{bmatrix}$. $(AB)^T=\begin{bmatrix}1&3&5\\2&4&6\\3&7&11\end{bmatrix}$. $B^TA^T=\begin{bmatrix}1&3&5\\2&4&6\\3&7&11\end{bmatrix}$. Equal ✓.
+
+**S19.** $A=3I+N$, $N=\begin{bmatrix}0&1\\0&0\end{bmatrix}$, $N^2=O$. $A^{100}=\begin{bmatrix}3^{100}&100\cdot3^{99}\\0&3^{100}\end{bmatrix}$.
+
+**S20.** After $R_{90°}$: $\begin{bmatrix}0\\1\end{bmatrix}$. After $R_{45°}$: $\begin{bmatrix}-\sqrt{2}/2\\\sqrt{2}/2\end{bmatrix} \approx (-0.707, 0.707)$.
+
+**S21.** **(a).** R ($\det A^T=\det A$) is used directly in the proof.
+
+**S22.** **(b).** Both true. $Q^T$ orthogonal proved directly: $(Q^T)^TQ^T=QQ^T=I$. R is irrelevant.
+
+**S23.** **(a).** $\text{tr}(AB)=\text{tr}((AB)^T)=\text{tr}(B^TA^T)=\text{tr}(-BA)=-\text{tr}(AB) \implies \text{tr}(AB)=0$.
+
+**S24.** **(a).** $(A+A^T)^T=A^T+A=A+A^T$. R explains why.
+
+**S25.** **(d).** A false (non-commutative). R also false.
+
+**S26.** **(b), (c).** $|\det|=1$ ✓, $Q^{-1}=Q^T$ ✓. Not (a): $\det$ can be $-1$. Not (d): orthogonal ≠ involutory.
+
+**S27.** **(a), (b), (d).** tr=0 ✓ (diag=0), 6 indep ✓ ($4(3)/2$), $A+A^T=O$ ✓. Not (c).
+
+**S28.** **(a), (c).** (a): $B=I \implies A=O$. (c): $\mathbf{x}=\mathbf{e}_j$ gives column $j$ is $\mathbf{0}$.
+
+**S29.** **(a), (b), (c), (d).** All satisfy $A^2=A$.
+
+**S30.** **(a), (c).** Sym+skew always. QR always exists. LU needs conditions. (d) only for symmetric.
+
+**S31.** $A^2-5A+6I=O \implies A(A-5I)=-6I$. So $A^{-1}=\frac{5I-A}{6}$.
+
+**S32.** Eigenvalues ∈ $\{0,1\}$. $P\neq O,I$ → one of each. $\text{tr}(P)=0+1=\boxed{1}$.
+
+**S33.** $(A^TA)_{jj}=\|\text{col}_j\|^2=0 \implies$ col $j=\mathbf{0}$ for all $j \implies A=O$. ∎
+
+**S34.** $(I-A)^{-1}=I+A+A^2$. Verify: $(I-A)(I+A+A^2)=I-A^3=I$. ✓
+
+**S35.** $A=I+N$, $N^2=O$. $A^{2027}=\begin{bmatrix}1&2027\\0&1\end{bmatrix}$. Element $(1,2)=\boxed{2027}$.
+
+---
+
+# 21. Further Reading
+
+## NPTEL (Free Video Lectures)
+- **Engineering Mathematics I** (IIT Kharagpur): https://onlinecourses.nptel.ac.in/noc25_ma79/preview
+- **GATE Portal — Engg Math**: https://gate.nptel.ac.in/video.php?branchID=1
+
+## MIT OCW (Free)
+- **18.06 Linear Algebra** (Gilbert Strang): https://ocw.mit.edu/courses/18-06-linear-algebra-spring-2010/
+- Strang YouTube playlist: https://www.youtube.com/playlist?list=PLE7DDD91010BC51F8
+
+## YouTube
+- **3Blue1Brown — Essence of Linear Algebra**: https://www.youtube.com/playlist?list=PLZHQObOWTQDPD3MizzM2xVFitgF8hE_ab
+- **Khan Academy — Linear Algebra**: https://www.khanacademy.org/math/linear-algebra
+
+## Textbooks
+- **B.S. Grewal** — Higher Engineering Mathematics
+- **Gilbert Strang** — Linear Algebra and Its Applications
+- **David C. Lay** — Linear Algebra and Its Applications
+- **Erwin Kreyszig** — Advanced Engineering Mathematics (Ch. 7–8)
+
+## Practice
+- **ExamSIDE GATE EE PYQs**: https://questions.examside.com/past-years/gate/gate-ee
+- **GATE Overflow**: https://gateoverflow.in/
+
+---
+
+# 22. Knowledge Graph
+
+```
+PREREQUISITES                     THIS TOPIC FEEDS INTO
+─────────────                     ─────────────────────
+Real number arithmetic     ──→    Determinants
+Basic algebra              ──→    Adjoint & Inverse
+                           ──→    Rank
+      ★ MATRICES ★         ──→    System of Linear Equations
+                           ──→    Eigenvalues & Eigenvectors
+                           ──→    Trace
+                           ──→    [Robotics] Rotation Matrices
+                           ──→    [Robotics] Homogeneous Transforms
+                           ──→    [Robotics] Jacobian
+                           ──→    [Control] State-Space Models
+                           ──→    [Signals] DFT Matrix
+                           ──→    [Circuits] Nodal/Mesh Matrices
+```
+
+---
+
+# 23. Difficulty Rating
+
+| Aspect | Rating |
+|--------|--------|
+| Conceptual difficulty | **3/10** |
+| Computational difficulty | **4/10** |
+| GATE importance | **7/10** (foundation for everything) |
+| First learning time | **3 hours** (for first-year student) |
+| Practice time | **3 hours** |
+| Revision time | **30 minutes** |
+
+---
+
+# 24. Exam Strategy
+
+## How Matrices Are Tested in GATE
+
+- **Rarely standalone** — matrix operations are embedded in eigenvalue, rank, or systems problems
+- **1-mark MCQ:** Type identification, dimension checks, property-based true/false
+- **2-mark NAT:** Compute element of a product, find $A^n$, decomposition
+- **Embedded:** Matrix multiplication appears in control (state-space) and robotics (transformations)
+
+## Top 3 High-Yield Shortcuts
+
+1. **$A=\alpha I+N$ trick:** Instantly find $A^n$ for upper-triangular matrices with equal diagonal
+2. **$(AB)^T = B^TA^T$:** Appears in proofs — memorize the reversal rule
+3. **Sym+Skew decomposition:** Direct 1-mark questions or sub-steps in larger problems
+
+## Traps to Avoid
+
+- $AB \neq BA$ — especially in rotation/transformation problems
+- $AB = O \not\Rightarrow A=O$ or $B=O$
+- $AB = AC \not\Rightarrow B=C$ (need $A$ invertible)
+- Skew-symmetric diagonal MUST be 0
+- $A^2$ of skew-symmetric is **symmetric**, not skew

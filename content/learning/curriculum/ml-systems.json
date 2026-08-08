@@ -1,0 +1,133 @@
+{
+  "id": "track_ml_systems",
+  "slug": "ml-systems",
+  "title": "ML Systems",
+  "description": "Master the mathematical foundations and systems engineering behind machine learning.",
+  "icon": "Cpu",
+  "order": 2,
+  "difficulty": "intermediate",
+  "premium": false,
+  "tags": ["Math", "ML", "Systems"],
+  "modules": [
+    {
+      "id": "module_foundations",
+      "slug": "foundations",
+      "title": "Mathematical Foundations",
+      "description": "The math that makes machine learning work.",
+      "icon": "Calculator",
+      "order": 1,
+      "premium": false,
+      "prerequisites": [],
+      "lessons": [
+        {
+          "id": "lesson_linear_algebra_intuition",
+          "slug": "linear-algebra-intuition",
+          "title": "Linear Algebra Intuition",
+          "order": 1,
+          "status": "published",
+          "difficulty": "beginner",
+          "estimatedMinutes": 45,
+          "premium": false,
+          "lessonType": "learn",
+          "hasContent": true
+        },
+        {
+          "id": "lesson_calculus_for_ml",
+          "slug": "calculus-for-ml",
+          "title": "Calculus for Machine Learning",
+          "order": 2,
+          "status": "planned",
+          "difficulty": "beginner",
+          "estimatedMinutes": 50,
+          "premium": false,
+          "lessonType": "learn",
+          "hasContent": false
+        },
+        {
+          "id": "lesson_probability_statistics",
+          "slug": "probability-statistics",
+          "title": "Probability & Statistics for ML",
+          "order": 3,
+          "status": "planned",
+          "difficulty": "beginner",
+          "estimatedMinutes": 55,
+          "premium": false,
+          "lessonType": "learn",
+          "hasContent": false
+        }
+      ]
+    },
+    {
+      "id": "module_training",
+      "slug": "training",
+      "title": "Training Systems",
+      "description": "Distributed training, optimization, and hardware-aware ML.",
+      "icon": "Zap",
+      "order": 2,
+      "premium": false,
+      "prerequisites": ["foundations"],
+      "lessons": [
+        {
+          "id": "lesson_distributed_training",
+          "slug": "distributed-training",
+          "title": "Distributed Training",
+          "order": 1,
+          "status": "planned",
+          "difficulty": "advanced",
+          "estimatedMinutes": 60,
+          "premium": true,
+          "lessonType": "build",
+          "hasContent": false
+        },
+        {
+          "id": "lesson_optimizers",
+          "slug": "optimizers",
+          "title": "Optimizers Deep Dive",
+          "order": 2,
+          "status": "planned",
+          "difficulty": "intermediate",
+          "estimatedMinutes": 45,
+          "premium": false,
+          "lessonType": "learn",
+          "hasContent": false
+        }
+      ]
+    },
+    {
+      "id": "module_inference",
+      "slug": "inference",
+      "title": "Inference & Optimization",
+      "description": "Serve models efficiently at production scale.",
+      "icon": "Gauge",
+      "order": 3,
+      "premium": false,
+      "prerequisites": ["training"],
+      "lessons": [
+        {
+          "id": "lesson_model_serving",
+          "slug": "model-serving",
+          "title": "Model Serving Architectures",
+          "order": 1,
+          "status": "planned",
+          "difficulty": "advanced",
+          "estimatedMinutes": 50,
+          "premium": false,
+          "lessonType": "build",
+          "hasContent": false
+        },
+        {
+          "id": "lesson_quantization",
+          "slug": "quantization",
+          "title": "Quantization Techniques",
+          "order": 2,
+          "status": "planned",
+          "difficulty": "advanced",
+          "estimatedMinutes": 45,
+          "premium": true,
+          "lessonType": "build",
+          "hasContent": false
+        }
+      ]
+    }
+  ]
+}

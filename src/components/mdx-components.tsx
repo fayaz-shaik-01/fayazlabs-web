@@ -5,6 +5,22 @@ import Link from "next/link";
 import { useState } from "react";
 import { Check, Copy } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  FormulaCard,
+  DefinitionCard,
+  ExamTip,
+  Warning,
+  EngineeringInsight,
+  RealWorldExample,
+  ExampleCard,
+  DerivationStepper,
+  DerivationStep,
+  ComparisonTable,
+  ConceptCheckpoint,
+  TabGroup,
+  MemoryTrick,
+} from "@/components/learning/knowledge-components";
+import Visualization from "@/components/visualizations/Visualization";
 
 function CopyButton({ text }: { readonly text: string }) {
   const [copied, setCopied] = useState(false);
@@ -190,4 +206,20 @@ export const mdxComponents = {
       </a>
     );
   },
+  // ── Learning components ──────────────────────────────────────────────────
+  FormulaCard,
+  DefinitionCard,
+  ExamTip,
+  Warning,
+  EngineeringInsight,
+  RealWorldExample,
+  ExampleCard,
+  DerivationStepper,
+  DerivationStep,
+  ComparisonTable,
+  ConceptCheckpoint,
+  TabGroup,
+  MemoryTrick,
+  // ── Visualization engine ────────────────────────────────────────────────
+  Visualization,
 };

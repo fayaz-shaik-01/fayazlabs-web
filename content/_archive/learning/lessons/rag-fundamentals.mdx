@@ -1,0 +1,201 @@
+---
+title: "RAG: Retrieval-Augmented Generation"
+description: "Build a complete RAG pipeline — from document ingestion and vector search to prompt augmentation and response generation."
+date: "2026-05-23"
+published: true
+lessonSlug: "rag-fundamentals"
+phaseId: 11
+difficulty: "intermediate"
+estimatedMinutes: 55
+prerequisites: ["embeddings-vectors"]
+tags: ["RAG", "Retrieval", "LLM"]
+---
+
+## What Is RAG?
+
+Retrieval-Augmented Generation (RAG) grounds language model responses in external knowledge. Instead of relying solely on what the model memorized during training, RAG retrieves relevant documents at query time and includes them in the prompt.
+
+This solves several critical problems:
+- **Hallucination**: The model can cite actual sources instead of fabricating answers
+- **Stale knowledge**: Retrieve from up-to-date documents without retraining
+- **Domain specificity**: Ground answers in your proprietary data
+- **Transparency**: Users can verify the sources behind each response
+
+## The RAG Pipeline
+
+A standard RAG pipeline has two phases:
+
+### Ingestion (Offline)
+
+```
+Documents → Chunking → Embedding → Vector Store
+```
+
+### Query (Online)
+
+```
+User Query → Embed Query → Vector Search → Top-K Chunks → Augmented Prompt → LLM → Response
+```
+
+## Step 1: Document Chunking
+
+Raw documents are too large to fit in a prompt. Split them into semantically meaningful chunks:
+
+```python
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+
+splitter = RecursiveCharacterTextSplitter(
+    chunk_size=512,
+    chunk_overlap=50,
+    separators=["\n\n", "\n", ". ", " ", ""]
+)
+
+documents = load_documents("./docs")
+chunks = splitter.split_documents(documents)
+```
+
+**Chunk size matters**: Too small loses context. Too large wastes context window space and dilutes relevance. 256-1024 tokens is a common range.
+
+## Step 2: Embedding
+
+Convert each chunk into a dense vector that captures semantic meaning:
+
+```python
+from openai import OpenAI
+
+client = OpenAI()
+
+def embed_texts(texts: list[str]) -> list[list[float]]:
+    response = client.embeddings.create(
+        model="text-embedding-3-small",
+        input=texts
+    )
+    return [item.embedding for item in response.data]
+
+chunk_texts = [chunk.page_content for chunk in chunks]
+embeddings = embed_texts(chunk_texts)
+```
+
+## Step 3: Vector Storage
+
+Store embeddings in a vector database for efficient similarity search:
+
+```python
+import psycopg2
+from pgvector.psycopg2 import register_vector
+
+conn = psycopg2.connect("postgresql://localhost/ragdb")
+register_vector(conn)
+cur = conn.cursor()
+
+# Create table with vector column
+cur.execute("""
+    CREATE TABLE IF NOT EXISTS documents (
+        id SERIAL PRIMARY KEY,
+        content TEXT,
+        metadata JSONB,
+        embedding vector(1536)
+    )
+""")
+
+# Insert chunks with embeddings
+for chunk, embedding in zip(chunks, embeddings):
+    cur.execute(
+        "INSERT INTO documents (content, metadata, embedding) VALUES (%s, %s, %s)",
+        (chunk.page_content, json.dumps(chunk.metadata), embedding)
+    )
+
+# Create an index for fast approximate nearest neighbor search
+cur.execute("""
+    CREATE INDEX ON documents
+    USING ivfflat (embedding vector_cosine_ops)
+    WITH (lists = 100)
+""")
+conn.commit()
+```
+
+## Step 4: Retrieval
+
+Given a user query, find the most relevant chunks:
+
+```python
+def retrieve(query: str, top_k: int = 5) -> list[dict]:
+    query_embedding = embed_texts([query])[0]
+    
+    cur.execute("""
+        SELECT content, metadata, 
+               1 - (embedding <=> %s::vector) as similarity
+        FROM documents
+        ORDER BY embedding <=> %s::vector
+        LIMIT %s
+    """, (query_embedding, query_embedding, top_k))
+    
+    results = []
+    for content, metadata, similarity in cur.fetchall():
+        results.append({
+            "content": content,
+            "metadata": metadata,
+            "similarity": similarity
+        })
+    return results
+```
+
+The `<=>` operator computes cosine distance. Lower distance = higher similarity.
+
+## Step 5: Augmented Generation
+
+Inject retrieved chunks into the prompt:
+
+```python
+def generate_response(query: str, chunks: list[dict]) -> str:
+    context = "\n\n---\n\n".join([c["content"] for c in chunks])
+    
+    response = client.chat.completions.create(
+        model="gpt-4o",
+        messages=[
+            {
+                "role": "system",
+                "content": f"""Answer the user's question based on the following context. 
+If the context doesn't contain relevant information, say so.
+Always cite which part of the context you're referencing.
+
+Context:
+{context}"""
+            },
+            {"role": "user", "content": query}
+        ]
+    )
+    return response.choices[0].message.content
+
+# Full RAG query
+query = "How does attention scaling work?"
+chunks = retrieve(query, top_k=5)
+answer = generate_response(query, chunks)
+```
+
+## Evaluation: Is Your RAG Working?
+
+RAG quality depends on both retrieval and generation. Key metrics:
+
+| Metric | Measures | How |
+|--------|----------|-----|
+| **Retrieval Recall@K** | Are relevant docs in top K? | Check if ground truth chunks appear in results |
+| **Answer Faithfulness** | Does the answer match the context? | LLM-as-judge: does the answer only use retrieved info? |
+| **Answer Relevance** | Does the answer address the query? | LLM-as-judge: is this a good answer to the question? |
+| **Context Precision** | Are the retrieved chunks actually relevant? | Ratio of relevant chunks in top K |
+
+## Common Failure Modes
+
+1. **Wrong chunks retrieved** → Improve chunking strategy, add metadata filtering
+2. **Right chunks, wrong answer** → Improve prompt template, use a better model
+3. **Chunks too small** → Lose context; increase chunk size or add parent-document retrieval
+4. **Chunks too large** → Dilute relevance; decrease chunk size
+5. **Stale index** → Implement incremental updates or scheduled re-indexing
+
+## What's Next
+
+This lesson covers the foundational RAG pipeline. **Advanced RAG** builds on this with:
+- Hybrid search (combining vector + keyword search)
+- Reranking retrieved results with a cross-encoder
+- Query decomposition for complex questions
+- Agentic RAG with tool-calling for multi-step retrieval

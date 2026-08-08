@@ -7,6 +7,19 @@ export const metadata: Metadata = {
   },
   description:
     "Technical articles on AI engineering, agentic systems, automation, and backend architecture by Shaik Fayaz.",
+  openGraph: {
+    title: "Writing | Fayaz Labs",
+    description:
+      "Technical articles on AI engineering, agentic systems, automation, and backend architecture by Shaik Fayaz.",
+    url: "/writing",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Writing | Fayaz Labs",
+    description:
+      "Technical articles on AI engineering, agentic systems, automation, and backend architecture by Shaik Fayaz.",
+  },
 };
 
 export default function WritingLayout({

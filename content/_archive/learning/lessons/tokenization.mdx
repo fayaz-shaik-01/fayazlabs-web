@@ -1,0 +1,169 @@
+---
+title: "Tokenizers: BPE, WordPiece, SentencePiece"
+description: "Understand how text becomes numbers — the critical first step in every language model pipeline."
+date: "2026-05-23"
+published: true
+lessonSlug: "tokenization"
+phaseId: 10
+difficulty: "intermediate"
+estimatedMinutes: 45
+prerequisites: ["text-processing"]
+tags: ["Tokenization", "BPE", "NLP"]
+---
+
+## The Tokenization Problem
+
+Language models don't understand text — they understand numbers. Tokenization is the bridge: converting raw text into a sequence of integer IDs that a model can process.
+
+The naive approach — splitting on spaces and assigning IDs — breaks immediately. What about punctuation? Compound words? Languages without spaces? Rare words the model has never seen?
+
+Modern tokenizers solve this with **subword tokenization**: break text into pieces that balance vocabulary size against sequence length.
+
+## Byte Pair Encoding (BPE)
+
+BPE starts with individual characters and iteratively merges the most frequent adjacent pairs.
+
+```python
+# Starting vocabulary: individual characters
+# Text: "low lower newest"
+
+# Step 1: Most frequent pair is ('l', 'o') → merge into 'lo'
+# Step 2: Most frequent pair is ('lo', 'w') → merge into 'low'
+# Step 3: Most frequent pair is ('e', 's') → merge into 'es'
+# ... continue until desired vocabulary size
+```
+
+Here's a minimal BPE implementation:
+
+```python
+from collections import Counter
+
+def get_pairs(word):
+    """Get all adjacent pairs in a word."""
+    return [(word[i], word[i+1]) for i in range(len(word)-1)]
+
+def bpe_train(corpus, num_merges):
+    """Train BPE tokenizer on a corpus."""
+    # Start with character-level tokens
+    vocab = {}
+    for word, freq in corpus.items():
+        vocab[tuple(word) + ('</w>',)] = freq
+    
+    merges = []
+    for _ in range(num_merges):
+        # Count all adjacent pairs
+        pairs = Counter()
+        for word, freq in vocab.items():
+            for pair in get_pairs(word):
+                pairs[pair] += freq
+        
+        if not pairs:
+            break
+        
+        # Find most frequent pair
+        best = pairs.most_common(1)[0][0]
+        merges.append(best)
+        
+        # Merge the best pair in all words
+        new_vocab = {}
+        for word, freq in vocab.items():
+            new_word = []
+            i = 0
+            while i < len(word):
+                if i < len(word) - 1 and (word[i], word[i+1]) == best:
+                    new_word.append(word[i] + word[i+1])
+                    i += 2
+                else:
+                    new_word.append(word[i])
+                    i += 1
+            new_vocab[tuple(new_word)] = freq
+        vocab = new_vocab
+    
+    return merges, vocab
+
+# Example usage
+corpus = {"low": 5, "lower": 2, "newest": 6, "widest": 3}
+merges, vocab = bpe_train(corpus, num_merges=10)
+```
+
+GPT-2, GPT-3, GPT-4, and LLaMA all use variants of BPE. OpenAI's `tiktoken` library provides their production tokenizer.
+
+## WordPiece
+
+WordPiece, used by BERT, is similar to BPE but selects merges differently. Instead of raw frequency, it maximizes the **likelihood of the training data**:
+
+```
+score(pair) = freq(pair) / (freq(first) × freq(second))
+```
+
+This favors merging rare subwords that frequently appear together, creating a more balanced vocabulary.
+
+The key visual difference: WordPiece prefixes continuation tokens with `##`:
+
+```python
+# WordPiece tokenization of "unbelievable"
+# → ["un", "##believ", "##able"]
+
+# BPE tokenization might produce:
+# → ["un", "believ", "able"]
+```
+
+## SentencePiece
+
+SentencePiece treats the input as a raw byte stream — no pre-tokenization or language-specific rules needed. It works for any language, including those without word boundaries.
+
+```python
+import sentencepiece as spm
+
+# Train a SentencePiece model
+spm.SentencePieceTrainer.train(
+    input='training_data.txt',
+    model_prefix='tokenizer',
+    vocab_size=32000,
+    model_type='bpe'  # or 'unigram'
+)
+
+# Load and use
+sp = spm.SentencePieceProcessor()
+sp.load('tokenizer.model')
+
+tokens = sp.encode("Hello world!", out_type=str)
+# → ['▁Hello', '▁world', '!']
+ids = sp.encode("Hello world!")
+# → [8774, 296, 5]
+```
+
+The `▁` character represents a space — SentencePiece encodes whitespace as part of the token, which makes detokenization lossless.
+
+## Practical Impact of Tokenization Choices
+
+Tokenization directly affects model behavior:
+
+| Factor | Impact |
+|--------|--------|
+| **Vocabulary size** | Larger vocab = shorter sequences but more parameters in the embedding layer |
+| **Subword granularity** | Fine-grained = better handling of rare words, but longer sequences |
+| **Language coverage** | Multilingual tokenizers spread capacity across many languages |
+| **Byte fallback** | Ensures any input can be tokenized, even unknown characters |
+
+```python
+import tiktoken
+
+# GPT-4's tokenizer
+enc = tiktoken.encoding_for_model("gpt-4")
+
+text = "Tokenization is fundamental to LLMs"
+tokens = enc.encode(text)
+print(f"Text: {text}")
+print(f"Tokens: {tokens}")
+print(f"Token count: {len(tokens)}")
+print(f"Decoded tokens: {[enc.decode([t]) for t in tokens]}")
+```
+
+## Key Takeaways
+
+1. **Tokenization is not trivial** — it's a learned compression of language into a fixed vocabulary
+2. **BPE** builds vocabulary bottom-up by merging frequent pairs (GPT family)
+3. **WordPiece** uses likelihood-based merging (BERT family)
+4. **SentencePiece** is language-agnostic and operates on raw bytes (LLaMA, T5)
+5. **Token count ≠ word count** — understanding this is essential for prompt engineering and context window management

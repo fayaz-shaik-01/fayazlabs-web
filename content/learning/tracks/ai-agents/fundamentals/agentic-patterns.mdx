@@ -1,0 +1,69 @@
+---
+title: "Practical Agentic AI Patterns"
+description: "A breakdown of real-world agent design patterns — from ReAct loops to multi-agent orchestration — learned from building AI automation tools."
+summary: "Covers the three core agentic patterns — ReAct loops, tool-augmented agents, and multi-agent orchestration — with practical production guidance."
+date: "2025-02-10"
+published: true
+track: "ai-agents"
+module: "fundamentals"
+lesson: "agentic-patterns"
+difficulty: "intermediate"
+estimatedMinutes: 25
+prerequisites: []
+tags: ["Agentic AI", "LLM", "Architecture", "Patterns"]
+learningObjectives:
+  - "Identify the three core agentic AI patterns"
+  - "Understand when to use ReAct vs multi-agent systems"
+  - "Apply tool-augmented agent design principles"
+concepts:
+  - "react-loop"
+  - "tool-augmented-agents"
+  - "multi-agent-orchestration"
+relatedLessons:
+  - "ai-agents/fundamentals/the-agent-loop"
+  - "ai-agents/multi-agent/orchestration-patterns"
+lessonType: "reference"
+order: 2
+premium: false
+status: "published"
+canonicalPath: "/learning/ai-agents/fundamentals/agentic-patterns"
+references: []
+recommendedBackground:
+  - "llm-basics"
+mentorPriority: "medium"
+---
+
+## What Makes an Agent "Agentic"?
+
+The key distinction between a simple LLM call and an agentic system is the **loop** — an agent observes, reasons, acts, and repeats until a goal is achieved.
+
+## Pattern 1: ReAct Loop
+
+The most fundamental pattern. Reason → Act → Observe → Repeat.
+
+```python
+while not task.complete:
+    thought = llm.reason(task, observations)
+    action = llm.select_action(thought, available_tools)
+    result = execute(action)
+    observations.append(result)
+```
+
+## Pattern 2: Tool-Augmented Agents
+
+Give the LLM access to real-world tools — APIs, databases, browsers, file systems.
+
+The key insight: tool descriptions matter as much as the tools themselves. Well-documented tool schemas dramatically improve agent performance.
+
+## Pattern 3: Multi-Agent Orchestration
+
+For complex workflows, decompose into specialized agents:
+
+- **Planner Agent** — breaks down tasks
+- **Executor Agent** — carries out individual steps
+- **Reviewer Agent** — validates outputs
+- **Router Agent** — directs traffic between specialists
+
+## Key Takeaway
+
+Start simple. A single ReAct loop with well-chosen tools solves 80% of real-world agentic problems. Multi-agent systems add complexity — use them only when the problem genuinely requires decomposition.

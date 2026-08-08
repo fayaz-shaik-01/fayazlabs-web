@@ -1,24 +1,13 @@
 import type { Metadata } from "next";
 import { siteConfig } from "@/lib/site-config";
 import { LearningHero } from "@/components/learning/learning-hero";
-import { FeaturedLessons } from "@/components/learning/featured-lessons";
-import { LearningPathsGrid } from "@/components/learning/learning-paths-grid";
-import { TopicCards } from "@/components/learning/topic-cards";
-import { PhaseCard } from "@/components/learning/phase-card";
+import { TrackCard } from "@/components/learning/track-card";
 import { SectionHeader } from "@/components/shared/section-header";
-import {
-  getPhases,
-  getTotalLessonCount,
-  getTotalHours,
-  getFeaturedLessonMetas,
-  getLearningPaths,
-  getHighlightedTopics,
-} from "@/lib/learning";
-import { getPublishedLessons } from "@/lib/velite";
+import { getAllTracks, getGlobalStats } from "@/lib/curriculum";
 
 const title = "Learning — AI Engineering from First Principles";
 const description =
-  "A structured roadmap from foundations to production AI systems. Master math, ML, deep learning, LLMs, agents, and more.";
+  "A structured, track-based curriculum from math foundations to production AI systems. Master LLMs, agents, ML systems, and more.";
 const url = `${siteConfig.url}/learning`;
 
 export const metadata: Metadata = {
@@ -40,14 +29,8 @@ export const metadata: Metadata = {
 };
 
 export default function LearningPage() {
-  const phases = getPhases();
-  const totalLessons = getTotalLessonCount();
-  const totalHours = getTotalHours();
-  const authoredLessons = getPublishedLessons();
-  const authoredSlugs = authoredLessons.map((l) => l.lessonSlug);
-  const featuredLessons = getFeaturedLessonMetas();
-  const learningPaths = getLearningPaths();
-  const topics = getHighlightedTopics();
+  const tracks = getAllTracks();
+  const stats = getGlobalStats();
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -55,12 +38,12 @@ export default function LearningPage() {
     name: "AI Engineering Learning Platform",
     description,
     url,
-    numberOfItems: phases.length,
-    itemListElement: phases.map((phase, i) => ({
+    numberOfItems: tracks.length,
+    itemListElement: tracks.map((track, i) => ({
       "@type": "ListItem",
       position: i + 1,
-      name: `Phase ${phase.id}: ${phase.title}`,
-      url: `${siteConfig.url}/learning/phase/${phase.id}`,
+      name: track.title,
+      url: `${siteConfig.url}/learning/${track.slug}`,
     })),
     provider: {
       "@type": "Organization",
@@ -78,58 +61,23 @@ export default function LearningPage() {
 
       {/* Hero */}
       <LearningHero
-        totalPhases={phases.length}
-        totalLessons={totalLessons}
-        totalHours={totalHours}
-        authoredCount={authoredLessons.length}
+        totalTracks={stats.totalTracks}
+        totalLessons={stats.totalLessons}
+        totalHours={stats.estimatedHours}
+        authoredCount={stats.publishedLessons}
       />
 
       <div className="mx-auto max-w-6xl px-6 pb-24">
-        {/* Featured Lessons */}
-        <section className="mb-24">
+        {/* All Tracks */}
+        <section id="tracks">
           <SectionHeader
-            label="Featured"
-            title="Start Here"
-            description="Hand-crafted lessons to kick off your AI engineering journey."
+            label="Tracks"
+            title="Learning Tracks"
+            description="Structured tracks from foundations to advanced specialization — pick your path."
           />
-          <FeaturedLessons lessons={featuredLessons} authoredSlugs={authoredSlugs} />
-        </section>
-
-        {/* Learning Paths */}
-        <section id="paths" className="mb-24">
-          <SectionHeader
-            label="Paths"
-            title="Learning Paths"
-            description="Curated tracks for different goals — from career prep to deep specialization."
-          />
-          <LearningPathsGrid paths={learningPaths} />
-        </section>
-
-        {/* Architecture Topics */}
-        <section className="mb-24">
-          <SectionHeader
-            label="Architecture"
-            title="Deep Dive Topics"
-            description="Production architecture patterns and advanced AI systems."
-          />
-          <TopicCards topics={topics} />
-        </section>
-
-        {/* Full Roadmap */}
-        <section id="roadmap">
-          <SectionHeader
-            label="Roadmap"
-            title="Full Curriculum"
-            description="20 phases from environment setup to capstone project — every lesson mapped."
-          />
-          <div className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {phases.map((phase, index) => (
-              <PhaseCard
-                key={phase.id}
-                phase={phase}
-                index={index}
-                authoredSlugs={authoredSlugs}
-              />
+          <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {tracks.map((track, index) => (
+              <TrackCard key={track.id} track={track} index={index} />
             ))}
           </div>
         </section>

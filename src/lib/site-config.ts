@@ -1,8 +1,8 @@
 export const siteConfig = {
   name: "Fayaz Labs",
-  title: "Fayaz Labs — Building Intelligent Systems",
+  title: "Fayaz Labs — Learn Engineering From First Principles",
   description:
-    "AI engineering, automation, and technical experiments by Shaik Fayaz. Building intelligent systems, workflow automation, and engineering products.",
+    "Structured learning tracks, practice problems, flashcards, and interactive tools for AI engineering and GATE preparation. Built by Shaik Fayaz.",
   url: "https://fayazlabs.com",
   author: {
     name: "Shaik Fayaz",
@@ -20,10 +20,11 @@ export const siteConfig = {
   nav: [
     { title: "Home", href: "/" },
     { title: "Learning", href: "/learning" },
-    { title: "Writing", href: "/writing" },
-    { title: "Projects", href: "/projects" },
+    { title: "Practice", href: "/practice" },
+    { title: "Flashcards", href: "/flashcards" },
+    { title: "Formulas", href: "/formulas" },
+    { title: "Dashboard", href: "/dashboard" },
     { title: "About", href: "/about" },
-    { title: "Contact", href: "/contact" },
   ],
 } as const;
 

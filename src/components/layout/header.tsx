@@ -8,6 +8,12 @@ import { Menu, X, Command } from "lucide-react";
 import { siteConfig } from "@/lib/site-config";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/layout/theme-toggle";
+import { UserMenu } from "@/components/layout/user-menu";
+
+function isActive(pathname: string, href: string): boolean {
+  return href === "/" ? pathname === "/" : pathname.startsWith(href);
+}
 
 export function Header() {
   const pathname = usePathname();
@@ -25,7 +31,7 @@ export function Header() {
       className={cn(
         "fixed top-0 left-0 right-0 z-50 backdrop-blur-xl transition-all duration-500",
         scrolled
-          ? "bg-background/85 border-b border-white/[0.06] shadow-[0_1px_24px_oklch(0_0_0/0.3)]"
+          ? "bg-background/85 border-b border-border shadow-[0_1px_24px_oklch(0_0_0/0.08)] dark:shadow-[0_1px_24px_oklch(0_0_0/0.3)]"
           : "bg-background/60 border-b border-transparent"
       )}
     >
@@ -43,23 +49,23 @@ export function Header() {
           <span className="hidden sm:inline text-foreground/90">{siteConfig.name}</span>
         </Link>
 
-        <div className="hidden md:flex items-center gap-1 rounded-[2px] border border-white/[0.06] bg-white/[0.03] px-1.5 py-1">
+        <div className="hidden md:flex items-center gap-1 rounded-[2px] border border-border bg-muted/30 px-1.5 py-1">
           {siteConfig.nav.map((item) => (
             <Link
               key={item.href}
               href={item.href}
-              aria-current={pathname === item.href ? "page" : undefined}
+              aria-current={isActive(pathname, item.href) ? "page" : undefined}
               className={cn(
                 "relative px-3 py-1.5 text-[0.8125rem] font-medium tracking-[-0.006em] transition-all duration-300 rounded-[2px]",
-                pathname === item.href
+                isActive(pathname, item.href)
                   ? "text-foreground"
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
-              {pathname === item.href && (
+              {isActive(pathname, item.href) && (
                 <motion.span
                   layoutId="nav-indicator"
-                  className="absolute inset-0 rounded-[2px] bg-white/[0.08] border border-white/[0.06]"
+                  className="absolute inset-0 rounded-[2px] bg-foreground/[0.06] border border-border"
                   transition={{ type: "spring", bounce: 0.15, duration: 0.5 }}
                 />
               )}
@@ -69,10 +75,12 @@ export function Header() {
         </div>
 
         <div className="flex items-center gap-1.5">
+          <UserMenu />
+          <ThemeToggle />
           <Button
             variant="ghost"
             size="icon"
-            className="hidden md:inline-flex h-8 w-8 rounded-[2px] text-muted-foreground hover:text-foreground hover:bg-white/[0.06] transition-colors"
+            className="hidden md:inline-flex h-8 w-8 rounded-[2px] text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
             onClick={() =>
               document.dispatchEvent(
                 new KeyboardEvent("keydown", { key: "k", metaKey: true })
@@ -114,12 +122,12 @@ export function Header() {
                   key={item.href}
                   href={item.href}
                   onClick={() => setMobileOpen(false)}
-                  aria-current={pathname === item.href ? "page" : undefined}
+                  aria-current={isActive(pathname, item.href) ? "page" : undefined}
                   className={cn(
                     "px-4 py-2.5 text-sm font-medium rounded-[2px] transition-all",
-                    pathname === item.href
+                    isActive(pathname, item.href)
                       ? "bg-primary/10 text-primary"
-                      : "text-muted-foreground hover:text-foreground hover:bg-white/[0.04]"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted"
                   )}
                 >
                   {item.title}

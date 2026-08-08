@@ -1,0 +1,109 @@
+{
+  "id": "track_deep_learning",
+  "slug": "deep-learning",
+  "title": "Deep Learning",
+  "description": "Neural network architectures from perceptrons to vision transformers.",
+  "icon": "Brain",
+  "order": 4,
+  "difficulty": "intermediate",
+  "premium": false,
+  "tags": ["Neural Networks", "Deep Learning", "CNNs"],
+  "modules": [
+    {
+      "id": "module_neural_networks",
+      "slug": "neural-networks",
+      "title": "Neural Networks",
+      "description": "Build neural networks from first principles.",
+      "icon": "Network",
+      "order": 1,
+      "premium": false,
+      "prerequisites": [],
+      "lessons": [
+        {
+          "id": "lesson_perceptron",
+          "slug": "perceptron",
+          "title": "The Perceptron",
+          "order": 1,
+          "status": "planned",
+          "difficulty": "beginner",
+          "estimatedMinutes": 35,
+          "premium": false,
+          "lessonType": "build",
+          "hasContent": false
+        },
+        {
+          "id": "lesson_backpropagation",
+          "slug": "backpropagation",
+          "title": "Backpropagation",
+          "order": 2,
+          "status": "planned",
+          "difficulty": "intermediate",
+          "estimatedMinutes": 55,
+          "premium": false,
+          "lessonType": "build",
+          "hasContent": false
+        },
+        {
+          "id": "lesson_activation_functions",
+          "slug": "activation-functions",
+          "title": "Activation Functions",
+          "order": 3,
+          "status": "planned",
+          "difficulty": "beginner",
+          "estimatedMinutes": 25,
+          "premium": false,
+          "lessonType": "learn",
+          "hasContent": false
+        }
+      ]
+    },
+    {
+      "id": "module_architectures",
+      "slug": "architectures",
+      "title": "Architectures",
+      "description": "Specialized neural network architectures for different domains.",
+      "icon": "Box",
+      "order": 2,
+      "premium": false,
+      "prerequisites": ["neural-networks"],
+      "lessons": [
+        {
+          "id": "lesson_cnns",
+          "slug": "cnns",
+          "title": "Convolutional Neural Networks",
+          "order": 1,
+          "status": "planned",
+          "difficulty": "intermediate",
+          "estimatedMinutes": 50,
+          "premium": false,
+          "lessonType": "build",
+          "hasContent": false
+        },
+        {
+          "id": "lesson_rnns_lstms",
+          "slug": "rnns-lstms",
+          "title": "RNNs & LSTMs",
+          "order": 2,
+          "status": "planned",
+          "difficulty": "intermediate",
+          "estimatedMinutes": 50,
+          "premium": false,
+          "lessonType": "build",
+          "hasContent": false
+        },
+        {
+          "id": "lesson_vision_transformers",
+          "slug": "vision-transformers",
+          "title": "Vision Transformers",
+          "order": 3,
+          "status": "planned",
+          "difficulty": "advanced",
+          "estimatedMinutes": 55,
+          "premium": true,
+          "lessonType": "build",
+          "hasContent": false
+        }
+      ]
+    }
+  ]
+}

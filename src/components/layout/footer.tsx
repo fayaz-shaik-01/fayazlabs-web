@@ -4,9 +4,10 @@ import { GithubIcon, LinkedinIcon } from "@/components/icons";
 import { siteConfig } from "@/lib/site-config";
 
 const learningLinks = [
-  { title: "All Phases", href: "/learning#roadmap" },
-  { title: "Learning Paths", href: "/learning#paths" },
-  { title: "Featured Lessons", href: "/learning" },
+  { title: "All Tracks", href: "/learning#tracks" },
+  { title: "LLM Engineering", href: "/learning/llm-engineering" },
+  { title: "AI Agents", href: "/learning/ai-agents" },
+  { title: "ML Systems", href: "/learning/ml-systems" },
 ];
 
 export function Footer() {

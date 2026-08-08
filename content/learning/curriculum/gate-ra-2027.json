@@ -1,0 +1,153 @@
+{
+  "id": "track_gate_ra_2027",
+  "slug": "gate-ra-2027",
+  "title": "GATE RA 2027 — Engineering Mathematics",
+  "description": "Master Engineering Mathematics for GATE Research Aptitude 2027 — from absolute scratch to exam confidence. Covers Linear Algebra, Calculus, Differential Equations, Probability & Statistics, and Numerical Methods.",
+  "icon": "GraduationCap",
+  "order": 7,
+  "difficulty": "beginner",
+  "premium": false,
+  "tags": ["GATE", "Mathematics", "Linear Algebra", "Calculus", "Engineering"],
+  "modules": [
+    {
+      "id": "module_linear_algebra",
+      "slug": "linear-algebra",
+      "title": "Linear Algebra",
+      "description": "Matrices, determinants, systems of equations, eigenvalues, and more — explained from first principles.",
+      "icon": "Grid3X3",
+      "order": 1,
+      "premium": false,
+      "prerequisites": [],
+      "lessons": [
+        {
+          "id": "lesson_matrices",
+          "slug": "matrices",
+          "title": "Matrices",
+          "order": 1,
+          "status": "published",
+          "difficulty": "beginner",
+          "estimatedMinutes": 90,
+          "premium": false,
+          "lessonType": "learn",
+          "hasContent": true
+        },
+        {
+          "id": "lesson_determinants",
+          "slug": "determinants",
+          "title": "Determinants",
+          "order": 2,
+          "status": "planned",
+          "difficulty": "beginner",
+          "estimatedMinutes": 75,
+          "premium": false,
+          "lessonType": "learn",
+          "hasContent": false
+        },
+        {
+          "id": "lesson_adjoint_and_inverse",
+          "slug": "adjoint-and-inverse",
+          "title": "Adjoint and Inverse",
+          "order": 3,
+          "status": "planned",
+          "difficulty": "beginner",
+          "estimatedMinutes": 90,
+          "premium": false,
+          "lessonType": "learn",
+          "hasContent": false
+        },
+        {
+          "id": "lesson_rank",
+          "slug": "rank",
+          "title": "Rank",
+          "order": 4,
+          "status": "planned",
+          "difficulty": "beginner",
+          "estimatedMinutes": 90,
+          "premium": false,
+          "lessonType": "learn",
+          "hasContent": false
+        },
+        {
+          "id": "lesson_system_of_linear_equations",
+          "slug": "system-of-linear-equations",
+          "title": "System of Linear Equations",
+          "order": 5,
+          "status": "planned",
+          "difficulty": "intermediate",
+          "estimatedMinutes": 90,
+          "premium": false,
+          "lessonType": "learn",
+          "hasContent": false
+        },
+        {
+          "id": "lesson_eigenvalues_and_eigenvectors",
+          "slug": "eigenvalues-and-eigenvectors",
+          "title": "Eigenvalues and Eigenvectors",
+          "order": 6,
+          "status": "planned",
+          "difficulty": "intermediate",
+          "estimatedMinutes": 90,
+          "premium": false,
+          "lessonType": "learn",
+          "hasContent": false
+        },
+        {
+          "id": "lesson_trace",
+          "slug": "trace",
+          "title": "Trace",
+          "order": 7,
+          "status": "planned",
+          "difficulty": "beginner",
+          "estimatedMinutes": 80,
+          "premium": false,
+          "lessonType": "learn",
+          "hasContent": false
+        }
+      ]
+    },
+    {
+      "id": "module_calculus",
+      "slug": "calculus",
+      "title": "Calculus",
+      "description": "Functions, limits, continuity, differentiation, integration, and multivariable calculus.",
+      "icon": "TrendingUp",
+      "order": 2,
+      "premium": false,
+      "prerequisites": ["linear-algebra"],
+      "lessons": []
+    },
+    {
+      "id": "module_differential_equations",
+      "slug": "differential-equations",
+      "title": "Differential Equations",
+      "description": "First and higher order ODEs, PDEs, and their applications in engineering.",
+      "icon": "Waves",
+      "order": 3,
+      "premium": false,
+      "prerequisites": ["calculus"],
+      "lessons": []
+    },
+    {
+      "id": "module_probability_and_statistics",
+      "slug": "probability-and-statistics",
+      "title": "Probability & Statistics",
+      "description": "Probability theory, distributions, statistical inference, and hypothesis testing.",
+      "icon": "BarChart3",
+      "order": 4,
+      "premium": false,
+      "prerequisites": ["calculus"],
+      "lessons": []
+    },
+    {
+      "id": "module_numerical_methods",
+      "slug": "numerical-methods",
+      "title": "Numerical Methods",
+      "description": "Root finding, interpolation, numerical integration, and solving differential equations numerically.",
+      "icon": "Calculator",
+      "order": 5,
+      "premium": false,
+      "prerequisites": ["calculus", "linear-algebra"],
+      "lessons": []
+    }
+  ]
+}

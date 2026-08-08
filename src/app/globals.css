@@ -63,8 +63,61 @@
   --color-lab-red: var(--lab-red);
 }
 
-/* ─── Dark-mode-only palette ─── */
+/* ─── Light mode palette ─── */
 :root {
+  --background: oklch(0.98 0.005 270);
+  --foreground: oklch(0.13 0.02 270);
+  --card: oklch(0.97 0.005 270);
+  --card-foreground: oklch(0.13 0.02 270);
+  --popover: oklch(0.98 0.005 270);
+  --popover-foreground: oklch(0.13 0.02 270);
+  --primary: oklch(0.50 0.25 275);
+  --primary-foreground: oklch(0.98 0.005 275);
+  --secondary: oklch(0.94 0.01 270);
+  --secondary-foreground: oklch(0.30 0.02 270);
+  --muted: oklch(0.94 0.008 270);
+  --muted-foreground: oklch(0.45 0.015 260);
+  --text-tertiary: oklch(0.55 0.01 260);
+  --accent: oklch(0.55 0.14 210);
+  --accent-foreground: oklch(0.13 0.02 210);
+  --destructive: oklch(0.55 0.22 25);
+  --border: oklch(0 0 0 / 10%);
+  --input: oklch(0 0 0 / 10%);
+  --ring: oklch(0.50 0.25 275);
+  --chart-1: oklch(0.50 0.25 275);
+  --chart-2: oklch(0.55 0.14 210);
+  --chart-3: oklch(0.55 0.20 290);
+  --chart-4: oklch(0.50 0.15 160);
+  --chart-5: oklch(0.55 0.18 330);
+  --radius: 2px;
+  --sidebar: oklch(0.96 0.008 270);
+  --sidebar-foreground: oklch(0.20 0.015 270);
+  --sidebar-primary: oklch(0.50 0.25 275);
+  --sidebar-primary-foreground: oklch(0.98 0.005 275);
+  --sidebar-accent: oklch(0.94 0.01 270);
+  --sidebar-accent-foreground: oklch(0.30 0.02 270);
+  --sidebar-border: oklch(0 0 0 / 8%);
+  --sidebar-ring: oklch(0.50 0.25 275);
+
+  /* Elevation surfaces */
+  --surface-0: oklch(0.98 0.005 270);
+  --surface-1: oklch(0.96 0.005 270);
+  --surface-2: oklch(0.93 0.008 270);
+  --surface-3: oklch(0.90 0.01 270);
+
+  /* Glow colors */
+  --glow-primary: oklch(0.50 0.25 275);
+  --glow-accent: oklch(0.55 0.14 210);
+  --glow-violet: oklch(0.55 0.20 290);
+
+  /* Lab / telemetry colors */
+  --lab-green: oklch(0.50 0.18 145);
+  --lab-amber: oklch(0.55 0.16 80);
+  --lab-red: oklch(0.55 0.22 25);
+}
+
+/* ─── Dark mode palette ─── */
+.dark {
   --background: oklch(0.06 0.015 270);
   --foreground: oklch(0.97 0.005 270);
   --card: oklch(0.10 0.015 270);
@@ -89,7 +142,6 @@
   --chart-3: oklch(0.72 0.20 290);
   --chart-4: oklch(0.68 0.15 160);
   --chart-5: oklch(0.70 0.18 330);
-  --radius: 2px;
   --sidebar: oklch(0.08 0.015 270);
   --sidebar-foreground: oklch(0.93 0.006 90);
   --sidebar-primary: oklch(0.65 0.25 275);
@@ -129,9 +181,31 @@
   }
   html {
     @apply font-sans scroll-smooth;
-    color-scheme: dark;
+    color-scheme: light;
     font-size: 16px;
     line-height: 1.6;
+  }
+  html.dark {
+    color-scheme: dark;
+  }
+
+  /* Focus-visible styles for keyboard navigation */
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-ring;
+  }
+  button:focus-visible,
+  a:focus-visible,
+  input:focus-visible,
+  textarea:focus-visible,
+  select:focus-visible,
+  [role="button"]:focus-visible,
+  [tabindex]:focus-visible {
+    @apply outline-2 outline-offset-2 outline-ring rounded-sm;
+  }
+
+  /* Skip to content link for keyboard users */
+  .skip-to-content {
+    @apply sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:rounded-md focus:bg-primary focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-primary-foreground;
   }
 
   /* Heading font family */
@@ -185,13 +259,13 @@
   .prose p {
     font-size: 1.0625rem;
     line-height: 1.8;
-    color: oklch(0.88 0.01 270);
+    color: var(--muted-foreground);
     margin-bottom: 1.5rem;
   }
   .prose li {
     font-size: 1.0625rem;
     line-height: 1.8;
-    color: oklch(0.88 0.01 270);
+    color: var(--muted-foreground);
   }
   .prose ul, .prose ol {
     margin-top: 1.25rem;
@@ -209,20 +283,20 @@
   }
   .prose blockquote {
     @apply border-l-2 border-primary/40;
-    color: oklch(0.78 0.01 270);
+    color: var(--muted-foreground);
     padding-left: 1.5rem;
     margin-top: 2rem;
     margin-bottom: 2rem;
     font-style: italic;
   }
   .prose blockquote p {
-    color: oklch(0.78 0.01 270);
+    color: var(--muted-foreground);
   }
   .prose > * + * {
     margin-top: 0;
   }
   .prose hr {
-    @apply border-white/[0.08];
+    @apply border-border;
     margin-top: 3rem;
     margin-bottom: 3rem;
   }

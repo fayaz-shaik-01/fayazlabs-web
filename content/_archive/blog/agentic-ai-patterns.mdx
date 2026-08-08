@@ -1,0 +1,45 @@
+---
+title: "Practical Agentic AI Patterns I've Used in Production"
+description: "A breakdown of real-world agent design patterns — from ReAct loops to multi-agent orchestration — learned from building AI automation tools."
+date: "2025-02-10"
+published: true
+featured: false
+image: ""
+tags: ["Agentic AI", "LLM", "Architecture", "Patterns"]
+category: "Agentic AI"
+---
+
+## What Makes an Agent "Agentic"?
+
+The key distinction between a simple LLM call and an agentic system is the **loop** — an agent observes, reasons, acts, and repeats until a goal is achieved.
+
+## Pattern 1: ReAct Loop
+
+The most fundamental pattern. Reason → Act → Observe → Repeat.
+
+```python
+while not task.complete:
+    thought = llm.reason(task, observations)
+    action = llm.select_action(thought, available_tools)
+    result = execute(action)
+    observations.append(result)
+```
+
+## Pattern 2: Tool-Augmented Agents
+
+Give the LLM access to real-world tools — APIs, databases, browsers, file systems.
+
+The key insight: tool descriptions matter as much as the tools themselves. Well-documented tool schemas dramatically improve agent performance.
+
+## Pattern 3: Multi-Agent Orchestration
+
+For complex workflows, decompose into specialized agents:
+
+- **Planner Agent** — breaks down tasks
+- **Executor Agent** — carries out individual steps
+- **Reviewer Agent** — validates outputs
+- **Router Agent** — directs traffic between specialists
+
+## Key Takeaway
+
+Start simple. A single ReAct loop with well-chosen tools solves 80% of real-world agentic problems. Multi-agent systems add complexity — use them only when the problem genuinely requires decomposition.

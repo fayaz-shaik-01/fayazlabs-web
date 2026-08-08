@@ -1,9 +1,10 @@
-import { posts, projects, notebooks, lessons } from "#site/content";
+import { posts, projects, notebooks, lessons, trackLessons } from "#site/content";
 
 export type Post = (typeof posts)[number];
 export type Project = (typeof projects)[number];
 export type Notebook = (typeof notebooks)[number];
 export type Lesson = (typeof lessons)[number];
+export type TrackLesson = (typeof trackLessons)[number];
 
 export function getPublishedPosts() {
   return posts
@@ -30,13 +31,13 @@ export function getPostsByCategory(category: string) {
 export function getAllTags() {
   const tags = new Set<string>();
   getPublishedPosts().forEach((post) => post.tags.forEach((tag) => tags.add(tag)));
-  return Array.from(tags).sort();
+  return Array.from(tags).sort((a, b) => a.localeCompare(b));
 }
 
 export function getAllCategories() {
   const categories = new Set<string>();
   getPublishedPosts().forEach((post) => categories.add(post.category));
-  return Array.from(categories).sort();
+  return Array.from(categories).sort((a, b) => a.localeCompare(b));
 }
 
 export function getPublishedProjects() {
@@ -65,4 +66,38 @@ export function getLessonBySlug(slug: string) {
   return lessons.find(
     (lesson) => lesson.lessonSlug === slug && lesson.published
   );
+}
+
+// ── Track-based lesson accessors (new curriculum system) ──────────────────
+
+export function getPublishedTrackLessons() {
+  return trackLessons
+    .filter((lesson) => lesson.published && lesson.status === "published")
+    .sort((a, b) => a.order - b.order);
+}
+
+export function getTrackLesson(
+  trackSlug: string,
+  moduleSlug: string,
+  lessonSlug: string
+) {
+  return trackLessons.find(
+    (l) =>
+      l.track === trackSlug &&
+      l.module === moduleSlug &&
+      l.lesson === lessonSlug &&
+      l.published
+  );
+}
+
+export function getTrackLessonsByTrack(trackSlug: string) {
+  return trackLessons
+    .filter((l) => l.track === trackSlug && l.published)
+    .sort((a, b) => a.order - b.order);
+}
+
+export function getTrackLessonsByModule(trackSlug: string, moduleSlug: string) {
+  return trackLessons
+    .filter((l) => l.track === trackSlug && l.module === moduleSlug && l.published)
+    .sort((a, b) => a.order - b.order);
 }

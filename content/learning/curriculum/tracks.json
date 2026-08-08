@@ -1,0 +1,90 @@
+{
+  "version": "2.0.0",
+  "lastUpdated": "2026-05-29",
+  "tracks": [
+    {
+      "id": "track_llm_engineering",
+      "slug": "llm-engineering",
+      "title": "LLM Engineering",
+      "description": "Build, train, and deploy large language models — from tokenization to production serving.",
+      "icon": "BookText",
+      "order": 1,
+      "difficulty": "advanced",
+      "premium": false,
+      "tags": ["LLM", "NLP", "Transformers"],
+      "manifestFile": "llm-engineering.json"
+    },
+    {
+      "id": "track_ml_systems",
+      "slug": "ml-systems",
+      "title": "ML Systems",
+      "description": "Master the mathematical foundations and systems engineering behind machine learning.",
+      "icon": "Cpu",
+      "order": 2,
+      "difficulty": "intermediate",
+      "premium": false,
+      "tags": ["Math", "ML", "Systems"],
+      "manifestFile": "ml-systems.json"
+    },
+    {
+      "id": "track_ai_agents",
+      "slug": "ai-agents",
+      "title": "AI Agents",
+      "description": "Design and build autonomous AI agents — planning, tool use, memory, and multi-agent systems.",
+      "icon": "Bot",
+      "order": 3,
+      "difficulty": "advanced",
+      "premium": false,
+      "tags": ["Agents", "Planning", "Tools"],
+      "manifestFile": "ai-agents.json"
+    },
+    {
+      "id": "track_deep_learning",
+      "slug": "deep-learning",
+      "title": "Deep Learning",
+      "description": "Neural network architectures from perceptrons to vision transformers.",
+      "icon": "Brain",
+      "order": 4,
+      "difficulty": "intermediate",
+      "premium": false,
+      "tags": ["Neural Networks", "Deep Learning", "CNNs"],
+      "manifestFile": "deep-learning.json"
+    },
+    {
+      "id": "track_safety_alignment",
+      "slug": "safety-and-alignment",
+      "title": "Safety & Alignment",
+      "description": "Align AI systems with human values — RLHF, red-teaming, fairness, and constitutional AI.",
+      "icon": "Shield",
+      "order": 5,
+      "difficulty": "advanced",
+      "premium": false,
+      "tags": ["Safety", "Alignment", "Ethics"],
+      "manifestFile": "safety-and-alignment.json"
+    },
+    {
+      "id": "track_infrastructure",
+      "slug": "infrastructure",
+      "title": "Infrastructure",
+      "description": "Deploy, serve, observe, and scale AI systems in production.",
+      "icon": "Server",
+      "order": 6,
+      "difficulty": "advanced",
+      "premium": false,
+      "tags": ["Infrastructure", "Serving", "Observability"],
+      "manifestFile": "infrastructure.json"
+    },
+    {
+      "id": "track_gate_ra_2027",
+      "slug": "gate-ra-2027",
+      "title": "GATE RA 2027 — Engineering Mathematics",
+      "description": "Master Engineering Mathematics for GATE Research Aptitude 2027 — from absolute scratch to exam confidence.",
+      "icon": "GraduationCap",
+      "order": 7,
+      "difficulty": "beginner",
+      "premium": false,
+      "tags": ["GATE", "Mathematics", "Linear Algebra", "Engineering"],
+      "manifestFile": "gate-ra-2027.json"
+    }
+  ]
+}

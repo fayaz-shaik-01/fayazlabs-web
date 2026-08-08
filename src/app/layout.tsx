@@ -8,6 +8,7 @@ import { CommandPalette } from "@/components/layout/command-palette";
 import { GlobalTestRunner } from "@/components/layout/global-test-runner";
 import { ChatPanel } from "@/components/chat/chat-panel";
 import { siteConfig } from "@/lib/site-config";
+import "katex/dist/katex.min.css";
 import "./globals.css";
 
 const sora = Sora({
@@ -71,7 +72,8 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`dark ${sora.variable} ${inter.variable} ${jetbrainsMono.variable} h-full antialiased`}
+      suppressHydrationWarning
+      className={`${sora.variable} ${inter.variable} ${jetbrainsMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
         <Providers>

@@ -46,6 +46,8 @@ export interface LessonContext {
   phase: number;
   tags: string[];
   has_authored_content: boolean;
+  track?: string;
+  module?: string;
 }
 
 export async function sendChatQuery(

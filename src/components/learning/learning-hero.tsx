@@ -9,14 +9,14 @@ import { buttonVariants } from "@/components/ui/button";
 const ease = [0.16, 1, 0.3, 1] as const;
 
 interface LearningHeroProps {
-  readonly totalPhases: number;
+  readonly totalTracks: number;
   readonly totalLessons: number;
   readonly totalHours: number;
   readonly authoredCount: number;
 }
 
 const stats = (p: LearningHeroProps) => [
-  { value: `${p.totalPhases}`, label: "PHASES" },
+  { value: `${p.totalTracks}`, label: "TRACKS" },
   { value: `${p.totalLessons}`, label: "LESSONS" },
   { value: `${p.authoredCount}`, label: "AUTHORED" },
   { value: `${p.totalHours}+`, label: "HOURS" },
@@ -77,7 +77,7 @@ export function LearningHero(props: LearningHeroProps) {
           className="mt-10 flex flex-wrap gap-3"
         >
           <Link
-            href="#roadmap"
+            href="#tracks"
             className={cn(
               buttonVariants({ size: "lg" }),
               "gap-2.5 rounded-[2px] bg-primary text-primary-foreground shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 transition-all duration-400 text-sm font-semibold px-7 h-11"
@@ -87,14 +87,14 @@ export function LearningHero(props: LearningHeroProps) {
             <ArrowRight className="h-4 w-4" />
           </Link>
           <Link
-            href="#paths"
+            href="#tracks"
             className={cn(
               buttonVariants({ variant: "outline", size: "lg" }),
               "gap-2.5 rounded-[2px] border-white/10 bg-white/[0.03] hover:bg-white/[0.06] hover:border-white/15 transition-all duration-400 text-sm font-semibold px-7 h-11"
             )}
           >
             <Layers className="h-4 w-4" />
-            View Learning Paths
+            Browse Tracks
           </Link>
         </motion.div>
 
