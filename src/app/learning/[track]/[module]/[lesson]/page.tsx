@@ -141,7 +141,7 @@ export default async function TrackLessonPage({ params }: LessonPageProps) {
               <LessonMentor
                 lessonTitle={stub.title}
                 lessonSlug={`${trackSlug}/${moduleSlug}/${lessonSlug}`}
-                phase={0}
+                phase={1}
                 phaseTitle={track.title}
                 tags={track.tags}
                 hasAuthoredContent={false}
@@ -217,7 +217,7 @@ export default async function TrackLessonPage({ params }: LessonPageProps) {
             <LessonMentor
               lessonTitle={stub.title}
               lessonSlug={`${trackSlug}/${moduleSlug}/${lessonSlug}`}
-              phase={0}
+              phase={1}
               phaseTitle={track.title}
               tags={authored.tags}
               hasAuthoredContent={true}
