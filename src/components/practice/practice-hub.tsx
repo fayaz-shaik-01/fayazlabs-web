@@ -310,9 +310,11 @@ export function PracticeHub() {
             problemId: problem.id,
             trackSlug: problem.track,
             moduleSlug: problem.module,
+            problemType: problem.type,
+            difficulty: problem.difficulty,
             selectedAnswer,
             correctAnswer: problem.correctAnswer,
-            timeTakenSeconds: timeTaken,
+            timeTakenSecs: timeTaken,
           })
           .then(() => {
             practiceApi.getPracticeStats().then(setStats).catch(() => {});

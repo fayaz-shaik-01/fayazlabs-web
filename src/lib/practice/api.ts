@@ -6,9 +6,11 @@ export interface SubmitAnswerRequest {
   problemId: string;
   trackSlug: string;
   moduleSlug: string;
+  problemType: string;
+  difficulty: string;
   selectedAnswer: string;
   correctAnswer: string;
-  timeTakenSeconds: number;
+  timeTakenSecs: number;
 }
 
 export interface AttemptResponse {
@@ -16,10 +18,12 @@ export interface AttemptResponse {
   problemId: string;
   trackSlug: string;
   moduleSlug: string;
+  problemType: string;
+  difficulty: string;
   selectedAnswer: string;
   correctAnswer: string;
   correct: boolean;
-  timeTakenSeconds: number;
+  timeTakenSecs: number;
   createdAt: string;
 }
 
@@ -33,7 +37,7 @@ export interface PracticeStatsResponse {
 }
 
 export interface BulkSubmitRequest {
-  answers: SubmitAnswerRequest[];
+  attempts: SubmitAnswerRequest[];
 }
 
 interface ApiResponse<T> {
@@ -71,7 +75,7 @@ export async function bulkSubmitAnswers(
 ): Promise<AttemptResponse[]> {
   const res = await authenticatedFetch("/api/v1/practice/bulk-submit", {
     method: "POST",
-    body: JSON.stringify({ answers }),
+    body: JSON.stringify({ attempts: answers }),
   });
   return unwrap<AttemptResponse[]>(res);
 }
