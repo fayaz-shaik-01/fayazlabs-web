@@ -1,0 +1,933 @@
+---
+title: "Adjoint and Inverse — Complete Knowledge File"
+description: "Master the adjoint and inverse of a matrix from absolute scratch to GATE-exam confidence. Covers cofactor matrix, adjugate, inverse via adjoint formula and Gauss-Jordan, properties, special matrix inverses, and Cayley-Hamilton trick."
+summary: "A comprehensive guide to adjoint and inverse matrices for GATE RA 2027 — from basic definitions to advanced properties, with worked examples and exam tips."
+date: "2026-08-10"
+published: true
+track: "gate-ra-2027"
+module: "linear-algebra"
+lesson: "adjoint-and-inverse"
+difficulty: "beginner"
+estimatedMinutes: 110
+prerequisites:
+  - "gate-ra-2027/linear-algebra/matrices"
+  - "gate-ra-2027/linear-algebra/determinants"
+tags: ["GATE", "Mathematics", "Linear Algebra", "Adjoint", "Inverse", "Cofactor", "Gauss-Jordan", "Cayley-Hamilton"]
+learningObjectives:
+  - "Define the minor, cofactor, cofactor matrix, and adjoint of any square matrix"
+  - "Compute the adjoint of 2×2 and 3×3 matrices by hand"
+  - "State and prove the fundamental relation A · adj(A) = det(A) · I"
+  - "Derive the inverse formula A⁻¹ = adj(A) / det(A)"
+  - "Determine whether a given matrix is invertible (singular vs. non-singular)"
+  - "Compute the inverse using adjoint and Gauss-Jordan methods"
+  - "Apply all important properties of the adjoint and inverse"
+  - "Solve matrix equations of the form AX = B"
+  - "Recognize special matrix inverses (diagonal, orthogonal, symmetric, triangular)"
+  - "Use the Cayley-Hamilton trick to find A⁻¹"
+  - "Solve GATE-level problems on adjoint and inverse within 3–5 minutes"
+concepts:
+  - "adjoint-definition"
+  - "cofactor-matrix"
+  - "inverse-formula"
+  - "gauss-jordan"
+  - "singular-nonsingular"
+  - "special-inverses"
+  - "cayley-hamilton-trick"
+  - "rank-of-adjoint"
+relatedLessons:
+  - "gate-ra-2027/linear-algebra/matrices"
+  - "gate-ra-2027/linear-algebra/determinants"
+  - "gate-ra-2027/linear-algebra/rank"
+  - "gate-ra-2027/linear-algebra/system-of-linear-equations"
+  - "gate-ra-2027/linear-algebra/eigenvalues-and-eigenvectors"
+lessonType: "learn"
+order: 3
+premium: false
+status: "published"
+canonicalPath: "/learning/gate-ra-2027/linear-algebra/adjoint-and-inverse"
+references: []
+visualizations:
+  - id: transform-2d
+    config:
+      matrix: [[3, 1], [2, 4]]
+      showGrid: true
+      showEigenvectors: false
+  - id: matrix-display
+    config:
+      matrix: [[3, 7], [2, 5]]
+      label: "A"
+knowledgeObjects:
+  - id: ko_adjoint_definition
+    type: definition
+    title: "Adjoint (Adjugate)"
+    plainEnglish: "The transpose of the cofactor matrix — a 'partial undo' that overshoots by det(A)"
+    prerequisites: []
+    usedIn: [ko_inverse_formula]
+    difficulty: beginner
+    tags: ["adjoint", "adjugate", "cofactor"]
+    examRelevance:
+      gate: high
+  - id: ko_inverse_formula
+    type: formula
+    title: "Inverse via Adjoint"
+    plainEnglish: "Divide the adjoint by the determinant to get the exact inverse"
+    latex: "A^{-1} = \\frac{1}{\\det(A)} \\cdot \\text{adj}(A)"
+    prerequisites: [ko_adjoint_definition]
+    usedIn: []
+    difficulty: beginner
+    tags: ["inverse", "adjoint-formula"]
+    examRelevance:
+      gate: high
+  - id: ko_fundamental_relation
+    type: formula
+    title: "Fundamental Relation"
+    plainEnglish: "Multiplying a matrix by its adjoint gives det(A) times the identity"
+    latex: "A \\cdot \\text{adj}(A) = \\det(A) \\cdot I"
+    prerequisites: [ko_adjoint_definition]
+    usedIn: [ko_inverse_formula]
+    difficulty: beginner
+    tags: ["fundamental-relation", "adjoint"]
+    examRelevance:
+      gate: high
+  - id: ko_det_adj
+    type: formula
+    title: "Determinant of Adjoint"
+    plainEnglish: "The determinant of the adjoint equals det(A) raised to the power n-1"
+    latex: "\\det(\\text{adj}(A)) = [\\det(A)]^{n-1}"
+    prerequisites: [ko_fundamental_relation]
+    usedIn: []
+    difficulty: intermediate
+    tags: ["determinant", "adjoint", "property"]
+    examRelevance:
+      gate: high
+---
+
+# Adjoint and Inverse of a Matrix — Complete Knowledge File
+## GATE RA 2027 | Engineering Mathematics | Linear Algebra | Topic 03
+
+> **Target Audience:** First-year B.Tech graduate with knowledge of Matrices (Topic 01) and Determinants (Topic 02).
+> **Goal:** Master the Adjoint and Inverse of a matrix from absolute scratch to GATE-exam confidence.
+
+---
+
+# 1. Overview
+
+<DefinitionCard term="Adjoint (Adjugate)" analogy="A 'partial undo' machine that overshoots by a factor of det(A) — divide by det(A) to get the true inverse.">
+The **adjoint** (also called the **classical adjoint** or **adjugate**) of a square matrix $A$ is the transpose of the matrix of cofactors of $A$.
+</DefinitionCard>
+
+<DefinitionCard term="Inverse" analogy="The 'undo button' for a matrix transformation — apply A, then A⁻¹, and you get back exactly what you started with.">
+The **inverse** of a square matrix $A$ is a unique matrix $A^{-1}$ such that $A \cdot A^{-1} = A^{-1} \cdot A = I$.
+</DefinitionCard>
+
+Together, the adjoint and inverse form the **algebraic machinery** that allows us to "divide" by a matrix — something that has no direct definition, but is achieved through the inverse operation.
+
+## Why Was It Developed?
+
+The concept emerged in the mid-19th century through the work of **Arthur Cayley** (1821–1895) and **James Joseph Sylvester** (1814–1897). Just as dividing both sides of $ax = b$ by $a$ gives $x = b/a$, the inverse provides the matrix analogue: $X = A^{-1}B$.
+
+The adjoint formula ($A^{-1} = \text{adj}(A)/\det(A)$) connects cofactors, determinants, and the inverse into an elegant algebraic unity.
+
+<EngineeringInsight>
+Matrix inversion shows up everywhere in engineering — whenever you need to "undo" a transformation, solve a system, or recover original signals from measured data. If determinants tell you WHETHER a problem is solvable, the inverse tells you HOW to solve it.
+</EngineeringInsight>
+
+| Domain | Application |
+|--------|-------------|
+| Robotics & Automation | Jacobian inverse for velocity mapping, transformation matrix inverses |
+| Control Systems | Transfer function: $G(s) = C(sI - A)^{-1}B + D$ |
+| Signal Processing | Wiener filter: $w_{\text{opt}} = R^{-1}p$ |
+| Circuit Analysis | Nodal/mesh analysis: $V = Y^{-1}I$ |
+| Machine Learning | Normal equations: $(X^TX)^{-1}X^Ty$ |
+| Optimization | Newton's method uses the Hessian inverse |
+
+---
+
+# 2. Prerequisites
+
+| # | Prerequisite | Where Covered | Why Needed |
+|---|-------------|---------------|------------|
+| 1 | Matrix operations (addition, multiplication, transpose) | Topic 01 | Adjoint is built from cofactors arranged as a transposed matrix |
+| 2 | Types of matrices (identity, diagonal, symmetric, triangular) | Topic 01 | Inverse formulas simplify for special types |
+| 3 | Determinants (definition, computation, properties) | Topic 02 | $\det(A) \neq 0$ is the existence condition for $A^{-1}$ |
+| 4 | Minors and Cofactors | Topic 02 | The adjoint is the transpose of the cofactor matrix |
+| 5 | Cofactor expansion | Topic 02 | Understanding how cofactors relate to the determinant |
+
+---
+
+# 3. Learning Objectives
+
+1. **Define** the minor, cofactor, cofactor matrix, and adjoint of any square matrix
+2. **Compute** the adjoint of $2 \times 2$ and $3 \times 3$ matrices by hand
+3. **State and prove** the fundamental relation $A \cdot \text{adj}(A) = \det(A) \cdot I$
+4. **Derive** the inverse formula $A^{-1} = \text{adj}(A) / \det(A)$
+5. **Determine** whether a given matrix is invertible
+6. **Compute** the inverse using adjoint and Gauss-Jordan methods
+7. **Apply** all important properties of the adjoint and inverse
+8. **Solve** matrix equations of the form $AX = B$
+9. **Recognize** special matrix inverses (diagonal, orthogonal, symmetric, triangular)
+10. **Use** the Cayley-Hamilton trick to find $A^{-1}$
+
+---
+
+# 4. Big Picture
+
+```
+Engineering Mathematics
+└── Linear Algebra
+    ├── 01. Matrices ◄──────── foundation: matrix operations
+    ├── 02. Determinants ◄──── foundation: det, minors, cofactors
+    ├── 03. ADJOINT & INVERSE ◄═══ YOU ARE HERE
+    │       ├── feeds into → 04. Rank
+    │       ├── feeds into → 05. System of Linear Equations
+    │       ├── feeds into → 06. Eigenvalues & Eigenvectors
+    │       ├──→ [Control] (sI - A)⁻¹
+    │       ├──→ [Robotics] J⁻¹, T⁻¹
+    │       └──→ [Circuits] Z⁻¹, Y⁻¹
+    ├── 04. Rank
+    ├── 05. System of Linear Equations
+    ├── 06. Eigenvalues & Eigenvectors
+    └── 07. Trace
+```
+
+---
+
+# 5. Intuitive Explanation
+
+## 5.1 The "Undo" Button Analogy
+
+**Imagine this...** You have a magical photo editing app. You apply a filter (matrix $A$). The **inverse** $A^{-1}$ is the **"undo" button** that perfectly reverses the filter: $A^{-1}(Ax) = x$.
+
+**When does the undo button NOT exist?** When the filter converts color to black-and-white — color information is **permanently destroyed**. In matrix terms, this happens when $\det(A) = 0$ (singular). A singular matrix "crushes" space into a lower dimension.
+
+**$A^{-1}$ exists if and only if $A$ doesn't destroy information, which happens precisely when $\det(A) \neq 0$.**
+
+## 5.2 The Adjoint as a "Partial Undo"
+
+The adjoint is like having the **right key, but it's too big** — it opens the lock but overshoots by a factor of $\det(A)$. To get the true inverse, divide by $\det(A)$:
+
+<FormulaCard name="Fundamental Relation" description="The single most important result connecting cofactors, determinants, and the adjoint.">
+$$A \cdot \text{adj}(A) = \det(A) \cdot I$$
+</FormulaCard>
+
+$$A^{-1} = \frac{1}{\det(A)} \cdot \text{adj}(A)$$
+
+## 5.3 The Scalar Analogy
+
+| Scalar | Matrix |
+|--------|--------|
+| "Inverse" of $a$ is $1/a$ | "Inverse" of $A$ is $A^{-1} = \text{adj}(A)/\det(A)$ |
+| Exists when $a \neq 0$ | Exists when $\det(A) \neq 0$ |
+| Solution: $x = b/a$ | Solution: $\mathbf{x} = A^{-1}\mathbf{b}$ |
+
+## 5.4 Geometric Intuition
+
+<Visualization id="transform-2d" matrix={[[3, 1], [2, 4]]} showGrid={true} showEigenvectors={false} />
+
+- $|\det(A)|$ = area of the parallelogram the unit square maps to
+- $\det(A) = 0$: square squished to a line → no inverse
+- $\det(A) \neq 0$: transformation reversible → $A^{-1}$ maps back to unit square
+
+## 5.5 The 2×2 Inverse: An Unforgettable Pattern
+
+<FormulaCard name="2×2 Inverse" description="Swap the diagonal, negate the off-diagonal, divide by the determinant.">
+$$\begin{bmatrix}a&b\\c&d\end{bmatrix}^{-1} = \frac{1}{ad-bc}\begin{bmatrix}d&-b\\-c&a\end{bmatrix}$$
+</FormulaCard>
+
+<MemoryTrick>
+**"Swap-Negate-Divide"** — diagonal elements swap, off-diagonal elements negate, divide by $\det$.
+</MemoryTrick>
+
+## 5.6 What Happens If...
+
+- **$A = I$?** $A^{-1} = I$, $\text{adj}(I) = I$
+- **$A$ is diagonal?** Reciprocate each entry: $\text{diag}(a,b,c)^{-1} = \text{diag}(1/a,1/b,1/c)$
+- **$A$ is orthogonal?** $A^{-1} = A^T$ — just transpose!
+- **Invert twice?** $(A^{-1})^{-1} = A$
+
+## 5.7 Common Confusions
+
+- **"Is $A^{-1}$ the same as $1/A$?"** No. $A^{-1}$ is a matrix satisfying $AA^{-1} = I$.
+- **"Can rectangular matrices have inverses?"** Not classical. Use pseudo-inverse.
+- **"Is $A^{-1}$ unique?"** Yes. Proof: if $B,C$ are both inverses, $B = BI = B(AC) = (BA)C = C$.
+- **"Does $\text{adj}(A)$ exist for singular matrices?"** Yes, but the inverse doesn't.
+
+<ConceptCheckpoint question="A 2×2 matrix A has det(A) = 0. What can you conclude?" options={["A⁻¹ = adj(A)", "A is invertible", "A is singular — no inverse exists", "A must be the zero matrix"]} correctIndex={2} explanation="det(A) = 0 means A is singular, so A⁻¹ does not exist. But A need not be the zero matrix." />
+
+---
+
+# 6. Formal Definitions
+
+<DefinitionCard term="Minor" analogy="Delete a row and column, compute the determinant of what's left.">
+The **minor** $M_{ij}$ of element $a_{ij}$ is the determinant of the $(n-1)\times(n-1)$ submatrix obtained by deleting row $i$ and column $j$.
+</DefinitionCard>
+
+<DefinitionCard term="Cofactor" analogy="The minor with a checkerboard sign.">
+$C_{ij} = (-1)^{i+j} \cdot M_{ij}$
+</DefinitionCard>
+
+<DefinitionCard term="Adjoint (Adjugate)">
+$\text{adj}(A) = [\text{cof}(A)]^T$ — the transpose of the cofactor matrix.
+
+In element form: $[\text{adj}(A)]_{ij} = C_{ji}$
+</DefinitionCard>
+
+<Warning title="GATE Trap: Index Swap">
+The $(i,j)$-entry of $\text{adj}(A)$ is the cofactor of $a_{ji}$ (indices swap due to transpose). This is the #1 source of errors.
+</Warning>
+
+<Warning title="Terminology Warning">
+In GATE, "adjoint" = classical adjoint (transpose of cofactor matrix), NOT the conjugate transpose $A^\dagger$.
+</Warning>
+
+<DefinitionCard term="Inverse of a Matrix">
+If $\det(A) \neq 0$, the inverse $A^{-1}$ is the unique matrix satisfying $AA^{-1} = A^{-1}A = I$, given by $A^{-1} = \frac{1}{\det(A)} \cdot \text{adj}(A)$.
+</DefinitionCard>
+
+---
+
+# 7. Mathematical Foundations
+
+## 7.1 Construction of the Adjoint
+
+**Step 1:** Compute minor $M_{ij}$ for each element. **Step 2:** Cofactor $C_{ij} = (-1)^{i+j} M_{ij}$. **Step 3:** Form cofactor matrix. **Step 4:** Transpose → $\text{adj}(A)$.
+
+<MemoryTrick>
+**2×2 Shortcut:** Swap diagonal, negate off-diagonal. Takes 2 seconds.
+</MemoryTrick>
+
+<ExampleCard title="3×3 Adjoint Computation" difficulty="intermediate">
+
+**Problem:** $A = \begin{bmatrix} 1 & 2 & 3 \\ 0 & 4 & 5 \\ 1 & 0 & 6 \end{bmatrix}$
+
+<div>
+
+9 cofactors: $C_{11}=24$, $C_{12}=5$, $C_{13}=-4$, $C_{21}=-12$, $C_{22}=3$, $C_{23}=2$, $C_{31}=-2$, $C_{32}=-5$, $C_{33}=4$
+
+$$\text{adj}(A) = \begin{bmatrix} 24 & -12 & -2 \\ 5 & 3 & -5 \\ -4 & 2 & 4 \end{bmatrix}$$
+
+</div>
+</ExampleCard>
+
+## 7.2 Proof: A · adj(A) = det(A) · I
+
+$(i,j)$-entry of $A \cdot \text{adj}(A)$: $\sum_k a_{ik} C_{jk}$
+
+- **$i = j$:** cofactor expansion of $\det(A)$ along row $i$ → $\det(A)$ ✓
+- **$i \neq j$:** determinant of matrix with two identical rows → $0$ ✓
+
+## 7.3 Inverse Formula Derivation
+
+From $A \cdot \text{adj}(A) = \det(A) \cdot I$, divide by $\det(A)$ (when $\neq 0$):
+
+<FormulaCard name="Inverse via Adjoint" description="The adjoint formula for computing A⁻¹.">
+$$A^{-1} = \frac{1}{\det(A)} \cdot \text{adj}(A)$$
+</FormulaCard>
+
+## 7.4 Uniqueness
+
+If $B$ and $C$ are both inverses: $B = BI = B(AC) = (BA)C = IC = C$. ∎
+
+## 7.5 Gauss-Jordan Method
+
+Form $[A|I]$, row-reduce to $[I|A^{-1}]$.
+
+<ExampleCard title="3×3 Gauss-Jordan" difficulty="intermediate">
+
+**Problem:** Find inverse of $A = \begin{bmatrix} 1 & 2 & 3 \\ 0 & 4 & 5 \\ 1 & 0 & 6 \end{bmatrix}$
+
+<div>
+
+$[A|I] \xrightarrow{R_3-R_1} \xrightarrow{R_3+\frac{1}{2}R_2} \xrightarrow{\text{back-sub}}$
+
+$\det(A) = 22$
+
+$$A^{-1} = \frac{1}{22}\begin{bmatrix} 24 & -12 & -2 \\ 5 & 3 & -5 \\ -4 & 2 & 4 \end{bmatrix}$$
+
+Both methods (adjoint and Gauss-Jordan) agree ✓
+
+</div>
+</ExampleCard>
+
+<ExamTip exam="GATE">
+For square matrices, verifying ONE of $AA^{-1}=I$ or $A^{-1}A=I$ is sufficient — the other follows automatically.
+</ExamTip>
+
+---
+
+# 8. Theoretical Concepts
+
+## 8.1 Conditions for Invertibility
+
+| # | Condition |
+|---|-----------|
+| 1 | $\det(A) \neq 0$ |
+| 2 | $\text{rank}(A) = n$ |
+| 3 | Rows linearly independent |
+| 4 | Columns linearly independent |
+| 5 | $Ax = 0$ has only trivial solution |
+| 6 | $Ax = b$ has unique solution for every $b$ |
+| 7 | Row-equivalent to $I_n$ |
+| 8 | Product of elementary matrices |
+| 9 | $0$ is NOT an eigenvalue |
+| 10 | $A^T$ is invertible |
+
+All 10 are **equivalent** — if any one fails, ALL fail.
+
+## 8.2 Special Matrix Inverses
+
+| Matrix Type | Inverse |
+|-------------|---------|
+| Diagonal $\text{diag}(d_1,\ldots,d_n)$ | $\text{diag}(1/d_1,\ldots,1/d_n)$ |
+| Orthogonal $Q$ | $Q^{-1} = Q^T$ |
+| Symmetric $A$ | $A^{-1}$ is also symmetric |
+| Upper triangular | Upper triangular (reciprocal diagonals) |
+| Lower triangular | Lower triangular (reciprocal diagonals) |
+| Rotation $R$ | $R^{-1} = R^T$ |
+
+## 8.3 Key Inverse Properties
+
+- $(AB)^{-1} = B^{-1}A^{-1}$ (order reverses)
+- $(A^T)^{-1} = (A^{-1})^T$
+- $(kA)^{-1} = \frac{1}{k}A^{-1}$
+- $\det(A^{-1}) = 1/\det(A)$
+- $(A^{-1})^{-1} = A$
+- $A^{-n} = (A^{-1})^n = (A^n)^{-1}$
+
+<MemoryTrick>
+**"Socks and Shoes"** for $(AB)^{-1} = B^{-1}A^{-1}$: put on socks then shoes → remove shoes then socks.
+</MemoryTrick>
+
+---
+
+# 9. Graphical Explanations
+
+```
+Decision Flowchart — "Is A Invertible?"
+
+       Given: n×n matrix A
+              │
+         Compute det(A)
+         ┌────┴────┐
+    det(A)=0    det(A)≠0
+         │         │
+    SINGULAR    NON-SINGULAR
+    No A⁻¹      A⁻¹ EXISTS
+                   ├── Adjoint: A⁻¹ = adj(A)/det(A)
+                   └── Gauss-Jordan: [A|I] → [I|A⁻¹]
+```
+
+---
+
+# 10. Important Properties
+
+## Adjoint Properties
+
+| # | Property | Formula |
+|---|----------|---------|
+| 1 | Fundamental relation | $A \cdot \text{adj}(A) = \det(A) \cdot I$ |
+| 2 | Adjoint of transpose | $\text{adj}(A^T) = [\text{adj}(A)]^T$ |
+| 3 | Adjoint of product | $\text{adj}(AB) = \text{adj}(B) \cdot \text{adj}(A)$ |
+| 4 | Scalar multiple | $\text{adj}(kA) = k^{n-1} \cdot \text{adj}(A)$ |
+| 5 | Double adjoint | $\text{adj}(\text{adj}(A)) = [\det(A)]^{n-2} \cdot A$ |
+| 6 | Determinant | $\det(\text{adj}(A)) = [\det(A)]^{n-1}$ |
+| 7 | Adjoint of inverse | $\text{adj}(A^{-1}) = A/\det(A)$ |
+
+<FormulaCard name="det(adj(A))" description="Most frequently tested adjoint property in GATE.">
+$$\det(\text{adj}(A)) = [\det(A)]^{n-1}$$
+</FormulaCard>
+
+<FormulaCard name="adj(adj(A))" description="Double-adjoint formula — a GATE favorite.">
+$$\text{adj}(\text{adj}(A)) = [\det(A)]^{n-2} \cdot A$$
+</FormulaCard>
+
+### Rank of adj(A)
+
+| Condition | rank(adj(A)) |
+|-----------|:---:|
+| rank(A) = $n$ | $n$ |
+| rank(A) = $n-1$ | $1$ |
+| rank(A) $< n-1$ | $0$ |
+
+<MemoryTrick>
+**"N-1-0 Rule"** for rank of adjoint: Full rank → $n$; one less → $1$; anything less → $0$.
+</MemoryTrick>
+
+## Inverse Properties
+
+| # | Property | Formula |
+|---|----------|---------|
+| 1 | Definition | $AA^{-1} = A^{-1}A = I$ |
+| 2 | Inverse of inverse | $(A^{-1})^{-1} = A$ |
+| 3 | Inverse of transpose | $(A^T)^{-1} = (A^{-1})^T$ |
+| 4 | Inverse of product | $(AB)^{-1} = B^{-1}A^{-1}$ |
+| 5 | Scalar multiple | $(kA)^{-1} = \frac{1}{k}A^{-1}$ |
+| 6 | Determinant | $\det(A^{-1}) = 1/\det(A)$ |
+| 7 | Powers | $A^{-n} = (A^{-1})^n$ |
+
+---
+
+# 11. Algorithms
+
+**Algorithm 11.1: Adjoint Formula** — Compute det, all cofactors, transpose, divide. Complexity: $O(n!)$.
+
+**Algorithm 11.2: Gauss-Jordan** — Form $[A|I]$, row-reduce to $[I|A^{-1}]$. Complexity: $O(n^3)$.
+
+**Algorithm 11.3: 2×2 Shortcut** — Swap diagonal, negate off-diagonal, divide by det. Time: ~30 seconds.
+
+<ExamTip exam="GATE">
+$2\times2$: always swap-negate-divide. $3\times3$: prefer Gauss-Jordan (faster, fewer errors). Special matrices: exploit structure.
+</ExamTip>
+
+---
+
+# 12. Engineering Applications
+
+<RealWorldExample title="Robotics: Inverse Kinematics">
+$\dot{q} = J^{-1}\dot{x}$. When $\det(J) = 0$, the robot is at a singularity.
+</RealWorldExample>
+
+<RealWorldExample title="Robotics: Transformation Inverse">
+$T^{-1} = \begin{bmatrix} R^T & -R^Td \\ 0 & 1 \end{bmatrix}$ — exploits orthogonality of rotation matrices.
+</RealWorldExample>
+
+<RealWorldExample title="Control Systems: State-Space">
+Transfer function: $G(s) = C(sI-A)^{-1}B + D$. The resolvent $(sI-A)^{-1}$ is central.
+</RealWorldExample>
+
+<RealWorldExample title="Signal Processing: Wiener Filter">
+$w_{\text{opt}} = R^{-1}p$ — autocorrelation matrix must be invertible.
+</RealWorldExample>
+
+<RealWorldExample title="Machine Learning: Normal Equation">
+$\hat{\beta} = (X^TX)^{-1}X^Ty$ — requires $X^TX$ invertible.
+</RealWorldExample>
+
+<RealWorldExample title="Embedded Systems: Kalman Filter">
+$K = PH^T(HPH^T + R)^{-1}$ — innovation covariance inversion.
+</RealWorldExample>
+
+---
+
+# 13. Worked Examples
+
+<ExampleCard title="13.1 — 2×2 Adjoint and Inverse" difficulty="beginner">
+
+**Problem:** Find adjoint and inverse of $A = \begin{bmatrix} 3 & 7 \\ 2 & 5 \end{bmatrix}$.
+
+<div>
+
+$\det(A) = 15 - 14 = 1$. $\text{adj}(A) = \begin{bmatrix} 5 & -7 \\ -2 & 3 \end{bmatrix}$.
+
+$A^{-1} = \begin{bmatrix} 5 & -7 \\ -2 & 3 \end{bmatrix}$. When $\det = 1$, inverse = adjoint!
+
+Verify: $AA^{-1} = I$ ✓
+
+</div>
+</ExampleCard>
+
+<ExampleCard title="13.2 — 3×3 Inverse" difficulty="intermediate">
+
+**Problem:** Find $A^{-1}$ for $A = \begin{bmatrix} 2 & -1 & 1 \\ 3 & 2 & -1 \\ 1 & 0 & 3 \end{bmatrix}$.
+
+<div>
+
+$\det(A) = 12 + 10 - 2 = 20$
+
+$A^{-1} = \frac{1}{20}\begin{bmatrix} 6 & 3 & -1 \\ -10 & 5 & 5 \\ -2 & -1 & 7 \end{bmatrix}$
+
+Quick check: Row 1 of $A$ × Col 1 of $A^{-1}$: $\frac{1}{20}(12+10-2) = 1$ ✓
+
+</div>
+</ExampleCard>
+
+<ExampleCard title="13.3 — Properties of Adjoint (GATE)" difficulty="advanced">
+
+**Problem:** $A$ is $3\times3$, $\det(A)=5$. Find: (a) $\det(\text{adj}(A))$, (b) $\det(\text{adj}(\text{adj}(A)))$, (c) $\text{adj}(\text{adj}(A))$
+
+<div>
+
+(a) $[\det(A)]^{n-1} = 5^2 = 25$
+
+(b) Let $B = \text{adj}(A)$, $\det(B)=25$. $\det(\text{adj}(B)) = 25^2 = 625$
+
+(c) $[\det(A)]^{n-2} \cdot A = 5A$
+
+</div>
+</ExampleCard>
+
+<ExampleCard title="13.4 — Matrix Equation" difficulty="intermediate">
+
+**Problem:** $A = \begin{bmatrix} 1 & 2 \\ 3 & 4 \end{bmatrix}$, $AX = \begin{bmatrix} 5 \\ 11 \end{bmatrix}$. Find $X$.
+
+<div>
+
+$\det(A) = -2$, $A^{-1} = \begin{bmatrix} -2 & 1 \\ 3/2 & -1/2 \end{bmatrix}$
+
+$X = A^{-1}\begin{bmatrix}5\\11\end{bmatrix} = \begin{bmatrix}1\\2\end{bmatrix}$. Verify: $A\begin{bmatrix}1\\2\end{bmatrix} = \begin{bmatrix}5\\11\end{bmatrix}$ ✓
+
+</div>
+</ExampleCard>
+
+<ExampleCard title="13.5 — Cayley-Hamilton Trick" difficulty="advanced">
+
+**Problem:** $A^2 - 5A + 6I = O$. Find $A^{-1}$.
+
+<div>
+
+Multiply by $A^{-1}$: $A - 5I + 6A^{-1} = O$
+
+$$A^{-1} = \frac{1}{6}(5I - A)$$
+
+Eigenvalues are 2 and 3 (both nonzero), so $A$ is invertible ✓
+
+</div>
+</ExampleCard>
+
+<ExampleCard title="13.6 — Robot Transformation Inverse" difficulty="advanced">
+
+**Problem:** $T = \begin{bmatrix} 0&-1&3 \\ 1&0&2 \\ 0&0&1 \end{bmatrix}$. Find $T^{-1}$.
+
+<div>
+
+$R^T = \begin{bmatrix}0&1\\-1&0\end{bmatrix}$, $-R^Td = \begin{bmatrix}-2\\3\end{bmatrix}$
+
+$$T^{-1} = \begin{bmatrix} 0&1&-2 \\ -1&0&3 \\ 0&0&1 \end{bmatrix}$$
+
+In robotics, NEVER use general inversion for transformation matrices — the special structure makes it trivial.
+
+</div>
+</ExampleCard>
+
+---
+
+# 14. Common Mistakes
+
+<Warning title="Forgetting the Transpose">
+$\text{adj}(A) = [\text{cof}(A)]^T$, NOT $\text{cof}(A)$ itself.
+</Warning>
+
+<Warning title="Wrong Order in Product Inverse">
+$(AB)^{-1} = B^{-1}A^{-1}$, NOT $A^{-1}B^{-1}$.
+</Warning>
+
+| # | Mistake | Correct |
+|---|---------|---------|
+| 1 | Forgetting to transpose cofactor matrix | $\text{adj}(A) = [\text{cof}(A)]^T$ |
+| 2 | Wrong cofactor sign | Use $(-1)^{i+j}$ checkerboard |
+| 3 | Wrong submatrix for minor | Delete entire row $i$ AND column $j$ |
+| 4 | Inverting singular matrix | Check $\det(A) \neq 0$ first |
+| 5 | $(AB)^{-1} = A^{-1}B^{-1}$ | It's $B^{-1}A^{-1}$ |
+| 6 | Confusing adj with conjugate transpose | GATE: adj = classical adjoint |
+| 7 | $\det(kA) = k\det(A)$ | It's $k^n\det(A)$ |
+| 8 | All triangular matrices invertible | Need ALL diagonal entries $\neq 0$ |
+
+---
+
+# 15. Connections
+
+| Prerequisite Topic | Connection |
+|-------|-----------|
+| 01. Matrices | Operations, transpose, identity |
+| 02. Determinants | det, minors, cofactors |
+
+| Dependent Topic | How It Uses This |
+|-------|-----------|
+| 04. Rank | rank = $n$ $\iff$ invertible |
+| 05. Systems | $x = A^{-1}b$, Cramer's rule |
+| 06. Eigenvalues | Invertible $\iff$ no zero eigenvalue |
+| Control Systems | $G(s) = C(sI-A)^{-1}B + D$ |
+| Robotics | Jacobian & transformation inverses |
+
+---
+
+# 16. Formula Sheet
+
+<FormulaCard name="Adjoint Formulas" description="Quick reference.">
+- $\text{adj}(A) = [\text{cof}(A)]^T$
+- $A \cdot \text{adj}(A) = \det(A) \cdot I$
+- $\det(\text{adj}(A)) = [\det(A)]^{n-1}$
+- $\text{adj}(\text{adj}(A)) = [\det(A)]^{n-2} \cdot A$
+- $\text{adj}(kA) = k^{n-1} \cdot \text{adj}(A)$
+- $\text{adj}(AB) = \text{adj}(B) \cdot \text{adj}(A)$
+</FormulaCard>
+
+<FormulaCard name="Inverse Formulas" description="Quick reference.">
+- $A^{-1} = \frac{1}{\det(A)} \cdot \text{adj}(A)$
+- $\begin{bmatrix}a&b\\c&d\end{bmatrix}^{-1} = \frac{1}{ad-bc}\begin{bmatrix}d&-b\\-c&a\end{bmatrix}$
+- $(AB)^{-1} = B^{-1}A^{-1}$
+- $(A^T)^{-1} = (A^{-1})^T$
+- $\det(A^{-1}) = 1/\det(A)$
+</FormulaCard>
+
+**Special:** Orthogonal: $Q^{-1}=Q^T$ | Diagonal: reciprocate | Symmetric: $A^{-1}$ symmetric | Triangular: same type
+
+---
+
+# 17. Quick Revision Notes
+
+1. $\text{adj}(A) = [\text{cof}(A)]^T$ — always transpose!
+2. $A \cdot \text{adj}(A) = \det(A) \cdot I$ — the fundamental relation
+3. $A^{-1} = \text{adj}(A)/\det(A)$ — exists only when $\det(A) \neq 0$
+4. 2×2 inverse: swap diagonal, negate off-diagonal, divide by det
+5. $\det(\text{adj}(A)) = [\det(A)]^{n-1}$ — GATE favorite
+6. $\text{adj}(\text{adj}(A)) = [\det(A)]^{n-2} \cdot A$ — double-adjoint
+7. $(AB)^{-1} = B^{-1}A^{-1}$ — order reverses
+8. Gauss-Jordan: $[A|I] \to [I|A^{-1}]$
+9. Cayley-Hamilton: if $p(A)=O$, multiply by $A^{-1}$ to find $A^{-1}$
+10. Invertible $\iff$ $\det \neq 0$ $\iff$ full rank $\iff$ no zero eigenvalue
+
+---
+
+# 18. Flashcards
+
+<Visualization id="flashcard-deck" cards={[
+  {"front": "What is adj(A)?", "back": "Transpose of the cofactor matrix: adj(A) = [cof(A)]^T"},
+  {"front": "Inverse formula using adjoint?", "back": "A⁻¹ = (1/det(A)) · adj(A), when det(A) ≠ 0"},
+  {"front": "A · adj(A) = ?", "back": "det(A) · I"},
+  {"front": "2×2 adj(A) shortcut?", "back": "Swap diagonal, negate off-diagonal"},
+  {"front": "When does A⁻¹ not exist?", "back": "When det(A) = 0 (matrix is singular)"},
+  {"front": "det(adj(A)) for n×n?", "back": "[det(A)]^(n−1)"},
+  {"front": "adj(adj(A)) when det(A)≠0?", "back": "[det(A)]^(n−2) · A"},
+  {"front": "(AB)⁻¹ = ?", "back": "B⁻¹A⁻¹ (order reverses)"},
+  {"front": "(Aᵀ)⁻¹ = ?", "back": "(A⁻¹)ᵀ — transpose and inverse commute"},
+  {"front": "det(A⁻¹) = ?", "back": "1/det(A)"},
+  {"front": "Inverse of orthogonal Q?", "back": "Q⁻¹ = Qᵀ"},
+  {"front": "Inverse of diag(d₁,...,dₙ)?", "back": "diag(1/d₁,...,1/dₙ)"},
+  {"front": "Gauss-Jordan method?", "back": "Form [A|I], row-reduce to [I|A⁻¹]"},
+  {"front": "(kA)⁻¹ = ?", "back": "(1/k)A⁻¹"},
+  {"front": "adj(kA) for n×n?", "back": "k^(n−1) · adj(A)"},
+  {"front": "How many equivalent invertibility conditions?", "back": "At least 10: det≠0, full rank, independent rows/cols, trivial null space, etc."},
+  {"front": "If A²−5A+6I=O, what is A⁻¹?", "back": "A⁻¹ = (5I−A)/6 (Cayley-Hamilton trick)"},
+  {"front": "rank(adj(A)) when rank(A)=n?", "back": "n"},
+  {"front": "rank(adj(A)) when rank(A)=n−1?", "back": "1"},
+  {"front": "rank(adj(A)) when rank(A)<n−1?", "back": "0"},
+  {"front": "Inverse of rotation matrix R?", "back": "R⁻¹ = Rᵀ (orthogonal)"},
+  {"front": "Is A⁻¹ symmetric if A is symmetric?", "back": "Yes"},
+  {"front": "3 elementary row operations?", "back": "Row swap, row scaling (k≠0), row addition"},
+  {"front": "adj(Aᵀ) = ?", "back": "[adj(A)]ᵀ"},
+  {"front": "If AB=I for square A,B, does BA=I?", "back": "Yes — one-sided implies two-sided"}
+]} />
+
+---
+
+# 19. Practice Problems
+
+## Conceptual (Q1–Q10)
+
+**Q1.** Define the adjoint. Why is it the transpose of the cofactor matrix?
+
+**Q2.** State all conditions for invertibility. Why are they equivalent?
+
+**Q3.** Explain geometrically why $\det(A)=0$ means no inverse.
+
+**Q4.** Classical adjoint vs Hermitian adjoint — what's the difference?
+
+**Q5.** If $A$ is orthogonal, what is $A^{-1}$? Prove it.
+
+**Q6.** $4\times4$ matrix with rank 3. What is rank(adj(A))?
+
+**Q7.** Can a non-square matrix have an inverse?
+
+**Q8.** Why does order reverse in $(AB)^{-1}$?
+
+**Q9.** If all eigenvalues are nonzero, is $A$ invertible?
+
+**Q10.** Why is Gauss-Jordan preferred over adjoint for large matrices?
+
+## Numerical (Q11–Q20)
+
+**Q11.** Find adjoint and inverse of $\begin{bmatrix}2&3\\1&4\end{bmatrix}$.
+
+**Q12.** Find $A^{-1}$ via adjoint: $A = \begin{bmatrix}1&0&2\\2&1&0\\3&2&1\end{bmatrix}$.
+
+**Q13.** Find $A^{-1}$ via Gauss-Jordan: $A = \begin{bmatrix}1&1&1\\0&1&1\\0&0&1\end{bmatrix}$.
+
+**Q14.** Compute $A^{-1}$ and verify: $A = \begin{bmatrix}1&2\\3&7\end{bmatrix}$.
+
+**Q15.** $A$ is $3\times3$, $\det(A)=4$. Find: (a) $\det(\text{adj}(A))$, (b) $\det(2A^{-1})$, (c) $\det(\text{adj}(2A))$.
+
+**Q16.** $A = \text{diag}(3,5,2)$. Find $A^{-1}$ and $\text{adj}(A)$ without cofactors.
+
+**Q17.** Solve $AX=B$: $A=\begin{bmatrix}2&1\\5&3\end{bmatrix}$, $B=\begin{bmatrix}4\\9\end{bmatrix}$.
+
+**Q18.** $A^3-6A^2+11A-6I=O$. Express $A^{-1}$ in terms of $A$.
+
+**Q19.** Find $k$ for which $\begin{bmatrix}1&2\\k&6\end{bmatrix}$ is singular.
+
+**Q20.** Find inverse of rotation matrix $\begin{bmatrix}\cos\theta&-\sin\theta\\\sin\theta&\cos\theta\end{bmatrix}$. Show $A^{-1}=A^T$.
+
+## Assertion-Reason (Q21–Q25)
+
+**Q21.** A: If $\det(A)=0$, adj(A) may or may not be zero. R: rank(adj(A))=1 when rank(A)=$n-1$, 0 when rank(A)$<n-1$.
+
+**Q22.** A: Inverse of symmetric is symmetric. R: $(A^{-1})^T = (A^T)^{-1} = A^{-1}$.
+
+**Q23.** A: If $AB=O$ and $A$ invertible, then $B=O$. R: $A^{-1}(AB) = A^{-1}O = O$, so $B=O$.
+
+**Q24.** A: $\det(\text{adj}(A))=\det(A)$ for all $2\times2$. R: $\det(\text{adj}(A))=[\det(A)]^{n-1}$, for $n=2$ gives $\det(A)$.
+
+**Q25.** A: Every upper triangular matrix is invertible. R: Det of triangular = product of diagonal.
+
+## Multiple-Select (Q26–Q30)
+
+**Q26.** $A$ is $3\times3$, $\det(A)=2$. True? (a) $\det(\text{adj}(A))=4$ (b) $\det(A^{-1})=0.5$ (c) $\det(3A)=54$ (d) $\text{adj}(\text{adj}(A))=2A$
+
+**Q27.** Which are invertible? (a) $\begin{bmatrix}1&2\\2&4\end{bmatrix}$ (b) $I_2$ (c) $\begin{bmatrix}0&1\\1&0\end{bmatrix}$ (d) $\begin{bmatrix}1&1\\1&1\end{bmatrix}$
+
+**Q28.** If $A$ is invertible: (a) $(A^2)^{-1}=(A^{-1})^2$ (b) $(A+I)^{-1}=A^{-1}+I$ (c) $\det(A^{-1})=1/\det(A)$ (d) $\text{adj}(A)=\det(A)\cdot A^{-1}$
+
+**Q29.** $3\times3$, rank(A)=2: (a) $\det(A)=0$ (b) $A^{-1}$ doesn't exist (c) rank(adj(A))=1 (d) adj(A)=O
+
+**Q30.** Adjoint properties: (a) $\text{adj}(AB)=\text{adj}(A)\cdot\text{adj}(B)$ (b) $\text{adj}(AB)=\text{adj}(B)\cdot\text{adj}(A)$ (c) $\text{adj}(kA)=k^{n-1}\text{adj}(A)$ (d) $\det(\text{adj}(A))=[\det(A)]^n$
+
+## Difficult GATE-Style (Q31–Q35)
+
+**Q31.** $A$ is $3\times3$, $\det(A)=3$. If $B=2A^{-1}\cdot\text{adj}(A^T)$, find $\det(B)$.
+
+**Q32.** $A$ is $4\times4$, $A\cdot\text{adj}(A)=2I$. Find $\det(A)$ and $\det(\text{adj}(\text{adj}(A)))$.
+
+**Q33.** $A = \begin{bmatrix}1&a\\0&1\end{bmatrix}$. Find $A^{-1}$, $A^n$, and $(A^n)^{-1}$.
+
+**Q34.** $A$, $B$ are $3\times3$ invertible, $\det(A)=2$, $\det(B)=3$. Find $\det(\text{adj}(AB^{-1}))$.
+
+**Q35.** $A^2=A$ (idempotent), $A\neq I$, $A\neq O$. Prove $A$ is NOT invertible. Find $\det(A)$.
+
+---
+
+# 20. Detailed Solutions
+
+**S1.** The transpose makes the fundamental relation $A\cdot\text{adj}(A)=\det(A)\cdot I$ work: diagonal entries reproduce det via cofactor expansion; off-diagonal entries give zero (repeated rows).
+
+**S2.** All 10 conditions characterize the same property: the transformation is bijective.
+
+**S3.** $\det=0$ means the unit square collapses to a line (area=0). Multiple inputs map to same output → irreversible.
+
+**S4.** Classical adjoint = $[\text{cof}(A)]^T$. Hermitian adjoint = $\bar{A}^T$. GATE means classical.
+
+**S5.** $Q^TQ=I$ (definition) $\implies Q^{-1}=Q^T$. Also $QQ^T=I$ follows since $\det(Q)\neq 0$.
+
+**S6.** rank(A)=3=$n-1$ (where $n=4$), so rank(adj(A))=**1**.
+
+**S7.** No classical inverse. Left inverse: $(A^TA)^{-1}A^T$. Right inverse: $A^T(AA^T)^{-1}$. Pseudo-inverse $A^+$ always exists.
+
+**S8.** Socks-shoes: last applied = first undone. Proof: $(AB)(B^{-1}A^{-1})=A(BB^{-1})A^{-1}=I$.
+
+**S9.** Yes. $\det(A)=\prod\lambda_i\neq 0$, so invertible.
+
+**S10.** Adjoint: $O(n\cdot n!)$. Gauss-Jordan: $O(n^3)$. For $n=10$: millions vs thousands of operations.
+
+**S11.** $\det=5$, adj $=\begin{bmatrix}4&-3\\-1&2\end{bmatrix}$, $A^{-1}=\frac{1}{5}\begin{bmatrix}4&-3\\-1&2\end{bmatrix}$.
+
+**S12.** $\det=3$, $A^{-1}=\frac{1}{3}\begin{bmatrix}1&4&-2\\-2&-5&4\\1&-2&1\end{bmatrix}$.
+
+**S13.** Upper triangular, $\det=1$. $A^{-1}=\begin{bmatrix}1&-1&0\\0&1&-1\\0&0&1\end{bmatrix}$.
+
+**S14.** $\det=1$, $A^{-1}=\begin{bmatrix}7&-2\\-3&1\end{bmatrix}$.
+
+**S15.** (a) $4^2=16$ (b) $8\cdot\frac{1}{4}=2$ (c) $\det(2A)=32$, $\det(\text{adj}(2A))=32^2=1024$.
+
+**S16.** $\det=30$, $A^{-1}=\text{diag}(1/3,1/5,1/2)$, $\text{adj}(A)=\text{diag}(10,6,15)$.
+
+**S17.** $\det=1$, $X=\begin{bmatrix}3\\-2\end{bmatrix}$.
+
+**S18.** $A^{-1}=\frac{1}{6}(A^2-6A+11I)$. Eigenvalues: 1,2,3.
+
+**S19.** $\det=6-2k=0 \implies k=3$.
+
+**S20.** $\det=\cos^2\theta+\sin^2\theta=1$, $A^{-1}=\begin{bmatrix}\cos\theta&\sin\theta\\-\sin\theta&\cos\theta\end{bmatrix}=A^T$.
+
+**S21.** (a) — Both true, R explains A.
+
+**S22.** (a) — Both true, R explains A.
+
+**S23.** (a) — Both true, R explains A.
+
+**S24.** (a) — Both true, R explains A.
+
+**S25.** (d) — A false (need nonzero diagonal), R true.
+
+**S26.** (a),(b),(c),(d) — all correct.
+
+**S27.** (b),(c).
+
+**S28.** (a),(c),(d).
+
+**S29.** (a),(b),(c).
+
+**S30.** (b),(c).
+
+**S31.** $\text{adj}(A^T)=3(A^T)^{-1}$. $B=6(A^TA)^{-1}$. $\det(B)=216/9=24$.
+
+**S32.** $\det(A)=2$. $\text{adj}(\text{adj}(A))=4A$. $\det=4^4\cdot 2=512$.
+
+**S33.** $A^{-1}=\begin{bmatrix}1&-a\\0&1\end{bmatrix}$, $A^n=\begin{bmatrix}1&na\\0&1\end{bmatrix}$, $(A^n)^{-1}=\begin{bmatrix}1&-na\\0&1\end{bmatrix}$.
+
+**S34.** $\det(AB^{-1})=2/3$. $\det(\text{adj}(AB^{-1}))=(2/3)^2=4/9$.
+
+**S35.** If invertible: $A^{-1}A^2=A^{-1}A \implies A=I$, contradiction. So not invertible. $\det(A)^2=\det(A) \implies \det(A)=0$.
+
+---
+
+# 21. Further Reading
+
+- **NPTEL:** Engineering Mathematics I (IIT Kharagpur), Prof. B.S. Panda
+- **MIT OCW:** 18.06 Linear Algebra (Gilbert Strang), Lectures 3, 5, 14
+- **3Blue1Brown:** Essence of Linear Algebra, Episode 7
+- **Textbooks:** B.S. Grewal Ch. 1, Gilbert Strang Ch. 2, Kreyszig Ch. 7
+
+---
+
+# 22. Knowledge Graph
+
+```
+PREREQUISITES                      THIS TOPIC FEEDS INTO
+─────────────                      ─────────────────────
+Matrices (01)              ──→     Rank (04)
+Determinants (02)          ──→     System of Linear Equations (05)
+                           ──→     Eigenvalues (06)
+    ★ ADJOINT & INVERSE ★  ──→     [Control] (sI−A)⁻¹
+                           ──→     [Robotics] J⁻¹, T⁻¹
+                           ──→     [Signals] MIMO inversion
+                           ──→     [Circuits] Z⁻¹, Y⁻¹
+```
+
+---
+
+# 23. Difficulty Rating
+
+| Aspect | Rating |
+|--------|--------|
+| Conceptual difficulty | **4/10** |
+| Computational difficulty | **5/10** |
+| GATE importance | **8/10** |
+| First learning time | **3 hours** |
+| Revision time | **20 minutes** |
+
+---
+
+# 24. Exam Strategy
+
+<ExamTip exam="GATE">
+**How This Topic Is Tested:**
+- **1-mark MCQ:** Singularity check, adjoint properties ($\det(\text{adj}(A))$, $\text{adj}(\text{adj}(A))$)
+- **2-mark NAT:** Compute $2\times2$ or $3\times3$ inverse, matrix equations $AX=B$
+- **Embedded:** Part of eigenvalue problems, systems of equations
+</ExamTip>
+
+<ExamTip exam="GATE">
+**Top Shortcuts:**
+1. $2\times2$ inverse in 30 seconds: swap-negate-divide
+2. $\det(\text{adj}(A)) = [\det(A)]^{n-1}$ — appears almost every year
+3. $\text{adj}(\text{adj}(A)) = [\det(A)]^{n-2} \cdot A$
+4. Cayley-Hamilton: multiply polynomial by $A^{-1}$
+5. Diagonal/orthogonal inverse is trivial
+</ExamTip>
+
+<Warning title="Traps to Avoid">
+- Forgetting transpose in adj(A) — #1 error
+- Sign errors in cofactors — draw checkerboard
+- $(AB)^{-1} = A^{-1}B^{-1}$ — WRONG, order reverses
+- Not checking $\det(A) \neq 0$ before inverting
+- $\text{adj}(kA) = k^{n-1}\text{adj}(A)$, not $k \cdot \text{adj}(A)$
+</Warning>

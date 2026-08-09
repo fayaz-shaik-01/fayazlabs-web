@@ -75,21 +75,9 @@ export interface EntitlementCheck {
 // ── Manifest loading ──────────────────────────────────────────────────────
 
 // Static imports for all track manifests — enables tree-shaking and SSG
-import llmEngineering from "../../content/learning/curriculum/llm-engineering.json";
-import mlSystems from "../../content/learning/curriculum/ml-systems.json";
-import aiAgents from "../../content/learning/curriculum/ai-agents.json";
-import deepLearning from "../../content/learning/curriculum/deep-learning.json";
-import safetyAndAlignment from "../../content/learning/curriculum/safety-and-alignment.json";
-import infrastructure from "../../content/learning/curriculum/infrastructure.json";
 import gateRa2027 from "../../content/learning/curriculum/gate-ra-2027.json";
 
 const trackManifestMap: Record<string, TrackMeta> = {
-  "llm-engineering.json": llmEngineering as unknown as TrackMeta,
-  "ml-systems.json": mlSystems as unknown as TrackMeta,
-  "ai-agents.json": aiAgents as unknown as TrackMeta,
-  "deep-learning.json": deepLearning as unknown as TrackMeta,
-  "safety-and-alignment.json": safetyAndAlignment as unknown as TrackMeta,
-  "infrastructure.json": infrastructure as unknown as TrackMeta,
   "gate-ra-2027.json": gateRa2027 as unknown as TrackMeta,
 };
 

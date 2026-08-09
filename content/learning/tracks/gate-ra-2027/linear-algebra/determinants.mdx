@@ -1,0 +1,1129 @@
+---
+title: "Determinants — Complete Knowledge File"
+description: "Master determinants from absolute scratch to GATE-exam confidence. Covers 2×2 and 3×3 computation, cofactor expansion, properties, Cramer's rule, Vandermonde determinants, and geometric interpretation as area/volume scaling."
+summary: "A comprehensive guide to determinants for GATE RA 2027 — from basic definitions to advanced properties, with worked examples and exam tips."
+date: "2026-08-09"
+published: true
+track: "gate-ra-2027"
+module: "linear-algebra"
+lesson: "determinants"
+difficulty: "beginner"
+estimatedMinutes: 100
+prerequisites:
+  - "gate-ra-2027/linear-algebra/matrices"
+tags: ["GATE", "Mathematics", "Linear Algebra", "Determinants", "Cofactor Expansion", "Cramer's Rule"]
+learningObjectives:
+  - "Compute the determinant of 2×2 and 3×3 matrices by hand"
+  - "Define and compute minors, cofactors, and the cofactor expansion"
+  - "Use cofactor expansion along any row or column"
+  - "Apply all properties of determinants to simplify computation"
+  - "Use row/column operations to evaluate determinants efficiently"
+  - "Compute determinants of triangular, diagonal, and block matrices instantly"
+  - "Understand the geometric meaning of determinants (area/volume)"
+  - "Apply determinants to check invertibility, solve systems (Cramer's rule), and detect singularities"
+  - "Evaluate special determinants (Vandermonde, circulant)"
+  - "Solve 35+ GATE-level problems on determinants"
+concepts:
+  - "determinant-definition"
+  - "minor"
+  - "cofactor"
+  - "cofactor-expansion"
+  - "sarrus-rule"
+  - "cramers-rule"
+  - "vandermonde-determinant"
+  - "area-volume-scaling"
+  - "singularity"
+relatedLessons:
+  - "gate-ra-2027/linear-algebra/matrices"
+  - "gate-ra-2027/linear-algebra/adjoint-and-inverse"
+  - "gate-ra-2027/linear-algebra/rank"
+  - "gate-ra-2027/linear-algebra/system-of-linear-equations"
+  - "gate-ra-2027/linear-algebra/eigenvalues-and-eigenvectors"
+lessonType: "learn"
+order: 2
+premium: false
+status: "published"
+canonicalPath: "/learning/gate-ra-2027/linear-algebra/determinants"
+references: []
+visualizations:
+  - id: matrix-display
+    config:
+      matrix: [[3, 2], [1, 4]]
+      label: "A"
+  - id: transform-2d
+    config:
+      matrix: [[2, 0], [0, 3]]
+      showGrid: true
+      showEigenvectors: false
+knowledgeObjects:
+  - id: ko_determinant_definition
+    type: definition
+    title: "Determinant"
+    plainEnglish: "A single number computed from a square matrix that tells you about invertibility, area/volume scaling, and orientation"
+    prerequisites: []
+    usedIn: [ko_cofactor_expansion, ko_cramers_rule]
+    difficulty: beginner
+    tags: ["determinant", "linear-algebra"]
+    examRelevance:
+      gate: high
+  - id: ko_cofactor_expansion
+    type: formula
+    title: "Cofactor Expansion"
+    plainEnglish: "Compute a determinant by summing element × cofactor along any row or column"
+    latex: "\\det(A) = \\sum_{j=1}^{n} a_{ij} \\cdot C_{ij}"
+    prerequisites: [ko_determinant_definition]
+    usedIn: [ko_cramers_rule]
+    difficulty: beginner
+    tags: ["cofactor-expansion", "laplace-expansion"]
+    examRelevance:
+      gate: high
+  - id: ko_cramers_rule
+    type: formula
+    title: "Cramer's Rule"
+    plainEnglish: "Solve a system of linear equations by replacing columns and computing determinants"
+    latex: "x_j = \\frac{\\det(A_j)}{\\det(A)}"
+    prerequisites: [ko_cofactor_expansion]
+    usedIn: []
+    difficulty: intermediate
+    tags: ["cramers-rule", "system-of-equations"]
+    examRelevance:
+      gate: high
+  - id: ko_vandermonde
+    type: formula
+    title: "Vandermonde Determinant"
+    plainEnglish: "A special determinant with a closed-form product formula"
+    latex: "\\det(V) = \\prod_{1 \\leq i < j \\leq n} (x_j - x_i)"
+    prerequisites: [ko_determinant_definition]
+    usedIn: []
+    difficulty: intermediate
+    tags: ["vandermonde", "special-determinant"]
+    examRelevance:
+      gate: medium
+---
+
+# Determinants — Complete Knowledge File
+## GATE RA 2027 | Engineering Mathematics | Linear Algebra | Topic 02
+
+> **Target Audience:** First-year B.Tech graduate who has completed the Matrices topic (01\_Matrices.md).
+> **Goal:** Master determinants from absolute scratch to GATE-exam confidence.
+
+---
+
+# 1. Overview
+
+## 1.1 What is a Determinant?
+
+<DefinitionCard term="Determinant" analogy="A single number that acts like a medical blood test for a matrix — it reveals invertibility, area/volume scaling, and orientation all at once.">
+A **determinant** is a single **number** computed from a square matrix. It takes an entire $n \times n$ matrix and compresses it into one scalar value.
+</DefinitionCard>
+
+$$\det(A) \quad \text{or} \quad |A| \quad \text{— a single number computed from matrix } A$$
+
+<FormulaCard name="2×2 Determinant" description="Product of main diagonal minus product of anti-diagonal.">
+$$A = \begin{bmatrix} a & b \\ c & d \end{bmatrix} \implies \det(A) = ad - bc$$
+</FormulaCard>
+
+For example:
+
+$$\det\begin{bmatrix} 3 & 2 \\ 1 & 4 \end{bmatrix} = 3(4) - 2(1) = 12 - 2 = 10$$
+
+That's it — one number. But this one number tells you an extraordinary amount about the matrix.
+
+## 1.2 Why Were Determinants Developed?
+
+Determinants were invented to answer a fundamental question: **Does a system of linear equations have a unique solution?**
+
+Consider: $2x + 3y = 7$ and $x - y = 1$.
+
+The coefficient matrix is $A = \begin{bmatrix}2&3\\1&-1\end{bmatrix}$, and $\det(A) = 2(-1)-3(1) = -5 \neq 0$.
+
+Since the determinant is non-zero, the system has a **unique solution**. If the determinant were zero, the system would either have no solution or infinitely many solutions.
+
+**Historical note:** The concept was developed independently by Leibniz (1693) and the Japanese mathematician Seki Takakazu (1683), both in the context of solving systems of equations. The word "determinant" was coined by Gauss in 1801 because it **determines** whether a system has a unique solution.
+
+## 1.3 What Does the Determinant Tell You?
+
+The determinant encodes multiple pieces of information in one number. Think of it like a **medical blood test** — a single blood sample can tell a doctor about your blood sugar, cholesterol, liver function, and more. Similarly, a single determinant value tells you about a matrix's invertibility, the behavior of the system of equations it represents, the geometric scaling it produces, and whether it preserves orientation.
+
+Here's the remarkable thing: if someone gives you a square matrix and asks "Is it invertible? Does the system have a unique solution? Are the rows independent? How much does it scale area?" — the answer to ALL these questions comes from **one** number: the determinant.
+
+Let's break down exactly what information it carries:
+
+| Property | What det tells you |
+|----------|-------------------|
+| **Invertibility** | $\det(A) \neq 0 \iff A$ is invertible |
+| **System of equations** | $\det(A) \neq 0 \iff$ unique solution |
+| **Linear independence** | $\det(A) \neq 0 \iff$ rows (or columns) are linearly independent |
+| **Area/Volume scaling** | $\lvert\det(A)\rvert$ = factor by which $A$ scales areas (2D) or volumes (3D) |
+| **Orientation** | $\det(A) > 0$: orientation preserved; $\det(A) < 0$: orientation reversed |
+| **Singularity** | $\det(A) = 0 \iff A$ is singular (non-invertible) |
+
+## 1.4 Why Are Determinants Important in Engineering?
+
+<EngineeringInsight>
+Determinants show up in almost every branch of engineering, often as the **go/no-go test** for whether a system works properly. Whenever an engineer needs to know if a system of equations is solvable, if a robot can move freely, if a control system can be steered, or if signals are independent — they compute a determinant.
+</EngineeringInsight>
+
+| Domain | Application |
+|--------|-------------|
+| Robotics | Checking if a robot configuration is at a **singularity** (det of Jacobian = 0) |
+| Control Systems | Checking **controllability/observability** (det of controllability matrix) |
+| Circuit Analysis | Solving node/mesh equations using Cramer's rule |
+| Structural Analysis | Checking stability of structures (det of stiffness matrix) |
+| Computer Graphics | Determining if a transformation preserves orientation |
+| Machine Learning | Multivariate Gaussian: $\det(\Sigma)$ appears in the normalization constant |
+| Signal Processing | Checking if signals are linearly independent |
+
+<RealWorldExample title="Robotics: Jacobian Singularity">
+The Jacobian matrix $J$ of a robot maps joint velocities to end-effector velocities. When $\det(J) = 0$, the robot is at a **singularity** — it loses the ability to move in certain directions. Every robotics engineer must compute determinants to identify and avoid singularities.
+</RealWorldExample>
+
+---
+
+# 2. Prerequisites
+
+| Concept | What You Need | Where Covered |
+|---------|--------------|---------------|
+| **Matrix definition** | What a matrix is, order, elements | 01\_Matrices.md, Sec 1 |
+| **Matrix types** | Square, diagonal, triangular, symmetric, skew-symmetric | 01\_Matrices.md, Sec 7.1 |
+| **Matrix multiplication** | How to multiply matrices and vectors | 01\_Matrices.md, Sec 7.2.3 |
+| **Transpose** | $A^T$ and its properties | 01\_Matrices.md, Sec 6.3 |
+| **Basic arithmetic** | Addition, subtraction, multiplication of real numbers | High school |
+
+---
+
+# 3. Learning Objectives
+
+By the end of this topic, you will be able to:
+
+1. Compute the determinant of $2 \times 2$ and $3 \times 3$ matrices by hand
+2. Define and compute minors, cofactors, and the cofactor expansion
+3. Use cofactor expansion along any row or column
+4. Apply all properties of determinants to simplify computation
+5. Use row/column operations to evaluate determinants efficiently
+6. Compute determinants of triangular, diagonal, and block matrices instantly
+7. Understand the geometric meaning of determinants (area/volume)
+8. Apply determinants to check invertibility, solve systems (Cramer's rule), and detect singularities
+9. Evaluate special determinants (Vandermonde, circulant)
+10. Solve 35+ GATE-level problems on determinants
+
+---
+
+# 4. Big Picture
+
+## 4.1 Where Does This Topic Fit?
+
+```
+Engineering Mathematics
+└── Linear Algebra
+    ├── Matrices ✅ (completed — prerequisite)
+    ├── ★ DETERMINANTS ★ (YOU ARE HERE)
+    │     ↓
+    ├── Adjoint & Inverse (uses cofactors from determinants)
+    ├── Rank (det = 0 ↔ rank < n)
+    ├── System of Linear Equations (Cramer's rule uses determinants)
+    ├── Eigenvalues & Eigenvectors (characteristic equation uses det)
+    └── Trace
+```
+
+## 4.2 Why Study Determinants After Matrices?
+
+Determinants are **defined on** square matrices. You need to understand what a matrix is, how to identify its elements, and how matrix operations work before you can compute a determinant. Think of it this way:
+
+- **Matrices** = the DATA structure
+- **Determinant** = a FUNCTION that extracts key information from that data structure
+
+Every topic that follows — inverse, rank, eigenvalues — requires determinants. The characteristic equation for eigenvalues is $\det(A - \lambda I) = 0$, which is literally a determinant set to zero.
+
+---
+
+# 5. Intuitive Explanation
+
+Before we dive into formulas and computations, let's spend significant time building a **deep, intuitive understanding** of what a determinant really is and why it matters. If you understand the intuition well, the formulas become natural rather than something to memorize.
+
+## 5.1 The Big Idea: A Determinant Is a "Scale Factor"
+
+**Imagine this...** You have a rubber sheet (like a trampoline surface) with a perfect 1×1 square drawn on it. Now imagine you grab the corners and stretch, squeeze, rotate, or shear the rubber sheet according to some rule (that rule is the matrix). After the transformation, that perfect square has become some kind of parallelogram.
+
+The determinant tells you exactly **how much the area changed**. If the original square had area 1, and after the transformation the parallelogram has area 6, then the determinant is 6 (or -6 if the orientation flipped).
+
+This is the single most important intuition: **the determinant measures how much a linear transformation scales area (in 2D) or volume (in 3D).**
+
+<Visualization id="transform-2d" matrix={[[2, 0], [0, 3]]} showGrid={true} showEigenvectors={false} />
+
+## 5.2 Analogy: The Area Machine
+
+Let's make this concrete with a $2 \times 2$ matrix $A = \begin{bmatrix}a&b\\c&d\end{bmatrix}$.
+
+Take the **unit square** — the square with corners at $(0,0)$, $(1,0)$, $(0,1)$, $(1,1)$. Its area is exactly 1 square unit.
+
+Now apply the matrix $A$ to every corner. The four corners move to new positions, and the unit square transforms into a **parallelogram** (or possibly collapses into a line or a point).
+
+**The absolute value of the determinant equals the area of that parallelogram.**
+
+$$\lvert\det(A)\rvert = \text{area of the parallelogram}$$
+
+But the determinant also carries a **sign**, and the sign tells you about orientation:
+
+- If $\det(A) > 0$: the orientation is **preserved**. Counterclockwise stays counterclockwise.
+- If $\det(A) < 0$: the orientation is **flipped**. Counterclockwise becomes clockwise.
+- If $\det(A) = 0$: the parallelogram **collapses** to a line (or a point) — area is 0. The matrix is singular.
+
+**Imagine this...** Think of the matrix as an instruction to a photocopier. A determinant of 2 means the copy is twice the size. A determinant of 0.5 means the copy is half the size. A determinant of -1 means the copy is the same size but mirror-flipped. And a determinant of 0? The copier has jammed — the entire image has been squashed into a line.
+
+**Concrete examples:**
+
+- $A = \begin{bmatrix}2&0\\0&3\end{bmatrix}$: $\det(A) = 6$. Stretches horizontally by 2 and vertically by 3. Area = $2 \times 3 = 6$.
+- $A = \begin{bmatrix}1&1\\0&1\end{bmatrix}$: $\det(A) = 1$. **Shears** the square but doesn't change the area.
+- $A = \begin{bmatrix}1&2\\2&4\end{bmatrix}$: $\det(A) = 0$. Row 2 = 2× Row 1. Collapses to a line. Singular.
+- $A = \begin{bmatrix}0&1\\1&0\end{bmatrix}$: $\det(A) = -1$. Swaps x and y (reflection). Area preserved, orientation flipped.
+
+## 5.3 Extending to 3D: Volume
+
+In 3D, a $3 \times 3$ matrix transforms the **unit cube** into a **parallelepiped**.
+
+$$\lvert\det(A)\rvert = \text{volume of the parallelepiped}$$
+
+**Concrete 3D example:** $A = \begin{bmatrix}2&0&0\\0&3&0\\0&0&4\end{bmatrix}$. This stretches space by 2 along x, 3 along y, 4 along z. Volume = $2 \times 3 \times 4 = 24 = \det(A)$.
+
+<EngineeringInsight>
+In robotics, the quantity $\lvert\det(J)\rvert$ — the **manipulability index** — measures how efficiently the robot can move. Engineers plot it across the workspace to identify and avoid singularities.
+</EngineeringInsight>
+
+## 5.4 Analogy: The Invertibility Detector
+
+- $\det(A) \neq 0$: Matrix is "healthy" — invertible, transformation can be undone.
+- $\det(A) = 0$: Matrix is "broken" — singular, information permanently lost.
+
+## 5.5 Analogy: The Recipe Test (Linear Independence)
+
+**Imagine this...** Suppose you have 3 cake recipes arranged as matrix rows. If Recipe 2 = 2× Recipe 1, the determinant is **zero** — you only have 2 unique recipes. Nonzero determinant confirms all recipes are genuinely different (linearly independent).
+
+## 5.6 Intuition for Key Properties
+
+**Why does swapping two rows flip the sign?** Swapping two vectors defining a parallelogram preserves area but flips orientation.
+
+**Why does adding a multiple of one row to another leave det unchanged?** It shears the parallelogram without changing area.
+
+**Why is $\det(AB) = \det(A) \cdot \det(B)$?** If $A$ scales area by $\det(A)$ and $B$ by $\det(B)$, the combined scaling is the product.
+
+**Why is $\det(kA) = k^n \det(A)$?** Every row gets multiplied by $k$. With $n$ rows, that's $k^n$.
+
+<ConceptCheckpoint question="A 3×3 matrix A has det(A) = 5. What is det(2A)?" options={["10", "20", "40", "80"]} correctIndex={2} explanation="det(kA) = k^n · det(A). Here k=2, n=3, so det(2A) = 2³ × 5 = 8 × 5 = 40." />
+
+## 5.7 The "Zero or Nonzero" Perspective
+
+For most GATE problems, you just need to know whether det is **zero or nonzero**:
+- Invertible? (nonzero → yes)
+- Unique solution? (nonzero → yes)
+- Independent rows? (nonzero → yes)
+- Robot singularity? (zero → yes)
+
+## 5.8 Common Confusions Cleared Up
+
+**"Is the determinant a matrix?"** No — it's a scalar.
+
+**"Can non-square matrices have determinants?"** No — only $n \times n$.
+
+**"Does $\det(A) = 0$ mean $A$ is the zero matrix?"** No. $\begin{bmatrix}1&2\\2&4\end{bmatrix}$ has $\det = 0$ but is not zero.
+
+## 5.9 Summary of Key Intuitions
+
+| Intuition | Summary |
+|-----------|---------|
+| **Scale factor** | $\lvert\det(A)\rvert$ = how much $A$ scales area (2D) or volume (3D) |
+| **Sign** | $\det > 0$: orientation preserved; $\det < 0$: orientation flipped |
+| **Zero** | $\det = 0$: space collapses, matrix is singular |
+| **Invertibility** | $\det \neq 0 \iff$ matrix is invertible |
+| **Independence** | $\det \neq 0 \iff$ rows/columns are linearly independent |
+
+<ExamTip exam="GATE">
+Most questions test whether you can use **properties** to avoid brute-force computation. The properties in Section 8 are your primary weapons.
+</ExamTip>
+
+---
+
+# 6. Formal Definitions
+
+<DefinitionCard term="Minor" analogy="Delete a row and column from a spreadsheet and compute the determinant of what's left.">
+The **minor** $M_{ij}$ of element $a_{ij}$ in an $n \times n$ matrix $A$ is the determinant of the $(n-1) \times (n-1)$ matrix obtained by **deleting row $i$ and column $j$** from $A$.
+</DefinitionCard>
+
+**Example:** For $A = \begin{bmatrix} 1 & 2 & 3 \\ 4 & 5 & 6 \\ 7 & 8 & 9 \end{bmatrix}$:
+
+$M_{11} = \det\begin{bmatrix}5&6\\8&9\end{bmatrix} = 45 - 48 = -3$
+
+$M_{12} = \det\begin{bmatrix}4&6\\7&9\end{bmatrix} = 36 - 42 = -6$
+
+$M_{23} = \det\begin{bmatrix}1&2\\7&8\end{bmatrix} = 8 - 14 = -6$
+
+<DefinitionCard term="Cofactor" analogy="The minor with a checkerboard sign — like alternating black and white squares on a chessboard.">
+The **cofactor** $C_{ij}$ of element $a_{ij}$ is: $C_{ij} = (-1)^{i+j} \cdot M_{ij}$
+</DefinitionCard>
+
+<MemoryTrick>
+**"Even = Plus, Odd = Minus"** — if $i+j$ is even, the cofactor sign is $+$; if odd, it's $-$.
+</MemoryTrick>
+
+**Continuing the example:**
+- $C_{11} = (+1)(-3) = -3$
+- $C_{12} = (-1)(-6) = +6$
+- $C_{23} = (-1)(-6) = +6$
+
+<DefinitionCard term="Determinant via Cofactor Expansion">
+Expand along any row $i$: $\det(A) = \sum_{j=1}^{n} a_{ij} \cdot C_{ij}$
+
+Or along any column $j$: $\det(A) = \sum_{i=1}^{n} a_{ij} \cdot C_{ij}$
+
+The result is the same regardless of which row or column you choose. Expand along the row/column with the **most zeros**.
+</DefinitionCard>
+
+---
+
+# 7. Mathematical Foundations
+
+<FormulaCard name="1×1 Determinant" description="Just the element itself — the base case.">
+$$\det[a] = a$$
+</FormulaCard>
+
+<FormulaCard name="2×2 Determinant" description="Main diagonal product minus anti-diagonal product.">
+$$\det\begin{bmatrix} a & b \\ c & d \end{bmatrix} = ad - bc$$
+</FormulaCard>
+
+<MemoryTrick>
+```
+[ a   b ]       det = a×d − b×c
+[ c   d ]             ↘     ↗
+                    main   anti
+```
+</MemoryTrick>
+
+**Worked examples:**
+
+$$\det\begin{bmatrix}3&7\\1&5\end{bmatrix} = 15 - 7 = 8$$
+
+$$\det\begin{bmatrix}4&6\\2&3\end{bmatrix} = 12 - 12 = 0 \quad \text{(singular!)}$$
+
+$$\det\begin{bmatrix}0&1\\-1&0\end{bmatrix} = 0 + 1 = 1 \quad \text{(rotation matrix)}$$
+
+## 7.3 Sarrus' Rule (3×3 Only)
+
+Step 1: Write matrix, repeat first two columns to the right.
+
+Step 2: Add three downward diagonal products. Subtract three upward diagonal products.
+
+<MemoryTrick>
+**"Down Plus, Up Minus"** — downward diagonals are added, upward diagonals are subtracted.
+</MemoryTrick>
+
+<ExampleCard title="3×3 Determinant — Sarrus' Rule" difficulty="beginner">
+
+**Problem:** $\det\begin{bmatrix} 1 & 2 & 3 \\ 4 & 5 & 6 \\ 7 & 8 & 9 \end{bmatrix}$
+
+<div>
+
+```
+1  2  3 | 1  2
+4  5  6 | 4  5
+7  8  9 | 7  8
+```
+
+Down (↘): $1(5)(9) + 2(6)(7) + 3(4)(8) = 45 + 84 + 96 = 225$
+
+Up (↗): $3(5)(7) + 1(6)(8) + 2(4)(9) = 105 + 48 + 72 = 225$
+
+$\det = 225 - 225 = 0$ — Singular! (Rows in arithmetic progression.)
+
+</div>
+</ExampleCard>
+
+<Warning title="Sarrus' Rule — Size Limitation">
+Sarrus' Rule works ONLY for $3 \times 3$ matrices. For $4 \times 4$ or larger, use cofactor expansion or row reduction.
+</Warning>
+
+## 7.4 Cofactor Expansion (3×3 Example)
+
+Expanding $A = \begin{bmatrix} 1 & 2 & 3 \\ 4 & 5 & 6 \\ 7 & 8 & 9 \end{bmatrix}$ along Row 1:
+
+$\det(A) = 1(-3) + 2(6) + 3(-3) = -3 + 12 - 9 = 0$ ✓
+
+## 7.5 Choosing the Best Row/Column
+
+<ExamTip exam="GATE">
+Expand along the row or column with the most zeros. Each zero eliminates an entire minor computation.
+</ExamTip>
+
+## 7.6 Triangular and Diagonal Matrices
+
+<FormulaCard name="Triangular Matrix Determinant" description="Product of diagonal elements.">
+$$\det(\text{triangular}) = a_{11} \cdot a_{22} \cdot \ldots \cdot a_{nn} = \prod_{i=1}^n a_{ii}$$
+</FormulaCard>
+
+**Corollaries:** $\det(I) = 1$, $\det(kI) = k^n$.
+
+## 7.7 4×4 Example
+
+<ExampleCard title="4×4 Determinant" difficulty="intermediate">
+
+**Problem:** $\det\begin{bmatrix} 1&0&2&0 \\ 0&3&0&0 \\ 2&0&1&0 \\ 0&0&0&4 \end{bmatrix}$
+
+<div>
+
+Expand along Row 2 (three zeros): $\det = 3 \cdot C_{22}$
+
+$C_{22} = \det\begin{bmatrix}1&2&0\\2&1&0\\0&0&4\end{bmatrix}$. Expand along Col 3: $= 4 \cdot \det\begin{bmatrix}1&2\\2&1\end{bmatrix} = 4(-3) = -12$
+
+$\det = 3(-12) = -36$
+
+</div>
+</ExampleCard>
+
+---
+
+# 8. Theoretical Concepts
+
+## 8.1 Properties of Determinants
+
+<FormulaCard name="Transpose Rule" description="Swapping rows and columns doesn't change the determinant.">
+$$\det(A^T) = \det(A)$$
+</FormulaCard>
+
+**Property 2: Row/Column Swap → Sign Change**
+
+$$R_i \leftrightarrow R_j \implies \det_{\text{new}} = -\det_{\text{old}}$$
+
+**Consequence:** Two identical rows → $\det = 0$.
+
+**Property 3: Scalar Multiple of a Row**
+
+Multiplying one row by $k$ multiplies det by $k$.
+
+<FormulaCard name="Scalar Multiple Rule" description="Multiplying the ENTIRE n×n matrix by k gives k^n, not k.">
+$$\det(kA) = k^n \det(A)$$
+</FormulaCard>
+
+<Warning title="The #1 GATE Trap">
+$\det(2A) \neq 2\det(A)$ for $n > 1$. For $3 \times 3$: $\det(2A) = 8\det(A)$.
+</Warning>
+
+**Property 4:** Row of all zeros → $\det = 0$.
+
+**Property 5:** Proportional rows → $\det = 0$.
+
+**Property 6: Row Addition** — Adding $k \times$ one row to another does **NOT** change det.
+
+<FormulaCard name="Product Rule" description="Determinant of a product = product of determinants.">
+$$\det(AB) = \det(A) \cdot \det(B)$$
+</FormulaCard>
+
+**Consequences:** $\det(A^n) = [\det(A)]^n$, $\det(A^{-1}) = 1/\det(A)$, $\det(A^T A) = [\det(A)]^2$.
+
+<FormulaCard name="Adjoint Rule" description="Determinant of the adjoint.">
+$$\det(\text{adj}(A)) = [\det(A)]^{n-1}$$
+</FormulaCard>
+
+### Summary Table of Row/Column Operations
+
+| Operation | Effect on Determinant |
+|-----------|----------------------|
+| Swap two rows/columns | Multiplies by $-1$ |
+| Multiply one row/column by $k$ | Multiplies by $k$ |
+| Add $k \times$ row to another row | **No change** |
+| Row of all zeros | Det = 0 |
+| Two identical/proportional rows | Det = 0 |
+
+<ConceptCheckpoint question="Which row operation does NOT change the determinant?" options={["Swapping two rows", "Adding 3× row 1 to row 2", "Multiplying a row by 5", "All of these change it"]} correctIndex={1} explanation="Adding a multiple of one row to another does NOT change the determinant." />
+
+## 8.2 Special Determinant Values
+
+**Orthogonal:** $\det(Q) = \pm 1$
+
+**Skew-symmetric (odd order):** $\det(A) = 0$ — GATE favorite!
+
+**Idempotent ($A^2=A$):** $\det(A) \in \{'{'}0, 1\}$
+
+**Nilpotent ($A^k=O$):** $\det(A) = 0$
+
+**Involutory ($A^2=I$):** $\det(A) = \pm 1$
+
+## 8.4 Cramer's Rule
+
+<FormulaCard name="Cramer's Rule" description="Solve Ax=b by replacing columns and computing determinants.">
+$$x_j = \frac{\det(A_j)}{\det(A)} \quad \text{where } A_j \text{ has column } j \text{ replaced by } \mathbf{'{'}b{'}'}$$
+</FormulaCard>
+
+## 8.5 Vandermonde Determinant
+
+<FormulaCard name="Vandermonde (3×3)" description="Each row has successive powers of a variable.">
+$$\det\begin{bmatrix} 1&a&a^2 \\ 1&b&b^2 \\ 1&c&c^2 \end{bmatrix} = (b-a)(c-a)(c-b)$$
+</FormulaCard>
+
+General: $\det(V) = \prod_{1 \leq i < j \leq n} (x_j - x_i)$. Non-zero iff all $x_i$ distinct.
+
+## 8.6 Block Diagonal Determinant
+
+$$\det\begin{bmatrix}A&C\\O&B\end{bmatrix} = \det(A) \cdot \det(B)$$
+
+## 8.7 Circulant Determinant
+
+For $3 \times 3$ circulant: $\det(C) = c_0^3 + c_1^3 + c_2^3 - 3c_0 c_1 c_2$
+
+---
+
+# 9. Graphical Explanations
+
+## Figure 9.0: Decision Tree — Which Method to Use?
+
+```
+          Is matrix n×n?
+              │
+     ┌────────┴────────┐
+     n=2                n≥3
+     │                  │
+  ad−bc           Is it 3×3?
+  (direct)         ┌───┴───┐
+                  Yes      No (4×4+)
+                   │        │
+              Sarrus'   Are there
+               Rule    many zeros?
+                       ┌───┴───┐
+                      Yes     No
+                       │       │
+                   Cofactor   Row-reduce
+                   expand     to triangular
+```
+
+## Figure 9.1: Parallelogram Area
+
+```
+         v₂ = (1,2)
+        /
+       / area=|det|
+      /________
+     /        /
+    /________/
+  O        v₁ = (3,0)
+```
+
+$A = \begin{bmatrix}3&1\\0&2\end{bmatrix}$, $\det(A) = 6$. Area = 6.
+
+## Figure 9.3: Cofactor Sign Pattern
+
+```
+3×3:     4×4:
++ - +    + - + -
+- + -    - + - +
++ - +    + - + -
+         - + - +
+```
+
+---
+
+# 10. Important Properties — Quick Reference
+
+| # | Property | Formula | GATE Frequency |
+|---|----------|---------|:--------------:|
+| 1 | Transpose | $\det(A^T) = \det(A)$ | High |
+| 2 | Row swap | Changes sign | High |
+| 3 | Scalar row | $k \times$ one row → $k \cdot \det$ | Very High |
+| 4 | Scalar matrix | $\det(kA) = k^n\det(A)$ | **Every exam** |
+| 5 | Row addition | No change | Very High |
+| 6 | Product | $\det(AB) = \det(A)\det(B)$ | Very High |
+| 7 | Inverse | $\det(A^{-1}) = 1/\det(A)$ | High |
+| 8 | Power | $\det(A^n) = [\det(A)]^n$ | Medium |
+| 9 | Triangular | Product of diagonal | **Every exam** |
+| 10 | Adjoint | $\det(\text{adj}A) = [\det(A)]^{n-1}$ | Medium |
+| 11 | Orthogonal | $\det(Q) = \pm 1$ | High |
+| 12 | Skew-sym (odd) | $\det = 0$ | High |
+
+---
+
+# 11. Algorithms / Procedures
+
+**Algorithm 11.1:** $2 \times 2$: $ad - bc$. Time: $O(1)$.
+
+**Algorithm 11.2:** $3 \times 3$ Sarrus: 6 multiplications. Time: $O(1)$.
+
+**Algorithm 11.3:** $n \times n$ Cofactor Expansion: Time $O(n!)$. Fine for GATE ($n \leq 4$).
+
+**Algorithm 11.4:** Row Reduction to triangular: Time $O(n^3)$. Used by computers.
+
+<ExamTip exam="GATE">
+For $2\times2$ and $3\times3$, use direct formulas. For $4\times4$, use row operations to create zeros, then expand.
+</ExamTip>
+
+---
+
+# 12. Engineering Applications
+
+<RealWorldExample title="Robotics: Jacobian Singularity Detection">
+The Jacobian $J$ maps joint velocities to end-effector velocity: $\dot{\mathbf{x}} = J(\mathbf{q}) \dot{\mathbf{q}}$. When $\det(J) = 0$, the robot is at a singularity.
+</RealWorldExample>
+
+<RealWorldExample title="Control Systems: Controllability">
+A system $(A, B)$ is controllable iff $\det[B \mid AB \mid A^2B \mid \cdots \mid A^{n-1}B] \neq 0$.
+</RealWorldExample>
+
+<RealWorldExample title="Circuit Analysis: Cramer's Rule">
+After setting up nodal equations $G\mathbf{V} = \mathbf{I}$, Cramer's rule finds each node voltage: $V_k = \det(G_k)/\det(G)$.
+</RealWorldExample>
+
+---
+
+# 13. Worked Examples
+
+<ExampleCard title="Example 13.1 — 2×2 Determinant" difficulty="beginner">
+
+**Problem:** Find $\det\begin{bmatrix}7&3\\2&5\end{bmatrix}$.
+
+<div>
+
+$\det = 7(5) - 3(2) = 35 - 6 = 29$.
+
+Since $\det \neq 0$, this matrix is **invertible**.
+
+</div>
+</ExampleCard>
+
+<ExampleCard title="Example 13.2 — 3×3 with Sarrus" difficulty="beginner">
+
+**Problem:** $\det\begin{bmatrix}2&1&3\\0&-1&2\\4&0&1\end{bmatrix}$
+
+<div>
+
+Down: $2(-1)(1) + 1(2)(4) + 3(0)(0) = -2 + 8 + 0 = 6$
+
+Up: $3(-1)(4) + 2(2)(0) + 1(0)(1) = -12 + 0 + 0 = -12$
+
+$\det = 6 - (-12) = 18$
+
+</div>
+</ExampleCard>
+
+<ExampleCard title="Example 13.3 — Using Properties" difficulty="intermediate">
+
+**Problem:** $A$ is $3 \times 3$, $\det(A) = 4$. Find: (a) $\det(2A)$ (b) $\det(A^{-1})$ (c) $\det(A^3)$ (d) $\det(A^T A)$
+
+<div>
+
+(a) $\det(2A) = 2^3 \cdot 4 = 32$
+
+(b) $\det(A^{-1}) = 1/4$
+
+(c) $\det(A^3) = 4^3 = 64$
+
+(d) $\det(A^TA) = 4 \times 4 = 16$
+
+</div>
+</ExampleCard>
+
+<ExampleCard title="Example 13.4 — Row Reduction" difficulty="intermediate">
+
+**Problem:** $\det\begin{bmatrix}1&2&3\\2&5&7\\3&7&10\end{bmatrix}$
+
+<div>
+
+$R_2 \to R_2 - 2R_1$, $R_3 \to R_3 - 3R_1$:
+
+$$\begin{bmatrix}1&2&3\\0&1&1\\0&1&1\end{bmatrix}$$
+
+Rows 2 and 3 identical → $\det = 0$.
+
+</div>
+</ExampleCard>
+
+<ExampleCard title="Example 13.5 — 4×4 Determinant" difficulty="advanced">
+
+**Problem:** $\det\begin{bmatrix}1&0&0&3\\2&1&0&0\\0&3&2&0\\0&0&1&4\end{bmatrix}$
+
+<div>
+
+Expand along Row 1: $= 1 \cdot C_{11} + 3 \cdot C_{14}$
+
+$C_{11} = \det\begin{bmatrix}1&0&0\\3&2&0\\0&1&4\end{bmatrix} = 1 \times 2 \times 4 = 8$ (triangular)
+
+$C_{14} = (-1)^{1+4}\det\begin{bmatrix}2&1&0\\0&3&2\\0&0&1\end{bmatrix} = (-1)(6) = -6$ (triangular)
+
+$\det = 1(8) + 3(-6) = 8 - 18 = -10$
+
+</div>
+</ExampleCard>
+
+<ExampleCard title="Example 13.6 — Cramer's Rule (3×3)" difficulty="advanced">
+
+**Problem:** Solve $x + y + z = 6$, $x - y + z = 2$, $2x + y - z = 1$
+
+<div>
+
+$D = 6$, $D_x = 6$, $D_y = 12$, $D_z = 18$
+
+$x = 1$, $y = 2$, $z = 3$
+
+Verify: $1+2+3=6$ ✓, $1-2+3=2$ ✓, $2+2-3=1$ ✓.
+
+</div>
+</ExampleCard>
+
+<ExampleCard title="Example 13.7 — Robot Singularity Check" difficulty="advanced">
+
+**Problem:** 2-link planar robot with $l_1 = l_2 = 1$. Find when $\det(J) = 0$.
+
+<div>
+
+After simplification: $\det(J) = \sin\theta_2$
+
+Singularity when $\theta_2 = 0$ (fully stretched) or $\theta_2 = \pi$ (fully folded).
+
+</div>
+</ExampleCard>
+
+<ExampleCard title="Example 13.9 — Common Trap" difficulty="beginner">
+
+**Problem:** Student claims $\det(2A) = 2 \times 5 = 10$ for $3 \times 3$ $A$ with $\det(A) = 5$.
+
+<div>
+
+**Wrong!** $\det(2A) = 2^3 \times 5 = 40$, not 10. The exponent is the matrix size.
+
+</div>
+</ExampleCard>
+
+---
+
+# 14. Common Mistakes
+
+<Warning title="det(kA) = k·det(A)">
+Each of $n$ rows gets multiplied by $k$. Correct: $\det(kA) = k^n\det(A)$.
+</Warning>
+
+<Warning title="det(A+B) = det(A) + det(B)">
+Determinant is NOT linear over matrix addition. No simple formula; compute directly.
+</Warning>
+
+<Warning title="Using Sarrus for 4×4">
+Sarrus works ONLY for $3\times3$. Use cofactor expansion or row reduction for larger matrices.
+</Warning>
+
+<Warning title="Forgetting sign in cofactor">
+Sign depends on position: $C_{ij} = (-1)^{i+j}M_{ij}$.
+</Warning>
+
+<Warning title="Row swap without tracking sign">
+Each swap flips the sign. Track carefully!
+</Warning>
+
+| # | Mistake | Correct |
+|---|---------|---------|
+| 1 | $\det(kA) = k\det(A)$ | $k^n\det(A)$ |
+| 2 | $\det(A+B) = \det(A)+\det(B)$ | No simple formula |
+| 3 | $\det(A^T) = -\det(A)$ | $\det(A^T) = \det(A)$ |
+| 4 | Forgetting cofactor sign | $(-1)^{i+j}M_{ij}$ |
+| 5 | Sarrus for $4\times4$ | Cofactor expansion only |
+| 6 | $\det=0 \implies A=O$ | Singular, not zero |
+
+---
+
+# 15. Connections
+
+**Prerequisites:** Matrices (definitions, types, multiplication, transpose)
+
+| Topic | How Determinants Are Used |
+|-------|--------------------------|
+| Adjoint & Inverse | $A^{-1} = \frac{1}{\det(A)}\text{adj}(A)$ |
+| Rank | $\det \neq 0 \iff$ full rank |
+| System of Linear Equations | Cramer's rule |
+| Eigenvalues | $\det(A-\lambda I)=0$ |
+| Robotics | $\det(J)=0$ → singularity |
+| Control | Controllability/Observability |
+
+---
+
+# 16. Formula Sheet
+
+<FormulaCard name="2×2" description="Basic formula">
+$$\det\begin{bmatrix}a&b\\c&d\end{bmatrix} = ad-bc$$
+</FormulaCard>
+
+<FormulaCard name="Cofactor" description="Minor with sign">
+$$C_{ij} = (-1)^{i+j}M_{ij}$$
+</FormulaCard>
+
+<FormulaCard name="Key Identities" description="Most-tested properties">
+- $\det(kA) = k^n\det(A)$
+- $\det(AB) = \det(A)\det(B)$
+- $\det(A^{-1}) = 1/\det(A)$
+- $\det(A^m) = [\det(A)]^m$
+- $\det(A^T) = \det(A)$
+- $\det(\text{adj}A) = [\det(A)]^{n-1}$
+</FormulaCard>
+
+**Special matrices:** Orthogonal: $\pm1$ | Skew-sym (odd): $0$ | Idempotent: $0$ or $1$ | Nilpotent: $0$
+
+**Vandermonde (3×3):** $(b-a)(c-a)(c-b)$
+
+**Cramer:** $x_j = \det(A_j)/\det(A)$
+
+---
+
+# 17. Quick Revision Notes
+
+1. Determinant = single number from a square matrix. $2\times2$: $ad-bc$.
+2. $\det \neq 0 \iff$ invertible. $\det = 0 \iff$ singular.
+3. Triangular/diagonal det = product of diagonal entries.
+4. $\det(kA) = k^n\det(A)$ — the #1 GATE trap.
+5. $\det(AB) = \det(A)\det(B)$. $\det(A^{-1}) = 1/\det(A)$.
+6. Row swap → sign flips. Row addition → no change.
+7. Expand along row/column with most zeros.
+8. Sarrus works ONLY for $3\times3$.
+9. $\lvert\det(A)\rvert$ = area (2D) or volume (3D) scaling factor.
+10. Cramer's rule: $x_j = \det(A_j)/\det(A)$.
+
+---
+
+# 18. Flashcards
+
+<Visualization id="flashcard-deck" cards={[
+  {"front": "det of 2×2 [[a,b],[c,d]]?", "back": "ad − bc"},
+  {"front": "Det of triangular matrix?", "back": "Product of diagonal elements"},
+  {"front": "det(kA) for n×n?", "back": "k^n · det(A)"},
+  {"front": "det(AB) = ?", "back": "det(A) · det(B)"},
+  {"front": "det(A⁻¹) = ?", "back": "1/det(A)"},
+  {"front": "det(Aᵀ) = ?", "back": "det(A)"},
+  {"front": "Effect of row swap on det?", "back": "Multiplies by −1"},
+  {"front": "Effect of Rᵢ → Rᵢ+kRⱼ?", "back": "No change"},
+  {"front": "Two identical rows → det?", "back": "0"},
+  {"front": "det = 0 means?", "back": "Matrix is singular (non-invertible)"},
+  {"front": "det ≠ 0 means?", "back": "Matrix is invertible"},
+  {"front": "Cofactor Cᵢⱼ = ?", "back": "(−1)^(i+j) · Mᵢⱼ"},
+  {"front": "det(Aᵐ) = ?", "back": "[det(A)]^m"},
+  {"front": "Det of orthogonal matrix?", "back": "±1"},
+  {"front": "Det of odd-order skew-symmetric?", "back": "0"},
+  {"front": "Det of idempotent matrix?", "back": "0 or 1"},
+  {"front": "Det of nilpotent matrix?", "back": "0"},
+  {"front": "Cramer's rule for xⱼ?", "back": "det(Aⱼ)/det(A)"},
+  {"front": "Sarrus works for what size?", "back": "3×3 only"},
+  {"front": "det(I_n) = ?", "back": "1"},
+  {"front": "det(adj A) = ?", "back": "[det(A)]^(n−1)"},
+  {"front": "|det(A)| in 2D means?", "back": "Area of parallelogram"},
+  {"front": "det(J) = 0 in robotics?", "back": "Robot is at a singularity"},
+  {"front": "det(A+B) = det(A)+det(B)?", "back": "FALSE — no such rule"},
+  {"front": "Det of rotation matrix?", "back": "+1 (proper rotation)"},
+  {"front": "Vandermonde 3×3 det?", "back": "(b−a)(c−a)(c−b)"},
+  {"front": "When does Cramer's rule fail?", "back": "When det(A) = 0"},
+  {"front": "Cofactor matrix vs adjugate?", "back": "adj(A) = transpose of cofactor matrix"}
+]} />
+
+---
+
+# 19. Practice Problems
+
+## 19.1 Conceptual (10)
+
+**Q1.** If $\det(A)=3$ and $A$ is $4\times4$, find $\det(2A)$.
+
+**Q2.** If $A$ is $3\times3$ with $\det(A)=5$, find $\det(A^2)$, $\det(A^{-1})$, $\det(A^TA)$.
+
+**Q3.** True or False: $\det(A+B) = \det(A) + \det(B)$.
+
+**Q4.** If $A$ is $5\times5$ skew-symmetric, what is $\det(A)$?
+
+**Q5.** If $A$ is idempotent ($A^2=A$) and $A \neq I$, what are the possible values of $\det(A)$?
+
+**Q6.** Row operations: $R_1 \leftrightarrow R_3$, then $R_2 \to R_2+5R_1$. Starting $\det=12$. New det?
+
+**Q7.** If $A$ is $3\times3$ orthogonal with $\det(A)=-1$, find $\det(A^5)$.
+
+**Q8.** Can a matrix have $\det=0$ but no row of all zeros? Give example.
+
+**Q9.** If $\det(A)=2$ and $\det(B)=-3$, find $\det(A^2B^{-1})$.
+
+**Q10.** Why does Sarrus' rule NOT work for $4\times4$?
+
+## 19.2 Numerical (10)
+
+**Q11.** $\det\begin{bmatrix}5&-2\\3&4\end{bmatrix}$
+
+**Q12.** $\det\begin{bmatrix}1&2&3\\4&5&6\\7&8&9\end{bmatrix}$
+
+**Q13.** $\det\begin{bmatrix}2&0&0\\0&3&0\\0&0&5\end{bmatrix}$
+
+**Q14.** $\det\begin{bmatrix}1&1&1\\1&2&3\\1&3&6\end{bmatrix}$
+
+**Q15.** $\det\begin{bmatrix}\cos\theta&-\sin\theta\\\sin\theta&\cos\theta\end{bmatrix}$
+
+**Q16.** Use Cramer's rule: $3x+2y=12$, $x-y=1$.
+
+**Q17.** $\det\begin{bmatrix}1&2&0&0\\3&4&0&0\\0&0&5&6\\0&0&7&8\end{bmatrix}$ (block diagonal)
+
+**Q18.** Vandermonde: $\det\begin{bmatrix}1&a&a^2\\1&b&b^2\\1&c&c^2\end{bmatrix}$
+
+**Q19.** If $A=\begin{bmatrix}1&2\\3&4\end{bmatrix}$, find $\det(\text{adj}A)$.
+
+**Q20.** $\det\begin{bmatrix}0&1&0\\0&0&1\\1&0&0\end{bmatrix}$
+
+## 19.3 Assertion-Reason (5)
+
+**Q21.** A: $\det(3A) = 27\det(A)$ for $3\times3$. R: $\det(kA) = k^n\det(A)$.
+
+**Q22.** A: If $\det(A)=0$, then $A$ has a row of all zeros. R: $\det=0$ means singular.
+
+**Q23.** A: $\det(AB) = \det(BA)$. R: $\det(AB) = \det(A)\det(B)$.
+
+**Q24.** A: For $4\times4$ skew-symmetric $A$, $\det(A)$ can be nonzero. R: $\det(-A)=(-1)^n\det(A)$.
+
+**Q25.** A: $\det(A^{-1}B) = \det(B)/\det(A)$. R: $\det(AB) = \det(A)\det(B)$.
+
+## 19.4 Multiple-Select (5)
+
+**Q26.** If $\det(A)=0$: (a) Singular (b) $A^{-1}$ exists (c) Rows dependent (d) $A=O$
+
+**Q27.** Always true? (a) $\det(A^T)=\det(A)$ (b) $\det(AB)=\det(A)+\det(B)$ (c) $\det(A^2)=[\det(A)]^2$ (d) $\det(-A)=-\det(A)$
+
+**Q28.** Orthogonal $Q$: (a) $\det=1$ (b) $\lvert\det\rvert=1$ (c) $\det(Q^T)=\det(Q)$ (d) $\det(Q^{-1})=\det(Q)$
+
+**Q29.** $\det=0$ when: (a) Two identical rows (b) Zero row (c) Proportional rows (d) Diagonal with one zero
+
+**Q30.** $\det = \pm1$? (a) Identity (b) Orthogonal (c) Involutory (d) Nilpotent
+
+## 19.5 Difficult GATE-Style (5)
+
+**Q31.** $A$ is $3\times3$, $\det(A)=4$. Find $\det(2A^{-1}\text{adj}(A))$.
+
+**Q32.** $A^2=5A$. Find all possible values of $\det(A)$.
+
+**Q33.** $\det\begin{bmatrix}x&1&1&1\\1&x&1&1\\1&1&x&1\\1&1&1&x\end{bmatrix}$ — express as polynomial.
+
+**Q34.** $\det(A)=2$, $\det(B)=-1$, both $3\times3$. Find $\det(3A^2B^{-1})$.
+
+**Q35.** Prove: $A^2 = A \implies \det(A) = 0$ or $1$.
+
+---
+
+# 20. Detailed Solutions
+
+**S1.** $\det(2A) = 2^4 \cdot 3 = 48$.
+
+**S2.** $\det(A^2) = 25$. $\det(A^{-1}) = 1/5$. $\det(A^TA) = 25$.
+
+**S3.** **False.** Counterexample: $A=B=I_2$. $\det(2I) = 4 \neq 2$.
+
+**S4.** $n=5$ (odd), skew-symmetric → $\det = 0$.
+
+**S5.** $\det(A) \in \{'{'}0, 1\}$.
+
+**S6.** Swap: $-12$. Row addition: no change. Final: $-12$.
+
+**S7.** $(-1)^5 = -1$.
+
+**S8.** Yes. $\begin{bmatrix}1&2\\2&4\end{bmatrix}$: no zero rows, $\det = 0$.
+
+**S9.** $4 \cdot (-1/3) = -4/3$.
+
+**S10.** Sarrus captures all 6 terms for $3\times3$; $4\times4$ has 24 terms.
+
+**S11.** $20+6 = 26$.
+
+**S12.** Rows in AP → $\det = 0$.
+
+**S13.** Diagonal: $2 \times 3 \times 5 = 30$.
+
+**S14.** Row reduce to upper triangular: $\det = 1$.
+
+**S15.** $\cos^2\theta + \sin^2\theta = 1$. (Rotation matrix.)
+
+**S16.** $D=-5$, $D_x=-14$, $D_y=-9$. $x=14/5$, $y=9/5$.
+
+**S17.** Block: $(-2)(-2) = 4$.
+
+**S18.** Vandermonde: $(b-a)(c-a)(c-b)$.
+
+**S19.** $\det(A)=-2$, $\det(\text{adj}A) = (-2)^1 = -2$.
+
+**S20.** Sarrus: $\det = 1$. (Cyclic permutation, even.)
+
+**S21–S25.** (a), (d), (a), (a), (a) respectively.
+
+**S26.** (a), (c).
+
+**S27.** (a), (c).
+
+**S28.** (b), (c), (d).
+
+**S29.** (a), (b), (c), (d).
+
+**S30.** (a), (b), (c).
+
+**S31.** $\det(2A^{-1}\text{adj}(A)) = 8^3 \cdot [\det(A)]^{-2} \cdot ... = 32$. (Using $\text{adj}(A) = \det(A) \cdot A^{-1}$.)
+
+**S32.** $\det(A) = 0$ or $5^n$.
+
+**S33.** $(x+3)(x-1)^3$.
+
+**S34.** $27 \cdot 4 \cdot (-1) = -108$.
+
+**S35.** $[\det(A)]^2 = \det(A) \implies \det(A)(\det(A)-1) = 0$. ∎
+
+---
+
+# 21. Further Reading
+
+- **NPTEL:** Engineering Mathematics I (IIT Kharagpur)
+- **MIT OCW:** 18.06 Linear Algebra (Gilbert Strang), Lectures 18–20
+- **3Blue1Brown:** Essence of Linear Algebra, Ch. 6
+- **Textbooks:** B.S. Grewal, Gilbert Strang, David C. Lay
+
+---
+
+# 22. Knowledge Graph
+
+```
+PREREQUISITES                      THIS TOPIC FEEDS INTO
+─────────────                      ─────────────────────
+Matrices (01)              ──→     Adjoint & Inverse (03)
+                           ──→     Rank (04)
+    ★ DETERMINANTS ★       ──→     System of Linear Equations (05)
+                           ──→     Eigenvalues (06)
+                           ──→     Trace (07)
+                           ──→     [Robotics] Jacobian singularity
+                           ──→     [Control] Controllability
+```
+
+---
+
+# 23. Difficulty Rating
+
+| Aspect | Rating |
+|--------|--------|
+| Conceptual difficulty | **4/10** |
+| Computational difficulty | **5/10** |
+| GATE importance | **9/10** |
+| First learning time | **3 hours** |
+| Revision time | **30 minutes** |
+
+---
+
+# 24. Exam Strategy
+
+<ExamTip exam="GATE">
+**How Determinants Are Tested:**
+- **1-mark MCQ:** $\det(kA)$ trap, property-based true/false, det of special matrices
+- **2-mark NAT:** Compute $3\times3$ or $4\times4$ det, Cramer's rule
+- **Embedded:** Part of eigenvalue problems ($\det(A-\lambda I)=0$)
+</ExamTip>
+
+<ExamTip exam="GATE">
+**Top 5 Shortcuts:**
+1. Triangular → product of diagonal.
+2. $\det(kA) = k^n\det(A)$ — always check $n$.
+3. Expand along row/column with most zeros.
+4. $\det(AB) = \det(A)\det(B)$ — break compound problems into pieces.
+5. Identical/proportional rows → $\det = 0$ instantly.
+</ExamTip>
+
+<Warning title="Traps to Avoid">
+- $\det(kA) \neq k\det(A)$
+- $\det(A+B) \neq \det(A)+\det(B)$
+- Sarrus ONLY for $3\times3$
+- Track sign changes during row swaps
+- Cofactor sign: $(-1)^{i+j}$
+</Warning>

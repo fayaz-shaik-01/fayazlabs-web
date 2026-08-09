@@ -36,24 +36,24 @@
           "slug": "determinants",
           "title": "Determinants",
           "order": 2,
-          "status": "planned",
+          "status": "published",
           "difficulty": "beginner",
           "estimatedMinutes": 75,
           "premium": false,
           "lessonType": "learn",
-          "hasContent": false
+          "hasContent": true
         },
         {
           "id": "lesson_adjoint_and_inverse",
           "slug": "adjoint-and-inverse",
           "title": "Adjoint and Inverse",
           "order": 3,
-          "status": "planned",
+          "status": "published",
           "difficulty": "beginner",
-          "estimatedMinutes": 90,
+          "estimatedMinutes": 110,
           "premium": false,
           "lessonType": "learn",
-          "hasContent": false
+          "hasContent": true
         },
         {
           "id": "lesson_rank",
