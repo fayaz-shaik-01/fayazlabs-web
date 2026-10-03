@@ -1,0 +1,566 @@
+---
+title: "Modules and Error Handling"
+description: "What: Modules are TypeScript's system for organizing code into separate files that explicitly declare what they share (export) and what they consume (import). Error handling is the disciplined practice of catching, typing, and propagating failures so tests fail clearly instead of crashing mysteriously."
+summary: "SDET Engineering guide: Modules and Error Handling"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "typescript"
+lesson: "modules-and-error-handling"
+difficulty: "intermediate"
+estimatedMinutes: 36
+prerequisites: []
+tags: ["SDET", "TypeScript", "Programming"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/typescript/modules-and-error-handling"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Modules and Error Handling
+
+> **Module:** 01 — Programming Foundations / TypeScript  
+> **Prerequisites:** Language Fundamentals, Promises And Async Await  
+> **Mastery Target:** L3 (independent — structure a Playwright project with proper imports/exports, handle errors robustly, configure tsconfig.json without guidance)
+
+---
+
+## Quick Overview (Layer 1)
+
+**What:** Modules are TypeScript's system for organizing code into separate files that explicitly declare what they share (export) and what they consume (import). Error handling is the disciplined practice of catching, typing, and propagating failures so tests fail clearly instead of crashing mysteriously.
+
+**Why:** In Java, you organize code with packages, `import` statements, and Maven/Gradle manages dependencies. TypeScript uses ES Modules (ESM) with a different syntax and resolution model. Understanding modules is essential for structuring a Playwright project — page objects, fixtures, utilities, and test data all live in separate files that must import each other correctly. Error handling in TypeScript has a critical difference from Java: `catch` blocks receive `unknown`, not a typed exception.
+
+**Where:** Every `import`/`export` statement, your `tsconfig.json` configuration, `package.json` dependency management, custom error classes for framework-specific failures, and test utilities that need to handle partial failures gracefully.
+
+<MentalModel>
+
+Think of each `.ts` file as a **shipping container** at a port. By default, everything inside is private — sealed shut. The `export` keyword puts items on the loading dock (available for others to take). The `import` keyword is your purchase order — you specify exactly which items you want from which container. This explicit boundary prevents accidental coupling and makes dependencies visible.
+
+</MentalModel>
+
+
+In Java, any `public` class in a package is accessible to any other package via `import`. TypeScript is stricter by default — nothing is visible outside a file unless explicitly exported.
+
+<KeyTakeaways>
+
+1. **ES Modules use `import`/`export`** — named exports for multiple items per file, default exports for a single primary item. Prefer named exports for clarity.
+2. **`tsconfig.json` is your compilation rulebook** — `strict`, `target`, `module`, and `paths` are the settings you'll touch most. Always enable `strict: true`.
+3. **`catch` receives `unknown`, not `Error`** — unlike Java's typed catch blocks, TypeScript forces you to narrow the error type before accessing `.message`. This is safer.
+4. **Custom error classes communicate failure context** — `TimeoutError`, `ApiError`, `TestDataError` tell you *what* failed. A generic `Error` only tells you *something* failed.
+5. **`package.json` is your `pom.xml`** — it declares dependencies, scripts, and project metadata. `npm install` is your `mvn install`.
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation (Layer 2)
+
+### ES Modules: import and export
+
+
+```typescript
+// ─── file: models/user.ts ───
+
+// Named exports — multiple items per file
+export interface User {
+    id: string;
+    name: string;
+    email: string;
+    role: "admin" | "user" | "viewer";
+}
+
+export interface LoginCredentials {
+    email: string;
+    password: string;
+}
+
+export function createDefaultUser(): User {
+    return { id: "default-1", name: "Test User", email: "test@example.com", role: "user" };
+}
+
+// Not exported — private to this file
+function generateId(): string {
+    return `user-${Date.now()}`;
+}
+```
+
+
+```typescript
+// ─── file: tests/login.spec.ts ───
+
+// Named imports — import specific items by name
+import { User, LoginCredentials, createDefaultUser } from "../models/user";
+
+// Import with alias — resolve naming conflicts
+import { User as UserModel } from "../models/user";
+
+// Import everything as a namespace
+import * as UserModule from "../models/user";
+const user: UserModule.User = UserModule.createDefaultUser();
+```
+
+### Default Export vs. Named Export
+
+
+```typescript
+// ─── Default export — one per file, represents the "main" thing ───
+// file: pages/login-page.ts
+export default class LoginPage {
+    constructor(private readonly page: Page) {}
+    async login(email: string, password: string): Promise<void> { /* ... */ }
+}
+
+// Importing default — you choose the name
+import LoginPage from "../pages/login-page";         // conventional name
+import MyLoginPage from "../pages/login-page";       // any name works — confusing!
+
+// ─── Named export — multiple per file, name is explicit ───
+// file: pages/login-page.ts (preferred approach)
+export class LoginPage {
+    constructor(private readonly page: Page) {}
+    async login(email: string, password: string): Promise<void> { /* ... */ }
+}
+
+// Importing named — name must match (or use alias)
+import { LoginPage } from "../pages/login-page";     // must use exact name
+```
+
+**Recommendation:** Prefer named exports. Default exports allow renaming on import, which makes codebase-wide search harder. Named exports enforce consistent naming. This matches Java's convention where `import com.example.LoginPage` always refers to `LoginPage`.
+
+### Re-exports and Barrel Files
+
+
+```typescript
+// ─── file: pages/index.ts (barrel file) ───
+// Re-export everything from sub-modules through a single entry point
+export { LoginPage } from "./login-page";
+export { DashboardPage } from "./dashboard-page";
+export { BookingPage } from "./booking-page";
+export type { PageLocators } from "./types";
+
+// ─── file: tests/booking.spec.ts ───
+// Import from the barrel — clean, single import path
+import { LoginPage, DashboardPage, BookingPage } from "../pages";
+// Instead of:
+// import { LoginPage } from "../pages/login-page";
+// import { DashboardPage } from "../pages/dashboard-page";
+// import { BookingPage } from "../pages/booking-page";
+```
+
+**Java comparison:** Barrel files are like having a `package-info.java` that re-exports the public API of a package. They simplify imports for consumers.
+
+### tsconfig.json Essentials
+
+The `tsconfig.json` file controls how TypeScript compiles your code. Here are the settings that matter most for a Playwright project:
+
+
+```jsonc
+{
+    "compilerOptions": {
+        // === Type Safety ===
+        "strict": true,              // enables ALL strict checks — non-negotiable
+        // includes: strictNullChecks, noImplicitAny, strictFunctionTypes, etc.
+
+        // === Compilation Target ===
+        "target": "ES2022",          // which JS version to emit — ES2022 for modern Node.js
+        "module": "commonjs",        // module system — commonjs for Node.js, ESNext for bundlers
+        "lib": ["ES2022"],           // which built-in APIs are available
+
+        // === Module Resolution ===
+        "moduleResolution": "node",  // how imports are resolved — "node" for Node.js projects
+        "esModuleInterop": true,     // allows default imports from CommonJS modules
+        "resolveJsonModule": true,   // allows importing .json files
+
+        // === Path Aliases (optional but helpful) ===
+        "baseUrl": ".",
+        "paths": {
+            "@pages/*": ["src/pages/*"],
+            "@fixtures/*": ["src/fixtures/*"],
+            "@data/*": ["src/test-data/*"]
+        },
+
+        // === Output ===
+        "outDir": "./dist",          // where compiled JS goes
+        "sourceMap": true,           // generate .map files for debugging
+
+        // === Quality ===
+        "noUnusedLocals": true,      // error on unused variables
+        "noUnusedParameters": true,  // error on unused function parameters
+        "noImplicitReturns": true    // error if a code path doesn't return
+    },
+    "include": ["src/**/*.ts", "tests/**/*.ts"],
+    "exclude": ["node_modules", "dist"]
+}
+```
+
+**Java comparison:**
+| `tsconfig.json` | Java Equivalent |
+|---|---|
+| `strict: true` | `-Xlint:all` compiler flag |
+| `target: "ES2022"` | `-source 17 -target 17` (Java version) |
+| `paths` | Maven/Gradle module paths |
+| `include`/`exclude` | Source sets in Gradle |
+| `outDir` | `build/classes` output directory |
+
+### Error Handling: try/catch/finally with `unknown`
+
+
+```typescript
+// In TypeScript with strict mode, catch receives `unknown` — not Error
+async function fetchUser(id: string): Promise<User> {
+    try {
+        const response = await fetch(`/api/users/${id}`);
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        return await response.json() as User;
+    } catch (error: unknown) {
+        // error is `unknown` — you MUST narrow before accessing properties
+        if (error instanceof Error) {
+            console.error(`Failed to fetch user ${id}: ${error.message}`);
+            throw error;    // re-throw the original Error
+        }
+        // Handle non-Error throws (e.g., throw "oops" or throw 42)
+        throw new Error(`Unknown error fetching user ${id}: ${String(error)}`);
+    } finally {
+        // Runs regardless of success or failure — cleanup goes here
+        console.log(`fetchUser(${id}) completed`);
+    }
+}
+```
+
+**Java comparison:** In Java, `catch (Exception e)` gives you a typed exception. In TypeScript, `catch (error)` gives you `unknown` by default (with `useUnknownInCatchVariables` in strict mode). This is *safer* — JavaScript code can `throw` anything (strings, numbers, objects), not just Error instances.
+
+### Custom Error Classes
+
+
+```typescript
+// Base class for all framework errors
+export class AutomationError extends Error {
+    constructor(message: string, public readonly context?: Record<string, unknown>) {
+        super(message);
+        this.name = this.constructor.name;    // sets name to the subclass name
+    }
+}
+
+// Specific error types — each communicates a different failure category
+export class TimeoutError extends AutomationError {
+    constructor(action: string, timeoutMs: number) {
+        super(`Timed out after ${timeoutMs}ms waiting for: ${action}`, {
+            action,
+            timeoutMs,
+        });
+    }
+}
+
+export class ApiError extends AutomationError {
+    constructor(
+        public readonly statusCode: number,
+        public readonly endpoint: string,
+        message: string
+    ) {
+        super(`API ${statusCode} at ${endpoint}: ${message}`, {
+            statusCode,
+            endpoint,
+        });
+    }
+}
+
+export class TestDataError extends AutomationError {
+    constructor(operation: string, details: string) {
+        super(`Test data ${operation} failed: ${details}`, { operation });
+    }
+}
+
+// Usage in a test utility
+async function createTestUser(request: APIRequestContext): Promise<User> {
+    const response = await request.post("/api/users", {
+        data: { email: "test@example.com", name: "Test" },
+    });
+
+    if (!response.ok()) {
+        throw new ApiError(
+            response.status(),
+            "/api/users",
+            await response.text()
+        );
+    }
+
+    return response.json();
+}
+```
+
+### Package Management: npm Basics
+
+
+```jsonc
+// package.json — the equivalent of pom.xml / build.gradle
+{
+    "name": "playwright-test-project",
+    "version": "1.0.0",
+    "scripts": {
+        "test": "npx playwright test",
+        "test:headed": "npx playwright test --headed",
+        "test:ui": "npx playwright test --ui",
+        "lint": "eslint . --ext .ts"
+    },
+    "devDependencies": {
+        "@playwright/test": "^1.44.0",        // ^1.44.0 = compatible with 1.44.x+
+        "@typescript-eslint/eslint-plugin": "^7.0.0",
+        "typescript": "^5.4.0"
+    },
+    "dependencies": {
+        // Production dependencies (rare in test projects)
+    }
+}
+```
+
+**Key npm commands:**
+| npm Command | Maven Equivalent | What It Does |
+|---|---|---|
+| `npm install` | `mvn install` | Install all dependencies from `package.json` |
+| `npm install --save-dev pkg` | Add `<scope>test</scope>` dependency | Add a dev dependency |
+| `npm run test` | `mvn test` | Run the test script |
+| `npm outdated` | `mvn versions:display-dependency-updates` | Show outdated packages |
+| `npm audit` | OWASP dependency-check | Check for security vulnerabilities |
+
+---
+
+## Practical Implementation (Layer 3)
+
+### Organizing a Playwright Test Project with Proper Module Structure
+
+```
+playwright-project/
+├── playwright.config.ts        # Playwright configuration
+├── tsconfig.json               # TypeScript compilation settings
+├── package.json                # Dependencies and scripts
+├── src/
+│   ├── pages/                  # Page Object Models
+│   │   ├── index.ts            # barrel file — re-exports all pages
+│   │   ├── login-page.ts
+│   │   ├── dashboard-page.ts
+│   │   └── booking-page.ts
+│   ├── fixtures/               # Custom test fixtures
+│   │   ├── index.ts
+│   │   └── auth-fixture.ts
+│   ├── models/                 # TypeScript interfaces and types
+│   │   ├── index.ts
+│   │   ├── user.ts
+│   │   └── booking.ts
+│   ├── utils/                  # Shared utilities
+│   │   ├── api-helpers.ts
+│   │   └── test-data-factory.ts
+│   └── errors/                 # Custom error classes
+│       └── index.ts
+├── tests/
+│   ├── login/
+│   │   └── login.spec.ts
+│   ├── booking/
+│   │   └── booking.spec.ts
+│   └── api/
+│       └── user-api.spec.ts
+└── test-data/
+    └── users.json
+```
+
+
+```typescript
+// ─── src/pages/login-page.ts ───
+import { Page, Locator } from "@playwright/test";
+import type { LoginCredentials } from "../models";
+
+export class LoginPage {
+    private readonly emailInput: Locator;
+    private readonly passwordInput: Locator;
+    private readonly submitButton: Locator;
+    private readonly errorMessage: Locator;
+
+    constructor(private readonly page: Page) {
+        this.emailInput = page.getByLabel("Email");
+        this.passwordInput = page.getByLabel("Password");
+        this.submitButton = page.getByRole("button", { name: "Sign In" });
+        this.errorMessage = page.getByTestId("login-error");
+    }
+
+    async login(credentials: LoginCredentials): Promise<void> {
+        await this.emailInput.fill(credentials.email);
+        await this.passwordInput.fill(credentials.password);
+        await this.submitButton.click();
+    }
+
+    async getErrorMessage(): Promise<string | null> {
+        return this.errorMessage.textContent();
+    }
+}
+
+// ─── src/pages/index.ts (barrel) ───
+export { LoginPage } from "./login-page";
+export { DashboardPage } from "./dashboard-page";
+export { BookingPage } from "./booking-page";
+
+// ─── tests/login/login.spec.ts ───
+import { test, expect } from "@playwright/test";
+import { LoginPage } from "../../src/pages";           // clean import from barrel
+import type { LoginCredentials } from "../../src/models";
+
+const validCredentials: LoginCredentials = {
+    email: "testuser@example.com",
+    password: "SecurePass123!",
+};
+
+test("should login with valid credentials", async ({ page }) => {
+    const loginPage = new LoginPage(page);
+    await page.goto("/login");
+    await loginPage.login(validCredentials);
+    await expect(page).toHaveURL(/.*dashboard/);
+});
+```
+
+---
+
+## Failure and Debugging (Layer 4)
+
+### Mistake 1: Catching `error` as `any` Instead of `unknown`
+
+**Broken code:**
+
+```typescript
+try {
+    await page.click("#submit");
+} catch (error: any) {             // BAD: any disables type checking
+    console.log(error.message);    // works but what if error isn't an Error?
+    console.log(error.statusCode); // no compile error — but may be undefined at runtime
+}
+```
+
+**Fix:**
+
+```typescript
+try {
+    await page.click("#submit");
+} catch (error: unknown) {
+    if (error instanceof Error) {
+        console.log(error.message);     // safe — TS knows it's Error
+    } else {
+        console.log(`Non-Error thrown: ${String(error)}`);
+    }
+}
+```
+
+### Mistake 2: Circular Imports
+
+**Broken code:**
+
+```typescript
+// file: pages/login-page.ts
+import { DashboardPage } from "./dashboard-page";   // LoginPage imports DashboardPage
+
+// file: pages/dashboard-page.ts
+import { LoginPage } from "./login-page";            // DashboardPage imports LoginPage
+// CIRCULAR! At runtime, one of these will be undefined during initialization.
+```
+
+**Fix — break the cycle:**
+
+```typescript
+// Option 1: Remove the dependency — pages shouldn't know about each other
+// Let the test orchestrate navigation between pages
+
+// Option 2: Extract shared types into a separate file
+// file: pages/types.ts
+export interface NavigablePage {
+    goto(): Promise<void>;
+}
+
+// Both pages import from types.ts (no cycle)
+```
+
+<BestPractice>
+
+**Prevention:** If you find yourself importing between page objects, the pages are too coupled. Tests should own the navigation flow, not page objects.
+
+</BestPractice>
+
+
+---
+
+## Engineering Judgment (Layer 5)
+
+### Named Exports vs. Default Exports — Decision Framework
+
+| Factor | Named Export | Default Export |
+|---|---|---|
+| Multiple items per file | Natural fit | Only one allowed |
+| Refactoring (rename) | IDE renames all imports automatically | Each import file can use any name — fragile |
+| Search-ability | `grep "LoginPage"` finds all usages | Import name may differ across files |
+| Barrel files | Works seamlessly | Works but adds indirection |
+| Convention in Playwright ecosystem | Common for pages, fixtures, utilities | Common for config files |
+
+**Rule of thumb:** Use named exports for everything except `playwright.config.ts` (which Playwright expects as a default export).
+
+### How Deep Should Your Module Nesting Go?
+
+| Structure | When Appropriate | Warning Sign |
+|---|---|---|
+| Flat (`src/pages/*.ts`) | Small projects (&lt; 15 files) | Fine |
+| One level (`src/pages/auth/`, `src/pages/booking/`) | Medium projects (15-50 files) | Sweet spot |
+| Two+ levels | Large projects with multiple apps | If you need 3+ levels, reconsider your architecture |
+
+---
+
+## Interview and Revision (Layer 6)
+
+### Fundamental Questions
+
+**Q1: What is the difference between named exports and default exports?**
+> Named exports allow multiple items per file and require the importer to use the exact name (or an explicit alias). Default exports allow one item per file and let the importer choose any name. Named exports are preferred for test automation because they're more searchable and refactor-friendly.
+
+**Q2: Why does TypeScript use `unknown` instead of `Error` in catch blocks?**
+> JavaScript allows throwing any value — strings, numbers, objects, not just Error instances. `unknown` forces the developer to narrow the type before accessing properties, preventing runtime errors like `error.message` on a thrown string. This is safer than Java's typed catch blocks because JavaScript has no compiler enforcement of what can be thrown.
+
+**Q3: What are the most important `tsconfig.json` settings for a test automation project?**
+> `strict: true` (enables all type safety checks), `target` matching your Node.js version, `module` set to `commonjs` for Node.js, `paths` for clean import aliases, and `noUnusedLocals`/`noUnusedParameters` for dead code detection. Always enable `strict` — it's the single most impactful setting.
+
+**Q4: What is a barrel file and why use one?**
+> A barrel file (usually `index.ts`) re-exports items from multiple files through a single entry point. Instead of importing from five different page object files, consumers import everything from `../pages`. This simplifies imports, creates a clean public API for each directory, and makes refactoring internal file structure transparent to consumers.
+
+
+
+
+| # | Front (Question) | Back (Answer) |
+|---|---|---|
+| 1 | What does `export type` do differently from `export`? | `export type` only exports the type information — it's erased at compile time and generates no runtime JavaScript. Use it for interfaces and type aliases that aren't needed at runtime. |
+| 2 | `npm install --save-dev` vs `npm install` — what's the difference? | `--save-dev` adds to `devDependencies` (test/build tools, not shipped to production). `npm install` (no flag) adds to `dependencies` (runtime code). Test frameworks go in devDependencies. |
+| 3 | What does `"strict": true` enable in `tsconfig.json`? | All strict type-checking flags: `strictNullChecks`, `noImplicitAny`, `strictFunctionTypes`, `strictBindCallApply`, `strictPropertyInitialization`, `noImplicitThis`, `useUnknownInCatchVariables`, `alwaysStrict`. |
+| 4 | How do you handle a circular import? | Extract shared types into a separate file, or restructure so only one file depends on the other. In page objects, let tests own navigation flow instead of pages referencing each other. |
+| 5 | `package.json` vs `package-lock.json` — what's the difference? | `package.json` declares version ranges (`^1.44.0`). `package-lock.json` records exact resolved versions for reproducible installs. Always commit the lock file. |
+
+### Mastery Checklist
+
+- [ ] I can structure a Playwright project with pages, fixtures, models, and utilities in separate modules
+- [ ] I can write named exports/imports and create barrel files for clean import paths
+- [ ] I can configure `tsconfig.json` with `strict: true` and explain the key compiler options
+- [ ] I can write `try/catch` blocks that properly narrow `unknown` errors
+- [ ] I can create custom error classes that extend `Error` with contextual information
+- [ ] I can manage dependencies with `npm install`, understand `devDependencies` vs `dependencies`
+- [ ] I can identify and fix circular import problems
+- [ ] I can explain why named exports are preferred over default exports in test projects
+
+---
+
+> **Next:** Test Automation Patterns — POM, fixtures, data-driven testing, and config patterns in TypeScript  
+> **Related:** Promises And Async Await — async operations within modules
+
+---
+
+*Last updated: *

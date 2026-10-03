@@ -1,0 +1,587 @@
+---
+title: "Project Structure"
+description: "What: Project structure is the physical organization of your automation code — directories, packages, resource folders, and build files. It's the file system manifestation of your framework architecture. Every directory answers one question: \"where do I put this?\""
+summary: "SDET Engineering guide: Project Structure"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "framework-engineering"
+lesson: "project-structure"
+difficulty: "intermediate"
+estimatedMinutes: 37
+prerequisites: []
+tags: ["SDET", "Framework", "Architecture"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/framework-engineering/project-structure"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Project Structure
+
+> **Module:** 03 — Framework Engineering > Project Structure  
+> **Prerequisites:** Framework Architecture, Oop Fundamentals  
+> **Mastery Target:** L3 (Independent) → L4 (Engineering Judgment)
+
+---
+
+## Quick Overview (Layer 1)
+
+**What:** Project structure is the physical organization of your automation code — directories, packages, resource folders, and build files. It's the file system manifestation of your framework architecture. Every directory answers one question: "where do I put this?"
+
+**Why it matters:** When a new team member joins, they should find the config loader in `config/`, the page objects in `pages/`, and the test data in `testdata/` — without asking anyone. A good structure makes the framework self-documenting. A bad structure turns every new file into a guessing game and every code review into a debate about where things belong.
+
+**Where you encounter it:** The first `mkdir` you type when starting a framework. Every file you create afterward either reinforces the structure or erodes it.
+
+<MentalModel>
+
+Think of project structure as a **filing cabinet**. Each drawer (directory) is labeled by purpose, not by content type. You don't have a drawer for "all documents with numbers" — you have drawers for "invoices," "contracts," and "receipts." Similarly, you don't organize automation code by file type (all classes together, all interfaces together). You organize by responsibility: config, pages, tests, utilities.
+
+</MentalModel>
+
+
+```
+Where does the config loader go?  → config/
+Where does the LoginPage go?      → pages/
+Where does the test data go?      → test/resources/testdata/
+Where does the new test go?       → test/.../tests/
+```
+
+When the answer is always obvious, the structure is working.
+
+<KeyTakeaways>
+
+1. **`src/main/java` is framework code, `src/test/java` is test code** — this is Maven convention, not a suggestion. Framework infrastructure (pages, clients, config, utils) is reusable library code; tests are consumers.
+2. **One package per responsibility** — `config/`, `pages/`, `utils/`, `tests/` each have a single purpose. A class should belong to exactly one package with no ambiguity.
+3. **Resources mirror code** — config files go in `src/main/resources/config/`, test data goes in `src/test/resources/testdata/`. Keep data separate from logic.
+4. **Start simple, grow as needed** — don't create 15 empty packages on day one. Start with what you need and add directories when the need is real.
+5. **The build file is part of the structure** — `pom.xml` declares dependencies, plugins, and profiles. It's the entry point for anyone building the project.
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation (Layer 2)
+
+### Maven Standard Directory Layout
+
+Maven defines a standard directory layout that every Java developer knows. Following it means your project is instantly familiar to anyone who's worked with Maven — which is virtually every Java developer.
+
+```
+project-root/
+├── src/
+│   ├── main/
+│   │   ├── java/          ← production/framework code (compiled into main JAR)
+│   │   └── resources/     ← non-code files used by framework code
+│   └── test/
+│       ├── java/          ← test classes (compiled but NOT in main JAR)
+│       └── resources/     ← non-code files used by tests
+├── pom.xml                ← Maven build configuration
+├── testng.xml             ← test suite definition (TestNG)
+└── README.md              ← project documentation
+```
+
+**`src/main/java` — framework infrastructure:**
+
+This is where you put code that *supports* tests but *isn't* a test itself. Think of it as a library that your tests import. Page objects, API clients, the config loader, driver management, utility classes, data models — all go here. This code could theoretically be published as a JAR and used by another project.
+
+**`src/test/java` — test classes:**
+
+This is where tests live. Test classes, base test classes, test data providers, test listeners — anything that uses `@Test` or directly supports test execution. Code here is compiled by Maven's `test-compile` phase but is never included in the main artifact.
+
+**Why the split matters:** If you put page objects in `src/test/java`, they're invisible to other modules in a multi-module project. If you put test classes in `src/main/java`, they ship with your production code. The split enforces a clean boundary: framework code is reusable, test code is consumable.
+
+### Package Naming Conventions
+
+Package names follow the reverse-domain convention and reflect the responsibility of the classes inside.
+
+```
+com.company.automation/
+├── config/         ← configuration loading and environment management
+├── driver/         ← browser/driver lifecycle (factory, ThreadLocal management)
+├── pages/          ← page objects for UI automation
+│   └── components/ ← reusable UI components (header, footer, modal)
+├── api/            ← API client classes (base client, resource clients)
+├── models/         ← POJOs/records representing domain objects (User, Booking)
+├── data/           ← test data builders and generators
+├── utils/          ← stateless utility classes (waits, file I/O, date helpers)
+└── listeners/      ← TestNG/JUnit listeners (reporting, screenshots)
+```
+
+**config/** — `ConfigManager.java`, `Environment.java` (enum). Everything related to loading and providing configuration values. A test never reads a properties file directly — it asks the config layer.
+
+**pages/** — `BasePage.java`, `LoginPage.java`, `DashboardPage.java`. Each class maps to a page in the application. Sub-package `components/` holds reusable UI components like `HeaderComponent.java` or `DatePickerComponent.java`.
+
+**api/** — `BaseApiClient.java`, `AuthClient.java`, `BookingClient.java`. Each class encapsulates HTTP interactions for one API resource. The base client handles common concerns (headers, auth, logging).
+
+**models/** — `User.java`, `Booking.java`, `Property.java`. Plain data objects (POJOs or Java records) used by tests, API clients, and builders. No business logic — just data holders.
+
+**utils/** — `WaitUtils.java`, `DataGenerator.java`, `FileUtils.java`. Stateless helper methods. Every method takes input, produces output, and holds no state. If a util class grows state, it probably belongs in a different package.
+
+**listeners/** — `ScreenshotListener.java`, `AllureListener.java`. TestNG `ITestListener` or JUnit `Extension` implementations that react to test events (failure, success, skip).
+
+### Resource Organization
+
+```
+src/main/resources/
+├── config/
+│   ├── config.properties       ← default configuration (base URL, timeout, browser)
+│   ├── staging.properties      ← staging overrides (base URL for staging)
+│   └── production.properties   ← production overrides
+└── schemas/
+    └── booking-response.json   ← JSON schemas for response validation
+
+src/test/resources/
+├── testdata/
+│   ├── users.json              ← user test data
+│   ├── bookings.csv            ← booking test data for data-driven tests
+│   └── invalid-bookings.json   ← negative test data
+└── testng.xml                  ← (alternative location for suite config)
+```
+
+**Why separate `main/resources` from `test/resources`?** Config files used by the framework (like `config.properties`) go in `main/resources` because they're part of the framework classpath. Test-specific data (like `users.json`) goes in `test/resources` because it's only needed during test execution.
+
+### Build File: pom.xml Structure
+
+The `pom.xml` is the blueprint for your project. It declares dependencies, configures plugins, and defines profiles for environment switching.
+
+
+```xml
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+         http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>com.company</groupId>
+    <artifactId>staynest-automation</artifactId>
+    <version>1.0.0</version>
+
+    <properties>
+        <maven.compiler.source>17</maven.compiler.source>
+        <maven.compiler.target>17</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+
+        <!-- Dependency versions — centralized for easy upgrades -->
+        <selenium.version>4.20.0</selenium.version>
+        <testng.version>7.10.2</testng.version>
+        <rest-assured.version>5.4.0</rest-assured.version>
+        <jackson.version>2.17.0</jackson.version>
+        <slf4j.version>2.0.13</slf4j.version>
+        <logback.version>1.5.6</logback.version>
+        <allure.version>2.27.0</allure.version>
+    </properties>
+
+    <dependencies>
+        <!-- Browser automation -->
+        <dependency>
+            <groupId>org.seleniumhq.selenium</groupId>
+            <artifactId>selenium-java</artifactId>
+            <version>${selenium.version}</version>
+        </dependency>
+
+        <!-- API testing -->
+        <dependency>
+            <groupId>io.rest-assured</groupId>
+            <artifactId>rest-assured</artifactId>
+            <version>${rest-assured.version}</version>
+        </dependency>
+
+        <!-- Test framework -->
+        <dependency>
+            <groupId>org.testng</groupId>
+            <artifactId>testng</artifactId>
+            <version>${testng.version}</version>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- Logging -->
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+            <version>${slf4j.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-classic</artifactId>
+            <version>${logback.version}</version>
+        </dependency>
+
+        <!-- JSON processing -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <version>${jackson.version}</version>
+        </dependency>
+
+        <!-- Reporting -->
+        <dependency>
+            <groupId>io.qameta.allure</groupId>
+            <artifactId>allure-testng</artifactId>
+            <version>${allure.version}</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <!-- Surefire runs tests -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.2.5</version>
+                <configuration>
+                    <suiteXmlFiles>
+                        <suiteXmlFile>testng.xml</suiteXmlFile>
+                    </suiteXmlFiles>
+                    <!-- Pass environment as system property -->
+                    <systemPropertyVariables>
+                        <env>${env}</env>
+                    </systemPropertyVariables>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+    <!-- Profiles for environment switching -->
+    <profiles>
+        <profile>
+            <id>staging</id>
+            <properties>
+                <env>staging</env>
+            </properties>
+        </profile>
+        <profile>
+            <id>production</id>
+            <properties>
+                <env>production</env>
+            </properties>
+        </profile>
+    </profiles>
+</project>
+```
+
+**Key decisions:**
+- **Version properties** — all dependency versions are declared once in `<properties>`. Upgrading Selenium means changing one line, not hunting through the file.
+- **Scope `test`** — TestNG and Allure are `<scope>test</scope>` because they're only needed during test execution, not by the framework library itself.
+- **Surefire plugin** — Maven's Surefire plugin runs tests. It points to `testng.xml` for suite configuration and passes the `env` property to the JVM.
+- **Profiles** — `mvn test -Pstaging` sets `env=staging`. The `ConfigManager` reads this to load the right properties file.
+
+### The "Start Simple, Grow as Needed" Principle
+
+On day one, your project might look like this:
+
+```
+src/
+  main/java/com/company/automation/
+    config/ConfigManager.java
+    pages/LoginPage.java
+    utils/WaitUtils.java
+  test/java/com/company/automation/
+    tests/LoginTest.java
+  test/resources/
+    config/config.properties
+pom.xml
+```
+
+That's 5 files. That's fine. You don't need `models/`, `data/`, `listeners/`, `api/`, or `components/` yet. When you add API tests, create `api/`. When you need test data builders, create `data/`. When you need a screenshot listener, create `listeners/`.
+
+**Over-structuring on day one** creates confusion: 15 empty packages, half-implemented base classes, factories with one implementation, interfaces with no alternate implementor. A new team member opens the project and sees scaffolding everywhere, working code nowhere.
+
+**Under-structuring** means everything lives in one package. When the project grows to 50 classes, finding anything requires scrolling through a flat list. The solution: add structure when the pain of not having it becomes real.
+
+**The rule of thumb:** Create a new package when a directory has 7+ files that could be logically grouped, or when a clear new responsibility emerges (first API test → create `api/`).
+
+---
+
+## Practical Implementation (Layer 3)
+
+### Example: Reference Project Tree for StayNest API + UI Test Framework
+
+A complete project structure for a mid-size framework covering both API and UI testing against the StayNest application.
+
+```
+staynest-automation/
+├── src/
+│   ├── main/java/com/staynest/automation/
+│   │   ├── config/
+│   │   │   ├── ConfigManager.java          → loads properties, merges environments
+│   │   │   └── Environment.java            → enum: LOCAL, STAGING, PRODUCTION
+│   │   ├── driver/
+│   │   │   ├── DriverFactory.java          → creates WebDriver based on config
+│   │   │   └── DriverManager.java          → ThreadLocal driver storage
+│   │   ├── pages/
+│   │   │   ├── BasePage.java               → shared wait/click/type helpers
+│   │   │   ├── LoginPage.java              → login form interactions
+│   │   │   ├── DashboardPage.java          → dashboard interactions
+│   │   │   ├── SearchPage.java             → search and filter interactions
+│   │   │   ├── PropertyPage.java           → property detail interactions
+│   │   │   └── components/
+│   │   │       ├── HeaderComponent.java    → navigation header (appears on every page)
+│   │   │       └── DatePickerComponent.java → reusable date picker widget
+│   │   ├── api/
+│   │   │   ├── BaseApiClient.java          → base URI, auth headers, logging
+│   │   │   ├── AuthClient.java             → POST /auth/login, token management
+│   │   │   ├── BookingClient.java          → CRUD for /api/bookings
+│   │   │   └── PropertyClient.java         → CRUD for /api/properties
+│   │   ├── models/
+│   │   │   ├── User.java                   → user data (record or POJO)
+│   │   │   ├── Booking.java                → booking data
+│   │   │   ├── Property.java               → property data
+│   │   │   └── dto/
+│   │   │       ├── LoginRequest.java       → request body for login
+│   │   │       ├── BookingRequest.java      → request body for booking creation
+│   │   │       └── BookingResponse.java     → response body for booking
+│   │   ├── data/
+│   │   │   ├── UserBuilder.java            → builder with defaults for User
+│   │   │   └── BookingBuilder.java         → builder with defaults for Booking
+│   │   ├── utils/
+│   │   │   ├── WaitUtils.java              → explicit wait helpers
+│   │   │   ├── DataGenerator.java          → random names, emails, UUIDs
+│   │   │   └── JsonUtils.java              → read/parse JSON files
+│   │   └── listeners/
+│   │       ├── ScreenshotListener.java     → capture screenshot on test failure
+│   │       └── AllureListener.java         → Allure step/attachment integration
+│   │
+│   ├── main/resources/
+│   │   ├── config/
+│   │   │   ├── config.properties           → base.url, timeout, browser defaults
+│   │   │   ├── staging.properties          → staging base URL override
+│   │   │   └── production.properties       → production base URL override
+│   │   └── schemas/
+│   │       ├── booking-response.json       → JSON schema for booking response
+│   │       └── error-response.json         → JSON schema for error responses
+│   │
+│   ├── test/java/com/staynest/automation/
+│   │   ├── base/
+│   │   │   ├── BaseTest.java               → common lifecycle (@Before/@After)
+│   │   │   ├── BaseUITest.java             → UI-specific: driver setup/teardown
+│   │   │   └── BaseApiTest.java            → API-specific: client setup, no driver
+│   │   ├── tests/
+│   │   │   ├── ui/
+│   │   │   │   ├── LoginUITest.java        → UI login scenarios
+│   │   │   │   ├── BookingUITest.java      → UI booking flow scenarios
+│   │   │   │   └── SearchUITest.java       → UI search scenarios
+│   │   │   └── api/
+│   │   │       ├── AuthApiTest.java        → API auth scenarios
+│   │   │       ├── BookingApiTest.java     → API booking CRUD scenarios
+│   │   │       └── PropertyApiTest.java    → API property scenarios
+│   │   └── providers/
+│   │       └── TestDataProvider.java       → @DataProvider methods
+│   │
+│   └── test/resources/
+│       ├── testdata/
+│       │   ├── users.json                  → user fixtures
+│       │   ├── bookings.csv                → booking test data
+│       │   └── invalid-payloads.json       → negative test payloads
+│       └── testng.xml                      → (alternative location)
+│
+├── pom.xml                                 → Maven build, dependencies, profiles
+├── testng.xml                              → suite definition, parallel config
+└── README.md                               → project setup, running instructions
+```
+
+### Example: testng.xml Suite Configuration
+
+
+```xml
+<!DOCTYPE suite SYSTEM "https://testng.org/testng-1.0.dtd">
+<suite name="StayNest Test Suite" parallel="methods" thread-count="4">
+
+    <!-- Listeners applied to all tests -->
+    <listeners>
+        <listener class-name="com.staynest.automation.listeners.ScreenshotListener"/>
+        <listener class-name="io.qameta.allure.testng.AllureTestNg"/>
+    </listeners>
+
+    <!-- API tests — fast, run first -->
+    <test name="API Tests">
+        <packages>
+            <package name="com.staynest.automation.tests.api"/>
+        </packages>
+    </test>
+
+    <!-- UI tests — slower, run after API tests pass -->
+    <test name="UI Tests">
+        <packages>
+            <package name="com.staynest.automation.tests.ui"/>
+        </packages>
+    </test>
+</suite>
+```
+
+---
+
+## Failure and Debugging (Layer 4)
+
+### Failure 1: Everything in One Package
+
+**The Problem:**
+
+```
+src/test/java/com/company/tests/
+    LoginPage.java
+    LoginTest.java
+    ConfigManager.java
+    BaseTest.java
+    User.java
+    WaitUtils.java
+    BookingTest.java
+    BookingPage.java
+    DriverFactory.java
+    DataGenerator.java
+    ... 40 more files
+```
+
+**What happens:** New team member joins. They need to update the login page locator. They open the `tests` package and see 50 files. Is it `LoginPage.java`? `LoginTest.java`? `BaseTest.java`? They open each one, guessing. When they create a new file, they put it in the same package because there's no organizational guidance. The problem compounds.
+
+**Root cause:** No structural separation by responsibility. Everything is lumped by proximity rather than purpose.
+
+**The fix:** Group by responsibility. Even moving to 4 packages transforms discoverability:
+
+```
+src/main/java/.../pages/      → LoginPage, BookingPage
+src/main/java/.../config/     → ConfigManager
+src/main/java/.../utils/      → WaitUtils, DataGenerator
+src/test/java/.../tests/      → LoginTest, BookingTest
+```
+
+### Failure 2: Page Objects in test/java
+
+**The Problem:**
+
+
+```java
+// src/test/java/com/company/tests/LoginPage.java  ← WRONG location
+public class LoginPage {
+    // ...
+}
+```
+
+**What happens:** You create a second Maven module for mobile tests. The mobile module needs to share models and utilities with the web module. But `LoginPage` and `ConfigManager` are in `src/test/java` — Maven doesn't include test classes in the published artifact. The mobile module can't access them.
+
+**Root cause:** Framework infrastructure was placed in `src/test/java` (test scope) instead of `src/main/java` (main scope). Test scope code is not shareable across modules.
+
+**The fix:** Move all framework code (pages, config, utils, models, API clients) to `src/main/java`. Only test classes and test-specific data providers stay in `src/test/java`.
+
+### Failure 3: Hardcoded Paths to Test Data
+
+**The Problem:**
+
+
+```java
+// Reads from absolute path — works on your machine, breaks on everyone else's
+String data = Files.readString(Path.of("C:/Users/john/project/testdata/users.json"));
+
+// Reads from relative path — works only if you run from the project root
+String data = Files.readString(Path.of("src/test/resources/testdata/users.json"));
+```
+
+**What happens:** In CI, the working directory isn't the project root — it might be `/workspace/build/` or `/home/runner/`. Relative paths break. Absolute paths break on every machine except the original author's.
+
+**The fix — use classpath loading:**
+
+
+```java
+// Classpath loading — works everywhere, regardless of working directory
+InputStream stream = getClass().getClassLoader()
+    .getResourceAsStream("testdata/users.json");
+
+// Files in src/test/resources/ are on the test classpath automatically.
+// Files in src/main/resources/ are on the main classpath automatically.
+// Maven handles this — you just use the path relative to the resources root.
+```
+
+---
+
+## Engineering Judgment (Layer 5)
+
+### When to Split a Package
+
+| Signal | Action |
+|--------|--------|
+| A package has 10+ files | Consider sub-packages by sub-responsibility |
+| Two files in the same package never import each other | They might belong in different packages |
+| A team member puts a file in the wrong package | The package name isn't clear enough — rename or restructure |
+| You need an `internal` sub-package | Good sign — you're separating public API from implementation details |
+
+### Flat vs Deep Package Hierarchies
+
+**Flat (recommended for most frameworks):**
+```
+pages/LoginPage.java
+pages/DashboardPage.java
+pages/BookingPage.java
+pages/components/HeaderComponent.java
+```
+
+**Deep (avoid unless genuinely needed):**
+```
+pages/auth/login/LoginPage.java
+pages/auth/login/elements/LoginForm.java
+pages/auth/login/actions/LoginActions.java
+```
+
+Deep hierarchies add navigation cost without adding clarity. A single `LoginPage.java` file in `pages/` is easier to find than one nested three directories deep. Use sub-packages when a genuine sub-responsibility emerges (like `components/`), not to mirror the application's URL structure.
+
+### Mono-Repo vs Multi-Module
+
+**Single module (start here):** One `pom.xml`, one `src/` tree. Appropriate when you have one application to test, one team, and fewer than ~200 test classes. This is 90% of frameworks.
+
+**Multi-module (grow into this):** A parent POM with child modules like `common-framework`, `web-tests`, `api-tests`, `mobile-tests`. Appropriate when multiple teams share framework code, or when you test multiple applications with shared infrastructure. The cost is build complexity and dependency management.
+
+**When to split:** When two groups of tests need different dependencies (web tests need Selenium, API tests don't), or when a second team needs your framework code without your tests.
+
+---
+
+## Interview and Revision (Layer 6)
+
+### Fundamental Questions
+
+**Q1: How do you organize a test automation project?**
+
+**A:** I follow Maven's standard directory layout. Framework infrastructure — page objects, API clients, config loaders, utilities, models — goes in `src/main/java`, organized by responsibility: one package for `config/`, one for `pages/`, one for `api/`, and so on. Test classes go in `src/test/java/tests/`, split by test type (`ui/`, `api/`). Configuration files go in `src/main/resources/config/`, test data in `src/test/resources/testdata/`. The structure is designed so that any file can be found by knowing its responsibility, not by memorizing the layout.
+
+**Q2: Why do page objects go in src/main/java instead of src/test/java?**
+
+**A:** Because page objects are framework library code, not tests. They're reusable infrastructure that tests consume. Placing them in `src/main/java` means they're available to any Maven module that depends on this project — if we later create a separate mobile test module, it can import the shared models and utilities. Code in `src/test/java` is test-scoped and excluded from the published artifact.
+
+**Q3: How do you handle test data files in the project?**
+
+**A:** Test data files (JSON, CSV, Excel) go in `src/test/resources/testdata/`. I load them using classpath resources (`getClass().getClassLoader().getResourceAsStream("testdata/users.json")`) rather than file paths, so they work regardless of the working directory — locally, in CI, or in Docker. Each file has a clear name matching its purpose, and I keep test data separate from test logic to support data-driven tests.
+
+
+
+
+| # | Front (Question) | Back (Answer) |
+|---|---|---|
+| 1 | What goes in `src/main/java` vs `src/test/java`? | `main/java`: framework infrastructure (pages, config, clients, utils, models). `test/java`: test classes, base tests, data providers. The split is library vs consumer. |
+| 2 | Why use classpath loading instead of `File` paths for resources? | Classpath loading works regardless of working directory. `File` paths break when the project runs from a different directory (CI, Docker, another developer's machine). |
+| 3 | When should you create a new package? | When a directory has 7+ files that share a distinct responsibility, or when a new responsibility clearly emerges (first API test → create `api/`). Don't pre-create empty packages. |
+| 4 | What's the purpose of testng.xml? | Defines which test classes/packages to run, parallel execution mode, thread count, listeners, and parameter values. It's the suite-level configuration that sits outside the code. |
+| 5 | What's the "start simple, grow as needed" principle? | Begin with only the directories you need. Add structure when the pain of not having it is real. Over-structuring on day one creates empty scaffolding that confuses more than it helps. |
+
+### Mastery Checklist
+
+- [ ] Can set up a Maven project with correct `main/java` vs `test/java` separation
+- [ ] Can explain what goes in each standard package (config, pages, api, models, utils, listeners)
+- [ ] Can write a `pom.xml` with versioned dependencies, Surefire configuration, and Maven profiles
+- [ ] Can configure a `testng.xml` with parallel execution, listeners, and package scanning
+- [ ] Can load test data from classpath resources instead of file system paths
+- [ ] Can justify the placement of any given file in the project structure
+- [ ] Can identify when a project has too much or too little structure
+- [ ] Can set up a reference project tree from scratch for a new automation effort
+
+---
+
+**Next:** Test Lifecycle And Fixtures | **Related:** Framework Architecture
+
+*Last updated: *

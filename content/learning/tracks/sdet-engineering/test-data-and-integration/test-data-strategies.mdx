@@ -1,0 +1,303 @@
+---
+title: "Test Data Strategies"
+description: "What: Test data strategies are the approaches you use to create, manage, and supply data to your tests. The six core strategies are: inline literals, builder pattern, factory pattern, external files (CSV/JSON), API seeding, and database seeding. Each trades off readability, flexibility, and maintenance cost differently."
+summary: "SDET Engineering guide: Test Data Strategies"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "test-data-and-integration"
+lesson: "test-data-strategies"
+difficulty: "intermediate"
+estimatedMinutes: 30
+prerequisites: []
+tags: ["SDET", "Test Data", "Integration"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/test-data-and-integration/test-data-strategies"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Test Data Strategies
+
+> **Module:** 07 — Test Data & Integration  
+> **Prerequisites:** Test Design Techniques, Rest Assured Fundamentals  
+> **Mastery Target:** L3 (Independent) — can select and implement the right data strategy for any test scenario without guidance
+
+---
+
+## Quick Overview (Layer 1)
+
+**What:** Test data strategies are the approaches you use to create, manage, and supply data to your tests. The six core strategies are: inline literals, builder pattern, factory pattern, external files (CSV/JSON), API seeding, and database seeding. Each trades off readability, flexibility, and maintenance cost differently.
+
+**Why:** Bad test data is the #1 cause of flaky tests after timing issues. Hardcoded IDs break when databases reset. Shared mutable data causes tests to interfere with each other. Insufficient data variety means edge cases go untested. A deliberate data strategy eliminates these problems and makes tests self-documenting — the data *is* the specification.
+
+**Where:** Every test layer — unit tests use inline/builders, integration tests use factories/API seeding, E2E tests use database seeding. In StayNest, you need guest accounts, hotel managers, hotels, rooms, and bookings — each with valid, boundary, and invalid variants.
+
+<KeyTakeaways>
+
+1. Inline data is best for simple, readable unit tests. Builders shine when objects have many fields but only a few vary per test.
+2. Factory pattern (test object mothers) create pre-configured archetypes: `TestUsers.validGuest()`, `TestUsers.expiredSubscription()`.
+3. External files (CSV/JSON/YAML) decouple data from code — ideal for data-driven tests with many combinations.
+4. API seeding creates data through the application's own endpoints — realistic but slower and coupled to API contracts.
+5. DB seeding inserts data directly — fast but bypasses validation logic and couples tests to schema.
+6. Every test should create its own data or use immutable reference data. Never depend on data another test created.
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation (Layer 2)
+
+### The Six Strategies — When to Use Each
+
+| Strategy | Speed | Isolation | Realism | Best For |
+|----------|-------|-----------|---------|----------|
+| **Inline literals** | Instant | Perfect | Low | Unit tests, simple assertions |
+| **Builder pattern** | Instant | Perfect | Medium | Complex objects with many optional fields |
+| **Factory pattern** | Instant | Perfect | Medium | Reusable archetypes across test classes |
+| **External files** | Fast | Good | Medium | Data-driven tests, large input matrices |
+| **API seeding** | Slow | Good | High | Integration/E2E tests needing realistic state |
+| **DB seeding** | Medium | Moderate | Low | Performance tests, bulk data, reference data |
+
+### Unique Data Generation Patterns
+
+Tests that share IDs or emails collide when run in parallel. Three patterns guarantee uniqueness:
+
+**UUID-based:** `String email = "guest-" + UUID.randomUUID() + "@test.com";` — globally unique, but long and unreadable in logs.
+
+**Timestamp-based:** `String email = "guest-" + System.currentTimeMillis() + "@test.com";` — shorter, sortable, but can collide at millisecond precision under parallelism.
+
+**Atomic counter:** A shared `AtomicInteger` increments per test class, producing `guest-001@test.com`, `guest-002@test.com` — readable and sequential, but resets across JVM restarts.
+
+---
+
+## Practical Implementation (Layer 3)
+
+### Builder Pattern — Flexible Object Construction
+
+
+```java
+public class BookingBuilder {
+    private String guestEmail = "guest-" + UUID.randomUUID() + "@test.com";
+    private Long roomId = 1L;
+    private String checkIn = LocalDate.now().plusDays(1).toString();
+    private String checkOut = LocalDate.now().plusDays(3).toString();
+    private int guests = 2;
+
+    public BookingBuilder withGuestEmail(String email) { this.guestEmail = email; return this; }
+    public BookingBuilder withRoomId(Long roomId) { this.roomId = roomId; return this; }
+    public BookingBuilder withCheckIn(String checkIn) { this.checkIn = checkIn; return this; }
+    public BookingBuilder withCheckOut(String checkOut) { this.checkOut = checkOut; return this; }
+    public BookingBuilder withGuests(int guests) { this.guests = guests; return this; }
+
+    public String buildJson() {
+        return String.format("""
+            {
+                "roomId": %d,
+                "checkInDate": "%s",
+                "checkOutDate": "%s",
+                "numberOfGuests": %d
+            }""", roomId, checkIn, checkOut, guests);
+    }
+
+    public static BookingBuilder aBooking() { return new BookingBuilder(); }
+}
+
+// Usage in tests — only specify what varies
+String body = BookingBuilder.aBooking()
+    .withCheckIn("2025-12-25")
+    .withGuests(5)
+    .buildJson();
+```
+
+### Factory Pattern — Reusable Test Archetypes
+
+
+```java
+public class TestUsers {
+    private static final AtomicInteger counter = new AtomicInteger(0);
+
+    public static Map<String, String> validGuest() {
+        int id = counter.incrementAndGet();
+        return Map.of(
+            "firstName", "Guest" + id,
+            "lastName", "TestUser",
+            "email", "guest-" + id + "-" + System.currentTimeMillis() + "@test.com",
+            "password", "TestPass123!",
+            "role", "ROLE_GUEST"
+        );
+    }
+
+    public static Map<String, String> validManager() {
+        int id = counter.incrementAndGet();
+        return Map.of(
+            "firstName", "Manager" + id,
+            "lastName", "TestUser",
+            "email", "manager-" + id + "-" + System.currentTimeMillis() + "@test.com",
+            "password", "TestPass123!",
+            "role", "ROLE_HOTEL_MANAGER"
+        );
+    }
+}
+```
+
+### JavaFaker — Realistic Random Data
+
+
+```java
+import com.github.javafaker.Faker;
+
+public class TestDataGenerator {
+    private static final Faker faker = new Faker();
+
+    public static String randomHotelName() {
+        return faker.company().name() + " Hotel";
+    }
+
+    public static String randomCity() {
+        return faker.address().city();
+    }
+
+    public static String randomPhoneNumber() {
+        return faker.phoneNumber().phoneNumber();
+    }
+
+    public static String randomEmail() {
+        return faker.internet().emailAddress("test-" + System.currentTimeMillis());
+    }
+
+    // Bounded random for realistic test ranges
+    public static int randomGuestCount() {
+        return faker.number().numberBetween(1, 6);
+    }
+}
+```
+
+### External File — CSV Data-Driven Tests
+
+
+```java
+@DataProvider(name = "bookingScenarios")
+public Object[][] loadBookingScenarios() throws Exception {
+    List<Object[]> data = new ArrayList<>();
+    try (CSVReader reader = new CSVReader(new FileReader("src/test/resources/booking-scenarios.csv"))) {
+        String[] headers = reader.readNext(); // skip header
+        String[] line;
+        while ((line = reader.readNext()) != null) {
+            data.add(new Object[]{line[0], line[1], line[2], Integer.parseInt(line[3]), Integer.parseInt(line[4])});
+        }
+    }
+    return data.toArray(new Object[0][]);
+}
+
+@Test(dataProvider = "bookingScenarios")
+public void testBookingValidation(String scenario, String checkIn, String checkOut,
+                                   int guests, int expectedStatus) {
+    String body = BookingBuilder.aBooking()
+        .withCheckIn(checkIn).withCheckOut(checkOut).withGuests(guests).buildJson();
+
+    given().contentType("application/json")
+        .header("Authorization", AuthFactory.guest().getAuthHeader())
+        .body(body)
+    .when().post("/bookings")
+    .then().statusCode(expectedStatus);
+}
+```
+
+---
+
+## Failure and Debugging (Layer 4)
+
+### Failure 1: Shared Mutable Data — Tests Pass Alone, Fail Together
+
+**The Problem:** Test A creates a booking for Room 1. Test B also books Room 1. When run in parallel, one fails with "room not available." When run alone, both pass.
+
+**Root cause:** Both tests depend on the same room being available. Test execution order determines which wins.
+
+**The fix:** Each test creates its own room (via API or factory) or uses a room pool with unique allocation:
+
+
+```java
+// Bad: shared room ID
+long roomId = 1L; // Both tests fight over this
+
+// Good: each test creates its own room
+long roomId = ApiHelper.createRoom(hotelId, "Test Room " + UUID.randomUUID());
+```
+
+### Failure 2: Faker Generates Invalid Data for Domain Constraints
+
+**The Problem:** `faker.name().firstName()` occasionally generates names with special characters that StayNest rejects (e.g., `O'Brien` failing a no-apostrophe validation).
+
+**The fix:** Constrain faker output or use deterministic seeds for reproducibility:
+
+
+```java
+// Constrained: strip non-alphanumeric characters
+String safeName = faker.name().firstName().replaceAll("[^a-zA-Z]", "");
+
+// Reproducible: same seed produces same sequence
+Faker faker = new Faker(new Random(42)); // deterministic
+```
+
+---
+
+## Engineering Judgment (Layer 5)
+
+### Decision Matrix — Choosing the Right Strategy
+
+| Scenario | Recommended Strategy | Why |
+|----------|---------------------|-----|
+| Unit testing a price calculator | Inline literals | Simple, self-documenting, no setup |
+| Testing booking with 15 field variations | Builder pattern | Change only what varies, defaults for the rest |
+| 50 tests all need a valid guest user | Factory pattern | Centralized, consistent, DRY |
+| Boundary testing dates across 30 combinations | External CSV file | Easy to add rows, non-developer editable |
+| E2E booking flow needing hotel + rooms + user | API seeding | Realistic, validates the creation path too |
+| Performance test needing 10,000 bookings | DB seeding | Speed — API calls would take hours |
+
+<AntiPattern>
+
+1. **Hardcoded database IDs** — `roomId = 42` breaks when the DB is recreated. Always create or look up dynamically.
+2. **Test-to-test data dependencies** — Test B relying on data created by Test A. If A fails or order changes, B fails.
+3. **Production data in tests** — Copying production databases for test data creates privacy, size, and staleness problems.
+4. **One mega seed script** — A 5000-line SQL file that sets up "everything." Impossible to maintain. Use composable, scenario-specific seeds.
+
+</AntiPattern>
+
+
+---
+
+## Interview and Revision (Layer 6)
+
+
+
+
+| # | Front | Back |
+|---|-------|------|
+| 1 | Name three test data strategies and when to use each | Inline (unit tests, simple), Builder (complex objects, many fields), Factory (reusable archetypes across classes) |
+| 2 | Why is UUID better than timestamp for parallel test data? | UUIDs are globally unique regardless of timing. Timestamps can collide at millisecond precision under parallelism |
+| 3 | What's the risk of using JavaFaker without constraints? | Faker may generate values that violate domain rules (special chars, too-long strings, reserved words) |
+| 4 | Why avoid hardcoded database IDs in test data? | IDs change when databases are recreated, migrated, or run on different environments. Tests become environment-dependent |
+| 5 | What's the difference between API seeding and DB seeding? | API seeding creates data through the app (realistic, slower, validates creation). DB seeding inserts directly (fast, bypasses validation, schema-coupled) |
+
+### Mastery Checklist
+
+- [ ] Can implement builder pattern for test data with sensible defaults and fluent API
+- [ ] Can create a factory class producing unique test users/bookings safe for parallel execution
+- [ ] Can set up data-driven tests from CSV/JSON external files
+- [ ] Can articulate tradeoffs between API seeding and DB seeding
+- [ ] Can diagnose shared-data test failures and apply isolation patterns
+
+---
+
+**Next:** Database Testing Patterns | **Related:** Test Data Management
+
+*Last updated: *

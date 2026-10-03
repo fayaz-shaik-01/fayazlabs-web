@@ -1,0 +1,450 @@
+---
+title: "Setup and First Tests — Playwright TypeScript"
+description: "What: Playwright is Microsoft's browser automation library. Unlike Selenium, which communicates with browsers over HTTP (WebDriver protocol), Playwright connects directly via the browser's DevTools protocol — giving it faster execution, built-in auto-waiting, and native support for network interception, tracing, and multi-browser testing. Tests are written in TypeScript using test and expect from @playwright/test."
+summary: "SDET Engineering guide: Setup and First Tests — Playwright TypeScript"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "web-automation"
+lesson: "playwright-typescript-setup-and-first-tests"
+difficulty: "intermediate"
+estimatedMinutes: 30
+prerequisites: []
+tags: ["SDET", "Web", "Selenium", "Playwright"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/web-automation/playwright-typescript-setup-and-first-tests"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Setup and First Tests — Playwright TypeScript
+
+> **Module:** 05 — Web Automation > Playwright TypeScript > Setup and First Tests  
+> **Prerequisites:** Language Fundamentals, Promises And Async Await, Browser And Dom Fundamentals  
+> **Mastery Target:** L2 (Guided) → L3 (Independent)
+
+---
+
+## Quick Overview (Layer 1)
+
+**What:** Playwright is Microsoft's browser automation library. Unlike Selenium, which communicates with browsers over HTTP (WebDriver protocol), Playwright connects directly via the browser's DevTools protocol — giving it faster execution, built-in auto-waiting, and native support for network interception, tracing, and multi-browser testing. Tests are written in TypeScript using `test` and `expect` from `@playwright/test`.
+
+**Why:** Coming from Selenium, Playwright solves pain points you've lived with for years. No more `WebDriverWait` everywhere — Playwright auto-waits for elements to be actionable before interacting. No more WebDriverManager version mismatches — Playwright downloads and manages its own browsers. No more flaky `StaleElementReferenceException` — Playwright's locators re-query the DOM on every action. Understanding Playwright's architecture explains *why* these problems disappear, not just that they do.
+
+**Where:** New web automation projects, especially those with TypeScript/JavaScript frontends. Teams that want built-in tracing, video recording, and parallel execution out of the box. Projects that need API testing alongside browser testing.
+
+<MentalModel>
+
+Think of Selenium as **sending letters to the browser** — each command is an HTTP request that travels to the WebDriver server, gets translated, and returns a response. Playwright is like having a **direct phone line** to the browser. It speaks the browser's native language (CDP for Chromium, equivalent protocols for Firefox/WebKit) with no translator in between. This direct connection is why Playwright is faster, why it can auto-wait (it receives real-time DOM events), and why it can intercept network requests natively.
+
+</MentalModel>
+
+
+<KeyTakeaways>
+
+1. **Auto-waiting eliminates explicit wait boilerplate** — every Playwright action waits for the element to be visible, enabled, stable, and not obscured before interacting. No `ExpectedConditions` needed.
+2. **Locators are lazy and re-evaluated** — `page.getByRole('button', { name: 'Login' })` doesn't query the DOM until an action is performed. No stale element references.
+3. **`test.describe` and `test` replace TestNG** — Playwright has its own test runner with parallel execution, retries, and HTML reporting built in.
+4. **Playwright manages its own browsers** — `npx playwright install` downloads Chromium, Firefox, and WebKit. No WebDriverManager, no version mismatches.
+5. **Traces, screenshots, and videos are built in** — configure them in `playwright.config.ts` and get rich failure diagnostics without third-party libraries.
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation (Layer 2)
+
+### Installation and Project Setup
+
+
+```bash
+# Create a new Playwright project
+npm init playwright@latest
+
+# This creates:
+# playwright.config.ts  — test configuration
+# tests/               — test files go here
+# tests/example.spec.ts — starter test
+# package.json          — with @playwright/test dependency
+
+# Install browsers (Chromium, Firefox, WebKit)
+npx playwright install
+```
+
+### playwright.config.ts — The Central Configuration
+
+
+```typescript
+import { defineConfig, devices } from '@playwright/test';
+
+export default defineConfig({
+  testDir: './tests',
+  fullyParallel: true,                      // run tests in parallel
+  forbidOnly: !!process.env.CI,             // fail CI if test.only is left in
+  retries: process.env.CI ? 2 : 0,          // retry failed tests in CI
+  workers: process.env.CI ? 1 : undefined,  // limit parallelism in CI
+  reporter: 'html',                         // generate HTML report
+
+  use: {
+    baseURL: 'http://localhost:5173',        // prepended to page.goto('/login')
+    trace: 'on-first-retry',                // capture trace on first retry
+    screenshot: 'only-on-failure',           // screenshot when test fails
+    video: 'retain-on-failure',              // video recording on failure
+  },
+
+  projects: [
+    {
+      name: 'chromium',
+      use: { ...devices['Desktop Chrome'] },
+    },
+    {
+      name: 'firefox',
+      use: { ...devices['Desktop Firefox'] },
+    },
+    {
+      name: 'webkit',
+      use: { ...devices['Desktop Safari'] },
+    },
+  ],
+});
+```
+
+**Key config options explained:**
+- `fullyParallel` — each test file and each test within a file can run in parallel. Selenium requires Grid for parallelism; Playwright does it natively.
+- `baseURL` — sets a prefix for `page.goto('/login')`. No need to repeat the full URL in every test.
+- `trace: 'on-first-retry'` — captures a trace file (DOM snapshots, network requests, screenshots at each step) when a test is retried. This is Playwright's most powerful debugging tool.
+- `projects` — run the same tests across Chromium, Firefox, and WebKit without changing test code.
+
+### Test Structure: test.describe, test, expect
+
+
+```typescript
+import { test, expect } from '@playwright/test';
+
+test.describe('Login Page', () => {
+
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/login');
+  });
+
+  test('should display login form elements', async ({ page }) => {
+    // Playwright locators — semantic, readable, resilient
+    await expect(page.getByLabel('Email')).toBeVisible();
+    await expect(page.getByLabel('Password')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Login' })).toBeEnabled();
+  });
+
+  test('should login with valid credentials', async ({ page }) => {
+    await page.getByLabel('Email').fill('user@staynest.com');
+    await page.getByLabel('Password').fill('SecurePass123!');
+    await page.getByRole('button', { name: 'Login' }).click();
+
+    // Auto-waits for URL change — no explicit wait needed
+    await expect(page).toHaveURL(/\/dashboard/);
+  });
+});
+```
+
+**What's different from Selenium:**
+- `{ page }` is destructured from test fixtures — Playwright creates a fresh browser page per test automatically. No `@BeforeMethod` driver setup.
+- Every action is `async/await` — Playwright is inherently asynchronous.
+- `expect(page).toHaveURL(/\/dashboard/)` is a web-first assertion — it auto-retries until the condition is true (or times out). No `WebDriverWait`.
+
+### Auto-Waiting and Actionability Checks
+
+When you call `page.getByRole('button', { name: 'Login' }).click()`, Playwright waits for the element to be:
+
+1. **Attached** to the DOM
+2. **Visible** (not `display: none`, `visibility: hidden`, or zero size)
+3. **Stable** (not animating — bounding box hasn't changed between two animation frames)
+4. **Enabled** (not `disabled`)
+5. **Not obscured** (no overlay element on top of it)
+6. **Ready to receive events** (ready for `click`, `fill`, etc.)
+
+This is why Playwright tests rarely need explicit waits. In Selenium, you'd write:
+
+
+```java
+// Selenium — explicit wait required
+WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
+wait.until(ExpectedConditions.elementToBeClickable(By.id("login-btn"))).click();
+```
+
+In Playwright, the equivalent is just:
+
+
+```typescript
+// Playwright — auto-waits for all actionability checks
+await page.getByRole('button', { name: 'Login' }).click();
+```
+
+### Locator Strategies in Playwright
+
+Playwright recommends semantic locators that match how users find elements:
+
+
+```typescript
+// Recommended: semantic locators (resilient to DOM changes)
+page.getByRole('button', { name: 'Login' })       // by ARIA role and accessible name
+page.getByRole('textbox', { name: 'Email' })       // input with associated label
+page.getByLabel('Password')                         // by <label> association
+page.getByText('Welcome back')                      // by visible text content
+page.getByPlaceholder('Enter your email')            // by placeholder attribute
+page.getByTestId('login-form')                       // by data-testid attribute
+
+// Lower priority: CSS/XPath (use when semantics aren't sufficient)
+page.locator('#email')                               // CSS selector
+page.locator('css=input[type="email"]')              // explicit CSS
+page.locator('xpath=//button[text()="Login"]')       // XPath
+
+// Filtering and chaining
+page.getByRole('listitem').filter({ hasText: 'Austin' })
+page.locator('.property-card').first()
+page.locator('.property-card').nth(2)
+```
+
+### Built-in Diagnostics: Screenshots, Videos, Traces
+
+Unlike Selenium where you manually implement `TakesScreenshot`, Playwright's diagnostics are configuration-driven:
+
+
+```typescript
+// In playwright.config.ts — automatic capture
+use: {
+  screenshot: 'only-on-failure',     // auto-screenshot on failure
+  video: 'retain-on-failure',        // keep video only for failures
+  trace: 'on-first-retry',           // full trace on retry
+}
+
+// In tests — manual capture when needed
+await page.screenshot({ path: 'screenshots/login-page.png', fullPage: true });
+
+// Element screenshot
+const form = page.getByTestId('login-form');
+await form.screenshot({ path: 'screenshots/login-form.png' });
+```
+
+---
+
+## Practical Implementation (Layer 3)
+
+### Complete Test File: StayNest Login Page
+
+
+```typescript
+import { test, expect } from '@playwright/test';
+
+test.describe('StayNest Login Page', () => {
+
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/login');
+    // Auto-waiting: Playwright waits for the page to reach 'load' state
+    // No explicit wait for form elements needed
+  });
+
+  test('successful login navigates to dashboard', async ({ page }) => {
+    await page.getByLabel('Email').fill('user@staynest.com');
+    await page.getByLabel('Password').fill('SecurePass123!');
+    await page.getByRole('button', { name: 'Login' }).click();
+
+    // Web-first assertion — auto-retries until URL matches
+    await expect(page).toHaveURL(/\/dashboard/);
+    await expect(page.getByRole('heading', { name: /welcome/i })).toBeVisible();
+  });
+
+  test('invalid credentials show error message', async ({ page }) => {
+    await page.getByLabel('Email').fill('wrong@email.com');
+    await page.getByLabel('Password').fill('WrongPassword!');
+    await page.getByRole('button', { name: 'Login' }).click();
+
+    // Auto-waits for error message to appear
+    const errorMessage = page.getByTestId('error-message');
+    await expect(errorMessage).toBeVisible();
+    await expect(errorMessage).toHaveText('Invalid email or password');
+  });
+
+  test('empty email prevents form submission', async ({ page }) => {
+    // Leave email empty, fill only password
+    await page.getByLabel('Password').fill('SomePassword123!');
+    await page.getByRole('button', { name: 'Login' }).click();
+
+    // Should stay on login page — form validation prevents submission
+    await expect(page).toHaveURL(/\/login/);
+
+    // Check for validation state on email input
+    const emailInput = page.getByLabel('Email');
+    await expect(emailInput).toHaveAttribute('required', '');
+  });
+
+  test('password field masks input', async ({ page }) => {
+    const passwordField = page.getByLabel('Password');
+    await passwordField.fill('SecretPassword');
+
+    await expect(passwordField).toHaveAttribute('type', 'password');
+  });
+
+  test('login page has correct structure and accessibility', async ({ page }) => {
+    // Verify page title
+    await expect(page).toHaveTitle(/StayNest/);
+
+    // Verify all expected elements using semantic locators
+    await expect(page.getByLabel('Email')).toBeVisible();
+    await expect(page.getByLabel('Password')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Login' })).toBeEnabled();
+
+    // Verify placeholder text
+    await expect(page.getByLabel('Email')).toHaveAttribute(
+      'placeholder', 'Enter your email'
+    );
+
+    // Verify signup link exists
+    await expect(page.getByRole('link', { name: /sign up/i })).toBeVisible();
+  });
+});
+```
+
+**What to notice compared to the Selenium version:**
+- No driver setup/teardown — Playwright fixtures handle it
+- No explicit waits anywhere — auto-waiting is built into every action and assertion
+- Semantic locators (`getByLabel`, `getByRole`) instead of `By.id`, `By.cssSelector`
+- Web-first assertions (`toBeVisible`, `toHaveURL`) auto-retry instead of checking once
+
+### Running Tests
+
+```bash
+# Run all tests
+npx playwright test
+
+# Run a specific file
+npx playwright test tests/login.spec.ts
+
+# Run in headed mode (see the browser)
+npx playwright test --headed
+
+# Run on a specific browser
+npx playwright test --project=firefox
+
+# Show HTML report after run
+npx playwright show-report
+```
+
+---
+
+## Failure and Debugging (Layer 4)
+
+### Failure: Locator Matches Multiple Elements
+
+**Symptom:** `Error: strict mode violation: getByRole('button') resolved to 3 elements`
+
+**Root Cause:** Playwright locators are strict by default — if a locator matches multiple elements, the action fails rather than silently picking the first one (which Selenium does).
+
+
+```typescript
+// BROKEN: matches all buttons on the page
+await page.getByRole('button').click(); // strict mode violation!
+
+// FIXED: narrow the locator with name or filter
+await page.getByRole('button', { name: 'Login' }).click();
+
+// ALTERNATIVE: use first() if you intentionally want the first match
+await page.getByRole('button').first().click();
+```
+
+**Why this is better than Selenium's behavior:** Selenium's `findElement` silently returns the first match. If a developer adds another button above your target, your test clicks the wrong button and passes — a false positive. Playwright's strict mode catches this immediately.
+
+### Failure: Test Passes Locally but Fails in CI
+
+**Symptom:** `Timeout waiting for element to be visible` in CI, passes locally.
+
+**Root Cause:** CI machines are slower. Playwright's default timeout is 30 seconds for actions, which is usually enough, but `page.goto()` might time out if the dev server is slow to start.
+
+
+```typescript
+// Fix 1: increase navigation timeout in config
+use: {
+  navigationTimeout: 60000,   // 60 seconds for page.goto()
+  actionTimeout: 15000,       // 15 seconds for click, fill, etc.
+}
+
+// Fix 2: wait for the dev server to be ready before running tests
+// In playwright.config.ts:
+webServer: {
+  command: 'npm run dev',
+  url: 'http://localhost:5173',
+  reuseExistingServer: !process.env.CI,
+  timeout: 120000,  // wait up to 2 minutes for server
+},
+```
+
+---
+
+## Engineering Judgment (Layer 5)
+
+### Playwright vs Selenium: When Each Wins
+
+| Factor | Playwright | Selenium |
+|---|---|---|
+| Auto-waiting | Built in — rarely need explicit waits | Manual — WebDriverWait everywhere |
+| Browser management | Downloads its own browsers | Needs WebDriverManager or Selenium Manager |
+| Parallel execution | Built in (workers config) | Requires Grid or TestNG parallel |
+| Language support | TS/JS (primary), Python, Java, C# | Java, Python, JS, C#, Ruby, Kotlin |
+| Ecosystem maturity | Newer (2020), growing fast | Established (2004), massive ecosystem |
+| Network interception | Native `page.route()` | Requires CDP or proxy |
+| Team skills | TypeScript/async knowledge needed | Java teams already know Selenium |
+
+**Choose Playwright when:** starting a new project with a TypeScript team, you need built-in tracing/video, you want auto-waiting out of the box, or you need network interception for API mocking.
+
+**Choose Selenium when:** your team is Java-centric, you have an existing Selenium suite to maintain, you need broad language support, or you're integrating with Java-specific tools (TestNG, Allure, Spring).
+
+---
+
+## Interview and Revision (Layer 6)
+
+### Fundamental Questions
+
+**Q1: How does Playwright's auto-waiting work?**
+
+**A:** Every Playwright action (click, fill, check) performs actionability checks before executing. It waits for the element to be attached to the DOM, visible, stable (not animating), enabled, and not obscured by another element. It retries these checks on every animation frame until the action timeout. This eliminates the need for explicit waits that Selenium requires. Web-first assertions like `toBeVisible()` also auto-retry until the condition is true or the timeout expires.
+
+**Q2: What's the difference between Playwright locators and Selenium's `findElement`?**
+
+**A:** Three key differences. First, Playwright locators are **lazy** — they don't query the DOM when created, only when an action is performed. Selenium's `findElement` queries immediately and returns a WebElement reference. Second, Playwright locators **re-query** on every action — no stale element references. Selenium's WebElement can go stale if the DOM changes. Third, Playwright locators are **strict** — they fail if multiple elements match, preventing silent false positives.
+
+**Q3: How does Playwright's Trace Viewer help debug test failures?**
+
+**A:** A trace captures a timeline of every action, network request, DOM snapshot, and console log during a test. When a test fails, you open the trace in Trace Viewer (`npx playwright show-trace trace.zip`) and step through the test like a debugger — seeing exactly what the page looked like at each step, what network requests were made, and where the failure occurred. It's far more powerful than a screenshot because it shows the full context leading up to the failure.
+
+
+
+
+| # | Front (Question) | Back (Answer) |
+|---|---|---|
+| 1 | What actionability checks does Playwright perform before clicking? | Attached to DOM, visible, stable (not animating), enabled, not obscured by another element. It retries these checks until the action timeout. |
+| 2 | What does `page.getByRole('button', { name: 'Login' })` do? | Creates a lazy locator that finds a button element with the accessible name "Login". It doesn't query the DOM until an action (click, fill) is called on it. |
+| 3 | What is `trace: 'on-first-retry'` in Playwright config? | Captures a full trace (DOM snapshots, network, console, screenshots per step) only when a test is retried after failure. Enables rich post-mortem debugging via Trace Viewer. |
+| 4 | How does Playwright handle parallel execution? | Built into the test runner via the `workers` config. Tests run in separate worker processes with isolated browser contexts. No Grid or external infrastructure needed. |
+| 5 | What is Playwright's strict mode? | Locators fail if they match multiple elements instead of silently picking the first one. This prevents false positives from ambiguous locators. Use `.first()` or narrow the locator to resolve. |
+
+### Mastery Checklist
+
+- [ ] Can set up a Playwright project and configure `playwright.config.ts`
+- [ ] Can write tests using `test.describe`, `test`, and `expect` with async/await
+- [ ] Can explain Playwright's auto-waiting and how it differs from Selenium's explicit waits
+- [ ] Can use semantic locators: `getByRole`, `getByLabel`, `getByText`, `getByTestId`
+- [ ] Can configure screenshots, videos, and traces for failure diagnostics
+- [ ] Can run tests across multiple browsers using projects configuration
+- [ ] Can articulate when Playwright is a better choice than Selenium and vice versa
+
+---
+
+**Next:** Fixtures And Page Objects | **Related:** Browser And Dom Fundamentals, Locator Strategy
+
+*Last updated: *

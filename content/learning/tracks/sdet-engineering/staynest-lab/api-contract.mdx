@@ -1,0 +1,461 @@
+---
+title: "StayNest - API Contract"
+description: "Base URL: http://localhost:8080/api/v1"
+summary: "SDET Engineering guide: StayNest - API Contract"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "staynest-lab"
+lesson: "api-contract"
+difficulty: "beginner"
+estimatedMinutes: 30
+prerequisites: []
+tags: ["SDET", "StayNest", "Hands-on"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "reference"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/staynest-lab/api-contract"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# StayNest - API Contract
+
+**Base URL**: `http://localhost:8080/api/v1`
+
+**Swagger UI**: `http://localhost:8080/api/v1/swagger-ui.html` (available when the backend is running)
+
+All responses are wrapped in an `ApiResponse` envelope:
+```json
+{
+  "timeStamp": "2024-01-15T10:30:00",
+  "data": { ... },
+  "error": null
+}
+```
+
+---
+
+## Authentication
+
+Public endpoints -- no token required.
+
+### POST /auth/signup
+
+Create a new user account.
+
+| Field | Details |
+| ----- | ------- |
+| **Auth** | None |
+| **Request Body** | `{ "email": "user@example.com", "password": "pass123", "name": "John Doe", "roles": ["GUEST"] }` |
+| **Required Fields** | `email` (valid format), `password` (min 6 chars), `name` (not blank) |
+| **Optional Fields** | `roles` (defaults to `["GUEST"]` if omitted; can be `["HOTEL_MANAGER"]`) |
+| **Success** | `201 Created` -- returns `UserDto { id, email, name, gender, dateOfBirth }` |
+| **Errors** | `400` -- validation failure, `500` -- duplicate email |
+
+### POST /auth/login
+
+Authenticate and receive tokens.
+
+| Field | Details |
+| ----- | ------- |
+| **Auth** | None |
+| **Request Body** | `{ "email": "user@example.com", "password": "pass123" }` |
+| **Success** | `200 OK` -- returns `{ "accessToken": "<jwt>" }`. Also sets `refreshToken` as HttpOnly cookie. |
+| **Errors** | `401` -- invalid credentials |
+
+**JWT claims in access token:**
+- `sub` -- user ID (as string)
+- `email` -- user email
+- `roles` -- user roles (as string)
+- `iat` -- issued at
+- `exp` -- expires at (iat + 10 minutes)
+
+### POST /auth/refresh
+
+Refresh an expired access token.
+
+| Field | Details |
+| ----- | ------- |
+| **Auth** | None (uses cookie) |
+| **Required** | `refreshToken` cookie must be present |
+| **Success** | `200 OK` -- returns `{ "accessToken": "<new-jwt>" }` |
+| **Errors** | `401` -- missing or invalid refresh token |
+
+---
+
+## Hotel Browse (Public)
+
+Search and view hotels. No authentication required.
+
+### POST /hotels/search
+
+Search for available hotels.
+
+| Field | Details |
+| ----- | ------- |
+| **Auth** | None |
+| **Request Body** | `{ "city": "New York", "startDate": "2025-03-01", "endDate": "2025-03-05", "roomsCount": 1, "page": 0, "size": 10 }` |
+| **Required Fields** | `city` (not blank), `startDate` (today or future), `endDate` (today or future), `roomsCount` (min 1) |
+| **Optional Fields** | `page` (default 0), `size` (default 10) |
+| **Success** | `200 OK` -- returns paginated `Page<HotelPriceResponseDto>` |
+| **Response Shape** | `{ "content": [{ "id", "name", "city", "photos", "amenities", "contactInfo", "active", "price" }], "totalElements", "totalPages", "number", "size" }` |
+| **Errors** | `400` -- validation failure |
+
+### GET /hotels/{'{'}hotelId{'}'}/info?startDate=...&endDate=...&roomsCount=...
+
+Get detailed hotel info with room pricing for a date range.
+
+| Field | Details |
+| ----- | ------- |
+| **Auth** | None |
+| **Path Params** | `hotelId` (Long) |
+| **Query Params** | `startDate` (LocalDate), `endDate` (LocalDate), `roomsCount` (Long) |
+| **Success** | `200 OK` -- returns `HotelInfoDto` with hotel details and room pricing |
+| **Errors** | `404` -- hotel not found |
+
+---
+
+## Hotel Admin
+
+All endpoints require `ROLE_HOTEL_MANAGER`. Prefix: `/admin/hotels`.
+
+### POST /admin/hotels
+
+Create a new hotel.
+
+| Field | Details |
+| ----- | ------- |
+| **Auth** | Bearer token (HOTEL_MANAGER) |
+| **Request Body** | `{ "name": "Grand Hotel", "city": "New York", "photos": [...], "amenities": [...], "contactInfo": { "address": "...", "phoneNumber": "...", "email": "...", "location": "..." } }` |
+| **Success** | `201 Created` -- returns `HotelDto` |
+| **Errors** | `403` -- wrong role, `401` -- no token |
+
+### GET /admin/hotels
+
+Get all hotels owned by the authenticated manager.
+
+| Field | Details |
+| ----- | ------- |
+| **Auth** | Bearer token (HOTEL_MANAGER) |
+| **Success** | `200 OK` -- returns `List<HotelDto>` |
+
+### GET /admin/hotels/{'{'}hotelId{'}'}
+
+Get a specific hotel by ID.
+
+| Field | Details |
+| ----- | ------- |
+| **Auth** | Bearer token (HOTEL_MANAGER) |
+| **Success** | `200 OK` -- returns `HotelDto` |
+| **Errors** | `404` -- not found |
+
+### PUT /admin/hotels/{'{'}hotelId{'}'}
+
+Update a hotel.
+
+| Field | Details |
+| ----- | ------- |
+| **Auth** | Bearer token (HOTEL_MANAGER) |
+| **Request Body** | `HotelDto` (same as create) |
+| **Success** | `200 OK` -- returns updated `HotelDto` |
+| **Errors** | `404` -- not found, `403` -- not owner |
+
+### DELETE /admin/hotels/{'{'}hotelId{'}'}
+
+Delete a hotel.
+
+| Field | Details |
+| ----- | ------- |
+| **Auth** | Bearer token (HOTEL_MANAGER) |
+| **Success** | `204 No Content` |
+| **Errors** | `404` -- not found |
+
+### PATCH /admin/hotels/{'{'}hotelId{'}'}/activate
+
+Activate a hotel (makes it visible in search results).
+
+| Field | Details |
+| ----- | ------- |
+| **Auth** | Bearer token (HOTEL_MANAGER) |
+| **Success** | `204 No Content` |
+| **Errors** | `404` -- not found |
+
+### GET /admin/hotels/{'{'}hotelId{'}'}/bookings
+
+Get all bookings for a hotel.
+
+| Field | Details |
+| ----- | ------- |
+| **Auth** | Bearer token (HOTEL_MANAGER, must be hotel owner) |
+| **Success** | `200 OK` -- returns `List<BookingDto>` |
+| **Errors** | `404` -- hotel not found, `403` -- not owner |
+
+### GET /admin/hotels/{'{'}hotelId{'}'}/reports?startDate=...&endDate=...
+
+Generate a bookings report for a hotel.
+
+| Field | Details |
+| ----- | ------- |
+| **Auth** | Bearer token (HOTEL_MANAGER, must be hotel owner) |
+| **Query Params** | `startDate` (optional, defaults to 1 month ago), `endDate` (optional, defaults to today) |
+| **Success** | `200 OK` -- returns `{ "totalConfirmedBookings", "totalRevenueOfConfirmedBookings", "avgRevenue" }` |
+| **Errors** | `404` -- hotel not found, `403` -- not owner |
+
+---
+
+## Room Admin
+
+All endpoints require `ROLE_HOTEL_MANAGER`. Prefix: `/admin/hotels/{hotelId}/rooms`.
+
+### POST /admin/hotels/{'{'}hotelId{'}'}/rooms
+
+Create a new room in a hotel.
+
+| Field | Details |
+| ----- | ------- |
+| **Auth** | Bearer token (HOTEL_MANAGER) |
+| **Request Body** | `{ "type": "DELUXE", "basePrice": 150.00, "photos": [...], "amenities": [...], "totalCount": 10, "capacity": 2 }` |
+| **Success** | `201 Created` -- returns `RoomDto`. Inventory auto-generated for 1 year. |
+| **Errors** | `404` -- hotel not found, `403` -- not owner |
+
+### GET /admin/hotels/{'{'}hotelId{'}'}/rooms
+
+Get all rooms in a hotel.
+
+| Field | Details |
+| ----- | ------- |
+| **Auth** | Bearer token (HOTEL_MANAGER) |
+| **Success** | `200 OK` -- returns `List<RoomDto>` |
+
+### GET /admin/hotels/{'{'}hotelId{'}'}/rooms/{'{'}roomId{'}'}
+
+Get a specific room.
+
+| Field | Details |
+| ----- | ------- |
+| **Auth** | Bearer token (HOTEL_MANAGER) |
+| **Success** | `200 OK` -- returns `RoomDto { id, type, basePrice, photos, amenities, totalCount, capacity }` |
+| **Errors** | `404` -- not found |
+
+### PUT /admin/hotels/{'{'}hotelId{'}'}/rooms/{'{'}roomId{'}'}
+
+Update a room.
+
+| Field | Details |
+| ----- | ------- |
+| **Auth** | Bearer token (HOTEL_MANAGER) |
+| **Request Body** | `RoomDto` (same as create) |
+| **Success** | `200 OK` -- returns updated `RoomDto` |
+
+### DELETE /admin/hotels/{'{'}hotelId{'}'}/rooms/{'{'}roomId{'}'}
+
+Delete a room and its inventory.
+
+| Field | Details |
+| ----- | ------- |
+| **Auth** | Bearer token (HOTEL_MANAGER) |
+| **Success** | `204 No Content` |
+
+---
+
+## Inventory Admin
+
+All endpoints require `ROLE_HOTEL_MANAGER`. Prefix: `/admin/inventory`.
+
+### GET /admin/inventory/rooms/{'{'}roomId{'}'}
+
+Get all inventory records for a room.
+
+| Field | Details |
+| ----- | ------- |
+| **Auth** | Bearer token (HOTEL_MANAGER, must own the room's hotel) |
+| **Success** | `200 OK` -- returns `List<InventoryDto>` ordered by date |
+| **Errors** | `404` -- room not found, `403` -- not owner |
+
+### PATCH /admin/inventory/rooms/{'{'}roomId{'}'}
+
+Update inventory for a date range.
+
+| Field | Details |
+| ----- | ------- |
+| **Auth** | Bearer token (HOTEL_MANAGER, must own the room's hotel) |
+| **Request Body** | `{ "startDate": "2025-03-01", "endDate": "2025-03-15", "surgeFactor": 1.5, "closed": false }` |
+| **Success** | `204 No Content` |
+| **Errors** | `404` -- room not found, `403` -- not owner |
+
+---
+
+## Bookings
+
+All endpoints require authentication (any role). Prefix: `/bookings`.
+
+### POST /bookings/init
+
+Initiate a new booking (reserve rooms).
+
+| Field | Details |
+| ----- | ------- |
+| **Auth** | Bearer token (any authenticated user) |
+| **Request Body** | `{ "hotelId": 1, "roomId": 1, "checkInDate": "2025-03-01", "checkOutDate": "2025-03-05", "roomsCount": 1 }` |
+| **Required Fields** | All fields required. `checkInDate` and `checkOutDate` must be today or future. `roomsCount` >= 1. |
+| **Success** | `200 OK` -- returns `BookingDto` with status `RESERVED` |
+| **Errors** | `400` -- validation, `404` -- hotel/room not found, `409` -- no inventory available |
+
+### POST /bookings/{'{'}bookingId{'}'}/addGuests
+
+Add guest IDs to a booking.
+
+| Field | Details |
+| ----- | ------- |
+| **Auth** | Bearer token (must be booking owner) |
+| **Request Body** | `[1, 2, 3]` (list of guest IDs) |
+| **Success** | `200 OK` -- returns `BookingDto` with status `GUESTS_ADDED` |
+| **Errors** | `404` -- booking/guest not found, `403` -- not owner, `409` -- not RESERVED status or expired |
+
+### POST /bookings/{'{'}bookingId{'}'}/payments
+
+Initiate payment for a booking.
+
+| Field | Details |
+| ----- | ------- |
+| **Auth** | Bearer token (must be booking owner) |
+| **Success** | `200 OK` -- returns `{ "sessionUrl": "<stripe-checkout-url-or-MOCK_PAYMENT_SUCCESS>" }` |
+| **Errors** | `404` -- not found, `403` -- not owner, `409` -- expired |
+
+**Mock mode**: When Stripe key is placeholder, returns `"MOCK_PAYMENT_SUCCESS"` and auto-confirms the booking.
+
+### POST /bookings/{'{'}bookingId{'}'}/cancel
+
+Cancel a confirmed booking.
+
+| Field | Details |
+| ----- | ------- |
+| **Auth** | Bearer token (must be booking owner) |
+| **Success** | `204 No Content` |
+| **Errors** | `404` -- not found, `403` -- not owner, `409` -- not CONFIRMED status |
+
+### GET /bookings/{'{'}bookingId{'}'}/status
+
+Check booking status.
+
+| Field | Details |
+| ----- | ------- |
+| **Auth** | Bearer token (must be booking owner) |
+| **Success** | `200 OK` -- returns `{ "bookingStatus": "CONFIRMED" }` |
+| **Errors** | `404` -- not found, `403` -- not owner |
+
+---
+
+## User Profile
+
+All endpoints require authentication. Prefix: `/users`.
+
+### GET /users/profile
+
+Get the authenticated user's profile.
+
+| Field | Details |
+| ----- | ------- |
+| **Auth** | Bearer token |
+| **Success** | `200 OK` -- returns `UserDto { id, email, name, gender, dateOfBirth }` |
+
+### PATCH /users/profile
+
+Update profile information.
+
+| Field | Details |
+| ----- | ------- |
+| **Auth** | Bearer token |
+| **Request Body** | `{ "name": "New Name", "dateOfBirth": "1990-01-01", "gender": "MALE" }` |
+| **Success** | `204 No Content` |
+
+### GET /users/myBookings
+
+Get all bookings for the authenticated user.
+
+| Field | Details |
+| ----- | ------- |
+| **Auth** | Bearer token |
+| **Success** | `200 OK` -- returns `List<BookingDto>` |
+
+---
+
+## Guest Management
+
+All endpoints require authentication. Prefix: `/users/guests`.
+
+### GET /users/guests
+
+Get all guests belonging to the authenticated user.
+
+| Field | Details |
+| ----- | ------- |
+| **Auth** | Bearer token |
+| **Success** | `200 OK` -- returns `List<GuestDto { id, name, gender, dateOfBirth }>` |
+
+### POST /users/guests
+
+Add a new guest.
+
+| Field | Details |
+| ----- | ------- |
+| **Auth** | Bearer token |
+| **Request Body** | `{ "name": "Jane Doe", "gender": "FEMALE", "dateOfBirth": "1990-05-15" }` |
+| **Success** | `201 Created` -- returns `GuestDto` |
+
+### PUT /users/guests/{'{'}guestId{'}'}
+
+Update a guest.
+
+| Field | Details |
+| ----- | ------- |
+| **Auth** | Bearer token |
+| **Request Body** | `GuestDto` |
+| **Success** | `204 No Content` |
+
+### DELETE /users/guests/{'{'}guestId{'}'}
+
+Remove a guest.
+
+| Field | Details |
+| ----- | ------- |
+| **Auth** | Bearer token |
+| **Success** | `204 No Content` |
+
+---
+
+## Webhook
+
+### POST /webhook/payment
+
+Stripe payment webhook endpoint.
+
+| Field | Details |
+| ----- | ------- |
+| **Auth** | Stripe signature verification (not JWT) |
+| **Request Body** | Raw Stripe event payload |
+| **Headers** | `Stripe-Signature` header required |
+| **Success** | `204 No Content` |
+| **Trigger** | On `checkout.session.completed` event, confirms the booking and updates inventory |
+
+---
+
+## Common HTTP Status Codes
+
+| Code | Meaning                        | When It Happens                                     |
+| ---- | ------------------------------ | --------------------------------------------------- |
+| 200  | OK                             | Successful read or update                           |
+| 201  | Created                        | Successful resource creation (signup, hotel, room, guest) |
+| 204  | No Content                     | Successful delete, activate, profile update, cancel |
+| 400  | Bad Request                    | Validation failure (missing/invalid fields)         |
+| 401  | Unauthorized                   | Missing token, invalid token, wrong credentials     |
+| 403  | Forbidden                      | Wrong role or accessing another user's resource      |
+| 404  | Not Found                      | Resource does not exist                             |
+| 409  | Conflict                       | Business rule violation (no inventory, wrong status) |
+| 500  | Internal Server Error          | Unexpected error, duplicate email on signup          |

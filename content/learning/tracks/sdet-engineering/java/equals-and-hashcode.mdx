@@ -1,0 +1,345 @@
+---
+title: "equals() and hashCode()"
+description: "What: equals() defines logical equality between objects. hashCode() returns an integer used by hash-based collections (HashMap, HashSet) to efficiently locate objects."
+summary: "SDET Engineering guide: equals() and hashCode()"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "java"
+lesson: "equals-and-hashcode"
+difficulty: "beginner"
+estimatedMinutes: 30
+prerequisites: []
+tags: ["SDET", "Java", "Programming"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/java/equals-and-hashcode"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# equals() and hashCode()
+
+> **Module:** 01-programming-foundations / java
+> **Prerequisites:** Oop Fundamentals, Collections And Generics
+> **Mastery Target:** L3
+
+---
+
+## Quick Overview (2-minute read)
+
+**What:** `equals()` defines logical equality between objects. `hashCode()` returns an integer used by hash-based collections (HashMap, HashSet) to efficiently locate objects.
+
+**Why:** If you ever put custom objects into a Set, use them as Map keys, or compare test results/entities in assertions, you need to understand this contract. Breaking it causes subtle, hard-to-debug failures where objects "disappear" from collections.
+
+**Where:** Test data comparison, assertion logic, deduplication, entity comparison in API testing (comparing expected vs actual response objects).
+
+<MentalModel>
+
+Think of `hashCode()` as a **filing cabinet drawer number** and `equals()` as **reading the full document to confirm identity**. When you search for a document:
+1. First, go to the right drawer (`hashCode()` → bucket).
+2. Then, compare each document in that drawer (`equals()`) to find the exact match.
+
+</MentalModel>
+
+
+If two identical documents are filed in different drawers (inconsistent hashCode), you'll never find one by looking in the other's drawer.
+
+<KeyTakeaways>
+
+1. **The contract:** If `a.equals(b)` is `true`, then `a.hashCode() == b.hashCode()` MUST be `true`.
+2. The reverse is NOT required: objects with the same hashCode don't have to be equal (hash collisions are allowed).
+3. **Always override both together.** Overriding only one breaks HashMap/HashSet behavior.
+4. Use `Objects.equals()` for null-safe comparison. Use `Objects.hash()` for convenient hashCode generation.
+5. IDE-generated equals/hashCode is usually correct — understand what it generates and why.
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation
+
+### The Object.equals() Default
+
+By default, `Object.equals()` uses `==` — it checks if two references point to the same object in memory.
+
+
+```java
+User user1 = new User("alice@test.com", "Alice");
+User user2 = new User("alice@test.com", "Alice");
+
+System.out.println(user1 == user2);      // false — different objects in memory
+System.out.println(user1.equals(user2));  // false — default equals() uses ==
+```
+
+This is usually wrong for domain objects. Two Users with the same email should be considered equal for testing purposes.
+
+### The equals() Contract (from Javadoc)
+
+`equals()` must be:
+- **Reflexive:** `x.equals(x)` → true
+- **Symmetric:** `x.equals(y)` → true implies `y.equals(x)` → true
+- **Transitive:** `x.equals(y)` and `y.equals(z)` → `x.equals(z)` must be true
+- **Consistent:** Multiple calls return the same result (if objects haven't changed)
+- **Null-safe:** `x.equals(null)` → false (never throws NPE)
+
+### Implementing equals() Correctly
+
+
+```java
+public class TestUser {
+    private final String email;
+    private final String name;
+    private final String role;
+
+    // Constructor omitted for brevity
+
+    @Override
+    public boolean equals(Object o) {
+        // 1. Same reference — fast path
+        if (this == o) return true;
+
+        // 2. Null check and type check (also handles null)
+        if (o == null || getClass() != o.getClass()) return false;
+
+        // 3. Cast and compare fields
+        TestUser that = (TestUser) o;
+        return Objects.equals(email, that.email)
+            && Objects.equals(name, that.name)
+            && Objects.equals(role, that.role);
+    }
+}
+```
+
+**Why `getClass()` instead of `instanceof`?**
+- `getClass()` ensures symmetry: if `User.equals(AdminUser)` returns true, then `AdminUser.equals(User)` must also return true. With `instanceof`, a subclass might pass the check in one direction but not the other.
+- Exception: when the class is `final` or you explicitly design for subclass equality, `instanceof` is safe.
+
+### Implementing hashCode() Correctly
+
+
+```java
+@Override
+public int hashCode() {
+    return Objects.hash(email, name, role);
+}
+```
+
+`Objects.hash()` combines the hash codes of all fields used in `equals()`. The rule is simple: **every field used in equals() must be used in hashCode()**.
+
+You CAN use fewer fields in hashCode (more collisions, but still correct). You CANNOT use fields in hashCode that are NOT in equals (breaks the contract).
+
+### What Breaks When You Get It Wrong
+
+#### Scenario 1: Override equals() but not hashCode()
+
+
+```java
+// TestUser overrides equals() to compare by email
+// But does NOT override hashCode()
+
+Set<TestUser> users = new HashSet<>();
+TestUser user1 = new TestUser("alice@test.com");
+users.add(user1);
+
+TestUser user2 = new TestUser("alice@test.com");  // Same email
+System.out.println(user1.equals(user2));  // true — our equals works!
+System.out.println(users.contains(user2)); // FALSE — different hashCode, wrong bucket!
+```
+
+**Why:** `user2` has a different default `hashCode()` (based on memory address), so HashSet looks in a different bucket and never finds `user1`.
+
+#### Scenario 2: Mutable fields in hashCode
+
+
+```java
+TestUser user = new TestUser("alice@test.com");
+Set<TestUser> users = new HashSet<>();
+users.add(user);  // Stored in bucket based on "alice@test.com".hashCode()
+
+user.setEmail("bob@test.com");  // hashCode changes!
+System.out.println(users.contains(user));  // FALSE — looks in wrong bucket
+// The object is IN the set but can't be found!
+```
+
+<BestPractice>
+
+**Prevention:** Use immutable fields for equals/hashCode, or avoid mutating objects stored in hash-based collections.
+
+</BestPractice>
+
+
+### Records (Java 16+)
+
+Records automatically generate correct `equals()`, `hashCode()`, and `toString()` based on all components:
+
+
+```java
+public record TestUser(String email, String name, String role) {}
+
+// Automatically gets:
+// - equals() comparing all three fields
+// - hashCode() based on all three fields
+// - toString() with all fields
+// - Constructor, getters (email(), name(), role())
+
+TestUser u1 = new TestUser("alice@test.com", "Alice", "GUEST");
+TestUser u2 = new TestUser("alice@test.com", "Alice", "GUEST");
+System.out.println(u1.equals(u2));  // true
+System.out.println(u1.hashCode() == u2.hashCode());  // true
+```
+
+**When to use records:** Immutable data carriers — DTOs, test data objects, configuration values. Perfect for automation.
+
+---
+
+## Practical Implementation
+
+### Example: Comparing API Response Objects in Tests
+
+
+```java
+/**
+ * Represents a booking from the API response.
+ * Used in assertions: assertEquals(expectedBooking, actualBooking)
+ */
+public class BookingResponse {
+    private final Long id;
+    private final String hotelName;
+    private final String checkIn;
+    private final String checkOut;
+    private final int guestCount;
+    private final String status;
+    private final double totalPrice;
+
+    // Constructor omitted
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        BookingResponse that = (BookingResponse) o;
+        // Note: we compare id for exact match, or could skip it for "logical" equality
+        return guestCount == that.guestCount
+            && Double.compare(that.totalPrice, totalPrice) == 0
+            && Objects.equals(id, that.id)
+            && Objects.equals(hotelName, that.hotelName)
+            && Objects.equals(checkIn, that.checkIn)
+            && Objects.equals(checkOut, that.checkOut)
+            && Objects.equals(status, that.status);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id, hotelName, checkIn, checkOut, guestCount, status, totalPrice);
+    }
+
+    @Override
+    public String toString() {
+        // Always override toString for readable test failure messages
+        return String.format("BookingResponse{id=%d, hotel='%s', checkIn='%s', checkOut='%s', " +
+            "guests=%d, status='%s', total=%.2f}",
+            id, hotelName, checkIn, checkOut, guestCount, status, totalPrice);
+    }
+}
+```
+
+**Why this matters for testing:** When a test asserts `assertEquals(expected, actual)`, the framework calls `equals()`. Without a proper implementation, it compares memory addresses and always fails. A good `toString()` makes failure messages readable.
+
+### Double Comparison Pitfall
+
+
+```java
+// BAD — floating point comparison
+totalPrice == that.totalPrice  // 19.999999999 != 20.0
+
+// GOOD — use Double.compare (handles NaN and precision correctly)
+Double.compare(that.totalPrice, totalPrice) == 0
+
+// BETTER for test assertions — use delta
+Math.abs(totalPrice - that.totalPrice) < 0.01
+```
+
+---
+
+## Failure and Debugging
+
+### Debugging "Object Not Found in Collection"
+
+**Symptom:** `set.contains(object)` returns false even though you can see the object in the debugger.
+
+**Diagnostic steps:**
+1. Check if `equals()` is overridden: `object.getClass().getMethod("equals", Object.class).getDeclaringClass()` — if it says `java.lang.Object`, equals isn't overridden.
+2. Check if `hashCode()` is overridden similarly.
+3. Check if both use the same fields.
+4. Check if any field was mutated after insertion into the collection.
+
+**Root cause (most common):** Either `equals()` or `hashCode()` is not overridden, or they use different fields.
+
+---
+
+## Engineering Judgment
+
+### When to Override equals/hashCode
+
+| Scenario | Override? | Reason |
+|---|---|---|
+| Domain objects compared in assertions | Yes | assertEquals needs logical equality |
+| Objects used as Map keys or Set elements | Yes | HashMap/HashSet depend on the contract |
+| Utility classes (page objects, drivers) | No | Identity comparison (==) is correct |
+| DTOs for API responses | Yes, or use Records | Need to compare response data |
+| Enum values | No | Enums already have correct equals (==) |
+
+### Prefer Records for Data Objects
+
+If you're on Java 16+, use Records for all test data, DTOs, and configuration objects. You get correct equals/hashCode/toString for free, plus immutability.
+
+---
+
+## Interview and Revision
+
+### Questions
+
+**Q1: What happens if you override equals() but not hashCode()?**
+A: Objects that are logically equal will have different hash codes. They'll be stored in different HashMap/HashSet buckets, making lookups fail. This violates the contract: equal objects MUST have equal hash codes.
+
+**Q2: Can two unequal objects have the same hashCode?**
+A: Yes — this is called a hash collision. It's allowed by the contract. The collection will use equals() to distinguish them within the same bucket. Good hash functions minimize collisions but can't eliminate them.
+
+**Q3: Why should fields used in equals/hashCode be immutable?**
+A: If a field changes after the object is stored in a HashSet/HashMap, the hashCode changes but the object is still in the old bucket. The collection can't find it anymore — it's effectively lost.
+
+**Q4: What's the advantage of Records for equals/hashCode?**
+A: Records auto-generate correct equals() (compares all components), hashCode() (hashes all components), and toString() (prints all components). They're immutable by default. Less boilerplate, fewer bugs.
+
+
+
+
+**Q:** The equals/hashCode contract in one sentence?
+**A:** If two objects are equal via equals(), they MUST return the same hashCode(). The reverse is not required.
+
+**Q:** What does `Objects.hash(a, b, c)` do?
+**A:** Combines the hash codes of a, b, and c into a single hash code using a standard algorithm. Use it in hashCode() overrides.
+
+**Q:** Why use `Double.compare()` instead of `==` for doubles?
+**A:** `==` has floating-point precision issues and doesn't handle NaN correctly. `Double.compare()` provides proper ordering and NaN handling.
+
+### Mastery Checklist
+
+- [ ] Can explain the equals/hashCode contract
+- [ ] Can implement both correctly for a domain object
+- [ ] Can diagnose "object not found in Set" caused by contract violation
+- [ ] Can explain why mutable keys break HashMap
+- [ ] Know when to use Records instead of manual implementation
+- [ ] Can explain the difference between getClass() and instanceof in equals()
+
+---
+
+**Next:** Exception Handling | **Related:** Oop Fundamentals, Collections And Generics

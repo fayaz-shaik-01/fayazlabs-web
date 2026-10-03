@@ -1,0 +1,730 @@
+---
+title: "StayNest Lab 1: API Smoke Test Suite"
+description: "Goal: Write your first automated tests against the StayNest API — a real Spring Boot 3.4 backend running on http://localhost:8080/api/v1."
+summary: "SDET Engineering guide: StayNest Lab 1: API Smoke Test Suite"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "staynest-lab"
+lesson: "first-lab"
+difficulty: "beginner"
+estimatedMinutes: 47
+prerequisites: []
+tags: ["SDET", "StayNest", "Hands-on"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "lab"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/staynest-lab/first-lab"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# StayNest Lab 1: API Smoke Test Suite
+
+> **Module:** 11 — StayNest Lab
+> **Prerequisites:** System Under Test, Api Contract, Requirements And Business Rules
+> **Estimated Time:** 2-3 hours
+> **Difficulty:** Beginner
+
+---
+
+## Overview
+
+**Goal:** Write your first automated tests against the StayNest API — a real Spring Boot 3.4 backend running on `http://localhost:8080/api/v1`.
+
+**What you'll learn:**
+- REST Assured fundamentals — sending requests, extracting responses, asserting status codes and body fields
+- How to structure API tests with a reusable base class
+- Test data setup strategies that make tests repeatable without manual cleanup
+- Tracing every test back to a documented business rule
+
+**Why this lab matters:** API tests are the highest-leverage tests you can write. They validate business logic without UI complexity, run in milliseconds, and catch the majority of regressions. By the end of this lab, you'll have five passing tests that cover the two most critical flows in any application: signup and login.
+
+**Duration:** 2-3 hours (including setup and reading time)
+
+**Prerequisites:**
+- [ ] Java 21 JDK installed
+- [ ] Maven 3.9+ installed (or use the `mvnw` wrapper)
+- [ ] StayNest backend running locally (see System Under Test for setup instructions)
+- [ ] Verify the backend is up: `curl http://localhost:8080/api/v1/auth/signup` should return a response (even a 400 is fine — it means the server is alive)
+
+---
+
+## Setup
+
+### 1. Create the Project
+
+Create a new Maven project for your API tests. This project is independent of the StayNest backend — it sits outside the backend repository and communicates with it over HTTP.
+
+Create a directory called `staynest-api-tests` and add the following `pom.xml`:
+
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+         http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>com.staynest</groupId>
+    <artifactId>staynest-api-tests</artifactId>
+    <version>1.0-SNAPSHOT</version>
+
+    <properties>
+        <maven.compiler.source>21</maven.compiler.source>
+        <maven.compiler.target>21</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <rest-assured.version>5.4.0</rest-assured.version>
+        <testng.version>7.9.0</testng.version>
+        <jackson.version>2.17.0</jackson.version>
+    </properties>
+
+    <dependencies>
+        <!-- REST Assured — the core HTTP client for API testing -->
+        <dependency>
+            <groupId>io.rest-assured</groupId>
+            <artifactId>rest-assured</artifactId>
+            <version>${rest-assured.version}</version>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- TestNG — test runner and assertions -->
+        <dependency>
+            <groupId>org.testng</groupId>
+            <artifactId>testng</artifactId>
+            <version>${testng.version}</version>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- Jackson — JSON serialization/deserialization -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <version>${jackson.version}</version>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- SLF4J + Logback — structured logging -->
+        <dependency>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-classic</artifactId>
+            <version>1.4.14</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <!-- Maven Surefire — picks up TestNG via the testng.xml -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.2.5</version>
+                <configuration>
+                    <suiteXmlFiles>
+                        <suiteXmlFile>testng.xml</suiteXmlFile>
+                    </suiteXmlFiles>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>
+```
+
+**Why these dependencies?**
+
+| Dependency | Purpose |
+| --- | --- |
+| REST Assured | Fluent API for sending HTTP requests and validating responses. Think of it as Postman but in code. |
+| TestNG | Test runner with `@BeforeSuite`, `@Test`, grouping, and parallel execution. Preferred over JUnit in many SDET roles. |
+| Jackson | Converts Java objects to JSON and back. REST Assured uses it under the hood for `.body(object)` and `.as(Class)`. |
+| Logback | Logging framework. Better than `System.out.println` because you can control log levels and format. |
+
+### 2. Project Structure
+
+Set up the following directory structure. Each package has a clear responsibility:
+
+```
+staynest-api-tests/
+  src/test/java/
+    com/staynest/tests/
+      base/
+        BaseApiTest.java        # Shared setup, config, helper methods
+      auth/
+        SignupTest.java         # Signup endpoint tests
+        LoginTest.java          # Login endpoint tests
+  src/test/resources/
+    config.properties           # Environment configuration
+  pom.xml                       # Dependencies (created above)
+  testng.xml                    # Test suite definition
+```
+
+**Design decision:** The `base` package holds infrastructure. The `auth` package holds test classes grouped by feature area. As the suite grows, you'll add `hotel/`, `booking/`, `search/` packages — each mirroring a domain area from the API contract.
+
+### 3. Configuration
+
+Create `src/test/resources/config.properties`:
+
+
+```properties
+# StayNest API Test Configuration
+
+# Base URL of the StayNest API (no trailing slash)
+base.url=http://localhost:8080/api/v1
+
+# Default timeout for HTTP requests (milliseconds)
+request.timeout=10000
+```
+
+**Why a properties file instead of hardcoding?** When you move to CI/CD, the base URL will change (e.g., `http://staging.staynest.com/api/v1`). Externalizing it means zero code changes to run against a different environment.
+
+---
+
+## Step 1: BaseApiTest Class
+
+The base class is the foundation of your test suite. Every test class will extend it and inherit the configuration, REST Assured setup, and helper methods.
+
+Create `src/test/java/com/staynest/tests/base/BaseApiTest.java`:
+
+
+```java
+package com.staynest.tests.base;
+
+import io.restassured.RestAssured;
+import io.restassured.http.ContentType;
+import io.restassured.specification.RequestSpecification;
+import org.testng.annotations.BeforeSuite;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.Properties;
+import java.util.UUID;
+
+public class BaseApiTest {
+
+    protected static final Logger logger = LoggerFactory.getLogger(BaseApiTest.class);
+    protected static Properties config = new Properties();
+
+    @BeforeSuite
+    public void globalSetup() {
+        loadConfig();
+        configureRestAssured();
+        logger.info("========================================");
+        logger.info("Starting StayNest API Tests");
+        logger.info("Base URL: {}", RestAssured.baseURI);
+        logger.info("========================================");
+    }
+
+    /**
+     * Loads configuration from config.properties on the classpath.
+     * Fails fast if the file is missing — better to know immediately
+     * than to debug a NullPointerException five minutes later.
+     */
+    private void loadConfig() {
+        try (InputStream input = getClass().getClassLoader()
+                .getResourceAsStream("config.properties")) {
+            if (input == null) {
+                throw new RuntimeException(
+                    "config.properties not found in src/test/resources/");
+            }
+            config.load(input);
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to load config.properties", e);
+        }
+    }
+
+    /**
+     * Configures REST Assured defaults that apply to every request:
+     * - Base URI so you never repeat the full URL
+     * - JSON content type since every StayNest endpoint speaks JSON
+     * - Logging on failure for faster debugging
+     */
+    private void configureRestAssured() {
+        RestAssured.baseURI = config.getProperty("base.url");
+        RestAssured.enableLoggingOfRequestAndResponseIfValidationFails();
+    }
+
+    /**
+     * Returns a base request spec with JSON content type.
+     * Every test method calls this to start building a request.
+     */
+    protected RequestSpecification givenRequest() {
+        return RestAssured
+                .given()
+                .contentType(ContentType.JSON);
+    }
+
+    /**
+     * Generates a unique email address for test isolation.
+     *
+     * Why UUID-based emails? Two reasons:
+     * 1. StayNest enforces unique emails (AUTH-02). If you hardcode
+     *    "test@example.com", the first run passes but every subsequent
+     *    run fails with "User is already present with same email id".
+     * 2. Tests must be independent. If Test A creates user@example.com
+     *    and Test B also needs to create a user, they'd collide. UUIDs
+     *    eliminate the coupling.
+     *
+     * The email format: test-{uuid}@staynest.com
+     * Example: test-3f2a7b1c-8d4e-4f5a-9b1c-2e3d4f5a6b7c@staynest.com
+     */
+    protected String generateUniqueEmail() {
+        return "test-" + UUID.randomUUID() + "@staynest.com";
+    }
+}
+```
+
+**Line-by-line breakdown of the key parts:**
+
+| Line / Block | What it does | Why it matters |
+| --- | --- | --- |
+| `protected static Properties config` | Shared config accessible to all subclasses | `static` so it's loaded once, `protected` so subclasses can read custom properties |
+| `@BeforeSuite` | Runs once before the entire test suite | Not `@BeforeClass` — we want config loaded exactly once, not once per test class |
+| `RestAssured.baseURI = ...` | Sets the base URL globally | Every `.given().get("/auth/login")` automatically prepends this URL |
+| `enableLoggingOfRequestAndResponseIfValidationFails()` | Prints request/response only when a test fails | Keeps console clean on success but gives you full debug info on failure |
+| `givenRequest()` | Returns a pre-configured request builder | Eliminates repetitive `.contentType(JSON)` in every test method |
+| `generateUniqueEmail()` | Creates a UUID-based email | Makes tests repeatable without database cleanup (see AUTH-02) |
+
+---
+
+## Step 2: Signup Tests
+
+Now you'll write tests for the signup endpoint. Each test maps to a specific business rule from Requirements And Business Rules.
+
+Create `src/test/java/com/staynest/tests/auth/SignupTest.java`:
+
+
+```java
+package com.staynest.tests.auth;
+
+import com.staynest.tests.base.BaseApiTest;
+import io.restassured.response.Response;
+import org.testng.annotations.Test;
+
+import java.util.HashMap;
+import java.util.Map;
+
+import static org.hamcrest.Matchers.*;
+
+public class SignupTest extends BaseApiTest {
+
+    /**
+     * Test 1: Successful signup with valid data
+     *
+     * Business Rule: AUTH-01
+     * "Signup creates a new user with a hashed password.
+     *  POST /auth/signup returns 201 with user DTO (no password field in response)."
+     *
+     * Test Scenario: API-AUTH-01
+     *
+     * What we're verifying:
+     * - The API accepts a valid signup request and returns 201 Created
+     * - The response contains the created user's id, email, and name
+     * - The response does NOT leak the password field (security check)
+     *
+     * Business risk if this breaks:
+     * Users cannot create accounts. The entire platform is unusable.
+     */
+    @Test(description = "AUTH-01: Signup with valid data returns 201 with user details")
+    public void testSuccessfulSignup() {
+        String email = generateUniqueEmail();
+
+        // Build the request body as a Map.
+        // REST Assured + Jackson will serialize this to JSON automatically.
+        Map<String, Object> signupBody = new HashMap<>();
+        signupBody.put("email", email);
+        signupBody.put("password", "Test@123");
+        signupBody.put("name", "Test User");
+
+        givenRequest()
+            .body(signupBody)
+        .when()
+            .post("/auth/signup")
+        .then()
+            .statusCode(201)
+            // Validate the response body lives inside the "data" envelope
+            // (StayNest wraps all responses in { timeStamp, data, error })
+            .body("data.id", notNullValue())
+            .body("data.email", equalTo(email))
+            .body("data.name", equalTo("Test User"))
+            // Security assertion: password must NEVER appear in the response
+            .body("data.password", nullValue());
+
+        logger.info("Signup successful for email: {}", email);
+    }
+
+    /**
+     * Test 2: Signup with a duplicate email is rejected
+     *
+     * Business Rule: AUTH-02
+     * "Signup with duplicate email is rejected.
+     *  Returns 500 with message 'User is already present with same email id'."
+     *
+     * Test Scenario: API-AUTH-05
+     *
+     * What we're verifying:
+     * - The API enforces email uniqueness at the database level
+     * - The error message is descriptive (not a generic 500)
+     *
+     * Note: The 500 status (instead of 409) is a known design choice in
+     * the StayNest backend. In a real code review, you might flag this as
+     * an improvement — duplicate email is an expected scenario, not a
+     * server error. But we test what the system actually does, not what
+     * we wish it did.
+     */
+    @Test(description = "AUTH-02: Signup with duplicate email returns error")
+    public void testSignupDuplicateEmail() {
+        String email = generateUniqueEmail();
+
+        Map<String, Object> signupBody = new HashMap<>();
+        signupBody.put("email", email);
+        signupBody.put("password", "Test@123");
+        signupBody.put("name", "First User");
+
+        // First signup — should succeed
+        givenRequest()
+            .body(signupBody)
+        .when()
+            .post("/auth/signup")
+        .then()
+            .statusCode(201);
+
+        // Second signup with the same email — should fail
+        signupBody.put("name", "Second User"); // Different name, same email
+        givenRequest()
+            .body(signupBody)
+        .when()
+            .post("/auth/signup")
+        .then()
+            .statusCode(500)
+            .body("error.message",
+                containsString("User is already present with same email id"));
+
+        logger.info("Duplicate email correctly rejected for: {}", email);
+    }
+
+    /**
+     * Test 3: Signup without required fields returns validation errors
+     *
+     * Business Rules: VAL-01, VAL-03, VAL-05
+     * - VAL-01: "Email is required"
+     * - VAL-03: "Password is required"
+     * - VAL-05: "Name is required"
+     *
+     * Test Scenarios: API-AUTH-06, API-AUTH-09
+     *
+     * What we're verifying:
+     * - The API validates the request body before processing
+     * - A 400 Bad Request is returned (not 500)
+     * - The response includes specific sub-error messages for each
+     *   missing field, so the client can display field-level errors
+     *
+     * Business risk if this breaks:
+     * Invalid data enters the database, causing downstream failures
+     * in login, booking, and profile operations.
+     */
+    @Test(description = "VAL-01, VAL-03, VAL-05: Signup with empty body returns 400 with validation errors")
+    public void testSignupWithoutRequiredFields() {
+        // Send a completely empty JSON object
+        givenRequest()
+            .body("{}")
+        .when()
+            .post("/auth/signup")
+        .then()
+            .statusCode(400)
+            // StayNest returns validation errors in error.subErrors (see ERR-06)
+            // Each sub-error corresponds to a @NotBlank / @NotNull annotation
+            // on the SignUpRequestDto fields
+            .body("error.subErrors", hasSize(greaterThanOrEqualTo(3)))
+            .body("error.subErrors.toString()",
+                allOf(
+                    containsString("Email is required"),
+                    containsString("Password is required"),
+                    containsString("Name is required")
+                ));
+
+        logger.info("Validation errors correctly returned for empty signup body");
+    }
+}
+```
+
+**Key patterns to notice:**
+
+1. **Each test is self-contained.** `testSignupDuplicateEmail` creates its own user rather than depending on a user from another test. If `testSuccessfulSignup` is skipped or fails, the duplicate test still works.
+
+2. **The `data.` prefix in assertions.** StayNest wraps all responses in an `ApiResponse` envelope: `{ timeStamp, data, error }`. The actual user object lives inside `data`, so we assert against `data.id`, `data.email`, etc. Forgetting this prefix is a common mistake — you'll get assertion failures saying the field is null when it's actually nested one level deeper.
+
+3. **Hamcrest matchers.** REST Assured uses Hamcrest for assertions. `notNullValue()`, `equalTo()`, `containsString()`, `hasSize()` — these read like English and produce clear failure messages. When `equalTo("Test User")` fails, the error says `Expected: "Test User" but was: "Test Usr"`, which is far more useful than a boolean `assertFalse`.
+
+---
+
+## Step 3: Login Tests
+
+Login depends on having a valid user, so each test creates its own user via signup first. This is the test data setup pattern — don't rely on pre-existing data in the database.
+
+Create `src/test/java/com/staynest/tests/auth/LoginTest.java`:
+
+
+```java
+package com.staynest.tests.auth;
+
+import com.staynest.tests.base.BaseApiTest;
+import io.restassured.response.Response;
+import org.testng.annotations.Test;
+
+import java.util.HashMap;
+import java.util.Map;
+
+import static org.hamcrest.Matchers.*;
+
+public class LoginTest extends BaseApiTest {
+
+    /**
+     * Test 1: Successful login returns an access token
+     *
+     * Business Rule: AUTH-05
+     * "Login returns a JWT access token.
+     *  POST /auth/login with valid credentials returns 200
+     *  with { accessToken: '<jwt>' }."
+     *
+     * Test Scenario: API-AUTH-02
+     *
+     * What we're verifying:
+     * - A user who just signed up can immediately log in
+     * - The response contains an accessToken (a JWT string)
+     * - The token is not null or empty — it's a real JWT
+     *
+     * Why we create the user inline instead of using a @BeforeMethod:
+     * This test is self-documenting. A reader can see the complete
+     * setup-action-assertion cycle without jumping to another method.
+     * In later labs, we'll extract this into a helper as the pattern
+     * repeats across many tests.
+     */
+    @Test(description = "AUTH-05: Login with valid credentials returns access token")
+    public void testSuccessfulLogin() {
+        String email = generateUniqueEmail();
+        String password = "Test@123";
+
+        // --- SETUP: Create a user ---
+        Map<String, Object> signupBody = new HashMap<>();
+        signupBody.put("email", email);
+        signupBody.put("password", password);
+        signupBody.put("name", "Login Test User");
+
+        givenRequest()
+            .body(signupBody)
+        .when()
+            .post("/auth/signup")
+        .then()
+            .statusCode(201);
+
+        // --- ACTION: Log in with the same credentials ---
+        Map<String, Object> loginBody = new HashMap<>();
+        loginBody.put("email", email);
+        loginBody.put("password", password);
+
+        Response loginResponse = givenRequest()
+            .body(loginBody)
+        .when()
+            .post("/auth/login")
+        .then()
+            .statusCode(200)
+            .body("data.accessToken", notNullValue())
+            // A JWT has three dot-separated parts: header.payload.signature
+            // This is a quick structural check — not full JWT validation
+            .body("data.accessToken", containsString("."))
+        .extract()
+            .response();
+
+        // Extract the token for logging. In later labs, you'll use
+        // this token in the Authorization header for protected endpoints.
+        String accessToken = loginResponse.jsonPath()
+                .getString("data.accessToken");
+        logger.info("Login successful for: {}", email);
+        logger.info("Access token (first 50 chars): {}...",
+                accessToken.substring(0, Math.min(50, accessToken.length())));
+    }
+
+    /**
+     * Test 2: Login with wrong password returns 401
+     *
+     * Business Rule: AUTH-07
+     * "Login with invalid credentials returns UNAUTHORIZED status."
+     *
+     * Test Scenario: API-AUTH-03
+     *
+     * What we're verifying:
+     * - The API rejects login attempts with an incorrect password
+     * - The response is 401 Unauthorized (not 200, not 500)
+     * - The system does not reveal whether the email exists (security)
+     *
+     * Business risk if this breaks:
+     * Unauthorized access to user accounts. This is a P0 security test.
+     */
+    @Test(description = "AUTH-07: Login with wrong password returns 401")
+    public void testLoginWithWrongPassword() {
+        String email = generateUniqueEmail();
+
+        // --- SETUP: Create a user with a known password ---
+        Map<String, Object> signupBody = new HashMap<>();
+        signupBody.put("email", email);
+        signupBody.put("password", "CorrectPassword123");
+        signupBody.put("name", "Wrong Password User");
+
+        givenRequest()
+            .body(signupBody)
+        .when()
+            .post("/auth/signup")
+        .then()
+            .statusCode(201);
+
+        // --- ACTION: Attempt login with wrong password ---
+        Map<String, Object> loginBody = new HashMap<>();
+        loginBody.put("email", email);
+        loginBody.put("password", "WrongPassword456");
+
+        givenRequest()
+            .body(loginBody)
+        .when()
+            .post("/auth/login")
+        .then()
+            .statusCode(401);
+
+        logger.info("Login correctly rejected with wrong password for: {}", email);
+    }
+}
+```
+
+**Pattern to notice — the Setup-Action-Assert structure:**
+
+Every test follows the same three-part rhythm:
+1. **Setup** — Create the preconditions (signup a user)
+2. **Action** — Perform the operation under test (login)
+3. **Assert** — Verify the outcome (status code, response body)
+
+This is the Arrange-Act-Assert pattern. It makes tests predictable and easy to read. When a test fails, you immediately know which phase broke.
+
+---
+
+## Step 4: Run the Tests
+
+### TestNG XML Configuration
+
+Create `testng.xml` in the project root (next to `pom.xml`):
+
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE suite SYSTEM "https://testng.org/testng-1.0.dtd">
+<suite name="StayNest API Smoke Suite" verbose="1">
+    <test name="Authentication Tests">
+        <classes>
+            <class name="com.staynest.tests.auth.SignupTest"/>
+            <class name="com.staynest.tests.auth.LoginTest"/>
+        </classes>
+    </test>
+</suite>
+```
+
+**Why a `testng.xml`?** It gives you explicit control over which tests run and in what order. Later, you'll add groups, parallel execution, and environment-specific suites.
+
+### Run Command
+
+Make sure the StayNest backend is running (see System Under Test), then:
+
+```bash
+cd staynest-api-tests
+mvn clean test
+```
+
+### Expected Output
+
+If everything is set up correctly, you should see output similar to:
+
+```
+[INFO] --- maven-surefire-plugin:3.2.5:test (default-test) ---
+[INFO] Using configured provider org.apache.maven.surefire.testng.TestNGProvider
+
+========================================
+Starting StayNest API Tests
+Base URL: http://localhost:8080/api/v1
+========================================
+
+PASSED: testSuccessfulSignup
+PASSED: testSignupDuplicateEmail
+PASSED: testSignupWithoutRequiredFields
+PASSED: testSuccessfulLogin
+PASSED: testLoginWithWrongPassword
+
+===============================================
+StayNest API Smoke Suite
+Total tests run: 5, Passes: 5, Failures: 0, Skips: 0
+===============================================
+
+[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0
+[INFO] BUILD SUCCESS
+```
+
+---
+
+## Success Criteria
+
+- [ ] All 5 tests pass against the running StayNest backend
+- [ ] Tests use a unique email per run (no manual database cleanup needed)
+- [ ] No hardcoded URLs — the base URL comes from `config.properties`
+- [ ] You can explain what each assertion is validating and why
+- [ ] You can trace each test back to its business rule ID (AUTH-01, AUTH-02, AUTH-05, AUTH-07, VAL-01/03/05)
+
+---
+
+## Common Failures and Fixes
+
+| Symptom | Likely Cause | Fix |
+| --- | --- | --- |
+| `java.net.ConnectException: Connection refused` | StayNest backend is not running | Start the backend: `cd staynest-backend && ./mvnw spring-boot:run` (see System Under Test) |
+| `404 Not Found` on all endpoints | Missing `/api/v1` prefix in the URL | Check `config.properties` — the base URL must include `/api/v1` |
+| Tests pass on first run but fail on re-run | Hardcoded email address hitting the duplicate check (AUTH-02) | Use `generateUniqueEmail()` — never hardcode test emails |
+| `Expected status code <201> but was <400>` | Request body missing required fields or wrong field names | Compare your request body against the API contract: email, password, name are all required |
+| `java.lang.AssertionError: Expected: "Email is required"` | The subErrors format may differ from what you're asserting | Print the full response body first: `.log().body()` before `.statusCode(400)` to see the actual structure |
+| `ClassNotFoundException: com.staynest.tests.auth.SignupTest` | Package structure doesn't match the `testng.xml` class names | Verify your directory structure matches `src/test/java/com/staynest/tests/auth/SignupTest.java` |
+
+---
+
+## What's Next
+
+This lab covered the simplest endpoints — public auth routes with no token required. The next labs progressively add complexity:
+
+- **Lab 2: Authorization Tests** — Verify that GUEST users cannot access admin endpoints, and that unauthenticated requests are properly rejected. You'll learn to extract and reuse JWT tokens across tests.
+- **Lab 3: Hotel CRUD and Booking Lifecycle** — Create hotels, add rooms, make bookings, and cancel them. You'll build test data helpers that set up an entire bookable hotel in one method call.
+- **Lab 4: Reusable API Client Layer** — Refactor the raw REST Assured calls into a clean API client class. This is where your code evolves from "test scripts" to "test framework."
+
+---
+
+## Self-Reflection Questions
+
+Pause and think about these before moving to Lab 2. If you can answer them confidently, you understand the foundations.
+
+1. **Why do we generate unique emails instead of using fixed test data like `test@example.com`?**
+   Think about what happens on the second run, and what happens when two tests run in parallel.
+
+2. **Why does each login test create its own user via signup first?**
+   What would break if you relied on a user that was created by a different test? What if that test was skipped?
+
+3. **What business risk does each test cover?**
+   Map it out: `testSuccessfulSignup` → users can register (AUTH-01), `testLoginWithWrongPassword` → unauthorized access is blocked (AUTH-07). What breaks in the product if each test's scenario fails in production?
+
+4. **What would you add to make these tests more robust?**
+   Consider: response time assertions, schema validation, negative cases for invalid email format (VAL-02), short passwords (VAL-04), and verifying the default role assignment (AUTH-03).
+
+---
+
+**Prerequisites:** System Under Test, Api Contract, Requirements And Business Rules
+**Next:** Lab 2 (coming soon) | **Related:** Test Scenarios

@@ -1,0 +1,418 @@
+---
+title: "Monitoring and Observability"
+description: "What: Monitoring tracks the health of your test infrastructure and execution over time — are builds getting slower? Is the flaky rate climbing? Are agents running out of memory? Observability goes deeper — it provides the ability to understand why things are happening, not just that they're happening, through metrics, logs, and traces."
+summary: "SDET Engineering guide: Monitoring and Observability"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "ci-cd-and-infrastructure"
+lesson: "monitoring-and-observability"
+difficulty: "intermediate"
+estimatedMinutes: 30
+prerequisites: []
+tags: ["SDET", "CI/CD", "Jenkins", "Docker"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/ci-cd-and-infrastructure/monitoring-and-observability"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Monitoring and Observability
+
+> **Module:** 08 — CI/CD and Infrastructure > Monitoring and Observability  
+> **Prerequisites:** Notifications And Alerting, Artifact Management  
+> **Mastery Target:** L3 (Independent) → L4 (Engineering Judgment)
+
+---
+
+## Quick Overview (Layer 1)
+
+**What:** Monitoring tracks the health of your test infrastructure and execution over time — are builds getting slower? Is the flaky rate climbing? Are agents running out of memory? Observability goes deeper — it provides the ability to understand *why* things are happening, not just *that* they're happening, through metrics, logs, and traces.
+
+**Why it matters:** Your nightly regression used to take 45 minutes. This week it's 80 minutes. Without monitoring, you discover this accidentally when someone complains. With monitoring, a Grafana dashboard shows the trend line climbing steadily over 3 weeks — and you trace the root cause to a new test setup method that adds 30 seconds per test.
+
+**Where you encounter it:** Grafana dashboards showing test execution trends. Jenkins build time graphs. Allure Testops tracking flaky tests. Application monitoring (Datadog, New Relic) that you query when a test failure might be caused by a backend issue.
+
+<MentalModel>
+
+Think of monitoring as **a car dashboard**. The speedometer (execution time), fuel gauge (disk space), temperature gauge (CPU usage), and check-engine light (failure rate) tell you the vehicle's health at a glance. You don't stare at the dashboard constantly — but you glance at it regularly, and the check-engine light demands attention. Observability is the **mechanic's diagnostic port** — when the check-engine light is on, you plug in and see exactly which sensor triggered it, what the readings were, and what's failing.
+
+</MentalModel>
+
+
+<KeyTakeaways>
+
+1. **Track trends, not snapshots** — a single slow build is noise; execution time increasing 10% per week is a signal. Trends reveal systemic problems that individual runs hide.
+2. **Monitor both test results and infrastructure** — tests can fail because the tests are broken (test health) or because the CI server is overwhelmed (infrastructure health). You need visibility into both.
+3. **Flaky test rate is your most important metric** — flaky tests erode trust. If 5% of your tests are flaky, the team stops trusting test results and starts ignoring failures.
+4. **Pipeline stage timing reveals bottlenecks** — if the "Build" stage takes 2 minutes and "UI Tests" takes 55 minutes, optimizing the build stage is wasted effort.
+5. **Application monitoring basics help SDETs** — understanding logs, metrics, and traces lets you distinguish "test bug" from "application bug" faster.
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation (Layer 2)
+
+### The Three Pillars of Observability
+
+```
+┌─────────────────────────────────────────────┐
+│           Observability Pillars              │
+├───────────────┬───────────────┬─────────────┤
+│    Metrics    │     Logs      │   Traces    │
+│  (numbers)   │  (events)     │  (journeys) │
+├───────────────┼───────────────┼─────────────┤
+│ Pass rate: 95%│ ERROR: Login  │ Request →   │
+│ Avg time: 47m │ timeout at    │ Auth svc →  │
+│ Flaky rate: 3%│ 14:32:07 on   │ DB query →  │
+│ Agents: 4/4   │ Thread-3      │ Response    │
+│               │ for user X    │ (2340 ms)   │
+├───────────────┼───────────────┼─────────────┤
+│ "What is      │ "What         │ "What path  │
+│  happening?"  │  happened?"   │  did it     │
+│               │               │  take?"     │
+└───────────────┴───────────────┴─────────────┘
+```
+
+**Metrics:** Numerical measurements over time. Test pass rate, execution duration, build queue length, agent CPU usage. Stored in time-series databases (Prometheus, InfluxDB). Visualized in Grafana.
+
+**Logs:** Timestamped events with context. "Test `shouldCreateBooking` failed with `AssertionError: expected 201 but was 500` at 14:32:07 on Thread-3." Stored in log aggregators (ELK Stack, Splunk, CloudWatch).
+
+**Traces:** End-to-end request journeys across services. A test hits the API, which calls the auth service, which queries the database. A trace shows the full path and timing of each hop. Stored in tracing systems (Jaeger, Zipkin, Datadog APM).
+
+**For SDETs:** You primarily work with metrics and logs. Traces become relevant when you're debugging why an API test is slow (is it the network? the API? the database?) and need to trace the request through the backend.
+
+### Metrics to Track for Test Automation
+
+| Category | Metric | Why It Matters | Alert Threshold |
+|----------|--------|---------------|-----------------|
+| **Test Health** | Pass rate (%) | Overall suite reliability | &lt; 95% |
+| | Fail count per run | Scale of failures | > 10 in smoke |
+| | Flaky rate (%) | Trust in results | > 5% |
+| | New failures | Regression detection | Any new failure |
+| **Performance** | Total execution time | CI feedback speed | > 120% of baseline |
+| | Slowest 10 tests | Optimization targets | > 60s per test |
+| | Build queue wait time | Agent capacity | > 5 min |
+| **Infrastructure** | Agent CPU/memory | Resource exhaustion | > 90% sustained |
+| | Disk usage | Storage capacity | > 80% |
+| | Docker container health | Container stability | Restart count > 3 |
+| | Selenium Grid node count | Browser capacity | Queued sessions > 0 for 5+ min |
+
+### Pipeline Stage Timing
+
+Identifying bottlenecks requires timing each stage:
+
+
+```groovy
+pipeline {
+    agent { label 'linux' }
+    
+    stages {
+        stage('Checkout') {
+            steps {
+                script { env.CHECKOUT_START = System.currentTimeMillis() }
+                checkout scm
+                script { env.CHECKOUT_DURATION = System.currentTimeMillis() - env.CHECKOUT_START.toLong() }
+            }
+        }
+        
+        stage('Build') {
+            steps {
+                script { env.BUILD_START = System.currentTimeMillis() }
+                sh 'mvn clean compile -DskipTests'
+                script { env.BUILD_DURATION = System.currentTimeMillis() - env.BUILD_START.toLong() }
+            }
+        }
+        
+        stage('Test') {
+            steps {
+                script { env.TEST_START = System.currentTimeMillis() }
+                sh 'mvn test -Denv=staging'
+                script { env.TEST_DURATION = System.currentTimeMillis() - env.TEST_START.toLong() }
+            }
+        }
+    }
+    
+    post {
+        always {
+            echo """
+                Stage timings:
+                Checkout: ${env.CHECKOUT_DURATION}ms
+                Build: ${env.BUILD_DURATION}ms
+                Test: ${env.TEST_DURATION}ms
+            """
+        }
+    }
+}
+```
+
+### Application Monitoring for SDETs (Conceptual)
+
+**When you need it:** A test fails with `500 Internal Server Error`. Is it a test bug or an application bug? Application monitoring answers this.
+
+**Tools and what they provide:**
+
+| Tool | What It Does | How SDETs Use It |
+|------|-------------|------------------|
+| **Datadog** | Metrics, logs, traces, APM | Check if the API had errors/latency during test run |
+| **New Relic** | APM, browser monitoring, infrastructure | Correlate test failures with application performance dips |
+| **Grafana + Prometheus** | Custom dashboards, time-series metrics | Build test execution dashboards, monitor CI infra |
+| **ELK Stack** | Log aggregation and search | Search application logs for errors during test failure |
+| **Jaeger / Zipkin** | Distributed tracing | Trace a slow API response through microservices |
+
+**Practical scenario:** Your booking API test intermittently fails with a timeout. You check Datadog and see that the database query time spiked from 50ms to 8s during the test window. Root cause: another team's batch job was running, locking the table. This is an environment issue, not a test or application bug.
+
+---
+
+## Practical Implementation (Layer 3)
+
+### Example 1: Test Execution Dashboard Design for StayNest
+
+A conceptual dashboard layout for tracking test automation health:
+
+```
+┌─────────────────────────────────────────────────────────┐
+│          StayNest Test Automation Dashboard              │
+├─────────────────────────┬───────────────────────────────┤
+│   PASS RATE (7 days)    │   EXECUTION TIME TREND        │
+│   ┌─────────────────┐   │   ┌───────────────────────┐   │
+│   │   ███████ 96.2%  │   │   │ 47m  ──────           │   │
+│   │   Target: 95%    │   │   │ 45m      ─────        │   │
+│   │   ▲ 1.1% vs last │   │   │ 42m          ────── ▲ │   │
+│   └─────────────────┘   │   │ Mon Tue Wed Thu Fri    │   │
+│                         │   └───────────────────────┘   │
+├─────────────────────────┼───────────────────────────────┤
+│   FLAKY TESTS           │   FAILURES BY CATEGORY        │
+│   ┌─────────────────┐   │   ┌───────────────────────┐   │
+│   │ 7 flaky (3.2%)   │   │   │ Product Bug:    4     │   │
+│   │ shouldFilter...  │   │   │ Test Bug:       3     │   │
+│   │ shouldCancel...  │   │   │ Environment:    2     │   │
+│   │ shouldLogin...   │   │   │ Flaky:          7     │   │
+│   └─────────────────┘   │   └───────────────────────┘   │
+├─────────────────────────┼───────────────────────────────┤
+│   SLOWEST TESTS         │   CI INFRASTRUCTURE           │
+│   ┌─────────────────┐   │   ┌───────────────────────┐   │
+│   │ searchByMap  95s │   │   │ Agents: 4/4 online    │   │
+│   │ fullCheckout 82s │   │   │ Queue: 0 waiting      │   │
+│   │ uploadImage  71s │   │   │ Disk: 62% used        │   │
+│   │ filterPrice  68s │   │   │ Grid: 3 Chrome nodes  │   │
+│   └─────────────────┘   │   └───────────────────────┘   │
+└─────────────────────────┴───────────────────────────────┘
+```
+
+### Example 2: Publishing Metrics to Prometheus/Grafana
+
+
+```groovy
+// In Jenkins shared library — publish test metrics after each run
+def publishTestMetrics(Map testSummary) {
+    def metrics = """
+        # HELP test_pass_rate Percentage of tests passing
+        # TYPE test_pass_rate gauge
+        test_pass_rate{suite="regression",env="staging"} ${testSummary.passRate}
+        
+        # HELP test_total_count Total number of tests executed
+        # TYPE test_total_count gauge
+        test_total_count{suite="regression",env="staging"} ${testSummary.total}
+        
+        # HELP test_failed_count Number of failed tests
+        # TYPE test_failed_count gauge
+        test_failed_count{suite="regression",env="staging"} ${testSummary.failed}
+        
+        # HELP test_execution_seconds Total test execution time in seconds
+        # TYPE test_execution_seconds gauge
+        test_execution_seconds{suite="regression",env="staging"} ${testSummary.durationSeconds}
+        
+        # HELP test_flaky_count Number of flaky tests detected
+        # TYPE test_flaky_count gauge
+        test_flaky_count{suite="regression",env="staging"} ${testSummary.flakyCount}
+    """.stripIndent()
+    
+    // Push to Prometheus Pushgateway
+    writeFile(file: 'metrics.txt', text: metrics)
+    sh """
+        curl -s --data-binary @metrics.txt \\
+            http://prometheus-pushgateway:9091/metrics/job/test-automation/instance/staynest
+    """
+}
+```
+
+### Example 3: Flaky Test Detection and Tracking
+
+
+```groovy
+// Detect flaky tests by analyzing last N builds
+def detectFlakyTests(int lookbackBuilds = 10) {
+    def flakyTests = []
+    def testHistory = [:] // testName -> [pass, fail, pass, fail, ...]
+    
+    // Analyze previous builds
+    def build = currentBuild.previousBuild
+    def count = 0
+    
+    while (build != null && count < lookbackBuilds) {
+        def testResult = build.rawBuild.getAction(
+            hudson.tasks.junit.TestResultAction.class
+        )
+        
+        if (testResult != null) {
+            testResult.failedTests.each { test ->
+                def name = test.fullName
+                testHistory.computeIfAbsent(name, { [] })
+                testHistory[name] << 'FAIL'
+            }
+            testResult.passedTests.each { test ->
+                def name = test.fullName
+                if (testHistory.containsKey(name)) {
+                    testHistory[name] << 'PASS'
+                }
+            }
+        }
+        
+        build = build.previousBuild
+        count++
+    }
+    
+    // A test is flaky if it has both passes and failures
+    testHistory.each { name, results ->
+        def passes = results.count('PASS')
+        def failures = results.count('FAIL')
+        if (passes > 0 && failures > 0) {
+            flakyTests << [
+                name: name,
+                flakyRate: ((failures / (passes + failures)) * 100).round(1)
+            ]
+        }
+    }
+    
+    return flakyTests.sort { -it.flakyRate }
+}
+```
+
+---
+
+## Failure and Debugging (Layer 4)
+
+### Failure 1: Execution Time Gradually Increasing
+
+**The Problem:** Nightly regression went from 45 min to 80 min over 3 weeks. No single change caused it.
+
+**Diagnostic steps:**
+1. Check test count trend — did the number of tests increase?
+2. Check per-stage timing — which stage got slower?
+3. Check slowest tests — did any individual test get significantly slower?
+4. Check infrastructure — is the CI agent slower (shared resources, disk I/O)?
+5. Check the application — is the staging environment slower?
+
+**Common root causes:**
+- New tests added without removing obsolete ones
+- Test setup/teardown added unnecessary waits or API calls
+- CI agent disk is 95% full — I/O slowed
+- Selenium Grid node count decreased, queuing sessions
+
+### Failure 2: Metrics Show 95% Pass Rate But Team Doesn't Trust Tests
+
+**The Problem:** Dashboard shows 95% pass rate, but developers still merge without waiting for tests.
+
+**Root cause:** The 5% failures are random every run — different tests fail each time. The pass rate is technically 95%, but it's a different 5% failing each run. These are flaky tests, and they've destroyed trust.
+
+**The fix:** Track flaky rate separately from pass rate. A test that passes 80% of the time is not "passing" — it's flaky. Quarantine flaky tests (move to a separate suite), fix them, and track the quarantine size as a health metric.
+
+### Failure 3: Dashboard Shows No Data After Jenkins Upgrade
+
+**The Problem:** After upgrading Jenkins, Grafana dashboards show no new data points.
+
+**Root cause:** The Jenkins metric export plugin or Prometheus pushgateway configuration broke during the upgrade.
+
+**Diagnostic steps:**
+1. Check if the metric push step is still in the pipeline (wasn't removed in upgrade)
+2. Check Prometheus pushgateway logs for incoming data
+3. Check Grafana data source connection
+4. Manually push a test metric and verify it appears
+
+---
+
+## Engineering Judgment (Layer 5)
+
+### What to Monitor vs What's Over-Monitoring
+
+| Monitor This | Don't Monitor This |
+|-------------|-------------------|
+| Pass rate trend (weekly) | Individual test results (use Allure for that) |
+| Execution time trend | Exact milliseconds per test |
+| Flaky test count and names | Every intermittent 1-second network blip |
+| Agent/executor utilization | CPU usage sampled every second |
+| Build queue wait time | Number of Git checkouts per day |
+
+**Rule of thumb:** If seeing the metric wouldn't change your behavior, don't track it. Every metric you track is a metric you must maintain, explain, and investigate when it spikes.
+
+### Dashboard Audience
+
+| Audience | What They Need | Update Frequency |
+|----------|---------------|-----------------|
+| SDETs | Flaky tests, slow tests, failure details | Real-time |
+| Dev team | Pass rate, new failures, environment health | Daily |
+| Team lead / Manager | Pass rate trend, coverage, release readiness | Weekly |
+| VP / Director | Overall quality trend, automation ROI | Monthly |
+
+### Build vs Buy for Test Monitoring
+
+| Approach | Use When | Examples |
+|----------|----------|---------|
+| Jenkins built-in | Small team, just starting | JUnit trend graph, build time chart |
+| Grafana + Prometheus | Custom dashboards, time-series analysis | Push metrics from pipeline, visualize in Grafana |
+| Allure TestOps | Rich test management + reporting | Commercial; deep Allure integration |
+| Datadog / New Relic | Already used for app monitoring | Add test metrics alongside app metrics |
+
+---
+
+## Interview and Revision (Layer 6)
+
+### Fundamental Questions
+
+**Q1: What metrics do you track for test automation health?**
+
+**A:** I track four categories. Test health: pass rate, flaky test count, and new failures per build. Performance: total execution time trend and the 10 slowest tests. Infrastructure: agent utilization, build queue wait time, and disk usage. And failure categorization: product bugs vs test bugs vs environment issues. The most important is flaky rate — if it exceeds 5%, the team stops trusting test results. I visualize these in a Grafana dashboard that shows trends over time, not just the latest snapshot.
+
+**Q2: How do you identify and handle flaky tests?**
+
+**A:** I detect flaky tests by analyzing the last 10 builds — any test that has both passes and failures in that window is flaky. I calculate a flaky rate (failures / total runs) and publish it as a metric. Flaky tests above 30% flaky rate get quarantined — moved to a separate suite that runs but doesn't gate deployments. The quarantine count is tracked on the dashboard. Fixing flaky tests is a standing sprint task. The goal is quarantine size trending toward zero.
+
+**Q3: How do you use application monitoring to debug test failures?**
+
+**A:** When a test fails with a server error (500, timeout), I check the application monitoring tool (Datadog, New Relic) for the time window of the test run. I look at: API response time (did latency spike?), error rate (was the service throwing errors?), database query time (was a query slow?), and infrastructure metrics (CPU, memory). This distinguishes test bugs from app bugs from environment issues. For example, if the database had a 10-second query during my test window because another team's batch job was running, that's an environment issue — not a test or code problem.
+
+
+
+
+| # | Front (Question) | Back (Answer) |
+|---|---|---|
+| 1 | What are the three pillars of observability? | Metrics (numbers over time), Logs (timestamped events), Traces (end-to-end request journeys). SDETs primarily use metrics and logs. |
+| 2 | Why is flaky rate the most important test metric? | Flaky tests erode team trust. If 5%+ of tests are flaky, developers ignore test results. Flaky rate directly measures trust in your test suite. |
+| 3 | What is a Prometheus Pushgateway? | A component that accepts metric pushes from batch jobs (like CI pipelines). The pipeline pushes metrics; Prometheus scrapes the pushgateway; Grafana visualizes them. |
+| 4 | Why track trends instead of snapshots? | A single slow build is noise. Execution time increasing 10%/week is a signal. Trends reveal systemic problems that individual snapshots hide. |
+| 5 | How do you identify pipeline bottlenecks? | Time each pipeline stage. If "UI Tests" takes 55 min and "Build" takes 2 min, optimize UI Tests first. Don't optimize what doesn't matter. |
+
+### Mastery Checklist
+
+- [ ] Can design a test execution dashboard with appropriate metrics
+- [ ] Can implement pipeline stage timing for bottleneck identification
+- [ ] Can detect flaky tests programmatically using build history analysis
+- [ ] Can push test metrics to Prometheus/Grafana from a Jenkins pipeline
+- [ ] Can use application monitoring tools to distinguish test vs app vs environment failures
+- [ ] Can justify what to monitor vs what constitutes over-monitoring
+
+---
+
+**Next:** Security Testing Basics | **Related:** Notifications And Alerting
+
+*Last updated: *

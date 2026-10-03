@@ -1,0 +1,873 @@
+---
+title: "Network Interception and Downloads"
+description: "What: Network interception lets your test intercept, modify, or mock HTTP requests that the browser makes during a test. Instead of relying on real backend APIs, you can control exactly what the browser receives — mock slow responses, simulate errors, stub external services, or block unnecessary resources. Download and upload handling covers configuring where files are saved and how to interact with file inputs."
+summary: "SDET Engineering guide: Network Interception and Downloads"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "web-automation"
+lesson: "network-and-downloads"
+difficulty: "intermediate"
+estimatedMinutes: 56
+prerequisites: []
+tags: ["SDET", "Web", "Selenium", "Playwright"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/web-automation/network-and-downloads"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Network Interception and Downloads
+
+> **Module:** 05 — Web Automation > Network & Downloads  
+> **Prerequisites:** Browser And Dom Fundamentals, Http And Rest Fundamentals, Browser Contexts And Isolation  
+> **Mastery Target:** L2 (Guided) → L3 (Independent)
+
+---
+
+## Quick Overview (Layer 1)
+
+**What:** Network interception lets your test intercept, modify, or mock HTTP requests that the browser makes during a test. Instead of relying on real backend APIs, you can control exactly what the browser receives — mock slow responses, simulate errors, stub external services, or block unnecessary resources. Download and upload handling covers configuring where files are saved and how to interact with file inputs.
+
+**Why:** Real APIs are unpredictable in test environments — they can be slow, return unexpected data, or go down entirely. Network interception decouples your UI tests from backend reliability. When you want to test "what happens when the search API returns zero results" or "what happens when the payment service is down," you don't need to manipulate the backend — you mock the response at the network layer. You've done API mocking in API tests (WireMock, MockServer); this is the browser-level equivalent.
+
+**Where:** UI tests that need deterministic data, error state testing, offline mode testing, performance testing (simulating slow networks), and any test where third-party services are involved (payment, maps, analytics).
+
+<MentalModel>
+
+Think of network interception as a **mail interceptor**. Every HTTP request the browser sends is like a letter going to the post office. Normally, it goes to the real server and comes back with a real response. With interception, you place an agent at the post office who can: (1) read the letter and let it through, (2) swap the response with a pre-written one (mocking), (3) modify the letter before forwarding (request modification), (4) throw the letter away (blocking), or (5) delay delivery (simulating slow networks).
+
+</MentalModel>
+
+
+<KeyTakeaways>
+
+1. **Playwright's `page.route()` is powerful and simple** — intercept any request by URL pattern, modify or mock the response
+2. **Selenium has limited native network support** — you need external proxies (BrowserMob) or Chrome DevTools Protocol (CDP)
+3. **Mock at the network layer, not the application layer** — the browser's JavaScript code runs normally; only the network responses change
+4. **Use interception for deterministic tests** — same input always produces same output, regardless of backend state
+5. **Download/upload handling requires configuration** — browsers don't just save files anywhere; tests need to specify where
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation (Layer 2)
+
+### How Network Interception Works
+
+```
+Without interception:
+Browser  ──── request ────→  Real Server
+Browser  ←─── response ────  Real Server
+
+With interception (Playwright page.route):
+Browser  ──── request ────→  [Playwright Intercept]  ──── forwarded? ────→  Real Server
+Browser  ←─── response ────  [Playwright Intercept]  ←─── real response ──  Real Server
+                                     │
+                              OR: return mock response
+                              OR: modify real response
+                              OR: block the request
+```
+
+The interception happens at the **browser process level** — the application's JavaScript has no idea its requests are being intercepted. It sends a `fetch('/api/v1/hotels')` and receives a response; whether that response came from a real server or your test code is invisible to it.
+
+### Playwright Network Interception
+
+#### Basic Route Matching
+
+
+```typescript
+import { test, expect } from '@playwright/test';
+
+test('mock hotel search results', async ({ page }) => {
+
+    // Intercept all requests matching this URL pattern
+    await page.route('**/api/v1/hotels/search*', async (route) => {
+        // Return a mock response instead of calling the real API
+        await route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+                hotels: [
+                    { id: 1, name: 'Mock Hotel', price: 150, rating: 4.5 },
+                    { id: 2, name: 'Test Resort', price: 200, rating: 4.8 },
+                ],
+                total: 2,
+            }),
+        });
+    });
+
+    await page.goto('http://localhost:5173/search');
+    await page.getByLabel('Location').fill('New York');
+    await page.getByRole('button', { name: 'Search' }).click();
+
+    // The UI shows our mocked data — deterministic, fast, no real API needed
+    await expect(page.getByTestId('hotel-card')).toHaveCount(2);
+    await expect(page.getByText('Mock Hotel')).toBeVisible();
+    await expect(page.getByText('Test Resort')).toBeVisible();
+});
+```
+
+#### Route Actions — fulfill, continue, abort
+
+
+```typescript
+// === FULFILL: Return a completely mocked response ===
+await page.route('**/api/v1/hotels/search', async (route) => {
+    await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ hotels: [], total: 0 }),  // Empty results
+    });
+});
+
+// === CONTINUE: Let the request go through (optionally modify it) ===
+await page.route('**/api/v1/**', async (route) => {
+    // Add an auth header to every API request
+    const headers = {
+        ...route.request().headers(),
+        'Authorization': 'Bearer test-token-123',
+    };
+    await route.continue({ headers });
+});
+
+// === ABORT: Block the request entirely ===
+await page.route('**/*.{png,jpg,jpeg,gif,svg}', async (route) => {
+    await route.abort();  // Block all images — speeds up tests
+});
+
+// === ABORT with reason ===
+await page.route('**/api/v1/payments/**', async (route) => {
+    await route.abort('connectionrefused');  // Simulate network failure
+});
+```
+
+#### Modifying Real Responses
+
+
+```typescript
+// Fetch the real response, then modify it before returning to the browser
+test('modify real search results', async ({ page }) => {
+    await page.route('**/api/v1/hotels/search*', async (route) => {
+        // Get the real response from the server
+        const response = await route.fetch();
+        const body = await response.json();
+
+        // Modify the response — add a test-specific hotel
+        body.hotels.push({
+            id: 999,
+            name: 'Injected Test Hotel',
+            price: 99,
+            rating: 5.0,
+        });
+        body.total = body.hotels.length;
+
+        // Return the modified response
+        await route.fulfill({
+            response,  // Preserve headers, status from original
+            body: JSON.stringify(body),
+        });
+    });
+
+    await page.goto('http://localhost:5173/search');
+    await page.getByRole('button', { name: 'Search' }).click();
+    await expect(page.getByText('Injected Test Hotel')).toBeVisible();
+});
+```
+
+#### Simulating Error States
+
+
+```typescript
+test('display error when search API fails', async ({ page }) => {
+    // Simulate a 500 Internal Server Error
+    await page.route('**/api/v1/hotels/search*', async (route) => {
+        await route.fulfill({
+            status: 500,
+            contentType: 'application/json',
+            body: JSON.stringify({ error: 'Internal Server Error' }),
+        });
+    });
+
+    await page.goto('http://localhost:5173/search');
+    await page.getByLabel('Location').fill('New York');
+    await page.getByRole('button', { name: 'Search' }).click();
+
+    // Assert the UI handles the error gracefully
+    await expect(page.getByText('Something went wrong')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Try Again' })).toBeVisible();
+});
+
+test('display timeout message when API is slow', async ({ page }) => {
+    // Simulate a slow API response
+    await page.route('**/api/v1/hotels/search*', async (route) => {
+        await new Promise(resolve => setTimeout(resolve, 15_000));  // 15-second delay
+        await route.fulfill({
+            status: 200,
+            body: JSON.stringify({ hotels: [], total: 0 }),
+        });
+    });
+
+    await page.goto('http://localhost:5173/search');
+    await page.getByRole('button', { name: 'Search' }).click();
+
+    // Assert the UI shows a loading or timeout state
+    await expect(page.getByText('Taking longer than expected')).toBeVisible({
+        timeout: 20_000,
+    });
+});
+
+test('handle network failure', async ({ page }) => {
+    // Simulate complete network failure
+    await page.route('**/api/v1/hotels/search*', async (route) => {
+        await route.abort('connectionfailed');
+    });
+
+    await page.goto('http://localhost:5173/search');
+    await page.getByRole('button', { name: 'Search' }).click();
+
+    await expect(page.getByText('Network error')).toBeVisible();
+});
+```
+
+#### Waiting for and Inspecting Network Requests
+
+
+```typescript
+test('verify correct API request is sent', async ({ page }) => {
+    // Wait for a specific request and inspect it
+    const requestPromise = page.waitForRequest(
+        request => request.url().includes('/api/v1/hotels/search')
+    );
+
+    await page.goto('http://localhost:5173/search');
+    await page.getByLabel('Location').fill('New York');
+    await page.getByLabel('Check-in').fill('2025-08-01');
+    await page.getByLabel('Check-out').fill('2025-08-05');
+    await page.getByRole('button', { name: 'Search' }).click();
+
+    const request = await requestPromise;
+
+    // Assert the request was correctly formed
+    expect(request.method()).toBe('GET');
+    const url = new URL(request.url());
+    expect(url.searchParams.get('location')).toBe('New York');
+    expect(url.searchParams.get('checkIn')).toBe('2025-08-01');
+    expect(url.searchParams.get('checkOut')).toBe('2025-08-05');
+});
+
+test('verify login sends correct payload', async ({ page }) => {
+    const requestPromise = page.waitForRequest('**/api/v1/auth/login');
+
+    await page.goto('http://localhost:5173/login');
+    await page.getByLabel('Email').fill('user@test.com');
+    await page.getByLabel('Password').fill('password123');
+    await page.getByRole('button', { name: 'Login' }).click();
+
+    const request = await requestPromise;
+    const postData = request.postDataJSON();
+    expect(postData.email).toBe('user@test.com');
+    expect(postData.password).toBe('password123');
+});
+```
+
+### Selenium Network Capabilities
+
+Selenium has much weaker network interception. The main options:
+
+#### Option 1: Chrome DevTools Protocol (CDP)
+
+
+```java
+// Selenium 4+ — limited CDP support for network interception
+import org.openqa.selenium.devtools.DevTools;
+import org.openqa.selenium.devtools.v131.network.Network;
+import org.openqa.selenium.devtools.v131.fetch.Fetch;
+
+public class SeleniumNetworkTest {
+
+    @Test
+    void interceptWithCDP() {
+        ChromeDriver driver = new ChromeDriver();
+        DevTools devTools = driver.getDevTools();
+        devTools.createSession();
+
+        // Enable network monitoring
+        devTools.send(Network.enable(Optional.empty(), Optional.empty(), Optional.empty()));
+
+        // Listen for requests
+        devTools.addListener(Network.requestWillBeSent(), request -> {
+            System.out.println("Request: " + request.getRequest().getUrl());
+        });
+
+        // Listen for responses
+        devTools.addListener(Network.responseReceived(), response -> {
+            System.out.println("Response: " +
+                response.getResponse().getUrl() + " → " +
+                response.getResponse().getStatus()
+            );
+        });
+
+        driver.get("http://localhost:5173/search");
+        driver.quit();
+    }
+}
+```
+
+#### Option 2: Network Interceptor (Selenium 4+)
+
+
+```java
+// Selenium 4's NetworkInterceptor — simpler API but limited
+import org.openqa.selenium.remote.http.HttpHandler;
+import org.openqa.selenium.remote.http.HttpRequest;
+import org.openqa.selenium.remote.http.HttpResponse;
+import org.openqa.selenium.devtools.NetworkInterceptor;
+
+public class SeleniumInterceptTest {
+
+    @Test
+    void mockApiResponse() {
+        ChromeDriver driver = new ChromeDriver();
+
+        // Intercept requests matching a pattern
+        NetworkInterceptor interceptor = new NetworkInterceptor(
+            driver,
+            (HttpHandler) request -> {
+                if (request.getUri().contains("/api/v1/hotels/search")) {
+                    HttpResponse response = new HttpResponse();
+                    response.setStatus(200);
+                    response.setHeader("Content-Type", "application/json");
+                    response.setContent(() ->
+                        new ByteArrayInputStream(
+                            "{\"hotels\":[],\"total\":0}".getBytes()
+                        )
+                    );
+                    return response;
+                }
+                // For non-matching requests, return null to pass through
+                return null;
+            }
+        );
+
+        driver.get("http://localhost:5173/search");
+        // ... assertions ...
+
+        interceptor.close();
+        driver.quit();
+    }
+}
+```
+
+#### Option 3: BrowserMob Proxy (Legacy but Reliable)
+
+
+```java
+// BrowserMob Proxy — external proxy for full network control
+import net.lightbody.bmp.BrowserMobProxy;
+import net.lightbody.bmp.BrowserMobProxyServer;
+import net.lightbody.bmp.proxy.CaptureType;
+
+public class BrowserMobTest {
+
+    @Test
+    void captureNetworkTraffic() {
+        // Start proxy
+        BrowserMobProxy proxy = new BrowserMobProxyServer();
+        proxy.start(0);
+        int port = proxy.getPort();
+
+        // Configure Chrome to use the proxy
+        ChromeOptions options = new ChromeOptions();
+        options.addArguments("--proxy-server=localhost:" + port);
+        WebDriver driver = new ChromeDriver(options);
+
+        // Enable HAR capture
+        proxy.enableHarCaptureTypes(CaptureType.REQUEST_CONTENT, CaptureType.RESPONSE_CONTENT);
+        proxy.newHar("staynest-test");
+
+        // Perform test actions
+        driver.get("http://localhost:5173/search");
+        // ... interact with page ...
+
+        // Get captured traffic
+        Har har = proxy.getHar();
+        List<HarEntry> entries = har.getLog().getEntries();
+        for (HarEntry entry : entries) {
+            System.out.println(entry.getRequest().getUrl() +
+                " → " + entry.getResponse().getStatus());
+        }
+
+        // Add response filter (mock)
+        proxy.addResponseFilter((response, contents, messageInfo) -> {
+            if (messageInfo.getOriginalUrl().contains("/api/v1/hotels")) {
+                contents.setTextContents("{\"hotels\":[],\"total\":0}");
+                response.setStatus(HttpResponseStatus.valueOf(200));
+            }
+        });
+
+        driver.quit();
+        proxy.stop();
+    }
+}
+```
+
+### Download Handling
+
+#### Playwright Downloads
+
+
+```typescript
+import { test, expect } from '@playwright/test';
+
+test('download booking confirmation PDF', async ({ page }) => {
+    // Playwright handles downloads automatically
+    // Start waiting for download BEFORE clicking
+    const downloadPromise = page.waitForEvent('download');
+
+    await page.goto('http://localhost:5173/bookings/123');
+    await page.getByRole('button', { name: 'Download Confirmation' }).click();
+
+    const download = await downloadPromise;
+
+    // Verify download metadata
+    expect(download.suggestedFilename()).toContain('booking-confirmation');
+    expect(download.suggestedFilename()).toMatch(/\.pdf$/);
+
+    // Save the file to a specific location
+    const filePath = `./downloads/${download.suggestedFilename()}`;
+    await download.saveAs(filePath);
+
+    // Verify file was saved (check file system)
+    const fs = require('fs');
+    expect(fs.existsSync(filePath)).toBeTruthy();
+
+    // Clean up
+    await download.delete();
+});
+```
+
+#### Selenium Downloads
+
+
+```java
+// Selenium: configure download directory before launching browser
+public class SeleniumDownloadTest {
+
+    private WebDriver driver;
+    private String downloadDir;
+
+    @BeforeEach
+    void setUp() {
+        downloadDir = System.getProperty("java.io.tmpdir") + "/test-downloads";
+        new File(downloadDir).mkdirs();
+
+        ChromeOptions options = new ChromeOptions();
+        Map<String, Object> prefs = new HashMap<>();
+        prefs.put("download.default_directory", downloadDir);
+        prefs.put("download.prompt_for_download", false);
+        prefs.put("download.directory_upgrade", true);
+        options.setExperimentalOption("prefs", prefs);
+
+        driver = new ChromeDriver(options);
+    }
+
+    @Test
+    void downloadBookingConfirmation() {
+        driver.get("http://localhost:5173/bookings/123");
+        driver.findElement(By.cssSelector("[data-testid='download-btn']")).click();
+
+        // Wait for file to appear in download directory
+        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(30));
+        File downloadedFile = wait.until(driver -> {
+            File[] files = new File(downloadDir).listFiles(
+                (dir, name) -> name.contains("booking-confirmation") && name.endsWith(".pdf")
+            );
+            return (files != null && files.length > 0) ? files[0] : null;
+        });
+
+        assertNotNull(downloadedFile, "Download file not found");
+        assertTrue(downloadedFile.length() > 0, "Downloaded file is empty");
+    }
+}
+```
+
+### Upload Handling
+
+#### Playwright Uploads
+
+
+```typescript
+test('upload profile picture', async ({ page }) => {
+    await page.goto('http://localhost:5173/profile');
+
+    // Set file on the file input — no need to interact with OS dialog
+    await page.getByLabel('Profile Picture').setInputFiles('test-data/avatar.png');
+
+    // Multiple files
+    await page.getByLabel('Hotel Photos').setInputFiles([
+        'test-data/photo1.jpg',
+        'test-data/photo2.jpg',
+        'test-data/photo3.jpg',
+    ]);
+
+    await page.getByRole('button', { name: 'Save' }).click();
+    await expect(page.getByText('Profile updated')).toBeVisible();
+});
+
+test('upload via drag and drop zone', async ({ page }) => {
+    await page.goto('http://localhost:5173/admin/hotels/new');
+
+    // For drag-and-drop upload zones, find the hidden file input
+    const fileInput = page.locator('input[type="file"]');
+    await fileInput.setInputFiles('test-data/hotel-photo.jpg');
+
+    await expect(page.getByText('hotel-photo.jpg')).toBeVisible();
+});
+
+test('clear uploaded file', async ({ page }) => {
+    await page.goto('http://localhost:5173/profile');
+
+    // Upload a file
+    await page.getByLabel('Profile Picture').setInputFiles('test-data/avatar.png');
+
+    // Clear the selection
+    await page.getByLabel('Profile Picture').setInputFiles([]);
+});
+```
+
+#### Selenium Uploads
+
+
+```java
+// Selenium: send file path directly to the file input
+@Test
+void uploadProfilePicture() {
+    driver.get("http://localhost:5173/profile");
+
+    WebElement fileInput = driver.findElement(By.cssSelector("input[type='file']"));
+    // sendKeys with file path — works for visible and hidden file inputs
+    fileInput.sendKeys(new File("test-data/avatar.png").getAbsolutePath());
+
+    driver.findElement(By.cssSelector("[data-testid='save-button']")).click();
+
+    WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
+    wait.until(ExpectedConditions.visibilityOfElementLocated(
+        By.xpath("//*[contains(text(), 'Profile updated')]")
+    ));
+}
+```
+
+---
+
+## Practical Implementation (Layer 3)
+
+### Practical Exercise: Mock StayNest Search API
+
+
+```typescript
+import { test, expect } from '@playwright/test';
+
+// Reusable mock data
+const mockHotels = {
+    luxury: {
+        hotels: [
+            { id: 1, name: 'The Grand Palace', price: 450, rating: 4.9, location: 'Manhattan' },
+            { id: 2, name: 'Skyline Suites', price: 380, rating: 4.7, location: 'Manhattan' },
+        ],
+        total: 2,
+    },
+    empty: { hotels: [], total: 0 },
+    singleResult: {
+        hotels: [
+            { id: 3, name: 'Budget Inn', price: 75, rating: 3.2, location: 'Brooklyn' },
+        ],
+        total: 1,
+    },
+};
+
+test.describe('Hotel Search — Mocked API', () => {
+
+    test('displays search results from API', async ({ page }) => {
+        await page.route('**/api/v1/hotels/search*', route =>
+            route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify(mockHotels.luxury),
+            })
+        );
+
+        await page.goto('http://localhost:5173/search');
+        await page.getByRole('button', { name: 'Search' }).click();
+
+        await expect(page.getByTestId('hotel-card')).toHaveCount(2);
+        await expect(page.getByText('The Grand Palace')).toBeVisible();
+        await expect(page.getByText('$450')).toBeVisible();
+    });
+
+    test('displays empty state when no hotels found', async ({ page }) => {
+        await page.route('**/api/v1/hotels/search*', route =>
+            route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify(mockHotels.empty),
+            })
+        );
+
+        await page.goto('http://localhost:5173/search');
+        await page.getByRole('button', { name: 'Search' }).click();
+
+        await expect(page.getByTestId('hotel-card')).toHaveCount(0);
+        await expect(page.getByText('No hotels found')).toBeVisible();
+    });
+
+    test('handles 401 unauthorized — redirects to login', async ({ page }) => {
+        await page.route('**/api/v1/hotels/search*', route =>
+            route.fulfill({ status: 401, body: '{"error":"Unauthorized"}' })
+        );
+
+        await page.goto('http://localhost:5173/search');
+        await page.getByRole('button', { name: 'Search' }).click();
+
+        await expect(page).toHaveURL(/\/login/);
+    });
+
+    test('blocks analytics and tracks only API calls', async ({ page }) => {
+        const apiCalls: string[] = [];
+
+        // Block third-party scripts
+        await page.route('**/*google-analytics*', route => route.abort());
+        await page.route('**/*hotjar*', route => route.abort());
+
+        // Log API calls
+        page.on('request', request => {
+            if (request.url().includes('/api/v1/')) {
+                apiCalls.push(`${request.method()} ${new URL(request.url()).pathname}`);
+            }
+        });
+
+        await page.goto('http://localhost:5173/search');
+        await page.getByRole('button', { name: 'Search' }).click();
+
+        // Verify expected API calls were made
+        expect(apiCalls).toContain('GET /api/v1/hotels/search');
+    });
+});
+```
+
+### Practical Exercise: Test Offline Mode
+
+
+```typescript
+test('app handles going offline gracefully', async ({ page, context }) => {
+    // Load the page while online
+    await page.goto('http://localhost:5173/search');
+    await expect(page.getByTestId('search-form')).toBeVisible();
+
+    // Go offline — block all network requests
+    await context.setOffline(true);
+
+    // Try to search while offline
+    await page.getByRole('button', { name: 'Search' }).click();
+
+    // Assert offline behavior
+    await expect(page.getByText(/offline|network error/i)).toBeVisible();
+
+    // Go back online
+    await context.setOffline(false);
+
+    // Retry should work
+    await page.getByRole('button', { name: 'Try Again' }).click();
+    await expect(page.getByTestId('hotel-card').first()).toBeVisible();
+});
+```
+
+---
+
+## Failure and Debugging (Layer 4)
+
+### Failure: Route Pattern Doesn't Match
+
+**The Broken Test:**
+
+
+```typescript
+// Route set up but never triggered — real API is still called
+await page.route('/api/v1/hotels/search', route =>
+    route.fulfill({ status: 200, body: '{"hotels":[],"total":0}' })
+);
+// PROBLEM: URL pattern doesn't match because it's missing the glob prefix
+// The browser sends: http://localhost:5173/api/v1/hotels/search?location=NY
+// The pattern '/api/v1/hotels/search' doesn't match the full URL
+```
+
+**The Fix:**
+
+
+```typescript
+// Use glob pattern with ** prefix to match full URL
+await page.route('**/api/v1/hotels/search*', route =>  // ** matches any prefix, * matches query params
+    route.fulfill({ status: 200, body: '{"hotels":[],"total":0}' })
+);
+
+// Or use a regex for precise matching
+await page.route(/\/api\/v1\/hotels\/search/, route =>
+    route.fulfill({ status: 200, body: '{"hotels":[],"total":0}' })
+);
+
+// Or use a function for complex matching
+await page.route(
+    url => url.pathname === '/api/v1/hotels/search' && url.searchParams.has('location'),
+    route => route.fulfill({ status: 200, body: '{"hotels":[],"total":0}' })
+);
+```
+
+### Failure: Mock Applied Too Late
+
+
+```typescript
+// BAD: Route set up AFTER navigation — the request already fired
+await page.goto('http://localhost:5173/search');  // This triggers the API call
+await page.route('**/api/v1/hotels', route => route.fulfill({ ... }));  // Too late!
+
+// GOOD: Route set up BEFORE navigation
+await page.route('**/api/v1/hotels', route => route.fulfill({ ... }));
+await page.goto('http://localhost:5173/search');  // Now the mock intercepts the call
+```
+
+### Failure: Download Timeout in CI
+
+**The Broken Test:**
+
+
+```typescript
+// Download works locally but times out in CI
+const download = await page.waitForEvent('download', { timeout: 5000 });
+// TimeoutError: Waiting for event "download" timed out
+```
+
+**Root Cause:** In CI, the server might generate the file slower (less CPU), or the download link opens in a new tab instead of triggering a download.
+
+**The Fix:**
+
+
+```typescript
+// 1. Increase timeout for CI
+const download = await page.waitForEvent('download', { timeout: 30_000 });
+
+// 2. Ensure link triggers download, not navigation
+// Check if the link has 'download' attribute or Content-Disposition header
+await page.route('**/api/v1/bookings/*/confirmation', async route => {
+    const response = await route.fetch();
+    await route.fulfill({
+        response,
+        headers: {
+            ...response.headers(),
+            'Content-Disposition': 'attachment; filename="confirmation.pdf"',
+        },
+    });
+});
+```
+
+---
+
+## Engineering Judgment (Layer 5)
+
+### When to Mock vs When to Use Real APIs
+
+| Scenario | Use Mock | Use Real API |
+|---|---|---|
+| Testing UI rendering of specific data | Yes — control exact data | No |
+| Testing error handling (500, 401, timeout) | Yes — hard to trigger reliably | No |
+| Testing third-party integrations (Stripe, Maps) | Yes — avoid costs and flakiness | No |
+| Testing happy-path end-to-end flow | No | Yes — validates full stack |
+| Testing API contract compliance | No | Yes — validates real behavior |
+| CI pipeline (fast feedback) | Yes — no backend dependency | Selectively |
+| Pre-production validation | No | Yes — validates real environment |
+
+### Network Interception: Playwright vs Selenium
+
+| Capability | Playwright | Selenium |
+|---|---|---|
+| Route matching | `page.route()` — glob, regex, function | CDP or NetworkInterceptor — limited |
+| Mock responses | `route.fulfill()` — full control | CDP Fetch.fulfillRequest — verbose |
+| Modify responses | `route.fetch()` + modify + `fulfill()` | BrowserMob Proxy filters |
+| Block requests | `route.abort()` | CDP or proxy |
+| Wait for request | `page.waitForRequest()` | Listener + manual wait |
+| Wait for response | `page.waitForResponse()` | Listener + manual wait |
+| HAR recording | Built-in | BrowserMob Proxy |
+| Offline simulation | `context.setOffline(true)` | CDP Network.emulateNetworkConditions |
+| **Verdict** | **First-class support** | **Possible but painful** |
+
+### Mocking Strategy for Test Layers
+
+```
+E2E Tests (few)          → Real APIs, real backend, real data
+─────────────────────────────────────────────────────────
+Integration Tests (some) → Mock external services (Stripe, Maps)
+                           Real internal APIs
+─────────────────────────────────────────────────────────
+Component/UI Tests (many)→ Mock all APIs
+                           Focus on UI behavior with controlled data
+```
+
+---
+
+## Interview and Revision (Layer 6)
+
+### Fundamental Questions
+
+**Q1: How does network interception work in Playwright, and what are the main use cases?**
+
+**A:** Playwright's `page.route()` intercepts HTTP requests at the browser process level before they leave the machine. You provide a URL pattern (glob, regex, or function) and a handler. The handler can `fulfill()` with a mock response, `continue()` to forward to the real server (optionally modifying the request), or `abort()` to block the request. Main use cases: mocking API responses for deterministic tests, simulating error states (500, 401, timeout), blocking third-party resources (analytics, ads) for test speed, and modifying real responses to inject test data.
+
+**Q2: How does Selenium handle network interception compared to Playwright?**
+
+**A:** Selenium has limited native support. Options include: (1) Chrome DevTools Protocol via Selenium 4's DevTools API — gives access to Network domain for monitoring and Fetch domain for interception, but the API is verbose and Chrome-specific; (2) NetworkInterceptor class in Selenium 4 — simpler but still limited; (3) BrowserMob Proxy — an external proxy that sits between the browser and the server, offering HAR capture and response modification but adding infrastructure complexity. Playwright's `page.route()` is dramatically simpler and works across all browsers.
+
+**Q3: When should you mock API responses in UI tests vs use real APIs?**
+
+**A:** Mock when testing UI behavior with specific data (empty states, error states, edge cases), when external services are involved (payment, maps — avoid costs and flakiness), or when you need deterministic, fast tests for CI. Use real APIs for end-to-end validation of the full stack, for contract testing between frontend and backend, and for pre-production checks. My rule: component-level UI tests mock everything, integration tests mock external services but use real internal APIs, E2E tests use real everything.
+
+### Scenario-Based Questions
+
+**S1: "You need to test what happens when the payment service returns a failure during checkout. How do you approach this?"**
+
+**A:** I'd use `page.route()` to intercept the payment API call and return a mock failure response. For example, `route.fulfill({ status: 402, body: '{"error":"card_declined"}' })`. This lets me test the UI's error handling without actually hitting Stripe or triggering a real payment. I'd test multiple failure modes — card declined, insufficient funds, network timeout (`route.abort()`), and server error (500). Each mock scenario would verify the user sees the appropriate error message and can retry.
+
+
+
+
+| # | Front (Question) | Back (Answer) |
+|---|---|---|
+| 1 | What are the three route actions in Playwright? | `fulfill()` — return mock response. `continue()` — forward to real server (optionally modify). `abort()` — block the request entirely. |
+| 2 | Why must `page.route()` be called BEFORE navigation? | Routes intercept requests as they happen. If the page loads and fires API calls before the route is set up, those calls reach the real server. Set up routes first, then navigate. |
+| 3 | How does Selenium handle downloads? | Configure Chrome preferences for download directory before launching. Then poll the file system, waiting for the expected file to appear after clicking the download trigger. |
+| 4 | How does Playwright handle downloads? | `page.waitForEvent('download')` captures the download event. Then use `download.saveAs()` to save the file and `download.suggestedFilename()` to verify the name. |
+| 5 | When should you mock APIs in UI tests? | Mock for: deterministic data, error states, external services, CI speed. Use real APIs for: E2E validation, contract testing, pre-prod checks. |
+
+### Mastery Checklist
+
+- [ ] Can use `page.route()` with glob, regex, and function matchers
+- [ ] Can fulfill, continue, and abort routes in Playwright
+- [ ] Can modify real API responses by fetching and transforming them
+- [ ] Can simulate error states (500, 401, timeout, network failure)
+- [ ] Can wait for and inspect network requests in Playwright
+- [ ] Can handle downloads in both Playwright and Selenium
+- [ ] Can handle file uploads via `setInputFiles` (Playwright) and `sendKeys` (Selenium)
+- [ ] Can explain when to mock vs use real APIs at different test levels
+
+---
+
+**Next:** Cross Browser Testing | **Related:** Browser Contexts And Isolation
+
+*Last updated: *

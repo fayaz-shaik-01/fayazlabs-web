@@ -1,0 +1,859 @@
+---
+title: "Browser Contexts and Isolation"
+description: "What: A browser context is an isolated browser session with its own cookies, local storage, session storage, and cache — like an incognito window. Playwright uses lightweight browser contexts to give each test a clean, isolated environment without restarting the browser. Selenium traditionally achieves isolation by launching a new WebDriver instance per test, which is heavier and slower."
+summary: "SDET Engineering guide: Browser Contexts and Isolation"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "web-automation"
+lesson: "browser-contexts-and-isolation"
+difficulty: "intermediate"
+estimatedMinutes: 55
+prerequisites: []
+tags: ["SDET", "Web", "Selenium", "Playwright"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/web-automation/browser-contexts-and-isolation"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Browser Contexts and Isolation
+
+> **Module:** 05 — Web Automation > Browser Contexts & Isolation  
+> **Prerequisites:** Browser And Dom Fundamentals, Synchronization And Waits  
+> **Mastery Target:** L2 (Guided) → L3 (Independent)
+
+---
+
+## Quick Overview (Layer 1)
+
+**What:** A browser context is an isolated browser session with its own cookies, local storage, session storage, and cache — like an incognito window. Playwright uses lightweight browser contexts to give each test a clean, isolated environment without restarting the browser. Selenium traditionally achieves isolation by launching a new WebDriver instance per test, which is heavier and slower.
+
+**Why:** Test isolation is a prerequisite for reliable, parallelizable tests. When tests share state (cookies, auth tokens, cached data), they interfere with each other — Test A logs in and Test B inherits the session, or Test C's cached data causes Test D to see stale content. You've likely seen this: tests pass individually but fail when run together. Browser contexts solve this architecturally. For an SDET moving from Selenium to Playwright, understanding contexts is the key to faster test execution and deterministic results.
+
+**Where:** Test setup/teardown (creating fresh contexts), authentication reuse (saving/restoring login state), multi-user scenarios (admin + regular user in the same test), and parallel execution (multiple tests sharing one browser process).
+
+<MentalModel>
+
+Think of a browser as a **hotel building** and contexts as **hotel rooms**. In Selenium, you tear down and rebuild the entire building for each guest (new `WebDriver` instance). In Playwright, you keep the building standing and give each guest their own room (new `BrowserContext`). Each room has its own furniture (cookies), safe (localStorage), and minibar (cache). Guests in different rooms can't see each other's belongings, but the building's plumbing (browser process) is shared — much cheaper than construction.
+
+</MentalModel>
+
+
+<KeyTakeaways>
+
+1. **Playwright contexts are lightweight** — creating a new context takes ~1ms; launching a new browser takes ~1000ms
+2. **Each Playwright test gets a fresh context by default** — zero configuration needed for isolation
+3. **Selenium requires new WebDriver instances for full isolation** — expensive, but the only reliable option
+4. **Storage state** lets you save and reuse authentication across tests — skip the login page entirely
+5. **Multi-context tests** enable testing interactions between users (admin approves, user sees approval)
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation (Layer 2)
+
+### What Is a Browser Context?
+
+A browser context is an isolated environment within a browser process. Think of it as a boundary that prevents state leakage:
+
+```
+Browser Process (single instance, shared)
+│
+├── Context A (Test 1)
+│   ├── Cookies: { session: "abc123" }
+│   ├── localStorage: { theme: "dark" }
+│   ├── Page 1: /dashboard
+│   └── Page 2: /settings  (multiple pages per context)
+│
+├── Context B (Test 2)
+│   ├── Cookies: { }  ← empty, completely isolated
+│   ├── localStorage: { }
+│   └── Page 1: /login
+│
+└── Context C (Test 3)
+    ├── Cookies: { session: "xyz789" }  ← different session
+    ├── localStorage: { theme: "light" }
+    └── Page 1: /hotels
+```
+
+**What is isolated between contexts:**
+- Cookies (including session cookies)
+- localStorage and sessionStorage
+- Cache (HTTP cache, service worker cache)
+- IndexedDB
+- Permissions (geolocation, notifications)
+- Authentication state
+
+**What is shared across contexts:**
+- The browser process (memory, CPU)
+- Downloaded browser binary
+- Network configuration
+
+### Selenium's Approach — Heavy Isolation
+
+In Selenium, isolation means starting a completely new browser:
+
+
+```java
+// Selenium: each test gets a new browser instance
+public class SeleniumIsolationTest {
+
+    private WebDriver driver;
+
+    @BeforeEach
+    void setUp() {
+        // HEAVY: launches a new Chrome process (~1-3 seconds)
+        ChromeOptions options = new ChromeOptions();
+        options.addArguments("--headless");
+        driver = new ChromeDriver(options);
+    }
+
+    @AfterEach
+    void tearDown() {
+        // Kill the entire browser process
+        if (driver != null) {
+            driver.quit();
+        }
+    }
+
+    @Test
+    void testLogin() {
+        driver.get("http://localhost:5173/login");
+        // Fresh browser — no cookies, no cache, no localStorage
+        // Complete isolation guaranteed
+    }
+
+    @Test
+    void testDashboard() {
+        // Also fresh browser — can't be affected by testLogin()
+        driver.get("http://localhost:5173/login");
+        // Must log in again — no shared state
+    }
+}
+```
+
+**The cost:** If each `new ChromeDriver()` takes 2 seconds and you have 200 tests, you spend **400 seconds** (6.7 minutes) just starting and stopping browsers.
+
+**Alternative — Cookie Cleanup (less reliable):**
+
+
+```java
+// Selenium: reuse browser but clean state manually (faster but riskier)
+public class SeleniumCookieCleanup {
+
+    private static WebDriver driver;
+
+    @BeforeAll
+    static void startBrowser() {
+        driver = new ChromeDriver();  // One browser for all tests
+    }
+
+    @BeforeEach
+    void cleanState() {
+        driver.manage().deleteAllCookies();
+        // Clear localStorage and sessionStorage via JavaScript
+        ((JavascriptExecutor) driver).executeScript(
+            "window.localStorage.clear(); window.sessionStorage.clear();"
+        );
+        // Navigate to a blank page to reset state
+        driver.get("about:blank");
+    }
+
+    @AfterAll
+    static void stopBrowser() {
+        driver.quit();
+    }
+}
+```
+
+**Risk:** This doesn't clear IndexedDB, service workers, HTTP cache, or in-memory JavaScript state. For many apps, it's "good enough." For SPAs with complex client-side state (like StayNest's React + Zustand), it can leak state.
+
+### Playwright's Approach — Lightweight Context Isolation
+
+Playwright creates a new browser context (not a new browser process) for each test. This is the default behavior — you don't have to configure it:
+
+
+```typescript
+// Playwright default: each test() gets a fresh { page } from a fresh context
+import { test, expect } from '@playwright/test';
+
+// Each test automatically gets:
+// - A new BrowserContext (isolated cookies, storage, cache)
+// - A new Page within that context
+// - Complete isolation from every other test
+
+test('test login', async ({ page }) => {
+    // page is inside a fresh context — no cookies, no localStorage
+    await page.goto('http://localhost:5173/login');
+    await page.getByLabel('Email').fill('admin@staynest.com');
+    await page.getByLabel('Password').fill('Admin123!');
+    await page.getByRole('button', { name: 'Login' }).click();
+    await expect(page).toHaveURL(/\/dashboard/);
+    // Login state exists only in this test's context
+});
+
+test('test search', async ({ page }) => {
+    // Completely fresh context — not logged in
+    // Must log in again (or use storageState — see below)
+    await page.goto('http://localhost:5173/login');
+    // ...
+});
+```
+
+**Under the hood:**
+
+```
+Before test:   browser.newContext()  →  context.newPage()     ~1ms total
+During test:   test uses the page
+After test:    context.close()  →  all state destroyed        ~1ms total
+
+vs Selenium:
+Before test:   new ChromeDriver()  →  browser process starts  ~1000-3000ms
+During test:   test uses the driver
+After test:    driver.quit()  →  browser process killed        ~500ms
+```
+
+### Creating Contexts Manually
+
+When you need more control than the default:
+
+
+```typescript
+import { test, chromium } from '@playwright/test';
+
+test('manual context creation', async () => {
+    const browser = await chromium.launch();
+
+    // Create a context with specific settings
+    const context = await browser.newContext({
+        viewport: { width: 1280, height: 720 },
+        locale: 'en-US',
+        timezoneId: 'America/New_York',
+        geolocation: { latitude: 40.7128, longitude: -74.0060 },
+        permissions: ['geolocation'],
+        userAgent: 'Custom User Agent',
+        colorScheme: 'dark',
+    });
+
+    const page = await context.newPage();
+    await page.goto('http://localhost:5173');
+
+    // Clean up
+    await context.close();
+    await browser.close();
+});
+```
+
+### Multi-User Scenarios — Two Contexts, One Test
+
+This is where contexts truly shine — testing interactions between different users without multiple browser instances:
+
+
+```typescript
+import { test, expect, chromium } from '@playwright/test';
+
+test('admin approves hotel, user sees it', async () => {
+    const browser = await chromium.launch();
+
+    // Context 1: Admin user
+    const adminContext = await browser.newContext();
+    const adminPage = await adminContext.newPage();
+
+    // Context 2: Regular user
+    const userContext = await browser.newContext();
+    const userPage = await userContext.newPage();
+
+    // Admin logs in and creates a hotel
+    await adminPage.goto('http://localhost:5173/login');
+    await adminPage.getByLabel('Email').fill('admin@staynest.com');
+    await adminPage.getByLabel('Password').fill('Admin123!');
+    await adminPage.getByRole('button', { name: 'Login' }).click();
+    await adminPage.goto('http://localhost:5173/admin/hotels');
+    await adminPage.getByRole('button', { name: 'Add Hotel' }).click();
+    await adminPage.getByLabel('Hotel Name').fill('Test Hotel');
+    await adminPage.getByRole('button', { name: 'Save' }).click();
+    await expect(adminPage.getByText('Hotel created successfully')).toBeVisible();
+
+    // User logs in and verifies the hotel is visible
+    await userPage.goto('http://localhost:5173/login');
+    await userPage.getByLabel('Email').fill('user@staynest.com');
+    await userPage.getByLabel('Password').fill('User123!');
+    await userPage.getByRole('button', { name: 'Login' }).click();
+    await userPage.goto('http://localhost:5173/search');
+    await userPage.getByLabel('Location').fill('Test Hotel');
+    await userPage.getByRole('button', { name: 'Search' }).click();
+
+    // Assert the user can see the admin-created hotel
+    await expect(userPage.getByText('Test Hotel')).toBeVisible();
+
+    // Cleanup
+    await adminContext.close();
+    await userContext.close();
+    await browser.close();
+});
+```
+
+**Selenium equivalent** would require two separate WebDriver instances — two browser processes, double the memory, double the startup time.
+
+### Storage State — Reusing Authentication
+
+Logging in via the UI for every test is slow (navigating to login page, filling form, clicking submit, waiting for redirect). Storage state lets you log in once, save the state, and reuse it:
+
+**Step 1: Create an authentication setup that saves state:**
+
+
+```typescript
+// auth.setup.ts — runs once before all tests
+import { test as setup, expect } from '@playwright/test';
+
+const authFile = 'playwright/.auth/user.json';
+
+setup('authenticate', async ({ page }) => {
+    // Perform login through the UI
+    await page.goto('http://localhost:5173/login');
+    await page.getByLabel('Email').fill('admin@staynest.com');
+    await page.getByLabel('Password').fill('Admin123!');
+    await page.getByRole('button', { name: 'Login' }).click();
+
+    // Wait for login to complete
+    await expect(page).toHaveURL(/\/dashboard/);
+
+    // Save the authentication state (cookies + localStorage)
+    await page.context().storageState({ path: authFile });
+});
+```
+
+**Step 2: Configure Playwright to use the saved state:**
+
+
+```typescript
+// playwright.config.ts
+import { defineConfig } from '@playwright/test';
+
+export default defineConfig({
+    projects: [
+        // Setup project — runs first, performs login
+        {
+            name: 'setup',
+            testMatch: /.*\.setup\.ts/,
+        },
+        // Test project — uses saved auth state
+        {
+            name: 'chromium',
+            use: {
+                storageState: 'playwright/.auth/user.json',
+            },
+            dependencies: ['setup'],
+        },
+    ],
+});
+```
+
+**Step 3: Tests start already logged in:**
+
+
+```typescript
+// hotel-search.spec.ts — no login code needed
+import { test, expect } from '@playwright/test';
+
+test('search for hotels', async ({ page }) => {
+    // Already authenticated — storageState was loaded into the context
+    await page.goto('http://localhost:5173/search');
+
+    // No login step — we're already on an authenticated session
+    await page.getByLabel('Location').fill('New York');
+    await page.getByRole('button', { name: 'Search' }).click();
+
+    await expect(page.getByTestId('hotel-card')).not.toHaveCount(0);
+});
+
+test('view booking history', async ({ page }) => {
+    // Also authenticated — each test gets a fresh context with the saved state
+    await page.goto('http://localhost:5173/bookings');
+
+    await expect(page.getByRole('heading', { name: 'My Bookings' }))
+        .toBeVisible();
+});
+```
+
+**What gets saved in storageState:**
+
+
+```json
+{
+  "cookies": [
+    {
+      "name": "session_id",
+      "value": "abc123",
+      "domain": "localhost",
+      "path": "/",
+      "expires": -1,
+      "httpOnly": true,
+      "secure": false,
+      "sameSite": "Lax"
+    }
+  ],
+  "origins": [
+    {
+      "origin": "http://localhost:5173",
+      "localStorage": [
+        {
+          "name": "authToken",
+          "value": "eyJhbGciOiJIUzI1NiIs..."
+        },
+        {
+          "name": "user",
+          "value": "{\"id\":1,\"name\":\"Admin\",\"role\":\"ADMIN\"}"
+        }
+      ]
+    }
+  ]
+}
+```
+
+### Selenium — Approximating Storage State
+
+Selenium doesn't have built-in storage state, but you can approximate it:
+
+
+```java
+// Selenium: save and restore cookies for auth reuse
+public class AuthHelper {
+
+    private static Set<Cookie> savedCookies;
+
+    // Call once during suite setup — perform login, save cookies
+    public static void loginAndSaveCookies(WebDriver driver) {
+        driver.get("http://localhost:5173/login");
+
+        new WebDriverWait(driver, Duration.ofSeconds(10))
+            .until(ExpectedConditions.visibilityOfElementLocated(
+                By.cssSelector("[data-testid='email-input']")
+            ));
+
+        driver.findElement(By.cssSelector("[data-testid='email-input']"))
+              .sendKeys("admin@staynest.com");
+        driver.findElement(By.cssSelector("[data-testid='password-input']"))
+              .sendKeys("Admin123!");
+        driver.findElement(By.cssSelector("[data-testid='login-button']")).click();
+
+        new WebDriverWait(driver, Duration.ofSeconds(10))
+            .until(ExpectedConditions.urlContains("/dashboard"));
+
+        // Save all cookies
+        savedCookies = driver.manage().getCookies();
+    }
+
+    // Call before each test — restore cookies to skip login
+    public static void restoreCookies(WebDriver driver) {
+        driver.get("http://localhost:5173");  // Must be on correct domain first
+        driver.manage().deleteAllCookies();
+        for (Cookie cookie : savedCookies) {
+            driver.manage().addCookie(cookie);
+        }
+        driver.navigate().refresh();  // Apply cookies
+    }
+}
+```
+
+**Limitation:** This only handles cookies, not localStorage. For JWT-based apps like StayNest (token in localStorage), you also need:
+
+
+```java
+// Restore localStorage via JavaScript
+public static void restoreLocalStorage(WebDriver driver, Map<String, String> storageData) {
+    JavascriptExecutor js = (JavascriptExecutor) driver;
+    for (Map.Entry<String, String> entry : storageData.entrySet()) {
+        js.executeScript(
+            "window.localStorage.setItem(arguments[0], arguments[1]);",
+            entry.getKey(), entry.getValue()
+        );
+    }
+    driver.navigate().refresh();
+}
+```
+
+---
+
+## Practical Implementation (Layer 3)
+
+### Practical Exercise: Context Isolation in Action
+
+
+```typescript
+// Demonstrate that contexts are truly isolated
+import { test, expect, chromium } from '@playwright/test';
+
+test('contexts are fully isolated from each other', async () => {
+    const browser = await chromium.launch();
+
+    // Context A: set some state
+    const contextA = await browser.newContext();
+    const pageA = await contextA.newPage();
+    await pageA.goto('http://localhost:5173');
+    await pageA.evaluate(() => {
+        localStorage.setItem('theme', 'dark');
+        document.cookie = 'user=alice; path=/';
+    });
+
+    // Verify state exists in Context A
+    const themeA = await pageA.evaluate(() => localStorage.getItem('theme'));
+    expect(themeA).toBe('dark');
+
+    // Context B: verify NO state leaked
+    const contextB = await browser.newContext();
+    const pageB = await contextB.newPage();
+    await pageB.goto('http://localhost:5173');
+
+    const themeB = await pageB.evaluate(() => localStorage.getItem('theme'));
+    expect(themeB).toBeNull();  // Completely empty — no leakage
+
+    const cookieB = await pageB.evaluate(() => document.cookie);
+    expect(cookieB).toBe('');   // No cookies from Context A
+
+    await contextA.close();
+    await contextB.close();
+    await browser.close();
+});
+```
+
+### Practical Exercise: Multiple Auth Roles
+
+
+```typescript
+// playwright.config.ts — multiple auth states for different roles
+import { defineConfig } from '@playwright/test';
+
+export default defineConfig({
+    projects: [
+        // Auth setup projects
+        {
+            name: 'admin-auth',
+            testMatch: /admin\.setup\.ts/,
+        },
+        {
+            name: 'user-auth',
+            testMatch: /user\.setup\.ts/,
+        },
+
+        // Tests that run as admin
+        {
+            name: 'admin-tests',
+            testMatch: /.*admin.*\.spec\.ts/,
+            use: { storageState: 'playwright/.auth/admin.json' },
+            dependencies: ['admin-auth'],
+        },
+
+        // Tests that run as regular user
+        {
+            name: 'user-tests',
+            testMatch: /.*user.*\.spec\.ts/,
+            use: { storageState: 'playwright/.auth/user.json' },
+            dependencies: ['user-auth'],
+        },
+
+        // Tests that run unauthenticated (no storageState)
+        {
+            name: 'anonymous-tests',
+            testMatch: /.*anon.*\.spec\.ts/,
+            // No storageState — fresh context with no auth
+        },
+    ],
+});
+```
+
+
+```typescript
+// admin.setup.ts
+import { test as setup } from '@playwright/test';
+
+setup('authenticate as admin', async ({ page }) => {
+    await page.goto('http://localhost:5173/login');
+    await page.getByLabel('Email').fill('admin@staynest.com');
+    await page.getByLabel('Password').fill('Admin123!');
+    await page.getByRole('button', { name: 'Login' }).click();
+    await page.waitForURL('**/dashboard');
+    await page.context().storageState({ path: 'playwright/.auth/admin.json' });
+});
+```
+
+
+```typescript
+// user.setup.ts
+import { test as setup } from '@playwright/test';
+
+setup('authenticate as user', async ({ page }) => {
+    await page.goto('http://localhost:5173/login');
+    await page.getByLabel('Email').fill('user@staynest.com');
+    await page.getByLabel('Password').fill('User123!');
+    await page.getByRole('button', { name: 'Login' }).click();
+    await page.waitForURL('**/dashboard');
+    await page.context().storageState({ path: 'playwright/.auth/user.json' });
+});
+```
+
+### Practical Exercise: API-Based Auth (Fastest)
+
+
+```typescript
+// Skip the UI entirely — call the auth API directly
+import { test as setup, expect } from '@playwright/test';
+
+setup('authenticate via API', async ({ request, page }) => {
+    // Call login API directly — much faster than UI login
+    const response = await request.post('http://localhost:8080/api/v1/auth/login', {
+        data: {
+            email: 'admin@staynest.com',
+            password: 'Admin123!'
+        }
+    });
+
+    expect(response.ok()).toBeTruthy();
+    const body = await response.json();
+    const token = body.token;
+
+    // Navigate to the app and set localStorage
+    await page.goto('http://localhost:5173');
+    await page.evaluate((authToken) => {
+        localStorage.setItem('authToken', authToken);
+    }, token);
+
+    // Save the state
+    await page.context().storageState({ path: 'playwright/.auth/admin.json' });
+});
+```
+
+---
+
+## Failure and Debugging (Layer 4)
+
+### Failure: Tests Pass Alone, Fail Together
+
+**The Broken Test:**
+
+
+```java
+// Selenium: tests share the same driver instance without cleanup
+public class SharedDriverTests {
+    static WebDriver driver = new ChromeDriver();
+
+    @Test
+    void test1_login() {
+        driver.get("http://localhost:5173/login");
+        driver.findElement(By.id("email")).sendKeys("admin@staynest.com");
+        driver.findElement(By.id("password")).sendKeys("Admin123!");
+        driver.findElement(By.id("login-button")).click();
+        // Now logged in — cookies and localStorage are set
+    }
+
+    @Test
+    void test2_searchAsGuest() {
+        driver.get("http://localhost:5173/search");
+        // EXPECTED: anonymous search page
+        // ACTUAL: shows logged-in user's search (personalized results)
+        // because cookies from test1 are still active!
+    }
+}
+```
+
+**Root Cause:** Tests share a WebDriver instance without clearing state. test1's login session leaks into test2.
+
+**The Fix (Selenium):**
+
+
+```java
+// Option 1: New driver per test (reliable, slow)
+@BeforeEach
+void setUp() {
+    driver = new ChromeDriver();
+}
+
+@AfterEach
+void tearDown() {
+    driver.quit();
+}
+
+// Option 2: Clear state between tests (fast, less reliable)
+@BeforeEach
+void cleanState() {
+    driver.manage().deleteAllCookies();
+    ((JavascriptExecutor) driver).executeScript(
+        "window.localStorage.clear(); window.sessionStorage.clear();"
+    );
+    driver.get("about:blank");
+}
+```
+
+**The Fix (Playwright):** Not needed — Playwright creates a fresh context per test by default.
+
+### Failure: Storage State Expired
+
+**The Broken Test:**
+
+
+```typescript
+// storageState was created hours ago — JWT has expired
+test('view dashboard', async ({ page }) => {
+    await page.goto('http://localhost:5173/dashboard');
+    // Redirects to /login because the saved JWT expired
+    // Test fails: expected URL /dashboard, got /login
+});
+```
+
+**Root Cause:** The JWT token in the saved storage state has expired. Tokens typically expire after 1-24 hours.
+
+**The Fix:**
+
+
+```typescript
+// playwright.config.ts — ensure auth setup runs before EACH test run
+export default defineConfig({
+    projects: [
+        {
+            name: 'setup',
+            testMatch: /.*\.setup\.ts/,
+            // The setup project re-runs at the start of each test execution
+            // generating fresh tokens
+        },
+        {
+            name: 'tests',
+            use: { storageState: 'playwright/.auth/user.json' },
+            dependencies: ['setup'],  // Always runs setup first
+        },
+    ],
+});
+```
+
+<BestPractice>
+
+**Prevention:** Never commit saved storage state files to source control. Generate them fresh in the `setup` project before each test run.
+
+</BestPractice>
+
+
+### Failure: Context Options Mismatch
+
+
+```typescript
+// Auth was saved with viewport 1920x1080, tests run at 1280x720
+// The responsive layout changes — different elements visible/hidden
+// This causes locator failures that aren't about isolation
+
+// Fix: ensure context options match between setup and tests
+// playwright.config.ts
+export default defineConfig({
+    use: {
+        viewport: { width: 1280, height: 720 },  // Consistent everywhere
+    },
+});
+```
+
+---
+
+## Engineering Judgment (Layer 5)
+
+### Isolation Strategy Decision Matrix
+
+| Strategy | Startup Cost | Isolation Level | Best For |
+|---|---|---|---|
+| New browser per test (Selenium) | ~2-3 seconds | Perfect | Small suite, max safety |
+| Cookie cleanup (Selenium) | ~100ms | Good (not perfect) | Medium suite, server-rendered apps |
+| New context per test (Playwright) | ~1ms | Perfect | All Playwright tests (default) |
+| Shared browser, shared context | ~0ms | None | Never — unless explicitly testing shared state |
+
+### When to Use storageState vs Login in Each Test
+
+**Use storageState when:**
+- The login flow is stable and not the focus of the test
+- Your suite has >10 tests that require authentication
+- Login is slow (MFA, CAPTCHA, OAuth redirect)
+- You want parallel tests to share auth without race conditions
+
+**Log in via UI in each test when:**
+- You're specifically testing the login flow itself
+- You need different credentials per test (storageState supports this with multiple files)
+- The auth state is complex and hard to serialize (WebSocket connections, in-memory tokens)
+
+**Use API-based auth when:**
+- You want the fastest possible setup
+- The auth API is stable and documented
+- You don't need to test the login UI
+
+### Context vs Page — When to Use Which
+
+
+```typescript
+// Multiple pages in ONE context — they share state
+const context = await browser.newContext();
+const page1 = await context.newPage();  // Tab 1
+const page2 = await context.newPage();  // Tab 2
+// page1 and page2 share cookies and localStorage
+// Use case: test multi-tab behavior (e.g., logout in tab 1, tab 2 should redirect)
+
+// Multiple contexts — they DON'T share state
+const context1 = await browser.newContext();
+const context2 = await browser.newContext();
+// Use case: different users, different auth states, full isolation
+```
+
+---
+
+## Interview and Revision (Layer 6)
+
+### Fundamental Questions
+
+**Q1: What is a browser context in Playwright, and how does it differ from Selenium's approach to isolation?**
+
+**A:** A browser context is a lightweight isolated session within a single browser process — it has its own cookies, localStorage, sessionStorage, cache, and permissions. Creating one takes ~1ms. Selenium achieves equivalent isolation by launching a completely new browser process per test, which takes 1-3 seconds. Playwright contexts give you the same isolation guarantee at 1000x less cost, enabling faster parallel execution and cheaper test setup.
+
+**Q2: How does Playwright's storageState work, and why is it useful?**
+
+**A:** `storageState` serializes a context's cookies and localStorage to a JSON file. You can then create new contexts pre-loaded with this state. The typical pattern is: a setup project logs in once via the UI or API, saves `storageState` to a file, and all subsequent tests create contexts with that file — they start already authenticated. This eliminates repeated login flows, saving seconds per test. For a 200-test suite, skipping a 3-second login saves 10 minutes.
+
+**Q3: How would you test a scenario where an admin creates content and a regular user views it?**
+
+**A:** I'd create two browser contexts in the same test — one for the admin and one for the user. The admin context logs in with admin credentials, performs the creation action, and I verify it succeeded. Then the user context logs in with user credentials and verifies the content is visible. Both contexts share the same browser process for efficiency but are completely isolated from each other. In Selenium, this would require two WebDriver instances and two browser processes.
+
+### Scenario-Based Questions
+
+**S1: "Your tests pass individually but fail when run in parallel. What's happening?"**
+
+**A:** This is almost always a test isolation problem. Tests are sharing state — either through the browser (shared cookies/localStorage because they share a WebDriver instance), through the server (Test A creates data that Test B doesn't expect), or through the file system (shared test data files). For browser-side isolation, I'd ensure each test gets its own context (Playwright default) or its own WebDriver (Selenium). For server-side isolation, I'd use unique test data per test (unique emails, unique hotel names) or run each test against a fresh database state.
+
+
+
+
+| # | Front (Question) | Back (Answer) |
+|---|---|---|
+| 1 | How long does creating a Playwright context take vs a new Selenium WebDriver? | Context: ~1ms. New WebDriver: ~1-3 seconds. Contexts reuse the browser process; WebDriver launches a new one. |
+| 2 | What does storageState save? | Cookies and localStorage (per origin) as a JSON file. Does NOT save sessionStorage, IndexedDB, or service worker state. |
+| 3 | How do you test two users interacting in Playwright? | Create two `BrowserContext` instances in the same test. Each has its own auth state, cookies, and storage. Both share the browser process. |
+| 4 | Why is deleting cookies insufficient for Selenium test isolation? | It doesn't clear localStorage, sessionStorage, IndexedDB, service worker cache, or in-memory JavaScript state. For SPAs, leaked client state can affect subsequent tests. |
+| 5 | What's the fastest way to set up auth in Playwright tests? | Call the login API directly in a setup project (`request.post`), set the token in localStorage via `page.evaluate`, then save `storageState`. Skip the UI entirely. |
+
+### Mastery Checklist
+
+- [ ] Can explain what a browser context isolates and what it shares
+- [ ] Can create and use browser contexts in Playwright
+- [ ] Can implement storageState for authentication reuse
+- [ ] Can write a multi-user test using multiple contexts
+- [ ] Can explain the performance difference between Playwright contexts and Selenium new-driver-per-test
+- [ ] Can implement cookie/localStorage cleanup in Selenium as an isolation alternative
+- [ ] Can configure multiple auth roles with separate storageState files
+- [ ] Can implement API-based authentication setup for maximum speed
+
+---
+
+**Next:** Network And Downloads | **Related:** Synchronization And Waits
+
+*Last updated: *

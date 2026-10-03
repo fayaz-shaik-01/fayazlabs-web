@@ -1,0 +1,518 @@
+---
+title: "Jenkins Fundamentals"
+description: "What: Jenkins is an open-source automation server that orchestrates your CI/CD pipeline — building code, running tests, publishing reports, and deploying artifacts. For an SDET, Jenkins is the engine that turns \"tests on my laptop\" into \"tests that run automatically on every commit and report results to the team.\""
+summary: "SDET Engineering guide: Jenkins Fundamentals"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "ci-cd-and-infrastructure"
+lesson: "jenkins-fundamentals"
+difficulty: "intermediate"
+estimatedMinutes: 32
+prerequisites: []
+tags: ["SDET", "CI/CD", "Jenkins", "Docker"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/ci-cd-and-infrastructure/jenkins-fundamentals"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Jenkins Fundamentals
+
+> **Module:** 08 — CI/CD and Infrastructure > Jenkins Fundamentals  
+> **Prerequisites:** Basic understanding of build tools (Maven/Gradle), version control (Git)  
+> **Mastery Target:** L3 (Independent) → L4 (Engineering Judgment)
+
+---
+
+## Quick Overview (Layer 1)
+
+**What:** Jenkins is an open-source automation server that orchestrates your CI/CD pipeline — building code, running tests, publishing reports, and deploying artifacts. For an SDET, Jenkins is the engine that turns "tests on my laptop" into "tests that run automatically on every commit and report results to the team."
+
+**Why it matters:** You've written 200 API tests and 150 UI tests. They pass on your machine. But nobody runs them consistently, nobody sees the results, and nobody knows when they break. Jenkins solves this: it triggers your tests on every pull request, on a nightly schedule, or on demand — and it tells the team what failed, with reports and notifications.
+
+**Where you encounter it:** Every CI pipeline that runs your test suite. Every "tests passed" badge on a PR. Every nightly regression email. Every Allure report link in Slack.
+
+<MentalModel>
+
+Think of Jenkins as a **factory assembly line manager**. You (the SDET) design the blueprint (Jenkinsfile). The manager (Jenkins master) reads the blueprint and assigns work to factory workers (agents). Each worker has a workstation (executor) where they perform tasks: pull the code, build it, run the tests, package the report. The manager monitors progress and sounds the alarm (notification) if something fails.
+
+</MentalModel>
+
+
+<KeyTakeaways>
+
+1. **Jenkins master coordinates; agents execute** — the master schedules jobs and stores configuration, but actual test execution happens on agents. Never run heavy test suites on the master node.
+2. **Pipelines beat Freestyle jobs** — Freestyle jobs are configured through the UI (click-ops). Pipelines are code (Jenkinsfile), version-controlled, reviewable, and reproducible. Always use pipelines for test automation.
+3. **Declarative pipeline is the standard** — unless you need advanced scripted logic, declarative syntax is more readable, more maintainable, and enforces structure.
+4. **Credentials belong in Jenkins, not in code** — Jenkins Credentials store encrypts secrets and injects them at runtime via `credentials()` binding. Never hardcode API keys or passwords.
+5. **Post actions handle cleanup and reporting** — `always`, `success`, `failure`, and `unstable` blocks ensure reports are published and notifications are sent regardless of test outcome.
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation (Layer 2)
+
+### Jenkins Architecture
+
+```
+┌─────────────────────────────────────────────┐
+│              Jenkins Master                  │
+│  ┌───────────┐  ┌──────────┐  ┌──────────┐ │
+│  │ Job Queue  │  │ Config   │  │ Plugin   │ │
+│  │ Scheduler  │  │ Store    │  │ Manager  │ │
+│  └───────────┘  └──────────┘  └──────────┘ │
+└──────────┬──────────────┬───────────────────┘
+           │              │
+     ┌─────▼─────┐ ┌─────▼─────┐
+     │  Agent 1   │ │  Agent 2   │
+     │ (Linux)    │ │ (Docker)   │
+     │ Executor 1 │ │ Executor 1 │
+     │ Executor 2 │ │ Executor 2 │
+     └───────────┘ └───────────┘
+```
+
+**Master:** The central brain. Manages job definitions, schedules builds, stores credentials, serves the web UI. It can run jobs itself, but shouldn't for production test suites — it's a single point of failure and shared resource.
+
+**Agent (formerly "slave"):** A machine (physical, VM, or container) that connects to the master and runs jobs. Agents are labelled — `linux`, `docker`, `windows`, `selenium` — so jobs can target specific infrastructure.
+
+**Executor:** A slot on an agent where a job runs. An agent with 2 executors can run 2 jobs simultaneously. More executors = more parallelism, but also more CPU/memory contention.
+
+### Freestyle Jobs vs Pipeline
+
+| Aspect | Freestyle Job | Pipeline |
+|--------|--------------|----------|
+| Configuration | Web UI (click buttons, fill forms) | Code (Jenkinsfile in repo) |
+| Version control | No — config lives in Jenkins only | Yes — Jenkinsfile is in Git |
+| Code review | Not possible | PR review like any code |
+| Reproducibility | "It was configured differently last Tuesday" | `git log` shows every change |
+| Complex logic | Limited (chained jobs, plugins) | Full Groovy scripting |
+| Restart-ability | From the beginning only | From failed stage |
+
+**Why pipelines win for test automation:** Your Jenkinsfile evolves alongside your tests. When you add a new test stage, it's in the same PR as the tests. When something breaks, `git blame` tells you who changed the pipeline and when. Freestyle jobs are fine for one-off admin tasks — not for test automation.
+
+### Declarative vs Scripted Pipeline
+
+**Declarative** — structured, opinionated, what 95% of teams should use:
+
+
+```groovy
+pipeline {
+    agent any
+    stages {
+        stage('Build') {
+            steps {
+                sh 'mvn compile'
+            }
+        }
+        stage('Test') {
+            steps {
+                sh 'mvn test'
+            }
+        }
+    }
+    post {
+        always {
+            junit '**/target/surefire-reports/*.xml'
+        }
+    }
+}
+```
+
+**Scripted** — full Groovy, maximum flexibility, harder to read:
+
+
+```groovy
+node {
+    stage('Build') {
+        sh 'mvn compile'
+    }
+    stage('Test') {
+        try {
+            sh 'mvn test'
+        } finally {
+            junit '**/target/surefire-reports/*.xml'
+        }
+    }
+}
+```
+
+**When to use scripted:** Only when declarative can't express what you need — complex conditional logic, dynamic stage generation, or loops over environments. Start declarative; drop to scripted blocks (`script { }`) only where necessary.
+
+### Credentials Management
+
+Jenkins stores credentials encrypted on disk. You reference them by ID, never by value:
+
+
+```groovy
+pipeline {
+    agent any
+    environment {
+        // Jenkins injects the credential value at runtime
+        API_KEY = credentials('staynest-api-key')          // Secret text
+        DB_CREDS = credentials('staynest-db-credentials')  // Username/password
+    }
+    stages {
+        stage('Test') {
+            steps {
+                // API_KEY is available as env var
+                // DB_CREDS_USR and DB_CREDS_PSW are auto-split
+                sh 'mvn test -Dapi.key=$API_KEY -Ddb.user=$DB_CREDS_USR'
+            }
+        }
+    }
+}
+```
+
+**Credential types:**
+- **Secret text** — single string (API key, token). Exposed as one env var.
+- **Username with password** — auto-splits into `_USR` and `_PSW` suffixes.
+- **Secret file** — a file path (e.g., service account JSON key).
+- **SSH username with private key** — for Git checkout over SSH.
+
+**Security rule:** Jenkins masks credential values in console output. But if your test code logs them (e.g., `logger.info("API key: " + apiKey)`), they appear unmasked. Never log credential values.
+
+---
+
+## Practical Implementation (Layer 3)
+
+### Example 1: Basic Jenkinsfile for StayNest API Tests
+
+A complete pipeline that checks out code, runs API tests, and publishes results.
+
+
+```groovy
+pipeline {
+    agent {
+        label 'linux'  // Run on any agent labelled 'linux'
+    }
+
+    tools {
+        maven 'Maven-3.9'   // Use Maven installation named 'Maven-3.9'
+        jdk 'JDK-17'        // Use JDK installation named 'JDK-17'
+    }
+
+    environment {
+        API_KEY = credentials('staynest-api-key')
+        ENV = 'staging'
+    }
+
+    options {
+        timeout(time: 30, unit: 'MINUTES')   // Kill if stuck
+        timestamps()                          // Prefix console with timestamps
+        buildDiscarder(logRotator(numToKeepStr: '20'))  // Keep last 20 builds
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm  // Pulls the repo that contains this Jenkinsfile
+            }
+        }
+
+        stage('Build') {
+            steps {
+                sh 'mvn clean compile -DskipTests'
+            }
+        }
+
+        stage('API Tests') {
+            steps {
+                sh """
+                    mvn test \\
+                        -Denv=${ENV} \\
+                        -Dapi.key=${API_KEY} \\
+                        -Dsurefire.suiteXmlFiles=src/test/resources/suites/api-smoke.xml
+                """
+            }
+        }
+
+        stage('Publish Reports') {
+            steps {
+                // JUnit results for Jenkins test trend
+                junit '**/target/surefire-reports/*.xml'
+
+                // Allure report (requires Allure Jenkins plugin)
+                allure includeProperties: false,
+                       results: Path: 'Target/Allure Results'
+            }
+        }
+    }
+
+    post {
+        always {
+            // Archive test artifacts regardless of result
+            archiveArtifacts artifacts: '**/target/surefire-reports/**', allowEmptyArchive: true
+            cleanWs()  // Clean workspace to free disk
+        }
+        failure {
+            echo 'API tests failed! Check Allure report for details.'
+            // Slack notification would go here — covered in notifications module
+        }
+        success {
+            echo 'All API tests passed.'
+        }
+    }
+}
+```
+
+### Example 2: Pipeline with Multiple Test Stages
+
+
+```groovy
+pipeline {
+    agent { label 'linux' }
+
+    tools {
+        maven 'Maven-3.9'
+        jdk 'JDK-17'
+    }
+
+    environment {
+        API_KEY = credentials('staynest-api-key')
+    }
+
+    stages {
+        stage('Checkout & Build') {
+            steps {
+                checkout scm
+                sh 'mvn clean compile -DskipTests'
+            }
+        }
+
+        stage('Unit Tests') {
+            steps {
+                sh 'mvn test -Dgroups=unit'
+            }
+            post {
+                always {
+                    junit '**/target/surefire-reports/*.xml'
+                }
+            }
+        }
+
+        stage('API Smoke Tests') {
+            steps {
+                sh 'mvn test -Dgroups=api-smoke -Denv=staging'
+            }
+            post {
+                always {
+                    junit '**/target/surefire-reports/*.xml'
+                }
+            }
+        }
+
+        stage('API Regression Tests') {
+            when {
+                // Only run full regression on main branch or nightly
+                anyOf {
+                    branch 'main'
+                    triggeredBy 'TimerTrigger'
+                }
+            }
+            steps {
+                sh 'mvn test -Dgroups=api-regression -Denv=staging'
+            }
+            post {
+                always {
+                    junit '**/target/surefire-reports/*.xml'
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            allure includeProperties: false,
+                   results: Path: 'Target/Allure Results'
+            cleanWs()
+        }
+    }
+}
+```
+
+---
+
+## Failure and Debugging (Layer 4)
+
+### Failure 1: "mvn: command not found" in Jenkins
+
+**The Problem:**
+
+Pipeline works locally but fails in Jenkins with `mvn: command not found`.
+
+**Root cause:** Jenkins agents don't inherit your local `$PATH`. Maven isn't installed on the agent, or it's installed but not configured in Jenkins Global Tool Configuration.
+
+**The fix:**
+
+
+```groovy
+pipeline {
+    agent { label 'linux' }
+    tools {
+        // This name must match what's configured in
+        // Manage Jenkins → Global Tool Configuration → Maven
+        maven 'Maven-3.9'
+    }
+    stages {
+        stage('Test') {
+            steps {
+                sh 'mvn --version'  // Verify Maven is available
+                sh 'mvn test'
+            }
+        }
+    }
+}
+```
+
+<BestPractice>
+
+**Prevention:** Always declare tools in the `tools` block. If Maven is in a custom path on the agent, configure it in Jenkins Global Tool Configuration — don't rely on `$PATH`.
+
+</BestPractice>
+
+
+### Failure 2: Credentials Not Available in Pipeline
+
+**The Problem:**
+
+
+```groovy
+environment {
+    API_KEY = credentials('staynest-api-key')  // Returns ****
+}
+stages {
+    stage('Test') {
+        steps {
+            sh 'echo $API_KEY'  // Prints **** — masked by Jenkins
+            sh 'curl -H "Authorization: Bearer $API_KEY" ...'  // 401 Unauthorized
+        }
+    }
+}
+```
+
+**Root cause:** The credential ID `staynest-api-key` doesn't exist in Jenkins, or it exists in a different scope (folder-level vs global). Jenkins silently returns an empty string or masks output.
+
+**Diagnostic steps:**
+1. Go to Manage Jenkins → Credentials → verify the ID matches exactly (case-sensitive)
+2. Check the credential scope — "Global" is available everywhere; "System" is only for Jenkins internals
+3. Verify the credential type matches usage — a "Username with password" credential used as "Secret text" won't work
+
+**The fix:** Ensure the credential ID in `credentials('...')` exactly matches what's configured in Jenkins. Use the correct type.
+
+### Failure 3: Workspace Not Cleaned Between Builds
+
+**The Problem:** Test results from a previous build leak into the current build. Old `surefire-reports` XML files cause Jenkins to report tests that didn't actually run this time.
+
+**Root cause:** Jenkins reuses workspaces by default. If the previous build's `target/` directory isn't cleaned, stale files persist.
+
+**The fix:**
+
+
+```groovy
+stages {
+    stage('Clean & Build') {
+        steps {
+            sh 'mvn clean compile -DskipTests'  // 'clean' deletes target/
+        }
+    }
+}
+post {
+    always {
+        cleanWs()  // Clean entire workspace after build
+    }
+}
+```
+
+---
+
+## Engineering Judgment (Layer 5)
+
+### When to Use Jenkins vs Other CI Tools
+
+| CI Tool | Best For | Consider When |
+|---------|----------|---------------|
+| Jenkins | Self-hosted, maximum plugin ecosystem, complex pipelines | You need full control, enterprise on-prem, existing Jenkins investment |
+| GitHub Actions | GitHub-hosted repos, simple-to-moderate pipelines | Your code is on GitHub, you want zero CI infrastructure management |
+| GitLab CI | GitLab-hosted repos, built-in container registry | Full DevOps platform, GitLab-native workflows |
+| Azure DevOps | Microsoft ecosystem, .NET projects | Enterprise Microsoft stack, Azure cloud |
+| CircleCI | Fast builds, Docker-native, good caching | SaaS-preferred, Docker-heavy workflows |
+
+**For this knowledge base:** We focus on Jenkins (most common in enterprise SDET roles) and GitHub Actions (growing rapidly, likely in interviews). The pipeline concepts transfer across all platforms.
+
+### Master-Only vs Master-Agent Architecture
+
+| Setup | When | Risk |
+|-------|------|------|
+| Master-only (single node) | Learning, personal projects, &lt; 5 jobs | Master overload, no isolation, single point of failure |
+| Master + permanent agents | Stable team, predictable workload | Agents idle when no builds, maintenance overhead |
+| Master + dynamic agents (Docker/K8s) | Large teams, variable workload | Complexity, requires container orchestration knowledge |
+
+**Recommendation for SDET teams:** Start with master + 1-2 permanent agents. Move to dynamic Docker agents when you hit executor contention (jobs queuing because all executors are busy).
+
+### Job Organization
+
+**Folders:** Group by project — `StayNest/API-Smoke`, `StayNest/UI-Regression`, `StayNest/Nightly`.
+
+**Naming convention:** `{project}-{type}-{scope}` — `staynest-api-smoke`, `staynest-ui-regression`, `staynest-nightly-full`.
+
+**Views:** Create views for different audiences — "All Tests" for SDETs, "Smoke Results" for developers, "Nightly Dashboard" for managers.
+
+---
+
+## Interview and Revision (Layer 6)
+
+### Fundamental Questions
+
+**Q1: Explain the Jenkins architecture — master, agent, and executor.**
+
+**A:** The Jenkins master is the central coordination node — it manages job configuration, schedules builds, stores credentials, and serves the web UI. Agents are worker machines (physical, VM, or Docker container) that connect to the master and execute the actual jobs. Each agent has one or more executors, which are concurrent execution slots. An agent with 2 executors can run 2 jobs simultaneously. For test automation, heavy test execution should always run on agents, never on the master, to avoid destabilizing the CI server.
+
+**Q2: Why should you use Pipeline over Freestyle jobs for test automation?**
+
+**A:** Pipelines are defined as code in a Jenkinsfile that lives in the same repository as the tests. This means the pipeline is version-controlled, reviewable in PRs, and evolves alongside the test suite. If someone changes the pipeline, `git blame` shows who and when. Freestyle jobs are configured through the Jenkins UI — there's no version history, no code review, and no way to reproduce a previous configuration. For test automation, where the pipeline frequently changes as test suites grow, this traceability is essential.
+
+**Q3: How do you manage secrets in a Jenkins pipeline?**
+
+**A:** I store credentials in Jenkins' built-in Credentials store, which encrypts them at rest. In the Jenkinsfile, I reference them by ID using `credentials('credential-id')` in the `environment` block. Jenkins injects the values as environment variables at runtime and masks them in console output. I never hardcode secrets in the Jenkinsfile or pass them as build parameters, because parameters are visible in the build history. For username/password credentials, Jenkins auto-splits them into `_USR` and `_PSW` suffixed variables.
+
+### Scenario-Based Questions
+
+**Q4: Your Jenkins pipeline runs API tests but occasionally times out after 2 hours. How do you investigate?**
+
+**A:** First, I'd add the `timeout` option to the pipeline to prevent indefinite hangs: `options { timeout(time: 45, unit: 'MINUTES') }`. Then I'd investigate why tests take so long: check if a specific test is stuck (review console output), check if the API under test is slow (network/environment issue), check if the agent is resource-starved (CPU/memory). I'd also add timestamps to the pipeline (`timestamps()` option) to see exactly where time is spent. If specific tests are slow, I'd add timing to the test framework and flag tests exceeding a threshold.
+
+
+
+
+| # | Front (Question) | Back (Answer) |
+|---|---|---|
+| 1 | What is the role of the Jenkins master? | Coordinates builds — manages job config, schedules execution, stores credentials, serves the web UI. Should not run heavy test workloads. |
+| 2 | What is a Jenkins executor? | A concurrent execution slot on an agent. An agent with 2 executors can run 2 jobs simultaneously. |
+| 3 | Declarative vs Scripted pipeline — when to use which? | Declarative for 95% of cases (structured, readable, enforced). Scripted only for complex conditional logic, dynamic stages, or loops that declarative can't express. |
+| 4 | How does Jenkins handle Username/Password credentials? | Auto-splits into two env vars with `_USR` and `_PSW` suffixes. E.g., `DB_CREDS` becomes `DB_CREDS_USR` and `DB_CREDS_PSW`. |
+| 5 | Why use `cleanWs()` in the post block? | Cleans the workspace after the build to free disk space and prevent stale artifacts from leaking into the next build. |
+
+### Mastery Checklist
+
+- [ ] Can explain Jenkins master/agent/executor architecture
+- [ ] Can write a declarative Jenkinsfile with stages, tools, and post actions
+- [ ] Can configure and use Jenkins credentials in a pipeline
+- [ ] Can articulate why pipelines are superior to Freestyle jobs for test automation
+- [ ] Can diagnose common Jenkins failures (tool not found, credential missing, workspace pollution)
+- [ ] Can choose between declarative and scripted pipeline with justification
+
+---
+
+**Next:** Pipeline As Code | **Related:** Framework Configuration And Environments
+
+*Last updated: *

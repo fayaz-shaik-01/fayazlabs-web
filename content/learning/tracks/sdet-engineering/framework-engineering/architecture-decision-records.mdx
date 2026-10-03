@@ -1,0 +1,483 @@
+---
+title: "Architecture Decision Records"
+description: "What: Architecture Decision Records (ADRs) are short documents that capture significant technical decisions — what was decided, why it was decided, what alternatives were considered, and what consequences follow. They answer the question that every engineer eventually asks: \"Why did we build it this way?\""
+summary: "SDET Engineering guide: Architecture Decision Records"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "framework-engineering"
+lesson: "architecture-decision-records"
+difficulty: "intermediate"
+estimatedMinutes: 30
+prerequisites: []
+tags: ["SDET", "Framework", "Architecture"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/framework-engineering/architecture-decision-records"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Architecture Decision Records
+
+> **Module:** 03 — Framework Engineering > Architecture Decision Records  
+> **Prerequisites:** Framework Architecture, Framework Extensibility  
+> **Mastery Target:** L3 (Independent) → L4 (Engineering Judgment)
+
+---
+
+## Quick Overview (Layer 1)
+
+**What:** Architecture Decision Records (ADRs) are short documents that capture significant technical decisions — what was decided, why it was decided, what alternatives were considered, and what consequences follow. They answer the question that every engineer eventually asks: "Why did we build it this way?"
+
+**Why it matters:** Without ADRs, institutional knowledge lives in people's heads. When the person who chose TestNG over JUnit leaves the team, the reasoning leaves with them. Six months later, a new engineer proposes switching to JUnit, unaware of the constraints that drove the original decision. The team either re-litigates a settled decision (wasting weeks) or makes a different choice without understanding why the first one was made (potentially hitting the same problems). ADRs turn tribal knowledge into searchable documentation.
+
+**Where you encounter it:** Framework creation (which tools, which patterns), tool selection (TestNG vs JUnit, REST Assured vs HttpClient), major refactoring (POM inheritance vs composition), pattern changes (singleton driver → ThreadLocal), environment decisions (Selenium Grid vs BrowserStack), and any architectural choice that affects the entire team.
+
+<MentalModel>
+
+Think of ADRs like a **captain's log** on a ship. Each entry records the situation (context), the course chosen (decision), and why that course was chosen over alternatives. Future captains can read the log and understand not just where the ship went, but *why* — allowing them to make informed corrections without repeating past mistakes.
+
+</MentalModel>
+
+
+<KeyTakeaways>
+
+1. **ADRs document the "why" behind decisions, not just the "what"** — code shows what you built, ADRs explain why you built it that way and what you considered instead.
+2. **ADRs are short and structured** — a good ADR fits on one page: title, status, context, decision, consequences, alternatives.
+3. **Write an ADR when the decision is hard to reverse** — tool selection, architectural patterns, naming conventions. Don't write one for every small choice.
+4. **ADRs are immutable once accepted** — if a decision changes, write a new ADR that supersedes the old one. This preserves the historical record.
+5. **The "alternatives considered" section is the most valuable** — it prevents future engineers from re-proposing rejected approaches without understanding why they were rejected.
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation (Layer 2)
+
+### ADR Template
+
+Every ADR follows the same structure. Consistency makes them scannable and searchable.
+
+```markdown
+# ADR-NNN: [Short Decision Title]
+
+**Status:** Proposed | Accepted | Deprecated | Superseded by ADR-XXX
+
+**Date:** YYYY-MM-DD
+
+## Context
+What situation or problem prompted this decision? What constraints exist?
+What requirements must be met?
+
+## Decision
+What is the decision? State it clearly and concisely.
+
+## Consequences
+What are the positive and negative results of this decision?
+What trade-offs are we accepting?
+
+## Alternatives Considered
+What other options were evaluated? Why were they rejected?
+For each alternative: what it offers and why it fell short.
+```
+
+**Status lifecycle:**
+```
+Proposed → Accepted → (optionally) Deprecated or Superseded
+```
+
+- **Proposed:** Under discussion, not yet agreed upon.
+- **Accepted:** Agreed upon and being followed.
+- **Deprecated:** No longer recommended, but not replaced.
+- **Superseded by ADR-XXX:** Replaced by a newer decision. The old ADR stays in the record.
+
+### When to Write an ADR
+
+**Write an ADR when:**
+- The decision affects the entire team or codebase (tool selection, architecture pattern)
+- The decision is hard to reverse (switching from TestNG to JUnit is a multi-week effort)
+- The decision was debated — if people disagreed, the reasoning needs to be recorded
+- A new team member would ask "why did we do this?" within their first month
+
+**Don't write an ADR when:**
+- The decision is easily reversible (naming a variable, choosing a minor utility library)
+- There's an obvious, uncontested best practice (using explicit waits over implicit)
+- The scope is limited to one class or one test (local design decisions don't need ADRs)
+
+### Where to Store ADRs
+
+ADRs belong in the repository, close to the code they describe:
+
+```
+project-root/
+  docs/
+    adr/
+      ADR-001-chose-testng-over-junit.md
+      ADR-002-chose-rest-assured-for-api-testing.md
+      ADR-003-chose-threadlocal-for-driver-management.md
+      ADR-004-pom-composition-over-inheritance.md
+      README.md   ← index with one-line summary of each ADR
+```
+
+**In the repo, not in Confluence/Wiki:** ADRs in the repo are versioned with the code, reviewed in PRs, and always up-to-date. Wiki ADRs drift out of sync with the codebase because nobody remembers to update them.
+
+---
+
+## Practical Implementation (Layer 3)
+
+### Example ADR-001: Chose TestNG over JUnit for Parallel Execution
+
+```markdown
+# ADR-001: Chose TestNG over JUnit for Test Framework
+
+**Status:** Accepted
+
+**Date:** 2025-03-15
+
+## Context
+We are building a new test automation framework for the StayNest application.
+The framework will support UI tests (Selenium), API tests (REST Assured), and
+mobile tests (Appium). We need a test runner that supports:
+
+1. Parallel execution at class and method level
+2. Flexible test grouping (smoke, regression, environment-specific)
+3. Data-driven testing with external data sources
+4. XML-based suite configuration for CI/CD flexibility
+5. Rich listener/hook system for diagnostics and reporting
+
+The team has 3 years of Selenium/Appium experience with TestNG.
+
+## Decision
+We chose **TestNG** as our test framework.
+
+## Consequences
+
+**Positive:**
+- Built-in parallel execution with four modes (methods, classes, tests, instances)
+  and XML-configurable thread count — no additional libraries needed.
+- `@DataProvider` supports data-driven tests with method-level granularity.
+- Suite XML files allow CI pipelines to run different subsets without code changes.
+- Rich listener interfaces (ITestListener, IMethodInterceptor, IAnnotationTransformer)
+  provide extension points for diagnostics, retry, and reporting.
+- Team already has TestNG experience — no learning curve.
+
+**Negative:**
+- TestNG is less actively maintained than JUnit 5 (fewer releases, smaller community).
+- TestNG's annotation model is older — no support for JUnit 5's composable extensions.
+- Parallel execution requires ThreadLocal for mutable state — adds framework complexity.
+- Some CI tools (e.g., Gradle) have better native JUnit 5 integration.
+
+## Alternatives Considered
+
+**JUnit 5:**
+- Modern extension model, active community, excellent Gradle integration.
+- Rejected because: parallel execution was experimental at evaluation time,
+  configuration required properties files rather than XML (less CI-friendly for
+  running different suites), and no built-in equivalent to `@DataProvider`
+  (requires third-party libraries). Team would need training on JUnit 5 paradigms.
+
+**Cucumber:**
+- BDD-style specifications, readable by non-technical stakeholders.
+- Rejected because: adds a layer of indirection (Gherkin → step definitions → code),
+  slows down test development for developer-facing tests, and our stakeholders
+  are comfortable reading well-named test methods. Cucumber would be justified
+  if business stakeholders wrote or reviewed test specifications directly.
+```
+
+### Example ADR-002: Chose REST Assured over HttpClient for API Testing
+
+```markdown
+# ADR-002: Chose REST Assured over HttpClient for API Testing
+
+**Status:** Accepted
+
+**Date:** 2025-03-18
+
+## Context
+The framework needs an HTTP client for API test automation. Requirements:
+1. Fluent, readable syntax for test methods
+2. Built-in JSON/XML parsing and assertion (JsonPath, XmlPath)
+3. Easy request/response logging for debugging
+4. Support for authentication schemes (Bearer token, OAuth2, Basic)
+5. Seamless integration with TestNG and AssertJ/Hamcrest
+
+## Decision
+We chose **REST Assured** as our API testing library.
+
+## Consequences
+
+**Positive:**
+- Fluent BDD-style syntax: `given().auth().header().when().get().then().statusCode(200)`
+  makes tests read like specifications.
+- Built-in JsonPath for response body assertions without manual deserialization.
+- Built-in request/response logging with `log().all()` — invaluable for debugging.
+- Large community, extensive documentation, de facto standard for Java API testing.
+
+**Negative:**
+- REST Assured is synchronous — no native async HTTP support (not needed for tests,
+  but limits use as a general HTTP client).
+- Adds a dependency (~3MB with transitive dependencies).
+- Some advanced HTTP scenarios (WebSockets, streaming) require falling back to
+  another client.
+
+## Alternatives Considered
+
+**Java HttpClient (java.net.http):**
+- Built into JDK 11+, no external dependency, supports async operations.
+- Rejected because: requires manual JSON parsing, no built-in assertion helpers,
+  verbose syntax for common test operations (setting headers, parsing responses).
+  Every API test would need boilerplate that REST Assured handles with fluent methods.
+
+**OkHttp:**
+- Popular, well-maintained, supports interceptors.
+- Rejected because: similar to HttpClient — a general-purpose HTTP client without
+  test-specific features. We'd need to build the fluent assertion layer ourselves.
+```
+
+### Example ADR-003: Chose ThreadLocal for Driver Management
+
+```markdown
+# ADR-003: Chose ThreadLocal for Driver Management
+
+**Status:** Accepted
+
+**Date:** 2025-03-20
+
+## Context
+Our test suite runs in parallel with TestNG (`parallel="classes"`, `thread-count=4`).
+Each test method needs its own WebDriver instance. The framework needs a mechanism
+to store and retrieve the per-thread driver without passing it through every method call.
+
+## Decision
+We use **`ThreadLocal<WebDriver>`** in a `DriverManager` class for per-thread
+driver storage, with `set()` in `@BeforeMethod` and `quit()` + `remove()` in
+`@AfterMethod`.
+
+## Consequences
+
+**Positive:**
+- Each thread gets its own isolated driver — no cross-thread interference.
+- Any code on the current thread can access its driver via `DriverManager.getDriver()`
+  without constructor parameters.
+- Standard pattern in the Selenium/TestNG ecosystem — well understood.
+- `remove()` in teardown prevents memory leaks in thread pools.
+
+**Negative:**
+- Global access point — any code can call `DriverManager.getDriver()`, making
+  dependencies implicit rather than explicit.
+- Harder to unit test components that call `DriverManager.getDriver()` directly
+  (can't easily inject a mock).
+- Requires discipline: every `set()` must have a corresponding `remove()`.
+  Forgetting `remove()` causes subtle memory leaks.
+
+## Alternatives Considered
+
+**Dependency injection framework (Guice, Spring):**
+- Explicit dependency injection via constructors, request-scoped providers.
+- Rejected because: adds significant framework complexity (DI container, module
+  configuration, scope definitions) for a problem that `ThreadLocal` solves in
+  20 lines. Justified for large enterprise frameworks, overkill for our team size (5 SDETs).
+
+**Instance fields in BaseTest:**
+- Each test class instance holds its own driver as an instance field.
+- Rejected because: TestNG can reuse class instances across methods with
+  `parallel="methods"`, making instance fields shared across threads.
+  ThreadLocal eliminates this risk entirely.
+
+**Static driver (no thread safety):**
+- One static driver for the entire JVM.
+- Rejected because: completely incompatible with parallel execution.
+  All threads share one browser. This was our original design and caused
+  intermittent failures that wasted ~2 hours/week in debugging.
+```
+
+### Example ADR-004: POM Composition over Inheritance
+
+```markdown
+# ADR-004: Page Object Model — Composition over Inheritance
+
+**Status:** Accepted
+
+**Date:** 2025-04-02
+
+## Context
+Our page object layer needs to handle shared UI components (navigation bar,
+date picker, search filters) that appear on multiple pages. Two approaches
+were considered: inheritance hierarchy (BasePage → AuthenticatedPage → AdminPage)
+or composition (pages contain reusable component objects).
+
+Current state: 15 page objects, 3 shared components (navbar, footer, date picker).
+Team size: 5 SDETs. Expected growth: 40+ page objects.
+
+## Decision
+We use **composition** for page object structure. Shared UI components are
+standalone classes (e.g., `NavigationBar`, `DatePicker`) that are composed
+into page objects as fields. A single `BasePage` provides core utilities
+(driver access, basic waits) — one level of inheritance only.
+
+## Consequences
+
+**Positive:**
+- Shared components are reusable without forcing them into every page via
+  inheritance. `SearchResultsPage` has a `DatePicker`; `LoginPage` doesn't.
+- No deep inheritance hierarchy — `BasePage → LoginPage` is the maximum depth.
+- Each component can be tested independently.
+- Adding a new shared component (e.g., `Modal`) doesn't modify `BasePage` or
+  any existing page objects — just compose it where needed.
+
+**Negative:**
+- Slightly more code per page object (declaring component fields and
+  initializing them in the constructor).
+- Developers must know which components exist to use them (discoverable via
+  package structure: `components/NavigationBar.java`).
+
+## Alternatives Considered
+
+**Deep inheritance: BasePage → AuthenticatedPage → AdminPage:**
+- `AuthenticatedPage` adds navbar, `AdminPage` adds admin sidebar.
+- Rejected because: fragile base class problem. Changing `AuthenticatedPage`
+  affects all 25+ page objects that extend it. Pages that need a navbar but
+  not other authenticated features are forced into the hierarchy anyway.
+  Adding a new shared component requires modifying a base class, which is a
+  change to the framework core — violates open/closed principle.
+
+**Mixin/trait approach (interface with default methods):**
+- Define `HasNavigation`, `HasDatePicker` interfaces with default methods.
+- Rejected because: Java interfaces with default methods can't hold state
+  (no instance fields). The component needs a `WebDriver` reference and
+  locator state, which doesn't fit the interface model without workarounds.
+  Composition provides the same benefit with cleaner semantics.
+```
+
+---
+
+## Failure and Debugging (Layer 4)
+
+### Failure 1: No ADRs — Decision Amnesia
+
+**The Problem:** Six months ago, the team chose TestNG over JUnit. A new team member asks "why not JUnit 5?" Nobody remembers the specific reasons. The team spends 3 meetings debating whether to switch, re-evaluating the same trade-offs that were already evaluated. They conclude: stay with TestNG — the same decision, but it cost 6 hours of senior engineer time.
+
+**The cost:** Every re-litigated decision costs the team time. Across a year, a team without ADRs spends dozens of hours rediscovering reasons for decisions already made.
+
+**The fix:** Write ADR-001 when the decision is made. Future discussions start with "read ADR-001" instead of "does anyone remember why we chose TestNG?"
+
+### Failure 2: ADRs Written but Never Read
+
+**The Problem:** ADRs exist in a Confluence wiki that nobody checks. The team writes them during initial setup and never references them again. When a new member joins, they're pointed to "the wiki" without specific links. The ADRs become stale, outdated, and eventually misleading.
+
+**The fix:** 
+1. Store ADRs in the repository (`docs/adr/`), not in a separate wiki — they appear in code search and PR reviews.
+2. Reference ADRs in code comments: `// See ADR-003 for why we use ThreadLocal here`.
+3. Include the ADR index in the repository README.
+4. When onboarding new team members, include "read ADRs 001-004" in the first-week checklist.
+
+### Failure 3: ADRs Modified Instead of Superseded
+
+**The Problem:** The team originally chose Selenium (ADR-005). A year later, they add Playwright. Instead of writing ADR-010 that supersedes ADR-005, someone edits ADR-005 to say "we use Playwright." The historical context — why Selenium was chosen, what changed — is lost. Six months later, when Playwright causes issues, nobody knows what the original Selenium advantages were.
+
+**The fix — immutability rule:** Never modify an accepted ADR. When a decision changes:
+1. Write a new ADR (ADR-010: Migrating from Selenium to Playwright).
+2. Update the old ADR's status to `Superseded by ADR-010`.
+3. The new ADR references the old one and explains what changed.
+
+This preserves the full decision history.
+
+---
+
+## Engineering Judgment (Layer 5)
+
+### ADR Discipline: How Much Is Enough?
+
+| Team Profile | ADR Frequency | Why |
+|-------------|---------------|-----|
+| Solo developer, personal project | 0-2 total | You remember your own decisions. A README section on "design decisions" suffices. |
+| Small team (2-5), short project | 3-5 key ADRs | Cover tool selection and major patterns. Light process. |
+| Medium team (5-15), long-lived project | ADR for every significant decision | People join and leave. Knowledge must survive turnover. |
+| Large org, shared framework | ADR required for every tool/pattern change | Multiple teams depend on decisions. Changes need documented rationale. |
+
+### What Makes a Good ADR
+
+| Quality | Good ADR | Poor ADR |
+|---------|---------|---------|
+| **Context** | Specific constraints: "Team has TestNG experience, suite needs parallel execution with 4+ modes" | Vague: "We needed a test framework" |
+| **Decision** | Clear and actionable: "Use TestNG with parallel=classes" | Ambiguous: "Use a good test framework" |
+| **Consequences** | Honest trade-offs: "TestNG is less actively maintained than JUnit 5" | Only positives: "TestNG is the best choice" |
+| **Alternatives** | Specific reasons for rejection: "JUnit 5 parallel was experimental at evaluation time" | Dismissive: "JUnit 5 wasn't as good" |
+| **Length** | One page — scannable in 2 minutes | Five pages — nobody reads it |
+
+### When to Supersede an ADR
+
+| Trigger | Action |
+|---------|--------|
+| The original constraints changed (JUnit 5 parallel is now stable) | Evaluate: is the original decision still valid? If not, write a new ADR. |
+| A better tool emerged (Playwright offers features Selenium doesn't) | Write a new ADR with the new context, referencing the original. |
+| The decision caused unforeseen problems (singleton driver caused parallel failures) | Write a new ADR explaining the problem and the new approach (ADR-003: ThreadLocal). |
+| Team composition changed (new members have JUnit expertise, not TestNG) | Evaluate whether the skill shift justifies a tool switch. Document either way. |
+
+---
+
+## Interview and Revision (Layer 6)
+
+### Fundamental Questions
+
+**Q1: What are Architecture Decision Records and why do you use them?**
+
+**A:** ADRs are short, structured documents that capture significant technical decisions: what was decided, why, what alternatives were considered, and what trade-offs were accepted. I use them because decisions lose their context over time. Six months after choosing TestNG, nobody remembers the specific reasons — and new team members propose switching without understanding the original constraints. An ADR takes 20 minutes to write and saves hours of re-debate. We store them in the repo under `docs/adr/` so they're versioned with the code, searchable, and reviewed in PRs.
+
+**Q2: When should you write an ADR vs when is it overkill?**
+
+**A:** I write an ADR when the decision is hard to reverse, affects the whole team, or was debated. Tool selection (TestNG vs JUnit), architectural patterns (ThreadLocal vs DI for driver management), and major refactoring decisions (POM inheritance vs composition) all warrant ADRs. I don't write ADRs for easily reversible decisions (variable naming), uncontested best practices (using explicit waits), or decisions scoped to one class. The threshold is: would a new team member ask "why did we do this?" If yes, write the ADR.
+
+**Q3: What makes the "alternatives considered" section valuable?**
+
+**A:** It's the most valuable part because it prevents re-litigated decisions. When a new engineer says "why not use JUnit 5?", the ADR shows that JUnit 5 was evaluated, what it offered, and specifically why it was rejected (e.g., parallel execution was experimental, no built-in DataProvider). The new engineer either accepts the reasoning or says "that constraint no longer applies because JUnit 5 parallel is now stable" — which is a legitimate reason to write a new ADR. Without alternatives, you get circular debates every time someone new joins.
+
+### Scenario-Based Questions
+
+**S1: "You join a new team. There are no ADRs. The framework uses a singleton driver pattern that breaks in parallel. The original author left. How do you proceed?"**
+
+**A:** First, I'd write a retroactive ADR documenting the current state: "ADR-001: Current framework uses singleton driver pattern. Status: Deprecated." I'd document why it doesn't work (parallel failures, shared state) and what I'm replacing it with. Then I'd write ADR-002: "Switch to ThreadLocal for driver management" with full context, decision, consequences, and why the singleton approach failed. This creates the historical record that was missing and gives future engineers the context they need.
+
+**S2: "A team member proposes rewriting the framework from Selenium to Playwright. How do you structure the decision process?"**
+
+**A:** I'd ask them to write an ADR (or I'd pair with them on it). The context should include: what problems are we experiencing with Selenium that Playwright solves? What's the migration cost (rewriting page objects, learning curve, CI changes)? The alternatives section should include: improve our Selenium setup (fix specific issues without a full rewrite), add Playwright alongside Selenium (for new tests), or full migration. The consequences must be honest about the cost. This forces a structured evaluation instead of "Playwright is newer so it must be better." The ADR goes through team review — everyone reads, comments, and we decide together with documented reasoning.
+
+
+
+
+| # | Front (Question) | Back (Answer) |
+|---|---|---|
+| 1 | What are the five sections of an ADR? | Status (Accepted/Deprecated/Superseded), Context (what problem prompted this), Decision (what was chosen), Consequences (trade-offs), Alternatives Considered (what else was evaluated and why rejected). |
+| 2 | When should you write an ADR? | When the decision is hard to reverse, affects the whole team, or was debated. Tool selection, architecture patterns, major refactoring. Not for trivial or easily reversible decisions. |
+| 3 | What happens when a decision changes? | Write a new ADR that supersedes the old one. Update the old ADR's status to "Superseded by ADR-XXX." Never modify an accepted ADR — this preserves the historical record. |
+| 4 | Where should ADRs be stored? | In the code repository under `docs/adr/`, not in a wiki. Repo storage means they're versioned, searchable, reviewed in PRs, and always co-located with the code they describe. |
+| 5 | Why is the "alternatives considered" section the most valuable? | It prevents re-litigated decisions. New team members can see what was already evaluated and why it was rejected, instead of re-proposing the same approaches. It also enables revisiting decisions when constraints change. |
+
+### Mastery Checklist
+
+- [ ] Can explain what ADRs are and why they matter for team knowledge management
+- [ ] Can write an ADR with all five sections: status, context, decision, consequences, alternatives
+- [ ] Can identify when a decision warrants an ADR vs when it's overkill
+- [ ] Can write retroactive ADRs for undocumented existing decisions
+- [ ] Can properly supersede an ADR (new ADR, old ADR marked superseded) without modifying history
+- [ ] Can store ADRs in the repository with a clear numbering and indexing convention
+- [ ] Can reference ADRs in code comments and onboarding documentation
+- [ ] Can write an ADR for tool selection (TestNG vs JUnit, REST Assured vs HttpClient)
+- [ ] Can write an ADR for architectural decisions (composition vs inheritance, ThreadLocal vs DI)
+- [ ] Can answer "Why did you choose X?" by referencing the structured reasoning in an ADR
+
+---
+
+**Related:** Framework Architecture, Framework Extensibility
+
+---
+
+*Last updated: *

@@ -1,0 +1,643 @@
+---
+title: "Playwright API Testing — Setup and First Tests"
+description: "What: Playwright isn't just for browser automation — it includes a full APIRequestContext for making HTTP requests without launching a browser. You can write pure API tests using playwright.config.ts for base URL and headers, and Playwright's expect() for assertions. The same test runner, same project structure, same CI configuration — just targeting APIs instead of (or alongside) UI."
+summary: "SDET Engineering guide: Playwright API Testing — Setup and First Tests"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "api-automation"
+lesson: "playwright-api-testing-setup-and-first-tests"
+difficulty: "intermediate"
+estimatedMinutes: 41
+prerequisites: []
+tags: ["SDET", "API", "REST", "Testing"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/api-automation/playwright-api-testing-setup-and-first-tests"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Playwright API Testing — Setup and First Tests
+
+> **Module:** 04 — API Automation > Playwright API Testing  
+> **Prerequisites:** Http And Rest Fundamentals, Status Codes Headers And Json, TypeScript basics  
+> **Mastery Target:** L3 (Independent) — can set up Playwright for API testing, write API tests with proper assertions, and create custom fixtures without guidance
+
+---
+
+## Quick Overview (Layer 1)
+
+**What:** Playwright isn't just for browser automation — it includes a full `APIRequestContext` for making HTTP requests without launching a browser. You can write pure API tests using `playwright.config.ts` for base URL and headers, and Playwright's `expect()` for assertions. The same test runner, same project structure, same CI configuration — just targeting APIs instead of (or alongside) UI.
+
+**Why:** If your project already uses Playwright for UI testing, adding API tests in the same framework eliminates the need for a second tool, a second language, or a second CI configuration. You get API-level data setup for UI tests, combined API+UI assertions, and a single test report. Even for pure API testing, Playwright's TypeScript-first approach, built-in async handling, and request context management make it a clean alternative to Axios/Supertest.
+
+**Where:** TypeScript/JavaScript projects that already use Playwright for UI. Teams that want API+UI testing in one framework. Microservice testing where you need to hit APIs before, during, and after browser interactions. Modern full-stack projects where TypeScript is the team's primary language.
+
+<MentalModel>
+
+Think of Playwright's `APIRequestContext` as a **lightweight Postman built into your test runner**. Instead of switching to a different tool to make API calls (Postman, curl, REST Assured), you stay in the same Playwright project and use the same `expect()` assertions. The browser and the API context live side by side — you can log in via API, then open the browser and verify the UI reflects the API state.
+
+</MentalModel>
+
+
+<KeyTakeaways>
+
+1. `APIRequestContext` makes HTTP calls without a browser — no Chromium launch overhead for pure API tests.
+2. `playwright.config.ts` sets `baseURL` and `extraHTTPHeaders` once — same pattern as browser testing configuration.
+3. All responses are Promises — every assertion uses `await` and Playwright's built-in `expect()`.
+4. Custom test fixtures let you create reusable API contexts (authenticated, unauthenticated, admin) — same pattern as custom page fixtures.
+5. Playwright API tests run in the same worker pool, same reporter, same CI configuration as UI tests — no separate infrastructure needed.
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation (Layer 2)
+
+### Installation and Project Setup
+
+Playwright API testing uses the same packages as browser testing — no additional dependencies:
+
+
+```bash
+# Initialize a new project (or add to existing Playwright project)
+npm init playwright@latest
+
+# The only package you need:
+npm install -D @playwright/test
+# No additional HTTP client library needed — APIRequestContext is built in
+```
+
+Project structure for API tests alongside UI tests:
+
+```
+tests/
+├── api/                          # Pure API tests
+│   ├── auth.api.spec.ts          # Auth endpoint tests
+│   ├── bookings.api.spec.ts      # Booking endpoint tests
+│   └── hotels.api.spec.ts        # Hotel search tests
+├── ui/                           # Browser UI tests
+│   ├── login.ui.spec.ts
+│   └── dashboard.ui.spec.ts
+├── fixtures/                     # Shared test fixtures
+│   └── api-fixtures.ts           # Custom API request contexts
+playwright.config.ts              # Configuration for both API and UI
+```
+
+### playwright.config.ts for API Testing
+
+
+```typescript
+import { defineConfig } from '@playwright/test';
+
+export default defineConfig({
+  // Shared settings
+  timeout: 30_000,
+  retries: 1,
+  reporter: [['html'], ['list']],
+
+  projects: [
+    {
+      // Pure API tests — no browser needed
+      name: 'api',
+      testDir: './tests/api',
+      use: {
+        // Base URL for all API requests in this project
+        baseURL: process.env.API_BASE_URL || 'http://localhost:8080/api/v1',
+
+        // Default headers sent with every request
+        extraHTTPHeaders: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+      },
+    },
+    {
+      // Browser tests that may also use API
+      name: 'ui',
+      testDir: './tests/ui',
+      use: {
+        baseURL: process.env.APP_URL || 'http://localhost:3000',
+        browserName: 'chromium',
+      },
+      // UI tests depend on API tests (run API setup first)
+      dependencies: ['api'],
+    },
+  ],
+});
+```
+
+**Key config points:**
+
+| Setting | Purpose | API Testing Relevance |
+|---------|---------|----------------------|
+| `baseURL` | Prepended to all relative URLs in `request.get('/auth/login')` | Set once, all tests use relative paths |
+| `extraHTTPHeaders` | Default headers on every request | Set `Content-Type` and `Accept` globally |
+| `timeout` | Max time per test | API tests should be faster — consider 10s for API, 30s for UI |
+| `retries` | Auto-retry failed tests | API tests are less flaky — 0-1 retries is typical |
+
+### APIRequestContext — Making Requests
+
+Playwright provides the `request` fixture in every test. It's a pre-configured `APIRequestContext`:
+
+
+```typescript
+import { test, expect } from '@playwright/test';
+
+// The `request` fixture is automatically available — it uses the config's baseURL
+test('GET request basics', async ({ request }) => {
+  // Make a GET request — baseURL is prepended automatically
+  const response = await request.get('/hotels/search', {
+    params: { city: 'New York', page: '0', size: '10' },  // Query parameters
+  });
+
+  // Assert status
+  expect(response.status()).toBe(200);
+  expect(response.ok()).toBeTruthy();  // ok() is true for 2xx status codes
+
+  // Parse and assert JSON body
+  const body = await response.json();
+  expect(body.data).toBeDefined();
+  expect(body.error).toBeNull();
+  expect(body.data.length).toBeGreaterThan(0);
+});
+
+test('POST request with JSON body', async ({ request }) => {
+  const response = await request.post('/auth/login', {
+    data: {                    // `data` sends JSON body (auto-serialized)
+      email: 'guest@staynest.com',
+      password: 'pass123',
+    },
+  });
+
+  expect(response.status()).toBe(200);
+
+  const body = await response.json();
+  expect(body.data.accessToken).toBeTruthy();
+});
+```
+
+**REST Assured vs Playwright API — syntax mapping:**
+
+| Concept | REST Assured (Java) | Playwright (TypeScript) |
+|---------|-------------------|----------------------|
+| Set body | `.body(jsonString)` | `data: { key: value }` |
+| Query params | `.queryParam("key", "val")` | `params: { key: 'val' }` |
+| Headers | `.header("Auth", "Bearer ...")` | `headers: { Authorization: 'Bearer ...' }` |
+| Assert status | `.statusCode(200)` | `expect(response.status()).toBe(200)` |
+| Parse body | `.jsonPath().getString("data.token")` | `(await response.json()).data.token` |
+
+### Custom Test Fixtures for API Context
+
+Fixtures in Playwright are the equivalent of REST Assured's `RequestSpecification` — reusable test setup:
+
+
+```typescript
+import { test as base, expect, APIRequestContext } from '@playwright/test';
+
+/**
+ * Custom fixture types — declare what each fixture provides.
+ */
+type ApiFixtures = {
+  /** Authenticated API context for guest user */
+  guestApi: APIRequestContext;
+  /** Authenticated API context for hotel manager */
+  managerApi: APIRequestContext;
+  /** Unauthenticated API context for public endpoints */
+  publicApi: APIRequestContext;
+};
+
+/**
+ * Extended test function with custom API fixtures.
+ * Each fixture logs in and creates a configured APIRequestContext.
+ * Fixtures are created per-test and disposed automatically.
+ */
+export const test = base.extend<ApiFixtures>({
+  // Public API context — no auth headers
+  publicApi: async ({ playwright }, use) => {
+    const context = await playwright.request.newContext({
+      baseURL: process.env.API_BASE_URL || 'http://localhost:8080/api/v1',
+      extraHTTPHeaders: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+    });
+    await use(context);
+    await context.dispose();  // Clean up after test
+  },
+
+  // Guest API context — logs in and adds Bearer token
+  guestApi: async ({ playwright }, use) => {
+    // Step 1: Login to get token
+    const loginContext = await playwright.request.newContext({
+      baseURL: process.env.API_BASE_URL || 'http://localhost:8080/api/v1',
+    });
+    const loginResponse = await loginContext.post('/auth/login', {
+      data: { email: 'guest@staynest.com', password: 'pass123' },
+    });
+    const { data } = await loginResponse.json();
+    const token = data.accessToken;
+    await loginContext.dispose();
+
+    // Step 2: Create authenticated context with the token
+    const context = await playwright.request.newContext({
+      baseURL: process.env.API_BASE_URL || 'http://localhost:8080/api/v1',
+      extraHTTPHeaders: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+    await use(context);
+    await context.dispose();
+  },
+
+  // Manager API context — same pattern, different credentials
+  managerApi: async ({ playwright }, use) => {
+    const loginContext = await playwright.request.newContext({
+      baseURL: process.env.API_BASE_URL || 'http://localhost:8080/api/v1',
+    });
+    const loginResponse = await loginContext.post('/auth/login', {
+      data: { email: 'manager@staynest.com', password: 'pass123' },
+    });
+    const { data } = await loginResponse.json();
+    const token = data.accessToken;
+    await loginContext.dispose();
+
+    const context = await playwright.request.newContext({
+      baseURL: process.env.API_BASE_URL || 'http://localhost:8080/api/v1',
+      extraHTTPHeaders: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+    await use(context);
+    await context.dispose();
+  },
+});
+
+// Re-export expect so tests import from one place
+export { expect } from '@playwright/test';
+```
+
+---
+
+## Practical Implementation (Layer 3)
+
+### Complete Test File: StayNest Auth Tests
+
+Five tests against StayNest's auth and profile endpoints, using the custom fixtures:
+
+
+```typescript
+import { test, expect } from '../fixtures/api-fixtures';
+import { randomUUID } from 'crypto';
+
+test.describe('StayNest Auth API', () => {
+  const testEmail = `test-${randomUUID().substring(0, 8)}@staynest.com`;
+  const testPassword = 'Test@12345';
+
+  test('1. Signup - successful registration returns 201', async ({ publicApi }) => {
+    const response = await publicApi.post('/auth/signup', {
+      data: {
+        name: 'Test User',
+        email: testEmail,
+        password: testPassword,
+        dateOfBirth: '1990-05-15',
+        gender: 'MALE',
+        role: 'GUEST',
+      },
+    });
+
+    expect(response.status()).toBe(201);
+
+    const body = await response.json();
+    expect(body.data.email).toBe(testEmail);
+    expect(body.data.name).toBe('Test User');
+    expect(body.data.id).toBeDefined();
+    expect(body.error).toBeNull();
+  });
+
+  test('2. Login - valid credentials return accessToken', async ({ publicApi }) => {
+    const response = await publicApi.post('/auth/login', {
+      data: {
+        email: 'guest@staynest.com',
+        password: 'pass123',
+      },
+    });
+
+    expect(response.status()).toBe(200);
+
+    const body = await response.json();
+    expect(body.data.accessToken).toBeTruthy();
+    expect(body.error).toBeNull();
+
+    // Verify token structure (JWT has 3 dot-separated parts)
+    const tokenParts = body.data.accessToken.split('.');
+    expect(tokenParts).toHaveLength(3);
+  });
+
+  test('3. Login - wrong password returns 401', async ({ publicApi }) => {
+    const response = await publicApi.post('/auth/login', {
+      data: {
+        email: 'guest@staynest.com',
+        password: 'WrongPassword123',
+      },
+    });
+
+    expect(response.status()).toBe(401);
+
+    const body = await response.json();
+    expect(body.error).toBeTruthy();
+  });
+
+  test('4. Profile - authenticated request returns user data', async ({ guestApi }) => {
+    const response = await guestApi.get('/users/profile');
+
+    expect(response.status()).toBe(200);
+
+    const body = await response.json();
+    expect(body.data.email).toContain('@staynest.com');
+    expect(body.data.name).toBeTruthy();
+    expect(body.data.id).toBeGreaterThan(0);
+  });
+
+  test('5. Profile - unauthenticated request returns 401', async ({ publicApi }) => {
+    const response = await publicApi.get('/users/profile');
+
+    // Public context has no Authorization header
+    expect(response.status()).toBe(401);
+  });
+});
+```
+
+**What each test demonstrates:**
+
+| Test | Concept | Key Technique |
+|------|---------|---------------|
+| Signup | POST with JSON body, 201 | `publicApi.post()`, `data` object |
+| Login | Token extraction, JWT structure | `response.json()`, string assertion |
+| Wrong password | Negative test, 401 | Status assertion on error |
+| Profile | Authenticated fixture, user data | `guestApi` fixture, nested property access |
+| No auth | Security enforcement | `publicApi` (no token) on protected endpoint |
+
+### Response Assertion Patterns
+
+
+```typescript
+import { test, expect } from '../fixtures/api-fixtures';
+
+test.describe('Assertion Patterns', () => {
+
+  test('status and header assertions', async ({ guestApi }) => {
+    const response = await guestApi.get('/users/profile');
+
+    // Status assertions
+    expect(response.status()).toBe(200);
+    expect(response.ok()).toBeTruthy();     // true for 2xx
+
+    // Header assertions
+    expect(response.headers()['content-type']).toContain('application/json');
+  });
+
+  test('JSON body assertions - nested objects', async ({ guestApi }) => {
+    const response = await guestApi.get('/users/profile');
+    const body = await response.json();
+
+    // Top-level envelope
+    expect(body.timeStamp).toBeDefined();
+    expect(body.error).toBeNull();
+
+    // Nested data assertions
+    expect(body.data).toMatchObject({
+      email: expect.stringContaining('@'),
+      name: expect.any(String),
+      id: expect.any(Number),
+    });
+  });
+
+  test('array assertions', async ({ publicApi }) => {
+    const response = await publicApi.get('/hotels/search', {
+      params: { page: '0', size: '5' },
+    });
+    const body = await response.json();
+
+    // Array structure
+    expect(body.data).toBeInstanceOf(Array);
+    expect(body.data.length).toBeGreaterThan(0);
+    expect(body.data.length).toBeLessThanOrEqual(5);
+
+    // Every item in array has required fields
+    for (const hotel of body.data) {
+      expect(hotel.id).toBeDefined();
+      expect(hotel.name).toBeTruthy();
+    }
+  });
+
+  test('response timing', async ({ guestApi }) => {
+    const start = Date.now();
+    const response = await guestApi.get('/users/profile');
+    const duration = Date.now() - start;
+
+    expect(response.status()).toBe(200);
+    expect(duration).toBeLessThan(2000);  // Under 2 seconds
+  });
+});
+```
+
+---
+
+## Failure and Debugging (Layer 4)
+
+### Failure 1: "fetch failed" — Server Not Running or Wrong Base URL
+
+**The Problem:**
+
+
+```typescript
+// Config has wrong baseURL or server isn't running
+const response = await request.get('/users/profile');
+// Error: fetch failed — connect ECONNREFUSED 127.0.0.1:8080
+```
+
+**Root cause:** Either the API server isn't running, the port is wrong, or the baseURL in config doesn't match the actual server address.
+
+**The fix:**
+
+
+```typescript
+// 1. Verify the server is running first
+// Add to playwright.config.ts:
+export default defineConfig({
+  webServer: {
+    command: 'cd ../staynest-backend && ./mvnw spring-boot:run',
+    url: 'http://localhost:8080/api/v1/health',
+    reuseExistingServer: true,  // Don't start if already running
+    timeout: 60_000,            // Wait up to 60s for startup
+  },
+  // ...
+});
+
+// 2. Use environment variable for flexibility
+use: {
+  baseURL: process.env.API_BASE_URL || 'http://localhost:8080/api/v1',
+}
+// Run: API_BASE_URL=http://staging:8080/api/v1 npx playwright test
+```
+
+### Failure 2: Response Body is Empty or "Cannot Read Properties of Undefined"
+
+**The Problem:**
+
+
+```typescript
+const body = await response.json();
+console.log(body.data.accessToken);  // TypeError: Cannot read properties of undefined
+```
+
+**Root cause:** The response isn't JSON (maybe HTML error page), the status is an error (4xx/5xx with different body structure), or the `data` field is absent.
+
+**The fix:**
+
+
+```typescript
+// Always check status before parsing body
+const response = await request.post('/auth/login', { data: credentials });
+expect(response.status()).toBe(200);  // Fail fast if not 200
+
+// Then safely parse
+const body = await response.json();
+expect(body.data).toBeDefined();     // Verify envelope before accessing nested fields
+expect(body.data.accessToken).toBeTruthy();
+```
+
+### Failure 3: Fixture Token Expired Mid-Suite
+
+**The Problem:** Tests pass individually but fail when run as a full suite because the token obtained in the fixture expires (StayNest tokens last 10 minutes).
+
+**Root cause:** Playwright fixtures are created per-test by default. But if you optimize by sharing context across tests (worker fixture), the token may expire.
+
+**The fix:**
+
+
+```typescript
+// Option 1 (default): per-test fixture — each test gets a fresh login
+// This is what the fixture example above does. Safe but slower.
+
+// Option 2: Worker-scoped fixture with refresh logic
+export const test = base.extend<{}, { workerGuestApi: APIRequestContext }>({
+  workerGuestApi: [async ({ playwright }, use) => {
+    // Login once per worker
+    const loginCtx = await playwright.request.newContext({
+      baseURL: 'http://localhost:8080/api/v1',
+    });
+    const loginRes = await loginCtx.post('/auth/login', {
+      data: { email: 'guest@staynest.com', password: 'pass123' },
+    });
+    const token = (await loginRes.json()).data.accessToken;
+    await loginCtx.dispose();
+
+    const context = await playwright.request.newContext({
+      baseURL: 'http://localhost:8080/api/v1',
+      extraHTTPHeaders: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    });
+    await use(context);
+    await context.dispose();
+  }, { scope: 'worker' }],  // Shared across all tests in this worker
+});
+```
+
+---
+
+## Engineering Judgment (Layer 5)
+
+### When to Use Playwright for API Testing vs a Dedicated Tool
+
+| Scenario | Use Playwright API | Use a Dedicated Tool (REST Assured, Supertest) |
+|----------|--------------------|-----------------------------------------------|
+| Already using Playwright for UI | Yes — unified framework, one report | Extra tool adds complexity |
+| Pure API testing, no UI | Possible but not the strongest choice | Better tooling (deeper assertions, data providers) |
+| API + UI combined tests | Yes — API setup + browser verification in one test | Requires two frameworks and glue code |
+| Java project, no TypeScript | No | REST Assured is the natural fit |
+| Complex API validation (schema, deep JSON) | Limited — basic assertions only | REST Assured + JSON Schema, or Supertest + Joi |
+
+### Per-Test vs Worker-Scoped API Fixtures
+
+| Factor | Per-Test Fixture | Worker-Scoped Fixture |
+|--------|----------------|---------------------|
+| Token freshness | Always fresh — login every test | May expire in long suites |
+| Performance | Slower — login overhead per test | Faster — login once per worker |
+| Isolation | Perfect — each test is independent | Shared state risk |
+| Recommended for | Small suites (&lt; 50 tests) | Large suites with fast endpoints |
+
+### Structuring API and UI Tests in One Project
+
+```
+# Recommended: separate directories with shared fixtures
+tests/
+├── api/               # Pure API tests — no browser
+├── ui/                # Browser tests — may call API for setup
+├── combined/          # Tests that mix API + browser assertions
+├── fixtures/
+│   ├── api-fixtures.ts    # API contexts (guestApi, managerApi)
+│   └── ui-fixtures.ts     # Browser pages with API setup
+```
+
+**Configuration:** Use Playwright's `projects` in config to run API and UI tests with different settings (timeouts, retries, parallelism) while sharing the same test runner.
+
+---
+
+## Interview and Revision (Layer 6)
+
+### Fundamental Questions
+
+**Q1: How does Playwright API testing work without a browser?**
+
+**A:** Playwright provides `APIRequestContext`, which is an HTTP client built into the framework. When you use the `request` fixture or create a context with `playwright.request.newContext()`, Playwright makes HTTP calls directly — no Chromium, no Firefox, no browser overhead. It's essentially a built-in fetch/HTTP client that integrates with Playwright's test runner, reporters, and fixtures. The config's `baseURL` and `extraHTTPHeaders` apply just like they do for browser tests.
+
+**Q2: How do you create reusable authenticated API contexts in Playwright?**
+
+**A:** I use custom test fixtures. I extend the base `test` function with typed fixtures like `guestApi` and `managerApi`. Each fixture logs in via API, extracts the access token, creates a new `APIRequestContext` with that token in `extraHTTPHeaders`, and provides it to the test via `use(context)`. After the test, the fixture calls `context.dispose()` for cleanup. Tests destructure the fixture they need: `test('my test', async ({ guestApi }) => { ... })`. It's the same pattern as custom page fixtures for UI tests.
+
+**Q3: What's the advantage of Playwright API testing over Axios or Supertest?**
+
+**A:** Three main advantages: (1) Unified framework — if the team already uses Playwright for UI, API tests live in the same project with the same runner, reporters, and CI config. (2) Built-in fixtures — Playwright's fixture system provides automatic setup/teardown without external DI. (3) API+UI in one test — you can create data via API, then open a browser to verify the UI reflects it, all in a single test. The trade-off is that Playwright's API assertions are less powerful than REST Assured's Hamcrest matchers or Supertest's chaining.
+
+
+
+
+| # | Front (Question) | Back (Answer) |
+|---|---|---|
+| 1 | How do you send a JSON body in Playwright API test? | `request.post('/endpoint', { data: { key: 'value' } })` — the `data` property is automatically serialized to JSON |
+| 2 | How do you add query parameters in Playwright API test? | `request.get('/endpoint', { params: { key: 'value' } })` — the `params` property is appended as `?key=value` |
+| 3 | What does `response.ok()` return? | `true` if status is 2xx (200-299), `false` otherwise. Shorthand for `response.status() >= 200 && response.status() < 300` |
+| 4 | How do you make API tests run without a browser in Playwright config? | Put them in a separate `project` in `playwright.config.ts` with no `browserName`. They use the `request` fixture, not `page` |
+| 5 | How do you clean up APIRequestContext in a fixture? | Call `await context.dispose()` after `await use(context)`. Playwright fixtures run teardown code after `use()` returns |
+
+### Mastery Checklist
+
+- [ ] Can configure `playwright.config.ts` with separate API and UI projects
+- [ ] Can write GET and POST tests with status, header, and JSON body assertions
+- [ ] Can create custom test fixtures for authenticated API contexts
+- [ ] Can handle response parsing safely (status check before body parse)
+- [ ] Can use environment variables for base URL configuration in CI
+- [ ] Can structure a project with API, UI, and combined test directories
+- [ ] Can explain Playwright API testing vs dedicated HTTP test libraries
+
+---
+
+**Next:** Advanced Patterns | **Related:** Http And Rest Fundamentals, REST Assured Setup And First Tests
+
+*Last updated: *

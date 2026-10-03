@@ -1,0 +1,579 @@
+---
+title: "Security Testing Basics"
+description: "What: Security testing for SDETs is the practice of verifying that an application handles authentication, authorization, and input validation correctly — not through penetration testing or exploit development, but through automated API and UI tests that exercise common vulnerability patterns. You're testing the security behavior of the application, just as you test its functional behavior."
+summary: "SDET Engineering guide: Security Testing Basics"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "ci-cd-and-infrastructure"
+lesson: "security-testing-basics"
+difficulty: "intermediate"
+estimatedMinutes: 36
+prerequisites: []
+tags: ["SDET", "CI/CD", "Jenkins", "Docker"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/ci-cd-and-infrastructure/security-testing-basics"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Security Testing Basics
+
+> **Module:** 08 — CI/CD and Infrastructure > Security Testing Basics  
+> **Prerequisites:** Monitoring And Observability, API testing fundamentals (REST, HTTP status codes)  
+> **Mastery Target:** L2 (Guided) → L3 (Independent) — SDET-level security testing, not penetration testing
+
+---
+
+## Quick Overview (Layer 1)
+
+**What:** Security testing for SDETs is the practice of verifying that an application handles authentication, authorization, and input validation correctly — not through penetration testing or exploit development, but through automated API and UI tests that exercise common vulnerability patterns. You're testing the *security behavior* of the application, just as you test its *functional behavior*.
+
+**Why it matters:** You've automated 500 functional tests. They all pass. But nobody tested whether User A can access User B's bookings (IDOR), whether the API accepts SQL in the search field (injection), or whether an expired token still works (broken authentication). Security bugs are the most expensive — data breaches cost millions. An SDET who can automate security checks adds enormous value.
+
+**Where you encounter it:** API tests that validate authorization headers. Tests that submit malicious payloads and verify they're rejected. Integration tests that check security headers. Code review comments about credential handling.
+
+<MentalModel>
+
+Think of security testing as **testing the locks on a house**. Functional testing checks that the front door opens with the right key (authentication works). Security testing checks that the door *doesn't* open with the wrong key (broken auth), that you can't enter through the window (authorization bypass), that someone can't slip a note under the door that makes the house do something unexpected (injection), and that the windows are actually closed and locked (security headers).
+
+</MentalModel>
+
+
+<KeyTakeaways>
+
+1. **Security testing is within SDET scope** — you're not expected to find zero-day exploits, but you *should* test authentication, authorization, and input validation as part of your API test suite.
+2. **OWASP Top 10 is your checklist** — the most common web vulnerabilities are well-documented. Focus on the ones testable at the API level: broken authentication, broken authorization (IDOR), and injection.
+3. **IDOR is the most common and most dangerous** — if changing a booking ID in the URL shows someone else's data, that's a critical security bug. SDETs can catch this with simple API tests.
+4. **Input validation tests are just negative tests with security payloads** — you already test "what happens with invalid email format." Now test "what happens with `<script>alert(1)</script>` as the name field."
+5. **Security headers are automatable and often missed** — `X-Content-Type-Options`, `Strict-Transport-Security`, `X-Frame-Options` should be on every response. One API test verifies all of them.
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation (Layer 2)
+
+### OWASP Top 10 — What SDETs Should Know
+
+| # | Vulnerability | What It Means | SDET Test Approach |
+|---|---|---|---|
+| A01 | Broken Access Control | Users access resources they shouldn't | IDOR tests, privilege escalation tests |
+| A02 | Cryptographic Failures | Sensitive data exposed (plaintext passwords, weak hashing) | Check API responses don't leak secrets |
+| A03 | Injection | Untrusted input interpreted as code (SQL, XSS) | Submit payloads, verify they're rejected/escaped |
+| A04 | Insecure Design | Flawed logic (no rate limit, no account lockout) | Business logic tests (brute force, enumeration) |
+| A05 | Security Misconfiguration | Default credentials, verbose errors, missing headers | Security header checks, error response validation |
+| A06 | Vulnerable Components | Outdated libraries with known CVEs | Dependency scanning (OWASP Dependency-Check) |
+| A07 | Auth Failures | Broken authentication (weak passwords, no lockout) | Auth endpoint tests (invalid creds, expired tokens) |
+| A08 | Data Integrity Failures | Untrusted deserialization, unsigned updates | Less common for SDETs — focus on API input validation |
+| A09 | Logging Failures | Security events not logged | Verify audit logs exist for sensitive operations |
+| A10 | SSRF | Server makes requests to attacker-controlled URLs | Validate URL inputs are restricted |
+
+### Authentication Testing
+
+**What to test:**
+
+1. **Valid credentials → success (already covered in functional tests)**
+2. **Invalid credentials → proper failure** (401, not 500; no stack trace; generic message)
+3. **Expired token → rejected** (not silently accepted)
+4. **Missing token → rejected** (401, not 200 with empty data)
+5. **Tampered token → rejected** (modify JWT payload, verify rejection)
+6. **Account lockout → enforced** (after N failed attempts)
+
+### Authorization Testing (IDOR)
+
+**IDOR (Insecure Direct Object Reference)** — the most impactful vulnerability SDETs can find:
+
+```
+User A creates Booking #123
+User B requests GET /api/bookings/123
+Expected: 403 Forbidden (User B can't see User A's booking)
+Actual (vulnerable): 200 OK with User A's booking data  ← CRITICAL BUG
+```
+
+**Testing IDOR systematically:**
+
+1. Create a resource as User A (booking, profile, payment)
+2. Attempt to access/modify/delete that resource as User B
+3. Attempt to access it with no authentication
+4. Attempt to access it with a different role (guest accessing admin resource)
+
+### Input Validation Testing
+
+**SQL Injection payloads (for API fields):**
+
+```
+' OR '1'='1
+'; DROP TABLE bookings; --
+' UNION SELECT username, password FROM users --
+1; SELECT * FROM users
+```
+
+**XSS payloads (for fields that render in UI):**
+
+```
+<script>alert('XSS')</script>
+<img src=x onerror=alert('XSS')>
+"><script>alert(1)</script>
+javascript:alert(1)
+```
+
+**The test approach:** Submit these payloads as field values via API. The application should either reject them (400 Bad Request) or store them safely escaped (when retrieved, they appear as literal text, not executable code).
+
+### Security Headers
+
+Every HTTP response should include security headers:
+
+| Header | Expected Value | What It Prevents |
+|--------|---------------|-----------------|
+| `X-Content-Type-Options` | `nosniff` | MIME-type sniffing attacks |
+| `X-Frame-Options` | `DENY` or `SAMEORIGIN` | Clickjacking |
+| `Strict-Transport-Security` | `max-age=31536000; includeSubDomains` | Downgrade to HTTP |
+| `X-XSS-Protection` | `1; mode=block` | Reflected XSS (legacy browsers) |
+| `Content-Security-Policy` | Varies by app | XSS, data injection |
+| `Cache-Control` | `no-store` (for sensitive endpoints) | Cached sensitive data |
+
+---
+
+## Practical Implementation (Layer 3)
+
+### Example 1: IDOR Tests for StayNest Booking API
+
+
+```java
+@Epic("Security")
+@Feature("Authorization - IDOR")
+public class BookingIdorTest extends BaseApiTest {
+
+    private String userAToken;
+    private String userBToken;
+    private String userABookingId;
+
+    @BeforeClass
+    public void setupUsers() {
+        // Create two users with their own auth tokens
+        userAToken = authClient.registerAndLogin(TestDataFactory.randomUser());
+        userBToken = authClient.registerAndLogin(TestDataFactory.randomUser());
+        
+        // User A creates a booking
+        BookingRequest booking = BookingRequest.builder()
+            .propertyId("prop-123")
+            .checkIn("2025-04-01")
+            .checkOut("2025-04-05")
+            .guests(2)
+            .build();
+        
+        Response response = given()
+            .header("Authorization", "Bearer " + userAToken)
+            .body(booking)
+            .post("/api/bookings");
+        
+        userABookingId = response.jsonPath().getString("id");
+    }
+
+    @Test(groups = {"security", "idor"})
+    @Severity(SeverityLevel.CRITICAL)
+    @Description("User B should NOT be able to view User A's booking")
+    public void shouldNotAllowUserBToViewUserABooking() {
+        Response response = given()
+            .header("Authorization", "Bearer " + userBToken)
+            .get("/api/bookings/" + userABookingId);
+        
+        assertThat(response.statusCode())
+            .as("User B accessing User A's booking should be forbidden")
+            .isIn(403, 404);  // 403 Forbidden or 404 Not Found (both are acceptable)
+    }
+
+    @Test(groups = {"security", "idor"})
+    @Severity(SeverityLevel.CRITICAL)
+    @Description("User B should NOT be able to cancel User A's booking")
+    public void shouldNotAllowUserBToCancelUserABooking() {
+        Response response = given()
+            .header("Authorization", "Bearer " + userBToken)
+            .delete("/api/bookings/" + userABookingId);
+        
+        assertThat(response.statusCode())
+            .as("User B cancelling User A's booking should be forbidden")
+            .isIn(403, 404);
+    }
+
+    @Test(groups = {"security", "idor"})
+    @Severity(SeverityLevel.CRITICAL)
+    @Description("Unauthenticated request should NOT access any booking")
+    public void shouldNotAllowUnauthenticatedBookingAccess() {
+        Response response = given()
+            .get("/api/bookings/" + userABookingId);  // No auth header
+        
+        assertThat(response.statusCode())
+            .as("Unauthenticated access should return 401")
+            .isEqualTo(401);
+    }
+
+    @Test(groups = {"security", "idor"})
+    @Severity(SeverityLevel.CRITICAL)
+    @Description("User B should NOT be able to modify User A's booking")
+    public void shouldNotAllowUserBToModifyUserABooking() {
+        Response response = given()
+            .header("Authorization", "Bearer " + userBToken)
+            .body("{\"guests\": 5}")
+            .patch("/api/bookings/" + userABookingId);
+        
+        assertThat(response.statusCode())
+            .as("User B modifying User A's booking should be forbidden")
+            .isIn(403, 404);
+    }
+}
+```
+
+### Example 2: Authentication Bypass Tests
+
+
+```java
+@Epic("Security")
+@Feature("Authentication")
+public class AuthSecurityTest extends BaseApiTest {
+
+    @Test(groups = {"security", "auth"})
+    @Description("Expired JWT token should be rejected")
+    public void shouldRejectExpiredToken() {
+        String expiredToken = JwtTestHelper.createExpiredToken("testuser@staynest.com");
+        
+        Response response = given()
+            .header("Authorization", "Bearer " + expiredToken)
+            .get("/api/bookings");
+        
+        assertThat(response.statusCode()).isEqualTo(401);
+        assertThat(response.jsonPath().getString("error"))
+            .doesNotContain("stack", "trace", "Exception");  // No leak
+    }
+
+    @Test(groups = {"security", "auth"})
+    @Description("Tampered JWT token should be rejected")
+    public void shouldRejectTamperedToken() {
+        String validToken = authClient.login("test@staynest.com", "password");
+        // Tamper: change user ID in payload
+        String tamperedToken = JwtTestHelper.tamperPayload(validToken, "sub", "admin-user");
+        
+        Response response = given()
+            .header("Authorization", "Bearer " + tamperedToken)
+            .get("/api/bookings");
+        
+        assertThat(response.statusCode()).isEqualTo(401);
+    }
+
+    @Test(groups = {"security", "auth"})
+    @Description("Invalid credentials should return generic error, not reveal user existence")
+    public void shouldReturnGenericErrorForInvalidLogin() {
+        // Non-existent user
+        Response response1 = given()
+            .body("{\"email\":\"nobody@staynest.com\",\"password\":\"wrong\"}")
+            .post("/api/auth/login");
+        
+        // Existing user, wrong password
+        Response response2 = given()
+            .body("{\"email\":\"real@staynest.com\",\"password\":\"wrong\"}")
+            .post("/api/auth/login");
+        
+        // Both should return same status and same generic message
+        // (don't reveal whether the email exists)
+        assertThat(response1.statusCode()).isEqualTo(401);
+        assertThat(response2.statusCode()).isEqualTo(401);
+        assertThat(response1.jsonPath().getString("message"))
+            .isEqualTo(response2.jsonPath().getString("message"));
+    }
+
+    @Test(groups = {"security", "auth"})
+    @Description("Sensitive endpoints should require authentication")
+    public void shouldRequireAuthForProtectedEndpoints() {
+        List<String> protectedEndpoints = List.of(
+            "/api/bookings",
+            "/api/users/me",
+            "/api/payments",
+            "/api/admin/users"
+        );
+        
+        for (String endpoint : protectedEndpoints) {
+            Response response = given().get(endpoint);  // No auth header
+            assertThat(response.statusCode())
+                .as("Endpoint " + endpoint + " should require auth")
+                .isEqualTo(401);
+        }
+    }
+}
+```
+
+### Example 3: Input Validation and Security Header Tests
+
+
+```java
+@Epic("Security")
+@Feature("Input Validation")
+public class InputValidationSecurityTest extends BaseApiTest {
+
+    private static final List<String> SQL_INJECTION_PAYLOADS = List.of(
+        "' OR '1'='1",
+        "'; DROP TABLE bookings; --",
+        "' UNION SELECT username, password FROM users --",
+        "1; SELECT * FROM users"
+    );
+
+    private static final List<String> XSS_PAYLOADS = List.of(
+        "<script>alert('XSS')</script>",
+        "<img src=x onerror=alert('XSS')>",
+        "\"><script>alert(1)</script>",
+        "javascript:alert(1)"
+    );
+
+    @Test(groups = {"security", "injection"})
+    @Description("Search field should reject SQL injection payloads")
+    public void shouldRejectSqlInjectionInSearch() {
+        String token = getAuthToken();
+        
+        for (String payload : SQL_INJECTION_PAYLOADS) {
+            Response response = given()
+                .header("Authorization", "Bearer " + token)
+                .queryParam("location", payload)
+                .get("/api/properties/search");
+            
+            // Should either reject (400) or return empty results (200 with no data leak)
+            assertThat(response.statusCode())
+                .as("SQL injection payload should not cause server error: " + payload)
+                .isNotEqualTo(500);
+            
+            // Verify no data leak — response should not contain DB schema info
+            String body = response.asString();
+            assertThat(body)
+                .doesNotContainIgnoringCase("sql")
+                .doesNotContainIgnoringCase("syntax error")
+                .doesNotContainIgnoringCase("table")
+                .doesNotContainIgnoringCase("column");
+        }
+    }
+
+    @Test(groups = {"security", "xss"})
+    @Description("User name field should sanitize XSS payloads")
+    public void shouldSanitizeXssInUserProfile() {
+        String token = getAuthToken();
+        
+        for (String payload : XSS_PAYLOADS) {
+            // Update profile with XSS payload as name
+            given()
+                .header("Authorization", "Bearer " + token)
+                .body("{\"name\":\"" + payload.replace("\"", "\\\"") + "\"}")
+                .put("/api/users/me");
+            
+            // Retrieve profile and verify payload is escaped
+            Response getResponse = given()
+                .header("Authorization", "Bearer " + token)
+                .get("/api/users/me");
+            
+            String returnedName = getResponse.jsonPath().getString("name");
+            assertThat(returnedName)
+                .as("XSS payload should be escaped in response")
+                .doesNotContain("<script>")
+                .doesNotContain("onerror=");
+        }
+    }
+}
+```
+
+
+```java
+@Epic("Security")
+@Feature("Security Headers")
+public class SecurityHeaderTest extends BaseApiTest {
+
+    @Test(groups = {"security", "headers"})
+    @Description("API responses should include standard security headers")
+    public void shouldIncludeSecurityHeaders() {
+        Response response = given().get("/api/health");
+        
+        assertThat(response.header("X-Content-Type-Options"))
+            .as("Should prevent MIME sniffing")
+            .isEqualTo("nosniff");
+        
+        assertThat(response.header("X-Frame-Options"))
+            .as("Should prevent clickjacking")
+            .isIn("DENY", "SAMEORIGIN");
+        
+        assertThat(response.header("Strict-Transport-Security"))
+            .as("Should enforce HTTPS")
+            .contains("max-age=");
+        
+        assertThat(response.header("Cache-Control"))
+            .as("Sensitive responses should not be cached")
+            .contains("no-store");
+    }
+
+    @Test(groups = {"security", "headers"})
+    @Description("Error responses should not leak server information")
+    public void shouldNotLeakServerInfoInErrors() {
+        Response response = given().get("/api/nonexistent-endpoint");
+        
+        String body = response.asString();
+        assertThat(body)
+            .doesNotContain("stack")
+            .doesNotContain("Exception")
+            .doesNotContain("at com.")
+            .doesNotContain("Spring");
+        
+        assertThat(response.header("Server"))
+            .as("Server header should not reveal technology/version")
+            .isNull();  // Or at least not "Apache/2.4.51" or "nginx/1.22"
+    }
+}
+```
+
+---
+
+## Failure and Debugging (Layer 4)
+
+### Failure 1: IDOR Test Passes But Shouldn't
+
+**The Problem:** Your IDOR test expects a 403 when User B accesses User A's booking. But it returns 200 — and you marked the test as "passed" because you forgot to write the assertion.
+
+**Root cause:** The test makes the request but doesn't assert the status code. RestAssured returns 200 and the test implicitly passes.
+
+**Prevention — always assert explicitly:**
+
+
+```java
+// BAD — no assertion, test passes regardless of response
+given().header("Authorization", "Bearer " + userBToken)
+       .get("/api/bookings/" + userABookingId);
+
+// GOOD — explicit assertion
+Response response = given()
+    .header("Authorization", "Bearer " + userBToken)
+    .get("/api/bookings/" + userABookingId);
+
+assertThat(response.statusCode())
+    .as("IDOR: User B must not access User A's booking")
+    .isIn(403, 404);
+```
+
+### Failure 2: SQL Injection Test Returns 500 — Is That a Pass or Fail?
+
+**The Problem:** You send `' OR '1'='1` to the search endpoint. It returns 500 Internal Server Error.
+
+**Is this a pass?** No. A 500 means the application crashed trying to process the input. This is almost certainly a vulnerability — the SQL payload reached the database query layer and caused an error.
+
+**Expected secure behavior:** 400 Bad Request (input validation rejected it) or 200 with empty/normal results (parameterized query treated it as literal text).
+
+### Failure 3: Security Test Creates False Positive on Staging
+
+**The Problem:** The security header test fails because staging doesn't have HSTS configured, but production does.
+
+**The fix — environment-aware security tests:**
+
+
+```java
+@Test(groups = {"security", "headers"})
+public void shouldEnforceHsts() {
+    if (config.getEnvironment().equals("local") || config.getEnvironment().equals("dev")) {
+        throw new SkipException("HSTS not configured on " + config.getEnvironment());
+    }
+    
+    Response response = given().get("/api/health");
+    assertThat(response.header("Strict-Transport-Security"))
+        .as("HSTS should be configured on " + config.getEnvironment())
+        .isNotNull()
+        .contains("max-age=");
+}
+```
+
+---
+
+## Engineering Judgment (Layer 5)
+
+### SDET Security Testing Scope
+
+| In Scope for SDETs | Out of Scope for SDETs |
+|--------------------|----------------------|
+| IDOR testing (API-level authorization) | Penetration testing / exploit development |
+| Auth bypass tests (expired tokens, tampering) | Network-level security (firewall rules) |
+| Input validation (SQL injection, XSS payloads) | Cryptographic analysis (key strength, algorithm choice) |
+| Security header validation | Social engineering testing |
+| Error response information leakage | Physical security |
+| Privilege escalation (user → admin) | Advanced deserialization attacks |
+
+### When to Add Security Tests
+
+| Trigger | What to Test |
+|---------|-------------|
+| New API endpoint | IDOR for any resource-specific endpoint, auth required check |
+| New user role | Cross-role access tests (role A accessing role B resources) |
+| New input field | Injection payloads for the field |
+| Security incident/bug | Regression test to prevent recurrence |
+| Before major release | Full security suite run |
+
+### Security Tests in CI Pipeline
+
+**Don't run security tests on every PR** — they're slower and the payloads can trigger WAF (Web Application Firewall) alerts. Run them nightly or as a separate suite.
+
+
+```groovy
+stage('Security Tests') {
+    when {
+        anyOf {
+            branch 'main'
+            triggeredBy 'TimerTrigger'  // Nightly
+        }
+    }
+    steps {
+        sh 'mvn test -Dgroups=security -Denv=staging'
+    }
+}
+```
+
+---
+
+## Interview and Revision (Layer 6)
+
+### Fundamental Questions
+
+**Q1: What security tests can an SDET automate?**
+
+**A:** Three main categories. Authorization (IDOR): verify that User A can't access User B's resources by testing cross-user access at the API level — create a resource as User A, try to read/modify/delete it as User B. Authentication: test expired tokens, tampered tokens, missing tokens, and verify generic error messages that don't reveal user existence. Input validation: submit SQL injection and XSS payloads as field values and verify the application rejects or safely escapes them. I also automate security header checks — HSTS, X-Content-Type-Options, X-Frame-Options on every response.
+
+**Q2: What is IDOR and how do you test for it?**
+
+**A:** IDOR — Insecure Direct Object Reference — occurs when an application exposes internal object IDs (like `/bookings/123`) and doesn't verify that the requesting user owns that object. I test it by creating a resource as User A, then attempting to access it with User B's token. If User B gets a 200 with User A's data, that's an IDOR vulnerability. I test all CRUD operations: read, update, and delete. Both 403 (Forbidden) and 404 (Not Found) are acceptable responses — 404 is actually preferred because it doesn't reveal that the resource exists.
+
+**Q3: How do you integrate security tests into your CI pipeline?**
+
+**A:** I tag security tests with `@Test(groups = "security")` and run them as a separate suite — not on every PR (they're slower and may trigger WAF alerts), but nightly and before releases. Some lightweight security checks, like authentication-required validation, run as part of the regular API smoke suite. IDOR tests run nightly against staging. The results are reported through the same Allure pipeline as functional tests, but with the `@Epic("Security")` annotation for filtering.
+
+
+
+
+| # | Front (Question) | Back (Answer) |
+|---|---|---|
+| 1 | What is IDOR? | Insecure Direct Object Reference — User A accesses User B's resource by manipulating the object ID in the URL. Test: create as User A, access as User B, expect 403/404. |
+| 2 | Why should login errors be generic? | Specific errors ("user not found" vs "wrong password") reveal which emails are registered — enabling account enumeration. Both cases should return the same generic message. |
+| 3 | What should happen when SQL injection is sent to an API? | 400 Bad Request (input validation) or 200 with normal/empty results (parameterized query). Never 500 — that indicates the payload reached the database layer. |
+| 4 | Name 3 essential security headers. | `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Strict-Transport-Security: max-age=31536000`. |
+| 5 | Why is 404 sometimes preferred over 403 for IDOR? | 403 confirms the resource exists (User A's booking IS there, you just can't see it). 404 reveals nothing about resource existence — more secure. |
+
+### Mastery Checklist
+
+- [ ] Can write IDOR tests for any API endpoint that exposes resource IDs
+- [ ] Can test authentication bypass scenarios (expired, tampered, missing tokens)
+- [ ] Can submit SQL injection and XSS payloads and validate proper handling
+- [ ] Can automate security header validation
+- [ ] Can explain OWASP Top 10 vulnerabilities relevant to API testing
+- [ ] Can integrate security tests into the CI pipeline at appropriate frequency
+
+---
+
+**Next:** Infrastructure Troubleshooting | **Related:** Monitoring And Observability
+
+*Last updated: *

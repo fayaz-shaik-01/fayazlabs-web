@@ -1,0 +1,814 @@
+---
+title: "API Test Data and Cleanup"
+description: "What: API test data management is the discipline of creating, isolating, and cleaning up data that your API tests need. It covers three questions: How do you create the data each test requires? How do you ensure tests don't collide when running in parallel? How do you clean up after tests so the environment stays healthy?"
+summary: "SDET Engineering guide: API Test Data and Cleanup"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "api-automation"
+lesson: "api-test-data-and-cleanup"
+difficulty: "intermediate"
+estimatedMinutes: 52
+prerequisites: []
+tags: ["SDET", "API", "REST", "Testing"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/api-automation/api-test-data-and-cleanup"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# API Test Data and Cleanup
+
+> **Module:** 04 — API Automation  
+> **Prerequisites:** Service Integration Testing, Authentication And Authorization, Database Validation  
+> **Mastery Target:** L3 (Independent) — can design a complete test data lifecycle for API tests including creation, uniqueness, isolation, and cleanup strategies
+
+---
+
+## Quick Overview (Layer 1)
+
+**What:** API test data management is the discipline of creating, isolating, and cleaning up data that your API tests need. It covers three questions: How do you create the data each test requires? How do you ensure tests don't collide when running in parallel? How do you clean up after tests so the environment stays healthy?
+
+**Why:** Test data is the #1 source of flaky API tests. Tests that share data collide in parallel. Tests that don't clean up leave stale data that causes failures weeks later. Tests that depend on pre-existing data break when someone resets the database. And hardcoded data (email: "test@test.com") guarantees collisions the moment two test runs overlap. A solid test data strategy is the difference between a reliable test suite and one that requires "just re-run it" every third build.
+
+**Where:** Every API test suite. Every CI pipeline. Every shared test environment. The strategies differ by scale: a solo developer running tests locally can get away with less rigor than a team running parallel CI pipelines against a shared staging database.
+
+<MentalModel>
+
+Think of test data as **ingredients for cooking in a shared kitchen**. A good cook (test) brings their own labeled ingredients (creates own unique data), uses their own cutting board (test isolation), cleans up after cooking (cleanup), and can cook alongside others without conflict (parallel safety). A bad cook raids the shared fridge (pre-existing data), uses the same unlabeled container as everyone else (shared data with hardcoded IDs), leaves dirty dishes (no cleanup), and causes a fire when two cooks reach for the same pan (parallel collision).
+
+</MentalModel>
+
+
+<KeyTakeaways>
+
+1. Each test should create the data it needs and not assume anything exists — self-sufficient tests are reliable tests.
+2. Unique data (UUID emails, timestamped names) prevents collisions between parallel test runs and repeated local executions.
+3. Cleanup must happen regardless of test outcome — use `@AfterMethod` or try-finally, never rely on test success for cleanup.
+4. API-based setup (creating data via API calls) is more resilient than DB seeding because it goes through the same validation the real application uses.
+5. Separate read-only reference data (shared, never modified) from per-test data (owned by one test, cleaned up after).
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation (Layer 2)
+
+### The Test Data Lifecycle
+
+Every piece of test data goes through three phases:
+
+```
+CREATE → USE → CLEANUP
+  ↑                ↓
+  └── Must happen ──┘
+      regardless of
+      test outcome
+```
+
+| Phase | What Happens | API Testing Example |
+|-------|-------------|---------------------|
+| **Create** | Generate the data the test needs | Sign up a user, create a hotel, add a room |
+| **Use** | The test executes its assertions using the data | Book the room, verify the booking |
+| **Cleanup** | Remove or reset the data to its original state | Cancel the booking, delete the hotel |
+
+### Data Creation Strategies
+
+#### Strategy 1: API-Based Setup
+
+Create test data by calling the application's API in `@BeforeMethod` or `@BeforeClass`.
+
+**Pros:** Validates the creation path; data is consistent with what the app produces; no need for DB access.
+**Cons:** Slower than direct DB inserts; depends on creation endpoints working correctly.
+
+#### Strategy 2: Direct Database Seeding
+
+Insert data directly into the database using SQL.
+
+**Pros:** Fast; can create data that bypasses validation (e.g., expired bookings for testing).
+**Cons:** Bypasses application validation; tightly coupled to schema; breaks on schema changes.
+
+#### Strategy 3: Fixture Files
+
+Load predefined data from JSON/SQL files.
+
+**Pros:** Reproducible; version-controlled; easy to review.
+**Cons:** Static — can't generate unique values; may get out of sync with schema.
+
+**Recommendation:** Use API-based setup for most tests. Use DB seeding only for data the API can't create (e.g., expired bookings, specific database states). Use fixture files for read-only reference data.
+
+### Unique Data Generation
+
+Hardcoded test data causes collisions:
+
+```
+Test A: signup("test@staynest.com", "pass123")  → 201 Created
+Test B: signup("test@staynest.com", "pass123")  → 500 Duplicate email!
+```
+
+**Solution:** Generate unique data for every test run:
+
+| Strategy | Pattern | Example |
+|----------|---------|---------|
+| **UUID prefix** | `UUID + base value` | `"a3f9b2c1-test@staynest.com"` |
+| **Timestamp suffix** | `base + timestamp` | `"test-1705300000@staynest.com"` |
+| **Atomic counter** | `base + incrementing number` | `"test-0001@staynest.com"` |
+| **Random suffix** | `base + random string` | `"test-xK9mP@staynest.com"` |
+
+### Shared vs Per-Test Data
+
+| Data Type | Lifecycle | Example | Parallel Safe? |
+|-----------|-----------|---------|----------------|
+| **Per-test data** | Created in setup, used in one test, cleaned up after | A booking created for one test | Yes — each test has its own |
+| **Per-class data** | Created in `@BeforeClass`, shared by all tests in the class, cleaned in `@AfterClass` | A hotel used by all booking tests in a class | Yes if tests only read; no if tests modify |
+| **Shared reference data** | Created once (seed data), never modified by tests | A default admin user, lookup values | Yes — read-only is always safe |
+
+**Rule:** If a test modifies data, that data must be owned by that test alone. Shared data is only safe for read-only access.
+
+### Cleanup Strategies
+
+| Strategy | How | Pros | Cons |
+|----------|-----|------|------|
+| **API delete** | Call DELETE endpoints in `@AfterMethod` | Validates delete flow; framework-consistent | Slow; DELETE may not exist for all resources |
+| **Database truncate** | `TRUNCATE TABLE bookings` in `@AfterSuite` | Fast; thorough | Destroys all data including seed data; requires DB access |
+| **Transaction rollback** | Wrap each test in a DB transaction, rollback after | Zero residue; fast | Only works for same-process tests (not API-over-HTTP) |
+| **Soft cleanup** | Mark test data with a tag, delete tagged data periodically | Non-disruptive | Stale data accumulates between cleanup runs |
+| **Ephemeral environment** | Fresh database/container per test run | Perfect isolation | Slow to spin up; expensive for large databases |
+
+---
+
+## Practical Implementation (Layer 3)
+
+### Test Data Factory for StayNest
+
+
+```java
+import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
+
+/**
+ * Generates unique test data for StayNest API tests.
+ * Every value includes a unique identifier to prevent collisions
+ * across parallel runs and repeated executions.
+ */
+public class TestDataFactory {
+
+    private static final AtomicInteger counter = new AtomicInteger(0);
+
+    /**
+     * Generate a unique email that won't collide with other tests.
+     * Format: test-{uuid}@staynest.com
+     */
+    public static String uniqueEmail() {
+        return "test-" + UUID.randomUUID().toString().substring(0, 8) + "@staynest.com";
+    }
+
+    /**
+     * Generate a unique email with a descriptive prefix for debugging.
+     * Format: booking-test-{uuid}@staynest.com
+     */
+    public static String uniqueEmail(String prefix) {
+        return prefix + "-" + UUID.randomUUID().toString().substring(0, 8) + "@staynest.com";
+    }
+
+    /**
+     * Generate a unique hotel name.
+     */
+    public static String uniqueHotelName() {
+        return "Test Hotel " + counter.incrementAndGet() + "-" +
+            UUID.randomUUID().toString().substring(0, 6);
+    }
+
+    /**
+     * Generate a unique phone number.
+     */
+    public static String uniquePhone() {
+        return "555-" + String.format("%04d", counter.incrementAndGet());
+    }
+
+    /**
+     * Generate a signup request body with unique data.
+     */
+    public static String signupBody(String role) {
+        String email = uniqueEmail("signup");
+        return String.format("""
+            {
+                "email": "%s",
+                "password": "TestPass123",
+                "name": "Test User %d",
+                "roles": ["%s"]
+            }
+            """, email, counter.incrementAndGet(), role);
+    }
+
+    /**
+     * Generate a hotel creation body with unique data.
+     */
+    public static String hotelBody() {
+        return String.format("""
+            {
+                "name": "%s",
+                "city": "Test City",
+                "photos": [],
+                "amenities": ["WIFI"],
+                "contactInfo": {
+                    "address": "123 Test St",
+                    "phoneNumber": "%s",
+                    "email": "%s",
+                    "location": "Test Location"
+                }
+            }
+            """, uniqueHotelName(), uniquePhone(), uniqueEmail("hotel"));
+    }
+
+    /**
+     * Generate a booking request body.
+     * Dates are always in the future to avoid validation failures.
+     */
+    public static String bookingBody(int hotelId, int roomId) {
+        // Use dates 30 days in the future to avoid "date must be in the future" errors
+        java.time.LocalDate startDate = java.time.LocalDate.now().plusDays(30);
+        java.time.LocalDate endDate = startDate.plusDays(3);
+
+        return String.format("""
+            {
+                "hotelId": %d,
+                "roomId": %d,
+                "checkInDate": "%s",
+                "checkOutDate": "%s",
+                "roomsCount": 1
+            }
+            """, hotelId, roomId, startDate, endDate);
+    }
+}
+```
+
+### Complete Setup and Cleanup Pattern
+
+
+```java
+import io.restassured.response.Response;
+import org.testng.annotations.*;
+import static io.restassured.RestAssured.*;
+import static org.hamcrest.Matchers.*;
+
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * Demonstrates the complete test data lifecycle for booking tests:
+ * 1. @BeforeSuite: Create shared reference data (manager user)
+ * 2. @BeforeClass: Create class-level data (hotel, room)
+ * 3. @BeforeMethod: Create per-test data (guest user, booking)
+ * 4. @Test: Run assertions
+ * 5. @AfterMethod: Clean up per-test data
+ * 6. @AfterClass: Clean up class-level data
+ */
+public class BookingTestsWithCleanup {
+
+    // Shared reference data (read-only across all tests)
+    private static String managerToken;
+
+    // Class-level data (shared by all tests in this class)
+    private int hotelId;
+    private int roomId;
+
+    // Per-test data (unique to each test, cleaned up after)
+    private String testGuestEmail;
+    private String testGuestToken;
+    private List<Integer> bookingIdsToClean = new ArrayList<>();
+
+    @BeforeSuite
+    public void createSharedData() {
+        // Manager is shared — all tests use the same manager for hotel setup
+        managerToken = AuthFactory.manager().getAccessToken();
+    }
+
+    @BeforeClass
+    public void createClassData() {
+        // Create a hotel and room that all booking tests in this class use.
+        // These are READ-ONLY from the test perspective — tests create
+        // bookings against this hotel but don't modify the hotel itself.
+
+        hotelId = given()
+            .contentType("application/json")
+            .header("Authorization", "Bearer " + managerToken)
+            .body(TestDataFactory.hotelBody())
+        .when()
+            .post("/admin/hotels")
+        .then()
+            .statusCode(201)
+            .extract().jsonPath().getInt("data.id");
+
+        roomId = given()
+            .contentType("application/json")
+            .header("Authorization", "Bearer " + managerToken)
+            .body("""
+                {
+                    "type": "DELUXE",
+                    "basePrice": 100.00,
+                    "photos": [],
+                    "amenities": [],
+                    "totalCount": 10,
+                    "capacity": 2
+                }
+                """)
+        .when()
+            .post("/admin/hotels/" + hotelId + "/rooms")
+        .then()
+            .statusCode(201)
+            .extract().jsonPath().getInt("data.id");
+
+        // Activate hotel so it's bookable
+        given()
+            .header("Authorization", "Bearer " + managerToken)
+        .when()
+            .patch("/admin/hotels/" + hotelId + "/activate")
+        .then()
+            .statusCode(204);
+    }
+
+    @BeforeMethod
+    public void createPerTestData() {
+        // Each test gets a fresh guest user — prevents test interference
+        testGuestEmail = TestDataFactory.uniqueEmail("booking-test");
+        String signupBody = String.format("""
+            {
+                "email": "%s",
+                "password": "TestPass123",
+                "name": "Booking Test Guest",
+                "roles": ["GUEST"]
+            }
+            """, testGuestEmail);
+
+        given()
+            .contentType("application/json")
+            .body(signupBody)
+        .when()
+            .post("/auth/signup")
+        .then()
+            .statusCode(201);
+
+        testGuestToken = given()
+            .contentType("application/json")
+            .body(String.format("""
+                {"email": "%s", "password": "TestPass123"}
+                """, testGuestEmail))
+        .when()
+            .post("/auth/login")
+        .then()
+            .statusCode(200)
+            .extract().jsonPath().getString("data.accessToken");
+
+        bookingIdsToClean.clear();
+    }
+
+    // ======== TESTS ========
+
+    @Test
+    public void guestCanCreateBooking() {
+        int bookingId = given()
+            .contentType("application/json")
+            .header("Authorization", "Bearer " + testGuestToken)
+            .body(TestDataFactory.bookingBody(hotelId, roomId))
+        .when()
+            .post("/bookings/init")
+        .then()
+            .statusCode(200)
+            .body("data.bookingStatus", equalTo("RESERVED"))
+            .extract().jsonPath().getInt("data.id");
+
+        bookingIdsToClean.add(bookingId);  // Track for cleanup
+    }
+
+    @Test
+    public void guestCanViewOwnBookings() {
+        // Create a booking first
+        int bookingId = createBooking();
+        bookingIdsToClean.add(bookingId);
+
+        // Verify it appears in the guest's booking list
+        given()
+            .header("Authorization", "Bearer " + testGuestToken)
+        .when()
+            .get("/users/myBookings")
+        .then()
+            .statusCode(200)
+            .body("data.find { it.id == " + bookingId + " }", notNullValue());
+    }
+
+    @Test
+    public void guestCannotSeeOtherGuestsBookings() {
+        // This test's guest creates a booking
+        int bookingId = createBooking();
+        bookingIdsToClean.add(bookingId);
+
+        // A different guest should not see this booking
+        String otherGuestToken = createAnotherGuest();
+
+        given()
+            .header("Authorization", "Bearer " + otherGuestToken)
+        .when()
+            .get("/users/myBookings")
+        .then()
+            .statusCode(200)
+            .body("data.find { it.id == " + bookingId + " }", nullValue());
+    }
+
+    // ======== CLEANUP ========
+
+    @AfterMethod
+    public void cleanupPerTestData() {
+        // Cancel any bookings created during the test
+        // Use try-catch to ensure cleanup continues even if one fails
+        for (int bookingId : bookingIdsToClean) {
+            try {
+                // Can only cancel CONFIRMED bookings — for others, just let them expire
+                given()
+                    .header("Authorization", "Bearer " + testGuestToken)
+                .when()
+                    .get("/bookings/" + bookingId + "/status")
+                .then()
+                    .extract().response();
+                // If status allows cancellation, cancel it
+            } catch (Exception e) {
+                System.err.println("Warning: failed to clean up booking " + bookingId
+                    + ": " + e.getMessage());
+            }
+        }
+        bookingIdsToClean.clear();
+
+        // Note: Guest users can't be deleted via API in StayNest,
+        // but each test creates a unique user, so old ones don't interfere.
+    }
+
+    @AfterClass
+    public void cleanupClassData() {
+        // Delete the test hotel (cascades to rooms and inventory)
+        try {
+            given()
+                .header("Authorization", "Bearer " + managerToken)
+            .when()
+                .delete("/admin/hotels/" + hotelId)
+            .then()
+                .statusCode(anyOf(is(204), is(404)));  // 404 is OK — already deleted
+        } catch (Exception e) {
+            System.err.println("Warning: failed to clean up hotel " + hotelId);
+        }
+    }
+
+    // ======== HELPERS ========
+
+    private int createBooking() {
+        return given()
+            .contentType("application/json")
+            .header("Authorization", "Bearer " + testGuestToken)
+            .body(TestDataFactory.bookingBody(hotelId, roomId))
+        .when()
+            .post("/bookings/init")
+        .then()
+            .statusCode(200)
+            .extract().jsonPath().getInt("data.id");
+    }
+
+    private String createAnotherGuest() {
+        String email = TestDataFactory.uniqueEmail("other-guest");
+        given()
+            .contentType("application/json")
+            .body(String.format("""
+                {"email":"%s","password":"TestPass123","name":"Other Guest","roles":["GUEST"]}
+                """, email))
+        .when()
+            .post("/auth/signup")
+        .then()
+            .statusCode(201);
+
+        return given()
+            .contentType("application/json")
+            .body(String.format("""
+                {"email":"%s","password":"TestPass123"}
+                """, email))
+        .when()
+            .post("/auth/login")
+        .then()
+            .statusCode(200)
+            .extract().jsonPath().getString("data.accessToken");
+    }
+}
+```
+
+### Parallel-Safe Data Strategy
+
+
+```java
+/**
+ * Demonstrates parallel-safe test data patterns.
+ * Each test thread creates completely independent data
+ * with no shared mutable state.
+ */
+public class ParallelSafeDataPattern {
+
+    /**
+     * Thread-local storage for test context.
+     * Each parallel thread gets its own copy.
+     */
+    private static final ThreadLocal<TestContext> testContext = new ThreadLocal<>();
+
+    static class TestContext {
+        String guestEmail;
+        String guestToken;
+        int hotelId;
+        int roomId;
+    }
+
+    @BeforeMethod
+    public void setupIsolatedContext() {
+        TestContext ctx = new TestContext();
+
+        // 1. Create a unique manager and hotel per thread
+        //    (or use shared read-only manager if hotel creation is slow)
+        String managerToken = AuthFactory.manager().getAccessToken();
+
+        // 2. Create unique hotel — thread-safe because each hotel has a unique name
+        ctx.hotelId = given()
+            .contentType("application/json")
+            .header("Authorization", "Bearer " + managerToken)
+            .body(TestDataFactory.hotelBody())  // Unique name via UUID
+        .when()
+            .post("/admin/hotels")
+        .then()
+            .statusCode(201)
+            .extract().jsonPath().getInt("data.id");
+
+        // 3. Create unique guest — unique email prevents collisions
+        ctx.guestEmail = TestDataFactory.uniqueEmail("parallel");
+        // ... signup and login omitted for brevity
+
+        testContext.set(ctx);
+    }
+
+    @Test
+    public void parallelSafeBookingTest() {
+        TestContext ctx = testContext.get();
+        // This test operates on completely isolated data
+        // No other thread can see or modify ctx.hotelId, ctx.guestEmail
+    }
+
+    @AfterMethod
+    public void cleanupIsolatedContext() {
+        TestContext ctx = testContext.get();
+        if (ctx != null) {
+            // Clean up this thread's data
+            testContext.remove();  // Prevent ThreadLocal leaks
+        }
+    }
+}
+```
+
+### Database-Based Cleanup for Residual Data
+
+
+```java
+/**
+ * Cleanup utility for residual test data that API-based cleanup can't handle.
+ * Run as @AfterSuite or as a separate cleanup job.
+ */
+public class TestDataCleaner {
+
+    /**
+     * Delete all test users (identifiable by email pattern).
+     */
+    public static void cleanupTestUsers() {
+        String sql = "DELETE FROM users WHERE email LIKE 'test-%@staynest.com'";
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            int deleted = stmt.executeUpdate();
+            System.out.println("Cleaned up " + deleted + " test users");
+        } catch (SQLException e) {
+            System.err.println("Test user cleanup failed: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Delete all test hotels (identifiable by name pattern).
+     */
+    public static void cleanupTestHotels() {
+        String sql = "DELETE FROM hotels WHERE name LIKE 'Test Hotel%'";
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            int deleted = stmt.executeUpdate();
+            System.out.println("Cleaned up " + deleted + " test hotels");
+        } catch (SQLException e) {
+            System.err.println("Test hotel cleanup failed: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Nuclear option: clean all test data by prefix/pattern.
+     * Only use in disposable test environments, never in staging/production.
+     */
+    public static void cleanAllTestData() {
+        cleanupTestUsers();
+        cleanupTestHotels();
+        // Cascading deletes handle rooms, inventory, bookings
+    }
+}
+```
+
+---
+
+## Failure and Debugging (Layer 4)
+
+### Failure 1: Test Fails Because Previous Test's Data Wasn't Cleaned Up
+
+**The Problem:**
+
+
+```java
+@Test
+public void signupWithUniqueEmail_returns201() {
+    given()
+        .contentType("application/json")
+        .body("{\"email\":\"test@staynest.com\",\"password\":\"pass123\",\"name\":\"Test\"}")
+    .when()
+        .post("/auth/signup")
+    .then()
+        .statusCode(201);  // FAILS on 2nd run — 500 duplicate email!
+}
+```
+
+**Root cause:** Hardcoded email. The first run creates the user successfully. The second run fails because the user already exists. No cleanup runs between executions.
+
+**The fix:** Use unique emails:
+
+
+```java
+@Test
+public void signupWithUniqueEmail_returns201() {
+    String email = TestDataFactory.uniqueEmail("signup");
+
+    given()
+        .contentType("application/json")
+        .body(String.format(
+            "{\"email\":\"%s\",\"password\":\"pass123\",\"name\":\"Test\"}", email))
+    .when()
+        .post("/auth/signup")
+    .then()
+        .statusCode(201);
+}
+```
+
+### Failure 2: Cleanup Fails, Leaving Orphaned Data
+
+**The Problem:**
+
+
+```java
+@AfterMethod
+public void cleanup() {
+    // If this token is expired, all cleanup calls fail with 401!
+    given()
+        .header("Authorization", "Bearer " + token)
+        .delete("/admin/hotels/" + hotelId);
+    // Silent failure — no assertion, no error handling
+}
+```
+
+**Root cause:** The cleanup uses a stale token. If the token expired during the test, cleanup fails silently, leaving data behind.
+
+**The fix:** Get a fresh token for cleanup and add error handling:
+
+
+```java
+@AfterMethod
+public void cleanup() {
+    try {
+        String freshToken = AuthFactory.manager().getAccessToken();  // Fresh token
+        given()
+            .header("Authorization", "Bearer " + freshToken)
+        .when()
+            .delete("/admin/hotels/" + hotelId)
+        .then()
+            .statusCode(anyOf(is(204), is(404)));  // Both are acceptable
+    } catch (Exception e) {
+        System.err.println("Cleanup warning: " + e.getMessage());
+        // Don't throw — cleanup failures shouldn't fail the test
+    }
+}
+```
+
+### Failure 3: Parallel Tests Collide on Shared Hotel
+
+**The Problem:** Two parallel tests both modify the same hotel (ID=1). Test A updates the name to "Hotel A"; Test B updates it to "Hotel B". Both tests then assert their expected name — one fails.
+
+**Root cause:** Shared mutable state. Both tests modify the same resource because they use a hardcoded hotel ID.
+
+**The fix:** Each parallel test creates its own hotel:
+
+
+```java
+@BeforeMethod
+public void setupPerTestHotel() {
+    // Each test gets its own hotel — no sharing
+    this.hotelId = given()
+        .contentType("application/json")
+        .header("Authorization", "Bearer " + managerToken)
+        .body(TestDataFactory.hotelBody())  // Unique name via UUID
+    .when()
+        .post("/admin/hotels")
+    .then()
+        .statusCode(201)
+        .extract().jsonPath().getInt("data.id");
+}
+```
+
+---
+
+## Engineering Judgment (Layer 5)
+
+### Choosing the Right Cleanup Strategy
+
+| Environment | Strategy | Why |
+|-------------|----------|-----|
+| **Local development** | API-based cleanup in `@After*` + manual DB cleanup occasionally | Good enough; quick feedback loop |
+| **CI pipeline (dedicated DB)** | Ephemeral DB (fresh container per pipeline) + API cleanup per test | Clean slate every run; no stale data accumulation |
+| **CI pipeline (shared DB)** | API cleanup per test + DB cleanup per suite + unique data always | Must be disciplined — stale data from other pipelines exists |
+| **Staging environment** | API cleanup only + unique data + never truncate | Other teams may use this environment; don't nuke their data |
+
+### Test Data Creation Speed vs Isolation Trade-off
+
+| Approach | Creation Speed | Isolation | Best For |
+|----------|---------------|-----------|----------|
+| One hotel for all tests | Fast (1 create) | Low (shared resource) | Read-only tests (searching, viewing) |
+| One hotel per test class | Moderate (1 per class) | Medium (class-level isolation) | Most tests (booking, viewing, reporting) |
+| One hotel per test method | Slow (1 per test) | High (complete isolation) | Tests that modify the hotel itself |
+
+**Rule of thumb:** Use the coarsest isolation level that doesn't cause flakiness. Start with per-class setup. If you see collisions, move to per-method.
+
+### When Test Data Issues Look Like Bugs
+
+| Symptom | Appears to Be | Actually Is |
+|---------|---------------|-------------|
+| Test gets 409 Conflict on booking | Business logic bug | Previous test's booking consumed the inventory |
+| Test gets 500 on signup | Server error | Duplicate email from a previous run's stale data |
+| Test gets 404 on GET hotel | Routing bug | Another test deleted the shared hotel |
+| Test passes alone, fails in suite | Intermittent bug | Test depends on execution order (previous test creates needed data) |
+
+---
+
+## Interview and Revision (Layer 6)
+
+### Fundamental Questions
+
+**Q1: How do you ensure test data doesn't collide in parallel execution?**
+
+**A:** Three strategies combined: (1) Unique identifiers — every email, name, and identifier includes a UUID or atomic counter, making it impossible for two tests to create the same resource. (2) Per-test ownership — each test creates its own data in `@BeforeMethod` and cleans up in `@AfterMethod`, never relying on data from other tests. (3) ThreadLocal context — when running in parallel, each thread stores its test data in a ThreadLocal variable, preventing cross-thread contamination. The key principle is: if a test creates data, only that test reads, modifies, and deletes it.
+
+**Q2: What's your cleanup strategy when the API doesn't have a delete endpoint?**
+
+**A:** If there's no API delete endpoint (e.g., StayNest has no `DELETE /users` endpoint), I have three fallback options: (1) Direct DB cleanup — delete test records using SQL in `@AfterMethod` or `@AfterSuite`, identified by a predictable pattern (emails matching `test-*@staynest.com`). (2) Unique data with no cleanup — if stale users don't cause issues (e.g., each test creates a unique user with a UUID email), I skip user cleanup entirely. The data is inert — it doesn't collide with anything. (3) Ephemeral database — in CI, I spin up a fresh database container per pipeline, so stale data is automatically discarded when the container is destroyed.
+
+**Q3: Should tests depend on seed data or create everything from scratch?**
+
+**A:** Tests should create their own data with one exception: read-only reference data. Seed data (default users, lookup tables) is fine for reference data that tests read but never modify — like a pre-existing admin user for authentication. But any data a test modifies, creates, or deletes should be test-owned. The reason: seed data changes break all tests that depend on it. A teammate adds a "reset database" step to CI, and suddenly every test that assumed "user ID 1 exists" fails. Self-sufficient tests survive any database state.
+
+### Scenario-Based Questions
+
+**S1: "Your test suite takes 45 minutes. 30 minutes is test data setup. How do you speed it up?"**
+
+**A:** I'd attack it in three waves: (1) **Reduce per-test setup** — move shared data to `@BeforeClass` or `@BeforeSuite` instead of `@BeforeMethod`. If 50 tests each create a hotel, that's 50 API calls. One shared hotel in `@BeforeClass` reduces it to 1. (2) **Parallelize** — if setup creates unique data (UUID-based), tests can run in parallel. 50 sequential tests at 2 seconds each = 100 seconds. 10 parallel threads = ~10 seconds. (3) **Use faster creation for non-critical data** — if the hotel creation isn't what's being tested, seed it via database insert (ms) instead of API call (200ms+). Reserve API-based setup for the data path that's actually under test.
+
+
+
+
+| # | Front (Question) | Back (Answer) |
+|---|---|---|
+| 1 | Why use UUID-based emails in test data? | To prevent collisions. If two test runs (or parallel threads) create users, unique emails ensure neither conflicts with the other. Hardcoded emails cause "duplicate email" errors on repeat runs. |
+| 2 | `@BeforeMethod` vs `@BeforeClass` for test data? | `@BeforeMethod`: per-test data, highest isolation, but slow. `@BeforeClass`: shared data across tests in a class, faster, but tests must not modify the shared data. Choose based on whether tests modify the data. |
+| 3 | Why handle cleanup errors with try-catch? | Cleanup runs in `@After*` — if it throws, the test is marked as failed even though the actual test passed. Catching exceptions in cleanup prevents false failures and ensures remaining cleanup steps run. |
+| 4 | What is a ThreadLocal and why use it for test data? | ThreadLocal gives each thread its own copy of a variable. In parallel test execution, each thread stores its test context (tokens, IDs) in a ThreadLocal to prevent cross-thread data sharing. |
+| 5 | When is it OK to not clean up test data? | When using unique identifiers (UUID emails) that won't collide, AND the data doesn't consume limited resources (like room inventory), AND the environment is ephemeral (fresh DB per CI run). |
+
+### Mastery Checklist
+
+- [ ] Can implement a `TestDataFactory` that generates unique, collision-proof data
+- [ ] Can structure test lifecycle with appropriate data creation in `@Before*` and cleanup in `@After*`
+- [ ] Can design a parallel-safe data strategy using per-test isolation and ThreadLocal
+- [ ] Can implement robust cleanup that handles errors and stale tokens gracefully
+- [ ] Can choose between API-based setup, DB seeding, and fixture files for different scenarios
+- [ ] Can diagnose test failures caused by data collisions, missing cleanup, and stale state
+- [ ] Can articulate when shared data is safe (read-only) vs when per-test data is required (writes)
+
+---
+
+**Next:** Api Performance Basics | **Related:** Service Integration Testing, Testing Test Data Management
+
+*Last updated: *

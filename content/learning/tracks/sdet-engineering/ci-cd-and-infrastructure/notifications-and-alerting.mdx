@@ -1,0 +1,472 @@
+---
+title: "Notifications and Alerting"
+description: "What: Notifications bridge the gap between \"tests ran\" and \"the team knows the results.\" They push test outcomes to the channels where people already work — Slack, email, Teams — with just enough information to act: what ran, what failed, and where to investigate."
+summary: "SDET Engineering guide: Notifications and Alerting"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "ci-cd-and-infrastructure"
+lesson: "notifications-and-alerting"
+difficulty: "intermediate"
+estimatedMinutes: 30
+prerequisites: []
+tags: ["SDET", "CI/CD", "Jenkins", "Docker"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/ci-cd-and-infrastructure/notifications-and-alerting"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Notifications and Alerting
+
+> **Module:** 08 — CI/CD and Infrastructure > Notifications and Alerting  
+> **Prerequisites:** Artifact Management, Pipeline As Code  
+> **Mastery Target:** L3 (Independent) → L4 (Engineering Judgment)
+
+---
+
+## Quick Overview (Layer 1)
+
+**What:** Notifications bridge the gap between "tests ran" and "the team knows the results." They push test outcomes to the channels where people already work — Slack, email, Teams — with just enough information to act: what ran, what failed, and where to investigate.
+
+**Why it matters:** Your nightly regression runs at 2 AM. Without notifications, nobody looks at Jenkins until someone remembers to check — maybe at 11 AM. With notifications, the team sees a Slack message at 6 AM: "Nightly regression: 142/150 passed, 8 failed — Allure report [link]." By 9 AM standup, someone has already triaged the failures.
+
+**Where you encounter it:** Slack channels with test result summaries. Email notifications on pipeline failure. PagerDuty alerts when production smoke tests detect an outage.
+
+<MentalModel>
+
+Think of notifications as **a fire alarm system**. The smoke detector (test pipeline) monitors continuously. When smoke is detected (test failure), the alarm sounds (notification) — but only at the appropriate level. A small kitchen fire (1 flaky test) gets a gentle chime (Slack message). A building fire (deployment broke 50 tests) gets the full alarm (email + Slack + page on-call). A false alarm every 5 minutes (noisy notifications) leads everyone to ignore the system — **alert fatigue kills notification systems**.
+
+</MentalModel>
+
+
+<KeyTakeaways>
+
+1. **Notify on failure and recovery, not on every success** — a "tests passed" message 50 times a day becomes invisible. A "tests FIXED after 3 failures" message demands attention.
+2. **Include actionable information** — suite name, fail count, duration, link to report. Not just "build failed." The recipient should know the severity and where to look without clicking anything.
+3. **Match notification urgency to failure severity** — smoke test failure on PR = Slack message. Production smoke failure = page on-call. Don't escalate everything.
+4. **Alert fatigue is the real enemy** — if the team ignores notifications because they're too frequent or too noisy, the system is worse than useless. Curate ruthlessly.
+5. **Slack integration is the most common for SDET teams** — Jenkins Slack plugin or custom webhook. Teams and email are secondary channels.
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation (Layer 2)
+
+### Notification Strategy Matrix
+
+| Event | Channel | Urgency | Recipients |
+|-------|---------|---------|------------|
+| PR smoke tests passed | None (or GitHub check) | Low | PR author only (via GitHub) |
+| PR smoke tests failed | Slack (PR channel or DM) | Medium | PR author |
+| Nightly regression passed | Slack (daily summary) | Low | QA channel |
+| Nightly regression failed | Slack + email | High | QA channel + team lead |
+| Regression recovered (was failing, now passing) | Slack | Medium | QA channel |
+| Deployment smoke failed | Slack + PagerDuty | Critical | On-call engineer |
+| Flaky test detected | Slack (weekly summary) | Low | SDET team |
+
+### What Makes a Good Notification
+
+**Bad notification:**
+```
+Jenkins Build #247 FAILED
+```
+*What failed? How many tests? Where do I look? Is it my problem?*
+
+**Good notification:**
+```
+StayNest Nightly Regression - FAILED
+Environment: staging
+Results: 142 passed, 8 failed, 0 skipped
+Duration: 47 min
+Failed tests:
+  - BookingApiTest.shouldHandleDoubleBooking
+  - PaymentApiTest.shouldRefundCancelledBooking
+  - SearchUiTest.shouldFilterByPriceRange (FLAKY - failed 3 of last 5)
+Report: https://jenkins.staynest.com/job/nightly/247/allure
+Triggered by: Scheduled (cron)
+```
+
+### Notification Channels
+
+**Slack (most common):**
+- Jenkins Slack plugin (declarative integration)
+- Custom webhook (more control over message format)
+- Threaded messages for detailed failure lists
+- Emoji and color coding for quick scanning
+
+**Email:**
+- Built into Jenkins (no plugin needed)
+- Good for formal notifications (release validation)
+- Bad for frequent updates (people filter/ignore)
+
+**Microsoft Teams:**
+- Office 365 Connector plugin for Jenkins
+- Webhook-based, similar to Slack
+
+**PagerDuty / OpsGenie:**
+- For critical production alerts only
+- Wakes up on-call engineers
+- Never use for routine test failures
+
+### Alert Fatigue Prevention
+
+**The cycle of alert fatigue:**
+```
+Too many notifications → Team ignores them → Real failure missed → "We need MORE notifications" → Repeat
+```
+
+**Prevention strategies:**
+1. **Only notify on state changes** — first failure, recovery, not every consecutive failure
+2. **Aggregate flaky tests** — weekly summary instead of per-occurrence
+3. **Separate channels** — `#test-results-smoke` for PR builds, `#test-alerts` for nightly failures
+4. **Mute known issues** — if a test is flaky and tracked in Jira, don't notify until it's fixed
+5. **Review notification volume monthly** — if the channel has > 20 messages/day, you've lost
+
+---
+
+## Practical Implementation (Layer 3)
+
+### Example 1: Slack Notification with Jenkins Slack Plugin
+
+
+```groovy
+pipeline {
+    agent { label 'linux' }
+
+    environment {
+        SLACK_CHANNEL = '#test-results'
+    }
+
+    stages {
+        stage('Run Tests') {
+            steps {
+                sh 'mvn test -Denv=staging -Dsurefire.suiteXmlFiles=src/test/resources/suites/regression.xml'
+            }
+        }
+    }
+
+    post {
+        always {
+            junit '**/target/surefire-reports/*.xml'
+            allure results: Path: 'Target/Allure Results'
+        }
+
+        success {
+            slackSend(
+                channel: "${SLACK_CHANNEL}",
+                color: 'good',
+                message: """
+                    :white_check_mark: *StayNest Nightly Regression - PASSED*
+                    Environment: staging
+                    Duration: ${currentBuild.durationString.replace(' and counting', '')}
+                    <${BUILD_URL}allure|Allure Report> | <${BUILD_URL}|Build #${BUILD_NUMBER}>
+                """.stripIndent()
+            )
+        }
+
+        failure {
+            slackSend(
+                channel: "${SLACK_CHANNEL}",
+                color: 'danger',
+                message: """
+                    :x: *StayNest Nightly Regression - FAILED*
+                    Environment: staging
+                    Duration: ${currentBuild.durationString.replace(' and counting', '')}
+                    <${BUILD_URL}allure|Allure Report> | <${BUILD_URL}testReport|Test Results>
+                    Please investigate failures.
+                """.stripIndent()
+            )
+        }
+
+        unstable {
+            slackSend(
+                channel: "${SLACK_CHANNEL}",
+                color: 'warning',
+                message: """
+                    :warning: *StayNest Nightly Regression - UNSTABLE*
+                    Some tests failed. Environment: staging
+                    <${BUILD_URL}allure|Allure Report> | <${BUILD_URL}testReport|Test Results>
+                """.stripIndent()
+            )
+        }
+    }
+}
+```
+
+### Example 2: Custom Slack Webhook with Detailed Test Summary
+
+For more control over the notification format, use a custom webhook:
+
+
+```groovy
+def sendSlackNotification(String status, Map testSummary) {
+    def color = status == 'SUCCESS' ? '#36a64f' : (status == 'UNSTABLE' ? '#ff9800' : '#dc3545')
+    def emoji = status == 'SUCCESS' ? ':white_check_mark:' : (status == 'UNSTABLE' ? ':warning:' : ':x:')
+    
+    def payload = [
+        channel: '#test-results',
+        attachments: [[
+            color: color,
+            blocks: [
+                [
+                    type: 'header',
+                    text: [
+                        type: 'plain_text',
+                        text: "${emoji} StayNest Regression - ${status}"
+                    ]
+                ],
+                [
+                    type: 'section',
+                    fields: [
+                        [type: 'mrkdwn', text: "*Environment:*\nstaging"],
+                        [type: 'mrkdwn', text: "*Duration:*\n${testSummary.duration}"],
+                        [type: 'mrkdwn', text: "*Passed:*\n${testSummary.passed}"],
+                        [type: 'mrkdwn', text: "*Failed:*\n${testSummary.failed}"],
+                        [type: 'mrkdwn', text: "*Skipped:*\n${testSummary.skipped}"],
+                        [type: 'mrkdwn', text: "*Pass Rate:*\n${testSummary.passRate}%"]
+                    ]
+                ],
+                [
+                    type: 'actions',
+                    elements: [
+                        [
+                            type: 'button',
+                            text: [type: 'plain_text', text: 'Allure Report'],
+                            url: "${BUILD_URL}allure"
+                        ],
+                        [
+                            type: 'button',
+                            text: [type: 'plain_text', text: 'Console Log'],
+                            url: "${BUILD_URL}console"
+                        ]
+                    ]
+                ]
+            ]
+        ]]
+    ]
+    
+    def json = groovy.json.JsonOutput.toJson(payload)
+    
+    httpRequest(
+        url: "${env.SLACK_WEBHOOK_URL}",
+        httpMode: 'POST',
+        contentType: 'APPLICATION_JSON',
+        requestBody: json
+    )
+}
+```
+
+### Example 3: Extracting Test Summary from JUnit Results
+
+
+```groovy
+def getTestSummary() {
+    def testResult = currentBuild.rawBuild.getAction(
+        hudson.tasks.junit.TestResultAction.class
+    )
+    
+    if (testResult == null) {
+        return [passed: 0, failed: 0, skipped: 0, total: 0, passRate: 0, duration: '0s']
+    }
+    
+    def total = testResult.totalCount
+    def failed = testResult.failCount
+    def skipped = testResult.skipCount
+    def passed = total - failed - skipped
+    def passRate = total > 0 ? ((passed / total) * 100).round(1) : 0
+    
+    return [
+        passed: passed,
+        failed: failed,
+        skipped: skipped,
+        total: total,
+        passRate: passRate,
+        duration: currentBuild.durationString.replace(' and counting', ''),
+        failedTests: testResult.failedTests.collect { it.fullName }.take(10)
+    ]
+}
+```
+
+
+```groovy
+// Usage in pipeline post block
+post {
+    always {
+        junit '**/target/surefire-reports/*.xml'
+        
+        script {
+            def summary = getTestSummary()
+            def status = currentBuild.currentResult
+            sendSlackNotification(status, summary)
+        }
+    }
+}
+```
+
+---
+
+## Failure and Debugging (Layer 4)
+
+### Failure 1: Slack Notifications Not Sending
+
+**The Problem:** Pipeline runs successfully but no Slack message appears.
+
+**Diagnostic steps:**
+1. Check Jenkins console output for Slack plugin errors
+2. Verify Slack workspace integration: Manage Jenkins → Configure System → Slack
+3. Test the connection with "Test Connection" button
+4. Verify the bot is invited to the target channel
+5. Check the channel name (with `#` prefix)
+
+**Common causes:**
+- Slack bot token expired or revoked
+- Bot not added to the private channel
+- Channel name mismatch (case-sensitive)
+- Jenkins behind a proxy that blocks outbound HTTPS
+
+### Failure 2: Alert Fatigue — Team Ignores Notifications
+
+**The Problem:** The `#test-results` channel has 40 messages per day. Nobody reads them. A real regression failure is missed for 2 days.
+
+**Root cause:** Every PR build, every branch build, and every retry sends a notification. Most are "PASSED" messages that add no value.
+
+**The fix — curate notification rules:**
+
+
+```groovy
+post {
+    // Don't notify on every success — only on recovery
+    fixed {
+        slackSend(
+            channel: '#test-results',
+            color: 'good',
+            message: ":white_check_mark: *Tests FIXED* after ${currentBuild.previousFailedBuild?.number ?: 'unknown'} failures"
+        )
+    }
+    
+    // Notify on first failure only, not consecutive failures
+    regression {
+        slackSend(
+            channel: '#test-results',
+            color: 'danger',
+            message: ":x: *Tests STARTED FAILING* - ${currentBuild.fullDisplayName}"
+        )
+    }
+    
+    // Don't notify: success (status quo), unstable (investigate manually)
+}
+```
+
+**`fixed`** runs when the build was previously failing and is now passing.
+**`regression`** runs when the build was previously passing and is now failing.
+
+### Failure 3: Notification Sent Before Report Is Ready
+
+**The Problem:** Slack notification includes a link to the Allure report, but clicking it shows "Report not found" because Allure generation hasn't finished.
+
+**Root cause:** `slackSend` executes before `allure` step completes.
+
+**The fix — ensure notification happens after report generation:**
+
+
+```groovy
+post {
+    always {
+        // 1. Generate reports FIRST
+        junit '**/target/surefire-reports/*.xml'
+        allure results: Path: 'Target/Allure Results'
+        
+        // 2. THEN send notification (report URL is now valid)
+        script {
+            def summary = getTestSummary()
+            sendSlackNotification(currentBuild.currentResult, summary)
+        }
+    }
+}
+```
+
+---
+
+## Engineering Judgment (Layer 5)
+
+### Notification Volume Guidelines
+
+| Pipeline Type | Notify On | Channel |
+|--------------|-----------|---------|
+| PR smoke | Failure only (via GitHub check, not Slack) | None — GitHub status check is enough |
+| Main branch CI | Failure + recovery | `#test-alerts` |
+| Nightly regression | Always (summary) | `#test-results-nightly` |
+| Deployment smoke | Failure only — escalate to page if critical | `#deploys` + PagerDuty on failure |
+| Weekly flaky report | Weekly digest | `#test-maintenance` |
+
+### Custom Webhook vs Jenkins Slack Plugin
+
+| Approach | Pros | Cons |
+|----------|------|------|
+| Jenkins Slack Plugin | Simple setup, `slackSend` in one line | Limited formatting, plugin version dependencies |
+| Custom Webhook (HTTP) | Full control over Block Kit formatting, conditional sections | More code, need to manage webhook URL as credential |
+
+**Recommendation:** Start with the Slack plugin for simplicity. Move to custom webhooks when you need rich formatting (buttons, fields, conditional sections) or when the plugin version causes compatibility issues.
+
+### When to Page vs When to Post
+
+| Signal | Action | Why |
+|--------|--------|-----|
+| 1 test failed in nightly regression | Slack message | Might be a flake. Investigate in the morning. |
+| 20 tests failed in nightly regression | Slack message + tag team lead | Likely a real problem. Needs triage. |
+| Production smoke test failed | PagerDuty page on-call | Production might be down. Immediate response needed. |
+| Same test flaky for 5 consecutive days | Weekly digest + create Jira ticket | Known issue. Track, don't alert repeatedly. |
+
+---
+
+## Interview and Revision (Layer 6)
+
+### Fundamental Questions
+
+**Q1: How do you set up notifications for test pipeline results?**
+
+**A:** I use the Jenkins Slack plugin to send notifications to a dedicated `#test-results` channel. In the pipeline's `post` block, I differentiate by outcome: `failure` sends a red message with fail count and report link, `fixed` (recovery) sends a green message noting the fix, and nightly regression sends a summary regardless. I extract test counts from JUnit results to include pass rate in the message. The key principle is including actionable information — fail count, environment, report link — so the recipient can assess severity without clicking through to Jenkins.
+
+**Q2: How do you prevent alert fatigue in your test notifications?**
+
+**A:** Three strategies. First, I use state-change notifications (`regression` and `fixed` post conditions) instead of notifying on every build — this eliminates "still failing" noise. Second, I separate channels by urgency — `#test-alerts` for failures that need action, `#test-results-nightly` for daily summaries. Third, I aggregate flaky test reports into weekly digests instead of per-occurrence alerts. I review notification volume monthly — if a channel exceeds 20 messages/day, I tighten the criteria.
+
+**Q3: When should test failures page an on-call engineer?**
+
+**A:** Only when production is potentially affected. If post-deployment smoke tests in production fail, that might indicate a real outage — page on-call. If nightly regression on staging fails, that's a Slack message and morning triage, not a 3 AM page. The threshold for paging should be: "if this is real, users are affected right now, and waiting until morning is unacceptable."
+
+
+
+
+| # | Front (Question) | Back (Answer) |
+|---|---|---|
+| 1 | What should a good test notification include? | Suite name, environment, pass/fail/skip counts, duration, link to report, trigger type. Recipient should assess severity without clicking anything. |
+| 2 | What is the `fixed` post condition in Jenkins? | Runs when the build was previously failing and is now passing. Used for "tests recovered" notifications — more valuable than "still passing." |
+| 3 | What is the `regression` post condition? | Runs when the build was previously passing and is now failing. Used for "tests started failing" — first-failure notification only. |
+| 4 | How do you prevent alert fatigue? | Notify on state changes (not every build), separate channels by urgency, aggregate flaky reports weekly, review volume monthly. |
+| 5 | When to page on-call vs post in Slack? | Page only for production-affecting failures (deployment smoke test fails). Staging/nightly failures go to Slack for morning triage. |
+
+### Mastery Checklist
+
+- [ ] Can configure Jenkins Slack plugin for test result notifications
+- [ ] Can write custom Slack webhooks with rich Block Kit formatting
+- [ ] Can extract test summary data from JUnit results in a pipeline
+- [ ] Can implement state-change notifications (regression/fixed) to reduce noise
+- [ ] Can design a notification strategy that avoids alert fatigue
+- [ ] Can articulate when to use Slack vs email vs PagerDuty
+
+---
+
+**Next:** Monitoring And Observability | **Related:** Artifact Management
+
+*Last updated: *

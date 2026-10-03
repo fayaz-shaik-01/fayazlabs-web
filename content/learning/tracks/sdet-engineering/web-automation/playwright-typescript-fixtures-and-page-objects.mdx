@@ -1,0 +1,537 @@
+---
+title: "Fixtures and Page Objects — Playwright TypeScript"
+description: "What: Playwright fixtures are a dependency injection system for tests. Instead of creating page objects in beforeEach, you declare them as fixture parameters and Playwright creates, injects, and tears them down automatically. Combined with TypeScript page object classes that use Playwright's Locator type, this creates a clean, type-safe test architecture. Storage state lets you serialize authenticated sessions and reuse them across tests — eliminating login repetition."
+summary: "SDET Engineering guide: Fixtures and Page Objects — Playwright TypeScript"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "web-automation"
+lesson: "playwright-typescript-fixtures-and-page-objects"
+difficulty: "intermediate"
+estimatedMinutes: 34
+prerequisites: []
+tags: ["SDET", "Web", "Selenium", "Playwright"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/web-automation/playwright-typescript-fixtures-and-page-objects"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Fixtures and Page Objects — Playwright TypeScript
+
+> **Module:** 05 — Web Automation > Playwright TypeScript > Fixtures and Page Objects  
+> **Prerequisites:** Setup And First Tests, Page And Screen Objects, Types And Interfaces  
+> **Mastery Target:** L3 (Independent) → L4 (Engineering Judgment)
+
+---
+
+## Quick Overview (Layer 1)
+
+**What:** Playwright fixtures are a dependency injection system for tests. Instead of creating page objects in `beforeEach`, you declare them as fixture parameters and Playwright creates, injects, and tears them down automatically. Combined with TypeScript page object classes that use Playwright's `Locator` type, this creates a clean, type-safe test architecture. Storage state lets you serialize authenticated sessions and reuse them across tests — eliminating login repetition.
+
+**Why:** Coming from Selenium's `@BeforeMethod`/`@AfterMethod` pattern, Playwright fixtures feel different. In Selenium, you manually create the driver, create page objects, and pass them around. In Playwright, you declare what you need and the framework provides it. This removes boilerplate, ensures proper cleanup, and enables powerful patterns like authenticated fixtures where every test starts already logged in. Understanding fixtures is the key to writing maintainable Playwright test suites.
+
+**Where:** Every Playwright project beyond simple one-file demos. Fixtures define your test architecture — how page objects are created, how authentication is managed, how test data is prepared. They're the Playwright equivalent of Selenium's BaseTest class, but more powerful because they compose declaratively.
+
+<MentalModel>
+
+Think of Playwright fixtures as a **restaurant kitchen**. Tests are customers who order dishes (fixtures). The kitchen (framework) prepares each dish (creates page objects, sets up browser contexts), serves it to the table (injects into the test function), and cleans up after (tears down). The customer never enters the kitchen — they just declare what they want in their order. Storage state is like a **frequent diner card** — the kitchen remembers your preferences (authentication cookies) so you don't have to re-order them every visit.
+
+</MentalModel>
+
+
+<KeyTakeaways>
+
+1. **Fixtures replace `beforeEach`/`afterEach` for setup and teardown** — they're composable, lazy (only created when requested), and automatically cleaned up.
+2. **Page objects in Playwright use `Locator` fields, not `WebElement`** — locators are lazy and never go stale, eliminating the biggest POM headache in Selenium.
+3. **Custom fixtures extend the base `test` object** — you create a typed `test` export that includes your fixtures, and all test files import this instead of `@playwright/test`.
+4. **Storage state serializes cookies and localStorage** — log in once in a setup project, save the state, and every test starts authenticated without repeating the login flow.
+5. **Multiple browser contexts enable multi-user scenarios** — test a chat feature by running two users in the same test, each with their own isolated context.
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation (Layer 2)
+
+### POM in Playwright: TypeScript Classes with Locator Fields
+
+Playwright page objects use `Locator` instead of `WebElement`. The critical difference: a `Locator` is a recipe for finding an element, not a reference to an already-found element. It never goes stale.
+
+
+```typescript
+import { type Page, type Locator, expect } from '@playwright/test';
+
+export class LoginPage {
+  // Locators are declared as fields — lazy, never stale
+  readonly page: Page;
+  readonly emailInput: Locator;
+  readonly passwordInput: Locator;
+  readonly loginButton: Locator;
+  readonly errorMessage: Locator;
+  readonly signupLink: Locator;
+
+  constructor(page: Page) {
+    this.page = page;
+    // These don't query the DOM — they're just locator definitions
+    this.emailInput = page.getByLabel('Email');
+    this.passwordInput = page.getByLabel('Password');
+    this.loginButton = page.getByRole('button', { name: 'Login' });
+    this.errorMessage = page.getByTestId('error-message');
+    this.signupLink = page.getByRole('link', { name: /sign up/i });
+  }
+
+  async goto() {
+    await this.page.goto('/login');
+  }
+
+  async loginAs(email: string, password: string): Promise<void> {
+    await this.emailInput.fill(email);
+    await this.passwordInput.fill(password);
+    await this.loginButton.click();
+    await this.page.waitForURL(/\/dashboard/);
+  }
+
+  async loginExpectingError(email: string, password: string): Promise<void> {
+    await this.emailInput.fill(email);
+    await this.passwordInput.fill(password);
+    await this.loginButton.click();
+    await expect(this.errorMessage).toBeVisible();
+  }
+
+  async getErrorMessageText(): Promise<string> {
+    return await this.errorMessage.textContent() ?? '';
+  }
+}
+```
+
+**Contrast with Selenium POM:**
+- `Locator` fields are assigned in the constructor — no `@FindBy`, no `initElements()`
+- No `BasePage` with wait wrappers needed — Playwright auto-waits on every action
+- `fill()` replaces `clear()` + `sendKeys()` — Playwright clears the field first automatically
+- Methods are `async` — every browser interaction returns a Promise
+
+### Custom Fixtures: Extending Base Test
+
+Fixtures let you inject pre-configured objects into tests. Instead of creating `LoginPage` in every test, you declare a fixture that provides it:
+
+
+```typescript
+// fixtures.ts — define custom test fixtures
+import { test as base, expect } from '@playwright/test';
+import { LoginPage } from './pages/LoginPage';
+import { DashboardPage } from './pages/DashboardPage';
+import { SearchPage } from './pages/SearchPage';
+import { BookingPage } from './pages/BookingPage';
+
+// Declare the types for your custom fixtures
+type StayNestFixtures = {
+  loginPage: LoginPage;
+  dashboardPage: DashboardPage;
+  searchPage: SearchPage;
+  bookingPage: BookingPage;
+};
+
+// Extend the base test with your fixtures
+export const test = base.extend<StayNestFixtures>({
+  loginPage: async ({ page }, use) => {
+    const loginPage = new LoginPage(page);
+    await loginPage.goto();
+    await use(loginPage);   // provide to test
+    // teardown runs after use() returns (when test finishes)
+  },
+
+  dashboardPage: async ({ page }, use) => {
+    await use(new DashboardPage(page));
+  },
+
+  searchPage: async ({ page }, use) => {
+    await use(new SearchPage(page));
+  },
+
+  bookingPage: async ({ page }, use) => {
+    await use(new BookingPage(page));
+  },
+});
+
+export { expect };
+```
+
+Tests import this custom `test` instead of `@playwright/test`:
+
+
+```typescript
+// tests/login.spec.ts
+import { test, expect } from '../fixtures';
+
+test.describe('Login Page', () => {
+  test('successful login navigates to dashboard', async ({ loginPage, page }) => {
+    // loginPage is already on /login — fixture handled navigation
+    await loginPage.loginAs('user@staynest.com', 'SecurePass123!');
+    await expect(page).toHaveURL(/\/dashboard/);
+  });
+
+  test('invalid credentials show error', async ({ loginPage }) => {
+    await loginPage.loginExpectingError('bad@email.com', 'wrong');
+    const errorText = await loginPage.getErrorMessageText();
+    expect(errorText).toBe('Invalid email or password');
+  });
+});
+```
+
+**How fixtures work under the hood:**
+1. Test declares `{ loginPage }` as a parameter
+2. Playwright sees that `loginPage` fixture depends on `page` fixture (built-in)
+3. Playwright creates a fresh `page` (browser page), then creates `LoginPage` and navigates to `/login`
+4. `await use(loginPage)` hands the object to the test
+5. When the test finishes, everything after `use()` runs (teardown)
+6. Built-in fixtures (`page`, `context`, `browser`) are cleaned up automatically
+
+### Storage State: Reusing Authenticated Sessions
+
+Login is slow — it involves API calls, cookie setting, and page navigation. If every test repeats login, your suite wastes minutes on repetitive setup. Storage state solves this:
+
+
+```typescript
+// auth.setup.ts — runs once before all tests that need authentication
+import { test as setup } from '@playwright/test';
+
+const authFile = 'playwright/.auth/user.json';
+
+setup('authenticate', async ({ page }) => {
+  // Perform login once
+  await page.goto('/login');
+  await page.getByLabel('Email').fill('user@staynest.com');
+  await page.getByLabel('Password').fill('SecurePass123!');
+  await page.getByRole('button', { name: 'Login' }).click();
+  await page.waitForURL(/\/dashboard/);
+
+  // Save the authenticated state (cookies + localStorage)
+  await page.context().storageState({ path: authFile });
+});
+```
+
+
+```typescript
+// playwright.config.ts — configure setup dependency
+export default defineConfig({
+  projects: [
+    // Setup project — runs first
+    { name: 'setup', testMatch: /.*\.setup\.ts/ },
+
+    // Test projects — depend on setup, use saved auth state
+    {
+      name: 'chromium',
+      use: {
+        ...devices['Desktop Chrome'],
+        storageState: 'playwright/.auth/user.json',
+      },
+      dependencies: ['setup'],
+    },
+  ],
+});
+```
+
+Now every test in the `chromium` project starts with the authenticated cookies/localStorage — no login step needed. The browser loads the saved state when the context is created.
+
+### Multiple Browser Contexts: Multi-User Testing
+
+Playwright can create multiple isolated browser contexts in one test — each with its own cookies, storage, and session. This enables multi-user scenarios:
+
+
+```typescript
+import { test, expect } from '@playwright/test';
+
+test('two users can view the same property', async ({ browser }) => {
+  // Create two isolated contexts — like two separate browsers
+  const userAContext = await browser.newContext({
+    storageState: 'playwright/.auth/userA.json',
+  });
+  const userBContext = await browser.newContext({
+    storageState: 'playwright/.auth/userB.json',
+  });
+
+  // Each context gets its own page
+  const userAPage = await userAContext.newPage();
+  const userBPage = await userBContext.newPage();
+
+  // Both users navigate to the same property
+  await userAPage.goto('/property/123');
+  await userBPage.goto('/property/123');
+
+  // User A sees the property title
+  await expect(userAPage.getByTestId('property-title')).toHaveText('Lakeside Cabin');
+
+  // User B also sees the same title
+  await expect(userBPage.getByTestId('property-title')).toHaveText('Lakeside Cabin');
+
+  // Cleanup
+  await userAContext.close();
+  await userBContext.close();
+});
+```
+
+---
+
+## Practical Implementation (Layer 3)
+
+### Complete Fixture + POM Setup for StayNest
+
+
+```typescript
+// pages/DashboardPage.ts
+import { type Page, type Locator } from '@playwright/test';
+
+export class DashboardPage {
+  readonly page: Page;
+  readonly welcomeHeading: Locator;
+  readonly recentBookings: Locator;
+  readonly searchInput: Locator;
+  readonly profileMenu: Locator;
+
+  constructor(page: Page) {
+    this.page = page;
+    this.welcomeHeading = page.getByRole('heading', { name: /welcome/i });
+    this.recentBookings = page.getByTestId('recent-bookings');
+    this.searchInput = page.getByTestId('nav-search');
+    this.profileMenu = page.getByTestId('profile-menu');
+  }
+
+  async searchForProperty(query: string): Promise<void> {
+    await this.searchInput.fill(query);
+    await this.searchInput.press('Enter');
+    await this.page.waitForURL(/\/search/);
+  }
+
+  async getWelcomeText(): Promise<string> {
+    return await this.welcomeHeading.textContent() ?? '';
+  }
+
+  async getRecentBookingCount(): Promise<number> {
+    return await this.recentBookings.locator('[data-testid="booking-item"]').count();
+  }
+}
+```
+
+
+```typescript
+// pages/SearchPage.ts
+import { type Page, type Locator } from '@playwright/test';
+
+export class SearchPage {
+  readonly page: Page;
+  readonly locationInput: Locator;
+  readonly checkInDate: Locator;
+  readonly checkOutDate: Locator;
+  readonly guestsInput: Locator;
+  readonly searchButton: Locator;
+  readonly propertyCards: Locator;
+  readonly noResults: Locator;
+
+  constructor(page: Page) {
+    this.page = page;
+    this.locationInput = page.getByTestId('location-input');
+    this.checkInDate = page.getByTestId('checkin-date');
+    this.checkOutDate = page.getByTestId('checkout-date');
+    this.guestsInput = page.getByTestId('guests-input');
+    this.searchButton = page.getByRole('button', { name: 'Search' });
+    this.propertyCards = page.getByTestId('property-card');
+    this.noResults = page.getByTestId('no-results');
+  }
+
+  async searchFor(location: string, checkIn: string, checkOut: string, guests: number): Promise<void> {
+    await this.locationInput.fill(location);
+    await this.checkInDate.fill(checkIn);
+    await this.checkOutDate.fill(checkOut);
+    await this.guestsInput.fill(String(guests));
+    await this.searchButton.click();
+  }
+
+  async getPropertyCount(): Promise<number> {
+    // Wait for either results or no-results to appear
+    await this.page.waitForSelector(
+      '[data-testid="property-card"], [data-testid="no-results"]'
+    );
+    return await this.propertyCards.count();
+  }
+
+  async selectProperty(index: number): Promise<void> {
+    await this.propertyCards.nth(index).click();
+    await this.page.waitForURL(/\/property\//);
+  }
+}
+```
+
+
+```typescript
+// fixtures.ts — authenticated fixture
+import { test as base, expect } from '@playwright/test';
+import { LoginPage } from './pages/LoginPage';
+import { DashboardPage } from './pages/DashboardPage';
+import { SearchPage } from './pages/SearchPage';
+
+type StayNestFixtures = {
+  loginPage: LoginPage;
+  dashboardPage: DashboardPage;
+  searchPage: SearchPage;
+};
+
+export const test = base.extend<StayNestFixtures>({
+  loginPage: async ({ page }, use) => {
+    const loginPage = new LoginPage(page);
+    await loginPage.goto();
+    await use(loginPage);
+  },
+
+  dashboardPage: async ({ page }, use) => {
+    // Assumes storageState is set in config — already authenticated
+    await page.goto('/dashboard');
+    const dashboardPage = new DashboardPage(page);
+    await use(dashboardPage);
+  },
+
+  searchPage: async ({ page }, use) => {
+    await use(new SearchPage(page));
+  },
+});
+
+export { expect };
+```
+
+### Authenticated Test Using Fixtures
+
+
+```typescript
+// tests/booking-flow.spec.ts
+import { test, expect } from '../fixtures';
+
+test.describe('Booking Flow (authenticated)', () => {
+
+  test('search and view property details', async ({ dashboardPage, searchPage, page }) => {
+    // dashboardPage fixture already navigated to /dashboard (authenticated)
+    await dashboardPage.searchForProperty('Austin, TX');
+
+    // Now on search results page
+    const count = await searchPage.getPropertyCount();
+    expect(count).toBeGreaterThan(0);
+
+    await searchPage.selectProperty(0);
+
+    // Verify property detail page loaded
+    await expect(page.getByTestId('property-title')).toBeVisible();
+    await expect(page.getByTestId('book-button')).toBeEnabled();
+  });
+});
+```
+
+---
+
+## Failure and Debugging (Layer 4)
+
+### Failure: Fixture Dependency Not Resolved
+
+**Symptom:** `Error: Using fixture "dashboardPage" which is not available`
+
+**Root Cause:** The test file imports `test` from `@playwright/test` instead of from your custom fixtures file. Custom fixtures are only available when you import the extended `test`.
+
+
+```typescript
+// BROKEN: importing from @playwright/test — custom fixtures not available
+import { test, expect } from '@playwright/test';
+
+// FIXED: import from your fixtures file
+import { test, expect } from '../fixtures';
+```
+
+### Failure: Storage State File Not Found
+
+**Symptom:** `Error: ENOENT: no such file or directory, 'playwright/.auth/user.json'`
+
+**Root Cause:** The setup project that creates the auth file hasn't run yet, or the `dependencies` configuration is missing in `playwright.config.ts`.
+
+<BestPractice>
+
+**Fix:** Ensure the test project declares a dependency on the setup project, and that the setup project's `testMatch` pattern matches your auth setup file.
+
+</BestPractice>
+
+
+---
+
+## Engineering Judgment (Layer 5)
+
+### Fixtures vs beforeEach: When to Use Each
+
+| Use Case | Fixtures | beforeEach |
+|---|---|---|
+| Page object creation | Yes — composable, typed, auto-cleanup | Works but more boilerplate |
+| Authenticated sessions | Yes — storageState integration | Repetitive login in every test |
+| Test data setup | Yes — fixture can create and clean up data | Works for simple cases |
+| Simple page navigation | Either works | Simpler for one-page test suites |
+| Multi-user scenarios | Yes — multiple contexts via browser fixture | Difficult to manage |
+
+**Rule of thumb:** Use fixtures when the setup is shared across multiple test files or needs teardown. Use `beforeEach` for setup that's specific to one `describe` block.
+
+### POM Depth in Playwright
+
+Playwright's auto-waiting means page objects are thinner than Selenium's. You don't need a `BasePage` with wait wrappers. A Playwright page object is mostly locator definitions and action composition:
+
+| Selenium POM | Playwright POM |
+|---|---|
+| BasePage with waitForVisible, click, type wrappers | No BasePage needed — Playwright auto-waits |
+| `By` locator constants | `Locator` fields on the class |
+| WebElement interactions need explicit waits | Locator actions auto-wait |
+| PageFactory or manual find | Constructor assigns `page.getByRole(...)` |
+
+---
+
+## Interview and Revision (Layer 6)
+
+### Fundamental Questions
+
+**Q1: How do Playwright fixtures differ from Selenium's @BeforeMethod?**
+
+**A:** Three key differences. First, fixtures are **declarative** — tests declare what they need as parameters, and the framework provides it. Selenium's `@BeforeMethod` is imperative — you manually create objects. Second, fixtures are **composable** — one fixture can depend on another (e.g., `dashboardPage` depends on `page`), and Playwright resolves the dependency graph automatically. Third, fixtures are **lazy** — they're only created when a test actually requests them. `@BeforeMethod` runs for every test whether it needs the setup or not.
+
+**Q2: What is storage state and how does it speed up tests?**
+
+**A:** Storage state is a JSON file containing cookies and localStorage from an authenticated browser session. You log in once in a setup project and save the state with `context.storageState({ path })`. Then all test projects load this state when creating browser contexts. Each test starts already authenticated — no login page interaction needed. This can save 2-5 seconds per test, which adds up to minutes across a large suite.
+
+**Q3: Why don't Playwright page objects need a BasePage?**
+
+**A:** Selenium's BasePage exists primarily to wrap `findElement` with explicit waits. Playwright auto-waits on every action — `locator.click()` waits for the element to be visible, enabled, and stable before clicking. There's nothing to wrap. Playwright page objects are just TypeScript classes with `Locator` fields and action methods. If you do need shared utility methods (like `waitForToast()`), use a simple helper function or a base class, but it's far thinner than Selenium's BasePage.
+
+
+
+
+| # | Front (Question) | Back (Answer) |
+|---|---|---|
+| 1 | What is `await use(fixture)` in Playwright? | It provides the fixture to the test. Code before `use()` is setup; code after is teardown. The fixture is available inside the test between these phases. |
+| 2 | How does storage state work? | Login once, call `context.storageState({ path })` to save cookies/localStorage to a JSON file. Other test projects load this file in their context config — starting already authenticated. |
+| 3 | Why are Playwright Locators better than Selenium WebElements for POM? | Locators are lazy (don't query DOM when created), re-evaluate on every action (never go stale), and are strict (fail on multiple matches). WebElements are eager, can go stale, and silently pick the first match. |
+| 4 | How do you test multi-user scenarios in Playwright? | Create multiple browser contexts from the `browser` fixture. Each context has isolated cookies and storage. Create a page per context and interact with them in the same test. |
+| 5 | What happens if you import `test` from `@playwright/test` instead of your fixtures file? | Custom fixtures aren't available — you get "fixture not available" errors. Always import the extended `test` from your fixtures module. |
+
+### Mastery Checklist
+
+- [ ] Can create Playwright page objects with typed Locator fields
+- [ ] Can define and use custom fixtures that extend the base test
+- [ ] Can set up storage state for authenticated test sessions
+- [ ] Can configure setup project dependencies in playwright.config.ts
+- [ ] Can create multi-user test scenarios using multiple browser contexts
+- [ ] Can explain why Playwright POM doesn't need a BasePage with wait wrappers
+- [ ] Can structure a fixture file that provides page objects via dependency injection
+
+---
+
+**Next:** Advanced Playwright Patterns | **Related:** Setup And First Tests, Page And Screen Objects
+
+*Last updated: *

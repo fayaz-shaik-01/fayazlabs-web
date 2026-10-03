@@ -1,0 +1,684 @@
+---
+title: "StayNest - Implementation Milestones"
+description: "This document is your roadmap from \"first test passes\" to \"complete automation suite running in CI.\" Each milestone builds on the previous one. Don't skip ahead — the milestones are sequenced so that earlier work becomes the foundation for later work."
+summary: "SDET Engineering guide: StayNest - Implementation Milestones"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "staynest-lab"
+lesson: "implementation-milestones"
+difficulty: "beginner"
+estimatedMinutes: 43
+prerequisites: []
+tags: ["SDET", "StayNest", "Hands-on"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/staynest-lab/implementation-milestones"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# StayNest - Implementation Milestones
+
+> **Module:** 11 — StayNest Lab
+> **Prerequisites:** First Lab, Test Scenarios, Architecture
+> **Purpose:** Progressive plan to build automation coverage across all layers — API, web UI, mobile, and CI
+
+---
+
+## Overview
+
+This document is your roadmap from "first test passes" to "complete automation suite running in CI." Each milestone builds on the previous one. Don't skip ahead — the milestones are sequenced so that earlier work becomes the foundation for later work.
+
+**Total estimated time:** 8-12 weeks (part-time, ~10 hours/week)
+
+```
+Milestone 1: API Smoke         ██░░░░░░░░░░░░  Week 1
+Milestone 2: API CRUD          ████░░░░░░░░░░  Week 2-3
+Milestone 3: API Integration   ██████░░░░░░░░  Week 3-4
+Milestone 4: Web UI Smoke      ████████░░░░░░  Week 5
+Milestone 5: Web UI E2E        ██████████░░░░  Week 6-7
+Milestone 6: Mobile Smoke      ████████████░░  Week 8-9
+Milestone 7: CI Pipeline        ██████████████  Week 10-12
+```
+
+---
+
+## Milestone 1: API Smoke Tests (Auth)
+
+**Goal:** Verify that the StayNest backend is alive and the two most critical flows work: signup and login.
+
+**Estimated Time:** 4-6 hours
+
+### Objectives
+
+- Set up a Maven project with REST Assured, TestNG, and Jackson
+- Write a reusable base test class with config management
+- Create 5 smoke tests for signup and login
+- Establish test naming conventions and logging
+
+### Prerequisites
+
+- [ ] Java 21 JDK installed
+- [ ] Maven 3.9+ installed
+- [ ] StayNest backend running on `localhost:8080`
+- [ ] Completed First Lab (provides step-by-step guidance for this milestone)
+
+### Tests to Write
+
+| Test ID | Test | Business Rule | Assertion |
+| --- | --- | --- | --- |
+| API-AUTH-01 | Signup with valid data | AUTH-01 | 201, response has `id`, `email`, `name`, no `password` |
+| API-AUTH-02 | Login with valid credentials | AUTH-05 | 200, response has `accessToken` (valid JWT) |
+| API-AUTH-03 | Login with wrong password | AUTH-07 | 401 |
+| API-AUTH-05 | Signup with duplicate email | AUTH-02 | 500 with "already present" message |
+| API-AUTH-06 | Signup without email | VAL-01 | 400 with "Email is required" in subErrors |
+
+### Project Structure at This Point
+
+```
+staynest-api-tests/
+  src/test/java/
+    com/staynest/tests/
+      base/
+        BaseApiTest.java         # REST Assured config, logging
+      auth/
+        SignupTest.java          # 3 signup tests
+        LoginTest.java           # 2 login tests
+  src/test/resources/
+    config.properties            # base URL, timeouts
+  pom.xml
+  testng.xml
+```
+
+### Success Criteria
+
+- [ ] All 5 tests pass when the backend is running
+- [ ] Tests use unique emails (UUID-based) so they're repeatable without cleanup
+- [ ] Base test class configures REST Assured base URI from properties file
+- [ ] Test output shows clear pass/fail with descriptive test names
+- [ ] Tests run via `mvn test` and produce a TestNG report
+
+---
+
+## Milestone 2: API CRUD Tests (Hotels, Rooms, Bookings)
+
+**Goal:** Cover the core CRUD operations for hotels, rooms, and bookings. Introduce test data management patterns.
+
+**Estimated Time:** 8-10 hours
+
+### Objectives
+
+- Add POJO model classes for request/response serialization
+- Create helper methods for common operations (signup, login, create hotel)
+- Write CRUD tests for admin hotel and room management
+- Write booking init and search tests
+- Introduce test data builders
+
+### Prerequisites
+
+- [ ] Milestone 1 completed and passing
+- [ ] Familiar with Api Contract endpoints for hotels, rooms, bookings
+
+### Tests to Write
+
+| Test ID | Test | Business Rule | Assertion |
+| --- | --- | --- | --- |
+| API-HOTEL-01 | Create a hotel | HOTEL-01 | 201, response has `id` |
+| API-HOTEL-02 | Get hotel by ID | HOTEL-06 | 200, matches created data |
+| API-HOTEL-04 | Delete a hotel | HOTEL-05 | 204, subsequent GET returns 404 |
+| API-HOTEL-05 | Activate a hotel | HOTEL-04 | 204 |
+| API-ROOM-01 | Create a room | ROOM-01 | 201, response has `id` |
+| API-ROOM-02 | Get room by ID | ROOM-02 | 200, matches created data |
+| API-BOOK-01 | Init a booking | BOOK-06 | 200, status is `RESERVED` |
+| API-BOOK-02 | Booking with past dates | BOOK-02 | 400 |
+| API-SEARCH-01 | Search by city | SRCH-04 | 200, results contain activated hotel |
+| API-AUTHZ-01 | GUEST cannot access admin | AUTHZ-01 | 403 |
+
+### New Code to Add
+
+
+```java
+// POJO models for serialization
+public class HotelDto {
+    private Long id;
+    private String name;
+    private String city;
+    private Boolean active;
+    // getters, setters
+}
+
+public class BookingRequest {
+    private Long hotelId;
+    private Long roomId;
+    private String checkInDate;
+    private String checkOutDate;
+    private Integer roomsCount;
+    // getters, setters
+}
+
+// Test data helper in BaseApiTest
+protected Long createHotelAndActivate(String token, String city) {
+    Long hotelId = given()
+        .header("Authorization", "Bearer " + token)
+        .contentType(ContentType.JSON)
+        .body(Map.of("name", "Test Hotel " + UUID.randomUUID(), "city", city))
+    .when()
+        .post("/admin/hotels")
+    .then()
+        .statusCode(201)
+        .extract().jsonPath().getLong("data.id");
+
+    given()
+        .header("Authorization", "Bearer " + token)
+    .when()
+        .patch("/admin/hotels/" + hotelId + "/activate")
+    .then()
+        .statusCode(204);
+
+    return hotelId;
+}
+```
+
+### Project Structure at This Point
+
+```
+staynest-api-tests/
+  src/test/java/
+    com/staynest/tests/
+      base/
+        BaseApiTest.java
+      models/
+        HotelDto.java
+        RoomDto.java
+        BookingRequest.java
+        BookingDto.java
+        SearchRequest.java
+      auth/
+        SignupTest.java
+        LoginTest.java
+      hotel/
+        HotelCrudTest.java       # NEW
+        RoomCrudTest.java        # NEW
+      booking/
+        BookingInitTest.java     # NEW
+      search/
+        HotelSearchTest.java    # NEW
+      authorization/
+        RoleAccessTest.java      # NEW
+```
+
+### Success Criteria
+
+- [ ] 15+ tests passing across auth, hotel, room, booking, and search
+- [ ] POJO models used for request/response serialization (no raw JSON strings)
+- [ ] Helper methods reduce test boilerplate to 5-10 lines per test
+- [ ] Each test creates its own data and doesn't depend on other tests' data
+- [ ] Tests are organized by feature area in separate packages
+
+---
+
+## Milestone 3: API Integration Tests (Full Booking Lifecycle)
+
+**Goal:** Test complete business flows that span multiple endpoints. This is where you catch integration bugs that unit tests and CRUD tests miss.
+
+**Estimated Time:** 6-8 hours
+
+### Objectives
+
+- Write end-to-end booking lifecycle test (init → addGuests → payment → cancel)
+- Write negative lifecycle tests (cancel without payment, expired bookings)
+- Add database validation (optional — connect to PostgreSQL and verify state)
+- Introduce JSON schema validation for response structure
+
+### Prerequisites
+
+- [ ] Milestone 2 completed and passing
+- [ ] Understanding of booking lifecycle from Requirements And Business Rules
+
+### Tests to Write
+
+| Test ID | Test | Flow | Assertion |
+| --- | --- | --- | --- |
+| INT-01 | Full booking lifecycle | init → addGuests → payment → confirm → cancel | Each step returns expected status; final status is CANCELLED |
+| INT-02 | Cancel without payment | init → cancel (skip payment) | 409 "Only confirmed bookings can be cancelled" |
+| INT-03 | Add guests to non-RESERVED booking | init → payment → addGuests | 409 "Booking is not under reserved state" |
+| INT-04 | Book with no inventory | init twice for same room (totalCount=1) | First: 200, Second: 409 |
+| INT-05 | Search → book → verify inventory | search → pick hotel → book → search again | Available rooms decrease |
+| INT-06 | Cross-user access | User A books → User B tries to cancel | 403 |
+| INT-07 | Schema validation | Any endpoint | Response matches JSON schema |
+
+### New Code to Add
+
+
+```java
+// Full lifecycle test
+@Test
+public void shouldCompleteFullBookingLifecycle() {
+    // Setup: create manager, hotel, room, guest user
+    String managerToken = loginAsManager();
+    Long hotelId = createHotelAndActivate(managerToken, "New York");
+    Long roomId = createRoom(managerToken, hotelId, "DELUXE", 150.00, 10);
+
+    String guestToken = loginAsGuest();
+    Long guestId = createGuest(guestToken, "John Doe", "MALE", "1990-01-01");
+
+    // Step 1: Init booking → RESERVED
+    Long bookingId = initBooking(guestToken, hotelId, roomId, checkIn, checkOut, 1);
+    assertBookingStatus(guestToken, bookingId, "RESERVED");
+
+    // Step 2: Add guests → GUESTS_ADDED
+    addGuests(guestToken, bookingId, List.of(guestId));
+    assertBookingStatus(guestToken, bookingId, "GUESTS_ADDED");
+
+    // Step 3: Payment → CONFIRMED (mock mode)
+    initiatePayment(guestToken, bookingId);
+    assertBookingStatus(guestToken, bookingId, "CONFIRMED");
+
+    // Step 4: Cancel → CANCELLED
+    cancelBooking(guestToken, bookingId);
+    assertBookingStatus(guestToken, bookingId, "CANCELLED");
+}
+```
+
+### Success Criteria
+
+- [ ] 7+ integration tests passing, covering happy and unhappy lifecycle paths
+- [ ] Full booking lifecycle test runs end-to-end in under 10 seconds
+- [ ] At least one test validates cross-user authorization
+- [ ] Response schema validation added for at least the booking endpoint
+- [ ] Tests document the exact business rules they verify (comments or test names)
+
+---
+
+## Milestone 4: Web UI Smoke Tests (Login, Search)
+
+**Goal:** Write your first browser-based tests against the StayNest web client using Selenium or Playwright.
+
+**Estimated Time:** 6-8 hours
+
+### Objectives
+
+- Set up a browser automation project (Selenium + Java or Playwright + TypeScript)
+- Write a basic Page Object for the login page
+- Create 4 smoke tests: login success, login failure, search hotels, view hotel detail
+- Configure WebDriver management (WebDriverManager or Playwright auto-install)
+
+### Prerequisites
+
+- [ ] Milestone 3 completed (API tests provide the foundation)
+- [ ] StayNest web client running on `localhost:5173`
+- [ ] Familiar with Page And Screen Objects from framework engineering
+
+### Tests to Write
+
+| Test ID | Test | Steps | Assertion |
+| --- | --- | --- | --- |
+| UI-SMOKE-01 | Login with valid credentials | Navigate to /login, enter email/password, click login | Redirected to home, user name displayed |
+| UI-SMOKE-02 | Login with invalid credentials | Navigate to /login, enter wrong password, click login | Error message displayed |
+| UI-SMOKE-03 | Search hotels by city | Navigate to home, enter city + dates + rooms, click search | Results list displayed with hotel cards |
+| UI-SMOKE-04 | View hotel details | Search → click hotel card | Hotel detail page shows name, rooms, pricing |
+
+### New Project Structure
+
+
+```
+staynest-web-tests/
+  src/test/java/
+    com/staynest/web/
+      base/
+        BaseWebTest.java        # WebDriver setup/teardown, screenshots
+      pages/
+        LoginPage.java          # Locators + actions for login page
+        HomePage.java           # Search bar, hotel cards
+        HotelDetailPage.java    # Hotel info, room cards
+      tests/
+        LoginTest.java          # 2 login tests
+        SearchTest.java         # 2 search tests
+  src/test/resources/
+    config.properties           # base URL, browser, headless flag
+  pom.xml
+  testng.xml
+```
+
+### Key Code Pattern: Page Object
+
+
+```java
+public class LoginPage {
+    private final WebDriver driver;
+    private final WebDriverWait wait;
+
+    @FindBy(css = "[data-testid='email-input']")
+    private WebElement emailInput;
+
+    @FindBy(css = "[data-testid='password-input']")
+    private WebElement passwordInput;
+
+    @FindBy(css = "[data-testid='login-button']")
+    private WebElement loginButton;
+
+    @FindBy(css = "[data-testid='error-message']")
+    private WebElement errorMessage;
+
+    public LoginPage(WebDriver driver) {
+        this.driver = driver;
+        this.wait = new WebDriverWait(driver, Duration.ofSeconds(10));
+        PageFactory.initElements(driver, this);
+    }
+
+    public void login(String email, String password) {
+        wait.until(ExpectedConditions.visibilityOf(emailInput));
+        emailInput.clear();
+        emailInput.sendKeys(email);
+        passwordInput.clear();
+        passwordInput.sendKeys(password);
+        loginButton.click();
+    }
+
+    public String getErrorMessage() {
+        wait.until(ExpectedConditions.visibilityOf(errorMessage));
+        return errorMessage.getText();
+    }
+}
+```
+
+### Success Criteria
+
+- [ ] 4 UI smoke tests passing in both headed and headless modes
+- [ ] Page objects encapsulate all locators (tests don't contain `By.xxx` calls)
+- [ ] Screenshots captured automatically on test failure
+- [ ] WebDriver managed automatically (no manual chromedriver downloads)
+- [ ] Tests use explicit waits (no `Thread.sleep`)
+
+---
+
+## Milestone 5: Web UI E2E Tests (Full Booking Flow)
+
+**Goal:** Test the complete user journey through the web UI — from login to booking confirmation.
+
+**Estimated Time:** 8-10 hours
+
+### Objectives
+
+- Expand page objects to cover the full booking flow
+- Write E2E tests for booking lifecycle through the UI
+- Add API-based test data setup (create hotel/room via API, then test the UI flow)
+- Configure parallel browser execution
+- Add Allure or ExtentReports for rich HTML reporting
+
+### Prerequisites
+
+- [ ] Milestone 4 completed and passing
+- [ ] API helper methods from Milestone 2 (reuse for test data setup)
+
+### Tests to Write
+
+| Test ID | Test | Steps | Assertion |
+| --- | --- | --- | --- |
+| UI-E2E-01 | Complete booking flow | Login → search → select hotel → select room → book → confirm | Booking confirmation page shown |
+| UI-E2E-02 | View my bookings | Login → navigate to bookings | Booking list shows recent booking |
+| UI-E2E-03 | Cancel a booking | Login → bookings → cancel | Booking status changes to CANCELLED |
+| UI-E2E-04 | Update profile | Login → profile → edit name → save | Name updated on profile page |
+| UI-E2E-05 | Signup and first booking | Signup → login → search → book | New user can complete full flow |
+
+### New Pages to Add
+
+
+```java
+public class BookingPage {
+    // Room selection, guest details, payment confirmation
+    public void selectRoom(String roomType) { /* ... */ }
+    public void enterGuestDetails(String name, String dob) { /* ... */ }
+    public void confirmBooking() { /* ... */ }
+    public String getConfirmationMessage() { /* ... */ }
+}
+
+public class MyBookingsPage {
+    public List<BookingCard> getBookings() { /* ... */ }
+    public void cancelBooking(int index) { /* ... */ }
+}
+```
+
+### Success Criteria
+
+- [ ] 5 E2E tests passing covering the main user journeys
+- [ ] Test data created via API before UI tests (faster, more reliable than UI-based setup)
+- [ ] Parallel execution works with 2+ browsers simultaneously
+- [ ] Allure or ExtentReports generates HTML report with screenshots and steps
+- [ ] Tests complete within 3 minutes total (parallel)
+
+---
+
+## Milestone 6: Mobile Smoke Tests (Login, Search)
+
+**Goal:** Write your first mobile tests using Appium against the StayNest Android or iOS app.
+
+**Estimated Time:** 8-10 hours
+
+### Objectives
+
+- Set up Appium 2.x with the UiAutomator2 (Android) or XCUITest (iOS) driver
+- Configure an emulator or real device
+- Write screen objects for login and search screens
+- Create 4 mobile smoke tests
+
+### Prerequisites
+
+- [ ] Milestone 5 completed (web UI tests provide the POM experience)
+- [ ] Android emulator or iOS simulator configured
+- [ ] Appium 2.x installed (`npm install -g appium`)
+- [ ] Familiar with Appium Architecture from mobile automation module
+
+### Tests to Write
+
+| Test ID | Test | Steps | Assertion |
+| --- | --- | --- | --- |
+| MOB-SMOKE-01 | Login with valid credentials | Launch app → enter email/password → tap login | Home screen displayed |
+| MOB-SMOKE-02 | Login with invalid credentials | Launch app → enter wrong password → tap login | Error message shown |
+| MOB-SMOKE-03 | Search hotels | Login → enter city + dates → tap search | Results list displayed |
+| MOB-SMOKE-04 | View hotel details | Search → tap hotel card | Detail screen shows name and rooms |
+
+### Project Structure
+
+```
+staynest-mobile-tests/
+  src/test/java/
+    com/staynest/mobile/
+      base/
+        BaseMobileTest.java     # Appium driver setup, capabilities
+      screens/
+        LoginScreen.java        # Mobile login screen object
+        HomeScreen.java         # Search and results
+        HotelDetailScreen.java  # Hotel detail view
+      tests/
+        LoginTest.java
+        SearchTest.java
+  src/test/resources/
+    config.properties           # platform, device, app path
+  pom.xml
+  testng.xml
+```
+
+### Key Code Pattern: Screen Object
+
+
+```java
+public class LoginScreen {
+    private final AppiumDriver driver;
+    private final WebDriverWait wait;
+
+    public LoginScreen(AppiumDriver driver) {
+        this.driver = driver;
+        this.wait = new WebDriverWait(driver, Duration.ofSeconds(15));
+    }
+
+    // Android locators — use accessibility IDs when available
+    private By emailField = AppiumBy.accessibilityId("email_input");
+    private By passwordField = AppiumBy.accessibilityId("password_input");
+    private By loginButton = AppiumBy.accessibilityId("login_button");
+    private By errorMessage = AppiumBy.accessibilityId("error_message");
+
+    public void login(String email, String password) {
+        wait.until(ExpectedConditions.visibilityOfElementLocated(emailField));
+        driver.findElement(emailField).sendKeys(email);
+        driver.findElement(passwordField).sendKeys(password);
+        driver.findElement(loginButton).click();
+    }
+
+    public String getErrorMessage() {
+        wait.until(ExpectedConditions.visibilityOfElementLocated(errorMessage));
+        return driver.findElement(errorMessage).getText();
+    }
+}
+```
+
+### Success Criteria
+
+- [ ] 4 mobile smoke tests passing on emulator/simulator
+- [ ] Screen objects encapsulate all locators
+- [ ] Screenshots captured on failure
+- [ ] Tests use explicit waits (mobile elements load slower than web)
+- [ ] Tests can switch between Android and iOS via config (not code changes)
+
+---
+
+## Milestone 7: CI Pipeline
+
+**Goal:** Run all tests automatically in Jenkins with Docker, producing consolidated reports and notifications.
+
+**Estimated Time:** 10-12 hours
+
+### Objectives
+
+- Create a Jenkinsfile that runs API, web, and mobile tests in sequence
+- Dockerize the test execution environment
+- Configure parallel test execution within each stage
+- Generate and publish consolidated Allure reports
+- Add Slack or email notifications for failures
+
+### Prerequisites
+
+- [ ] Milestones 1-6 completed (all test suites exist and pass locally)
+- [ ] Jenkins installed (or use Docker-based Jenkins)
+- [ ] Familiar with Ci Cd Fundamentals from the CI/CD module
+
+### Pipeline Stages
+
+
+```groovy
+pipeline {
+    agent any
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Start Backend') {
+            steps {
+                sh 'docker compose -f staynest-backend/docker-compose.yml up -d'
+                sh 'sleep 30' // wait for backend to be ready
+                sh 'curl --retry 10 --retry-delay 5 http://localhost:8080/api/v1/auth/signup || true'
+            }
+        }
+
+        stage('API Tests') {
+            steps {
+                dir('staynest-api-tests') {
+                    sh 'mvn test -Dbase.url=http://localhost:8080/api/v1'
+                }
+            }
+            post {
+                always {
+                    junit 'staynest-api-tests/target/surefire-reports/*.xml'
+                }
+            }
+        }
+
+        stage('Web Tests') {
+            steps {
+                dir('staynest-web-tests') {
+                    sh 'mvn test -Dbrowser=chrome -Dheadless=true'
+                }
+            }
+            post {
+                always {
+                    junit 'staynest-web-tests/target/surefire-reports/*.xml'
+                }
+            }
+        }
+
+        stage('Report') {
+            steps {
+                allure includeProperties: false,
+                       results: [
+                           [path: 'staynest-api-tests/target/allure-results'],
+                           [path: 'staynest-web-tests/target/allure-results']
+                       ]
+            }
+        }
+    }
+
+    post {
+        failure {
+            slackSend channel: '#test-alerts',
+                      message: "StayNest tests FAILED: ${env.BUILD_URL}"
+        }
+        always {
+            sh 'docker compose -f staynest-backend/docker-compose.yml down'
+        }
+    }
+}
+```
+
+### Milestones Within the CI Milestone
+
+| Sub-step | Task | Time |
+| --- | --- | --- |
+| 7a | Run API tests locally via Maven command line | 1 hour |
+| 7b | Create Jenkinsfile with API test stage only | 2 hours |
+| 7c | Add Docker Compose to start/stop backend | 2 hours |
+| 7d | Add web test stage with headless Chrome | 2 hours |
+| 7e | Add parallel execution within stages | 2 hours |
+| 7f | Add Allure report generation and publishing | 1 hour |
+| 7g | Add Slack/email notifications | 1 hour |
+
+### Success Criteria
+
+- [ ] Jenkins pipeline runs automatically on code push (or scheduled trigger)
+- [ ] Backend starts and stops within the pipeline (no manual setup)
+- [ ] API and web tests execute in separate stages with independent pass/fail
+- [ ] Allure report is accessible via Jenkins and shows test history
+- [ ] Pipeline completes in under 15 minutes
+- [ ] Failures trigger a notification with the build URL
+
+---
+
+## Progress Tracking
+
+Use this table to track your progress across all milestones:
+
+| Milestone | Status | Tests Written | Tests Passing | Date Started | Date Completed |
+| --- | --- | --- | --- | --- | --- |
+| 1: API Smoke | ░░░░░ | 0/5 | 0/5 | | |
+| 2: API CRUD | ░░░░░ | 0/10 | 0/10 | | |
+| 3: API Integration | ░░░░░ | 0/7 | 0/7 | | |
+| 4: Web UI Smoke | ░░░░░ | 0/4 | 0/4 | | |
+| 5: Web UI E2E | ░░░░░ | 0/5 | 0/5 | | |
+| 6: Mobile Smoke | ░░░░░ | 0/4 | 0/4 | | |
+| 7: CI Pipeline | ░░░░░ | N/A | N/A | | |
+
+**Total tests at completion:** ~35 automated tests across API, web, and mobile layers
+
+---
+
+**Related:** First Lab, Test Scenarios

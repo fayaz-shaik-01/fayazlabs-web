@@ -1,0 +1,358 @@
+---
+title: "Chaos and Resilience Testing"
+description: "What: Resilience testing verifies that a system handles failures gracefully — when a database goes down, a third-party service times out, or network connectivity is lost, the application should degrade gracefully rather than crash catastrophically. Chaos engineering takes this further by deliberately injecting failures into a running system to discover weaknesses before they cause production incidents."
+summary: "SDET Engineering guide: Chaos and Resilience Testing"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "advanced-quality-engineering"
+lesson: "chaos-and-resilience-testing"
+difficulty: "advanced"
+estimatedMinutes: 30
+prerequisites: []
+tags: ["SDET", "Quality Engineering", "Advanced"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/advanced-quality-engineering/chaos-and-resilience-testing"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Chaos and Resilience Testing
+
+> **Module:** 09 — Advanced Quality Engineering  
+> **Prerequisites:** External Service Mocking, Accessibility Testing  
+> **Mastery Target:** L2 (Guided) → L3 (Independent) — understands chaos engineering principles and can design resilience test scenarios for critical services
+
+---
+
+## Quick Overview (Layer 1)
+
+**What:** Resilience testing verifies that a system handles failures gracefully — when a database goes down, a third-party service times out, or network connectivity is lost, the application should degrade gracefully rather than crash catastrophically. Chaos engineering takes this further by deliberately *injecting* failures into a running system to discover weaknesses before they cause production incidents.
+
+**Why:** Everything fails eventually. Databases crash. Networks partition. Services deploy bad code. Disks fill up. The question isn't *if* these things happen, but *when* — and whether your system handles them gracefully. A booking service that crashes when the payment gateway is slow is worse than one that shows "Payment processing, please wait" and retries. Resilience testing finds these weaknesses before your users do.
+
+**Where:** Critical integration points where failure causes cascading damage. In StayNest: payment service unavailability (can users still browse?), database connection loss (does the app recover when DB returns?), slow network to external services (does the app timeout gracefully?), and high load on one service affecting others (does the search service slowdown crash the booking service?).
+
+<KeyTakeaways>
+
+1. **Graceful degradation** means the system continues working with reduced functionality rather than failing completely. Hotel search should work even if the review service is down.
+2. Chaos engineering follows a scientific method: form a hypothesis ("the app handles payment timeout by showing a retry message"), inject the failure, observe behavior, fix if hypothesis is wrong.
+3. SDET's role is verification — confirming error messages are correct, fallbacks work, recovery happens, and no data corruption occurs.
+4. Start small — inject one failure at a time in a test environment. Production chaos testing requires mature monitoring and automated rollback.
+5. Common failure types: service down, slow response, network partition, corrupted response, disk full, certificate expired.
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation (Layer 2)
+
+### Chaos Engineering Principles
+
+```
+1. DEFINE "STEADY STATE"
+   └── What does "healthy" look like?
+       (StayNest: bookings succeed, search returns results, payments process)
+
+2. FORM HYPOTHESIS
+   └── "When payment service is down, users can still search and browse hotels"
+
+3. INJECT FAILURE
+   └── Kill the payment service (or WireMock returning 500/timeout)
+
+4. OBSERVE BEHAVIOR
+   └── Can users search? Do booking attempts show helpful error?
+       Does the system recover when payment service returns?
+
+5. FIX WEAKNESSES
+   └── If hypothesis failed: implement circuit breaker, add fallback, fix error handling
+```
+
+### Types of Failures to Inject
+
+| Failure Type | What Happens | StayNest Impact | How to Simulate |
+|-------------|-------------|-----------------|-----------------|
+| **Service down** | Dependency returns connection refused | Payment fails, emails don't send | WireMock: no stub (404) or stop server |
+| **Slow response** | Dependency takes 30+ seconds | Requests queue up, thread pool exhausted | WireMock: `withFixedDelay(30000)` |
+| **Network partition** | Can't reach a service at all | Similar to service down but harder to detect | iptables rules, Docker network disconnect |
+| **Corrupted response** | Service returns garbage data | JSON parsing fails, potential crashes | WireMock: return invalid JSON |
+| **Database unavailable** | DB connection refused or timeout | All data operations fail | Stop Docker container, block port |
+| **Disk full** | Can't write logs, temp files, or DB data | Silent failures, data loss | Fill disk in test container |
+
+### The Circuit Breaker Pattern
+
+```
+Normal State:          Circuit CLOSED (requests flow through)
+─────────────────────────────────────────────────
+   App ──→ Payment Service ──→ Response ──→ App
+                   ✓ Success
+
+After 5 Failures:     Circuit OPEN (requests blocked)
+─────────────────────────────────────────────────
+   App ──→ ✕ Circuit Breaker ──→ Fallback Response
+           "Payment service unavailable,
+            please try again in 30 seconds"
+
+After Recovery Wait:   Circuit HALF-OPEN (test one request)
+─────────────────────────────────────────────────
+   App ──→ Payment Service ──→ Success? ──→ Close circuit
+                               Failure? ──→ Keep open
+```
+
+---
+
+## Practical Implementation (Layer 3)
+
+### Resilience Test with WireMock — Payment Service Down
+
+
+```java
+import com.github.tomakehurst.wiremock.WireMockServer;
+import static com.github.tomakehurst.wiremock.client.WireMock.*;
+import org.testng.annotations.*;
+import static io.restassured.RestAssured.*;
+import static org.hamcrest.Matchers.*;
+
+/**
+ * Resilience tests for StayNest when payment service is unavailable.
+ * Verifies graceful degradation: users can browse, error messages are helpful,
+ * no data corruption occurs.
+ */
+public class PaymentResilienceTest {
+
+    private static WireMockServer paymentMock;
+
+    @BeforeSuite
+    public void setup() {
+        paymentMock = new WireMockServer(8089);
+        paymentMock.start();
+    }
+
+    @Test
+    public void paymentServiceDown_bookingReturnsServiceUnavailable() {
+        // Inject failure: payment service returns 500
+        paymentMock.stubFor(post(urlEqualTo("/v1/charges"))
+            .willReturn(aResponse().withStatus(500)
+                .withBody("{\"error\":\"Internal Server Error\"}")));
+
+        given()
+            .contentType("application/json")
+            .header("Authorization", AuthFactory.guest().getAuthHeader())
+            .body(BookingBuilder.aBooking().withRoomId(1L).buildJson())
+        .when()
+            .post("/bookings")
+        .then()
+            .statusCode(503)
+            .body("message", containsString("payment"))
+            .body("message", not(containsString("Exception")))  // No stack traces!
+            .body("message", not(containsString("null")));       // No raw nulls!
+    }
+
+    @Test
+    public void paymentServiceDown_searchStillWorks() {
+        // Payment is down, but search should be unaffected
+        paymentMock.stubFor(post(urlEqualTo("/v1/charges"))
+            .willReturn(aResponse().withStatus(500)));
+
+        // Search does NOT depend on payment — should work fine
+        given()
+            .queryParam("city", "NYC")
+        .when()
+            .get("/hotels/search")
+        .then()
+            .statusCode(200)
+            .body("data.size()", greaterThan(0));
+    }
+
+    @Test
+    public void paymentServiceTimeout_bookingHandlesGracefully() {
+        // Inject failure: 30-second timeout
+        paymentMock.stubFor(post(urlEqualTo("/v1/charges"))
+            .willReturn(aResponse().withFixedDelay(30000)));
+
+        long startTime = System.currentTimeMillis();
+
+        given()
+            .contentType("application/json")
+            .header("Authorization", AuthFactory.guest().getAuthHeader())
+            .body(BookingBuilder.aBooking().withRoomId(2L).buildJson())
+        .when()
+            .post("/bookings")
+        .then()
+            .statusCode(anyOf(is(408), is(503), is(504)));
+
+        long elapsed = System.currentTimeMillis() - startTime;
+        // App should timeout before 30s — circuit breaker or client timeout
+        assertTrue(elapsed < 15000,
+            "App should timeout in <15s, not wait for full 30s. Actual: " + elapsed + "ms");
+    }
+
+    @Test
+    public void paymentServiceRecovers_bookingWorksAgain() {
+        // Step 1: Payment is down
+        paymentMock.stubFor(post(urlEqualTo("/v1/charges"))
+            .willReturn(aResponse().withStatus(500)));
+
+        given().contentType("application/json")
+            .header("Authorization", AuthFactory.guest().getAuthHeader())
+            .body(BookingBuilder.aBooking().withRoomId(3L).buildJson())
+        .when().post("/bookings")
+        .then().statusCode(503); // Expected: service unavailable
+
+        // Step 2: Payment recovers
+        paymentMock.resetAll();
+        paymentMock.stubFor(post(urlEqualTo("/v1/charges"))
+            .willReturn(aResponse().withStatus(200)
+                .withBody("{\"id\":\"ch_recovery\",\"status\":\"succeeded\",\"amount\":50000}")));
+
+        // Step 3: Booking should work again (possibly after circuit breaker reset)
+        // May need a brief wait for circuit breaker to transition to half-open
+        Awaitility.await().atMost(60, TimeUnit.SECONDS).pollInterval(5, TimeUnit.SECONDS)
+            .untilAsserted(() -> {
+                given().contentType("application/json")
+                    .header("Authorization", AuthFactory.guest().getAuthHeader())
+                    .body(BookingBuilder.aBooking().withRoomId(3L).buildJson())
+                .when().post("/bookings")
+                .then().statusCode(201);
+            });
+    }
+
+    @Test
+    public void paymentServiceDown_noDataCorruption() throws SQLException {
+        // Inject failure
+        paymentMock.stubFor(post(urlEqualTo("/v1/charges"))
+            .willReturn(aResponse().withStatus(500)));
+
+        // Attempt booking
+        given().contentType("application/json")
+            .header("Authorization", AuthFactory.guest().getAuthHeader())
+            .body(BookingBuilder.aBooking().withRoomId(4L).buildJson())
+        .when().post("/bookings")
+        .then().statusCode(503);
+
+        // Verify no orphan booking was created in DB
+        try (Connection conn = TestConnectionPool.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(
+                 "SELECT COUNT(*) FROM bookings WHERE room_id = 4 AND status = 'PENDING'")) {
+            ResultSet rs = stmt.executeQuery();
+            rs.next();
+            assertEquals(rs.getInt(1), 0,
+                "No orphan booking should exist when payment fails");
+        }
+    }
+
+    @AfterMethod
+    public void resetMocks() {
+        paymentMock.resetAll();
+    }
+
+    @AfterSuite
+    public void teardown() {
+        paymentMock.stop();
+    }
+}
+```
+
+### Resilience Test Scenario Matrix
+
+
+```java
+/**
+ * Complete resilience scenario matrix for StayNest.
+ * Each row defines a failure, the expected system behavior, and how to verify it.
+ */
+public class ResilienceScenarioMatrix {
+    /*
+    | Failure Scenario          | Expected Behavior                | Verify                           |
+    |---------------------------|----------------------------------|----------------------------------|
+    | Payment service down      | Search works, booking returns 503| GET /hotels → 200, POST/book→503 |
+    | Payment service timeout   | App times out in <15s            | Response time < 15s              |
+    | Email service down        | Booking succeeds, email queued   | POST /bookings → 201, event sent |
+    | Database read-only        | Reads work, writes return 503    | GET /hotels → 200, POST → 503   |
+    | Database connection lost  | All endpoints return 503         | Any request → 503, not 500       |
+    | Database recovers         | App recovers within 30s          | Poll until 200                   |
+    | Malformed payment response| Booking returns helpful error    | No stack trace in response       |
+    | High latency on search    | Other endpoints unaffected       | POST /bookings still < 1s        |
+    */
+}
+```
+
+---
+
+## Failure and Debugging (Layer 4)
+
+### Failure 1: Resilience Test Passes Locally, Fails in CI
+
+**The Problem:** WireMock timeout test works locally (app times out in 5s) but in CI the app waits the full 30s before failing.
+
+**Root cause:** Different timeout configurations. Local dev has `payment.service.timeout=5s` in application-test.yml, but CI uses a different config file with the default 30s timeout.
+
+**The fix:** Externalize timeout configuration and explicitly set it in CI. Resilience tests should verify timeout behavior matches the configured value, not assume it.
+
+### Failure 2: Circuit Breaker Recovery Test Is Flaky
+
+**The Problem:** The "payment recovers" test fails intermittently because the circuit breaker hasn't transitioned from OPEN to HALF-OPEN when the test retries.
+
+**The fix:** Use Awaitility with a timeout longer than the circuit breaker's reset interval. Know your circuit breaker configuration (e.g., 30s open → half-open transition) and test accordingly.
+
+---
+
+## Engineering Judgment (Layer 5)
+
+### What to Test for Resilience vs What to Trust
+
+| Test for Resilience | Trust (Don't Test) |
+|--------------------|-------------------|
+| Error messages are user-friendly (no stack traces) | Internal retry logic implementation details |
+| Unrelated features still work during partial failure | Exact circuit breaker state transitions |
+| System recovers after dependency returns | Exact recovery time (too environment-dependent) |
+| No data corruption during failures | Load balancer failover mechanics |
+| Timeout behavior matches configuration | Operating system TCP/IP timeout behavior |
+
+### When to Introduce Chaos Testing
+
+| Maturity Level | What's Appropriate |
+|---------------|-------------------|
+| **Level 1** (most teams) | WireMock-based failure simulation in test environment |
+| **Level 2** | Docker-based failure injection (stop containers, network partitions) |
+| **Level 3** | Chaos toolkit in staging (automated failure injection + monitoring) |
+| **Level 4** (Netflix-level) | Production chaos with automated rollback + real-time monitoring |
+
+**Start at Level 1.** Most teams never need Level 4. WireMock-based resilience tests in CI catch 80% of failure-handling bugs.
+
+---
+
+## Interview and Revision (Layer 6)
+
+
+
+
+| # | Front | Back |
+|---|-------|------|
+| 1 | What is graceful degradation? | The system continues working with reduced functionality during a partial failure, rather than crashing entirely. Example: search works when payment is down |
+| 2 | What are the steps of chaos engineering? | Define steady state → form hypothesis → inject failure → observe behavior → fix weaknesses discovered |
+| 3 | What is a circuit breaker pattern? | After N failures, the circuit "opens" and blocks requests to the failing service, returning a fallback response. After a wait period, it "half-opens" to test if the service recovered |
+| 4 | What should an SDET verify during resilience testing? | Error messages are user-friendly (no stack traces), unrelated features still work, system recovers after failure, no data corruption |
+| 5 | Why start chaos testing with WireMock, not production? | WireMock in test environments is safe, deterministic, and catches 80% of failure-handling bugs. Production chaos requires mature monitoring and automated rollback that most teams don't have |
+
+### Mastery Checklist
+
+- [ ] Can explain chaos engineering principles and the scientific method approach
+- [ ] Can implement WireMock-based failure injection (service down, timeout, corrupted response)
+- [ ] Can verify graceful degradation: unrelated features work, error messages are helpful
+- [ ] Can test system recovery after dependency failure
+- [ ] Can verify no data corruption occurs during failure scenarios
+
+---
+
+**Next:** Test Architecture Patterns | **Related:** Accessibility Testing
+
+*Last updated: *

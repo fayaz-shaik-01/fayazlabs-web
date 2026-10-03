@@ -1,0 +1,563 @@
+---
+title: "Project: Appium + Java Mobile Framework"
+description: "Build a mobile test automation framework using Appium 2.x and Java for the StayNest Android and iOS apps. This project covers the unique challenges of mobile testing: device management, platform-specific locators, gesture automation, and cloud device grid integration with BrowserStack."
+summary: "SDET Engineering guide: Project: Appium + Java Mobile Framework"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "projects"
+lesson: "appium-java-framework"
+difficulty: "intermediate"
+estimatedMinutes: 35
+prerequisites: []
+tags: ["SDET", "Projects", "Portfolio"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/projects/appium-java-framework"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Project: Appium + Java Mobile Framework
+
+> **Module:** 12 — Projects
+> **Prerequisites:** Project Roadmap, Page And Screen Objects, Appium Architecture
+> **Estimated Time:** 20-25 hours
+> **Difficulty:** Advanced
+
+---
+
+## Project Description
+
+Build a mobile test automation framework using Appium 2.x and Java for the StayNest Android and iOS apps. This project covers the unique challenges of mobile testing: device management, platform-specific locators, gesture automation, and cloud device grid integration with BrowserStack.
+
+**What you'll build:** A framework that runs the same test logic on Android and iOS using shared screen objects, supports parallel device execution, handles mobile-specific interactions (swipe, scroll, tap-and-hold), and integrates with BrowserStack for cloud execution.
+
+**System under test:** StayNest Android app (Kotlin + Jetpack Compose) and StayNest iOS app (SwiftUI)
+
+---
+
+## Tech Stack
+
+| Component | Technology | Version | Purpose |
+| --- | --- | --- | --- |
+| Language | Java | 21 | Primary language |
+| Mobile Automation | Appium | 2.x | Mobile driver protocol |
+| Android Driver | UiAutomator2 | Latest | Android automation engine |
+| iOS Driver | XCUITest | Latest | iOS automation engine |
+| Test Runner | TestNG | 7.9+ | Execution, parallel, data providers |
+| Build Tool | Maven | 3.9+ | Dependency management |
+| Reporting | Allure | 2.x | HTML reports with screenshots |
+| Cloud Grid | BrowserStack | N/A | Remote device execution |
+| Assertions | AssertJ | 3.x | Fluent assertions |
+
+---
+
+## Framework Architecture
+
+```
+┌──────────────────────────────────────────────────┐
+│  Test Layer                                      │
+│  LoginTest, SearchTest, BookingTest              │
+│  - Uses screen objects (not raw locators)        │
+│  - Platform-agnostic test logic                  │
+│  - TestNG groups: android, ios, smoke, regression│
+├──────────────────────────────────────────────────┤
+│  Screen Object Layer                             │
+│  LoginScreen, HomeScreen, HotelDetailScreen,     │
+│  BookingScreen                                   │
+│  - Platform-specific locator strategies          │
+│  - Encapsulates gestures (scroll to element)     │
+│  - Methods return screen objects for navigation  │
+├──────────────────────────────────────────────────┤
+│  Gesture Utility Layer                           │
+│  GestureHelper                                   │
+│  - Swipe (up, down, left, right)                 │
+│  - Scroll to element                             │
+│  - Long press, double tap                        │
+│  - Pull to refresh                               │
+├──────────────────────────────────────────────────┤
+│  Driver Layer                                    │
+│  DriverFactory, DriverManager                    │
+│  - Creates AppiumDriver per platform             │
+│  - Configures capabilities (local vs cloud)      │
+│  - ThreadLocal for parallel device execution     │
+├──────────────────────────────────────────────────┤
+│  Config Layer                                    │
+│  ConfigReader, Capabilities                      │
+│  - Platform selection (android/ios)              │
+│  - Device name, OS version, app path             │
+│  - BrowserStack credentials and config           │
+├──────────────────────────────────────────────────┤
+│  API Helper Layer                                │
+│  ApiTestDataHelper                               │
+│  - Creates test data via StayNest API            │
+│  - Reused from REST Assured framework project    │
+└──────────────────────────────────────────────────┘
+```
+
+---
+
+## Project Structure
+
+```
+staynest-mobile-framework/
+├── pom.xml
+├── testng-android.xml
+├── testng-ios.xml
+├── testng-browserstack.xml
+├── README.md
+├── src/
+│   └── test/
+│       ├── java/
+│       │   └── com/staynest/mobile/
+│       │       ├── base/
+│       │       │   └── BaseMobileTest.java
+│       │       ├── config/
+│       │       │   ├── ConfigReader.java
+│       │       │   ├── Platform.java
+│       │       │   └── CapabilityBuilder.java
+│       │       ├── driver/
+│       │       │   ├── DriverFactory.java
+│       │       │   └── DriverManager.java
+│       │       ├── screens/
+│       │       │   ├── LoginScreen.java
+│       │       │   ├── HomeScreen.java
+│       │       │   ├── SearchScreen.java
+│       │       │   ├── HotelDetailScreen.java
+│       │       │   ├── BookingScreen.java
+│       │       │   └── MyBookingsScreen.java
+│       │       ├── gestures/
+│       │       │   └── GestureHelper.java
+│       │       ├── utils/
+│       │       │   ├── ScreenshotUtil.java
+│       │       │   ├── ApiTestDataHelper.java
+│       │       │   └── MobileWaitUtil.java
+│       │       ├── listeners/
+│       │       │   └── TestListener.java
+│       │       └── tests/
+│       │           ├── LoginTest.java
+│       │           ├── SearchTest.java
+│       │           ├── BookingFlowTest.java
+│       │           └── NavigationTest.java
+│       └── resources/
+│           ├── config-android.properties
+│           ├── config-ios.properties
+│           ├── config-browserstack.properties
+│           └── apps/
+│               └── (app binaries or download scripts)
+```
+
+---
+
+## Implementation Milestones
+
+### Milestone 1: Appium Setup and First Test (4 hours)
+
+**Objectives:** Install Appium 2.x, configure an emulator, write a test that launches the app.
+
+**Prerequisites:**
+```bash
+# Install Appium 2.x
+npm install -g appium
+
+# Install the UiAutomator2 driver (Android)
+appium driver install uiautomator2
+
+# Install the XCUITest driver (iOS — macOS only)
+appium driver install xcuitest
+
+# Verify installation
+appium --version
+appium driver list --installed
+```
+
+
+```java
+// BaseMobileTest.java — foundation
+public class BaseMobileTest {
+    protected AppiumDriver driver;
+
+    @BeforeMethod
+    @Parameters({"platform"})
+    public void setUp(@Optional("android") String platform) {
+        driver = DriverFactory.createDriver(platform);
+    }
+
+    @AfterMethod
+    public void tearDown() {
+        if (driver != null) {
+            driver.quit();
+        }
+    }
+}
+
+// DriverFactory.java
+public class DriverFactory {
+    public static AppiumDriver createDriver(String platform) {
+        URL appiumUrl;
+        try {
+            appiumUrl = new URL(ConfigReader.get("appium.url")); // http://localhost:4723
+        } catch (MalformedURLException e) {
+            throw new RuntimeException("Invalid Appium URL", e);
+        }
+
+        return switch (platform.toLowerCase()) {
+            case "android" -> createAndroidDriver(appiumUrl);
+            case "ios" -> createIOSDriver(appiumUrl);
+            default -> throw new IllegalArgumentException("Unknown platform: " + platform);
+        };
+    }
+
+    private static AppiumDriver createAndroidDriver(URL url) {
+        UiAutomator2Options options = new UiAutomator2Options()
+            .setDeviceName(ConfigReader.get("android.device.name"))
+            .setApp(ConfigReader.get("android.app.path"))
+            .setAutomationName("UiAutomator2")
+            .setAutoGrantPermissions(true)
+            .setNewCommandTimeout(Duration.ofSeconds(60));
+        return new AndroidDriver(url, options);
+    }
+
+    private static AppiumDriver createIOSDriver(URL url) {
+        XCUITestOptions options = new XCUITestOptions()
+            .setDeviceName(ConfigReader.get("ios.device.name"))
+            .setApp(ConfigReader.get("ios.app.path"))
+            .setAutomationName("XCUITest")
+            .setAutoAcceptAlerts(true)
+            .setNewCommandTimeout(Duration.ofSeconds(60));
+        return new IOSDriver(url, options);
+    }
+}
+```
+
+**Success criteria:**
+- [ ] Appium server starts without errors
+- [ ] Test launches the StayNest app on an emulator/simulator
+- [ ] App screenshot can be captured programmatically
+
+### Milestone 2: Screen Objects (4 hours)
+
+**Objectives:** Create screen objects for login and home screens with platform-specific locators.
+
+
+```java
+public class LoginScreen {
+    private final AppiumDriver driver;
+    private final WebDriverWait wait;
+
+    public LoginScreen(AppiumDriver driver) {
+        this.driver = driver;
+        this.wait = new WebDriverWait(driver, Duration.ofSeconds(15));
+    }
+
+    // Platform-specific locator strategy
+    private By emailField() {
+        if (driver instanceof AndroidDriver) {
+            return AppiumBy.accessibilityId("email_input");
+        } else {
+            return AppiumBy.accessibilityId("email_input"); // same if devs use matching IDs
+        }
+    }
+
+    private By passwordField() {
+        if (driver instanceof AndroidDriver) {
+            return AppiumBy.accessibilityId("password_input");
+        } else {
+            return AppiumBy.accessibilityId("password_input");
+        }
+    }
+
+    private By loginButton() {
+        if (driver instanceof AndroidDriver) {
+            return AppiumBy.accessibilityId("login_button");
+        } else {
+            return AppiumBy.accessibilityId("login_button");
+        }
+    }
+
+    private By errorMessage() {
+        return AppiumBy.accessibilityId("error_message");
+    }
+
+    public LoginScreen waitForScreen() {
+        wait.until(ExpectedConditions.visibilityOfElementLocated(emailField()));
+        return this;
+    }
+
+    public HomeScreen login(String email, String password) {
+        WebElement emailEl = wait.until(
+            ExpectedConditions.visibilityOfElementLocated(emailField()));
+        emailEl.clear();
+        emailEl.sendKeys(email);
+
+        WebElement passEl = driver.findElement(passwordField());
+        passEl.clear();
+        passEl.sendKeys(password);
+
+        // Hide keyboard if visible (common mobile issue)
+        try { driver.hideKeyboard(); } catch (Exception ignored) {}
+
+        driver.findElement(loginButton()).click();
+        return new HomeScreen(driver);
+    }
+
+    public String getErrorMessage() {
+        WebElement error = wait.until(
+            ExpectedConditions.visibilityOfElementLocated(errorMessage()));
+        return error.getText();
+    }
+}
+```
+
+**Success criteria:**
+- [ ] LoginScreen and HomeScreen objects encapsulate all locators
+- [ ] Login test passes using screen objects
+- [ ] Keyboard hiding is handled (Android-specific behavior)
+
+### Milestone 3: Gesture Utilities (4 hours)
+
+**Objectives:** Build a reusable gesture helper for swipe, scroll, and long press.
+
+
+```java
+public class GestureHelper {
+    private final AppiumDriver driver;
+
+    public GestureHelper(AppiumDriver driver) {
+        this.driver = driver;
+    }
+
+    /**
+     * Swipe from bottom to top (scroll down to reveal more content).
+     */
+    public void swipeUp() {
+        Dimension size = driver.manage().window().getSize();
+        int startX = size.width / 2;
+        int startY = (int) (size.height * 0.8);
+        int endY = (int) (size.height * 0.2);
+
+        PointerInput finger = new PointerInput(PointerInput.Kind.TOUCH, "finger");
+        Sequence swipe = new Sequence(finger, 1);
+        swipe.addAction(finger.createPointerMove(Duration.ZERO,
+            PointerInput.Origin.viewport(), startX, startY));
+        swipe.addAction(finger.createPointerDown(PointerInput.MouseButton.LEFT.asArg()));
+        swipe.addAction(finger.createPointerMove(Duration.ofMillis(800),
+            PointerInput.Origin.viewport(), startX, endY));
+        swipe.addAction(finger.createPointerUp(PointerInput.MouseButton.LEFT.asArg()));
+        driver.perform(List.of(swipe));
+    }
+
+    /**
+     * Scroll down until an element is visible or max attempts reached.
+     */
+    public WebElement scrollToElement(By locator, int maxSwipes) {
+        for (int i = 0; i < maxSwipes; i++) {
+            try {
+                WebElement element = driver.findElement(locator);
+                if (element.isDisplayed()) return element;
+            } catch (NoSuchElementException ignored) {}
+            swipeUp();
+        }
+        throw new NoSuchElementException(
+            "Element not found after " + maxSwipes + " swipes: " + locator);
+    }
+
+    /**
+     * Pull to refresh (swipe down from top).
+     */
+    public void pullToRefresh() {
+        Dimension size = driver.manage().window().getSize();
+        int startX = size.width / 2;
+        int startY = (int) (size.height * 0.3);
+        int endY = (int) (size.height * 0.8);
+
+        PointerInput finger = new PointerInput(PointerInput.Kind.TOUCH, "finger");
+        Sequence pull = new Sequence(finger, 1);
+        pull.addAction(finger.createPointerMove(Duration.ZERO,
+            PointerInput.Origin.viewport(), startX, startY));
+        pull.addAction(finger.createPointerDown(PointerInput.MouseButton.LEFT.asArg()));
+        pull.addAction(finger.createPointerMove(Duration.ofMillis(600),
+            PointerInput.Origin.viewport(), startX, endY));
+        pull.addAction(finger.createPointerUp(PointerInput.MouseButton.LEFT.asArg()));
+        driver.perform(List.of(pull));
+    }
+}
+```
+
+**Success criteria:**
+- [ ] Swipe up, swipe down, and pull-to-refresh work on both platforms
+- [ ] `scrollToElement` finds elements below the fold
+- [ ] Gestures are reusable from any screen object
+
+### Milestone 4: BrowserStack Integration (4 hours)
+
+**Objectives:** Run tests on real devices via BrowserStack cloud.
+
+
+```java
+// CapabilityBuilder for BrowserStack
+public class CapabilityBuilder {
+    public static UiAutomator2Options browserStackAndroid() {
+        UiAutomator2Options options = new UiAutomator2Options();
+
+        HashMap<String, Object> bsOptions = new HashMap<>();
+        bsOptions.put("userName", ConfigReader.get("browserstack.username"));
+        bsOptions.put("accessKey", ConfigReader.get("browserstack.access.key"));
+        bsOptions.put("appUrl", ConfigReader.get("browserstack.app.url"));
+        bsOptions.put("deviceName", "Samsung Galaxy S23");
+        bsOptions.put("osVersion", "13.0");
+        bsOptions.put("projectName", "StayNest Mobile");
+        bsOptions.put("buildName", "Build " + System.getenv("BUILD_NUMBER"));
+        bsOptions.put("sessionName", "Android Smoke Test");
+
+        options.setCapability("bstack:options", bsOptions);
+        return options;
+    }
+}
+
+// config-browserstack.properties
+browserstack.username=${BROWSERSTACK_USERNAME}
+browserstack.access.key=${BROWSERSTACK_ACCESS_KEY}
+browserstack.app.url=bs://your-app-hash
+browserstack.url=https://hub.browserstack.com/wd/hub
+```
+
+
+```xml
+<!-- testng-browserstack.xml — parallel across devices -->
+<suite name="BrowserStack" parallel="tests" thread-count="2">
+    <test name="Android - Samsung Galaxy S23">
+        <parameter name="platform" value="android"/>
+        <parameter name="device" value="Samsung Galaxy S23"/>
+        <parameter name="os_version" value="13.0"/>
+        <classes>
+            <class name="com.staynest.mobile.tests.LoginTest"/>
+            <class name="com.staynest.mobile.tests.SearchTest"/>
+        </classes>
+    </test>
+    <test name="Android - Google Pixel 7">
+        <parameter name="platform" value="android"/>
+        <parameter name="device" value="Google Pixel 7"/>
+        <parameter name="os_version" value="13.0"/>
+        <classes>
+            <class name="com.staynest.mobile.tests.LoginTest"/>
+            <class name="com.staynest.mobile.tests.SearchTest"/>
+        </classes>
+    </test>
+</suite>
+```
+
+**Success criteria:**
+- [ ] Tests run on a real device via BrowserStack
+- [ ] BrowserStack dashboard shows test results with video recordings
+- [ ] Same test code runs locally and on BrowserStack (config-only change)
+
+### Milestone 5: Parallel Device Execution (3 hours)
+
+**Objectives:** Run tests simultaneously on multiple devices, thread-safe driver management.
+
+
+```java
+// Thread-safe driver management for parallel device execution
+public class DriverManager {
+    private static final ThreadLocal<AppiumDriver> driverThreadLocal = new ThreadLocal<>();
+
+    public static AppiumDriver getDriver() {
+        return driverThreadLocal.get();
+    }
+
+    public static void setDriver(AppiumDriver driver) {
+        driverThreadLocal.set(driver);
+    }
+
+    public static void quitDriver() {
+        AppiumDriver driver = driverThreadLocal.get();
+        if (driver != null) {
+            driver.quit();
+            driverThreadLocal.remove();
+        }
+    }
+}
+```
+
+**Success criteria:**
+- [ ] 2 devices run tests simultaneously (locally or via BrowserStack)
+- [ ] No driver conflicts between threads
+- [ ] Each test gets its own driver instance
+
+### Milestone 6: CI Integration (3 hours)
+
+**Objectives:** Jenkins or GitHub Actions pipeline that runs mobile tests against BrowserStack.
+
+
+```yaml
+# .github/workflows/mobile-tests.yml
+name: Mobile Tests
+on: [push]
+jobs:
+  mobile-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+      - name: Upload app to BrowserStack
+        run: |
+          curl -u "${{ secrets.BS_USERNAME }}:${{ secrets.BS_ACCESS_KEY }}" \
+            -X POST "https://api-cloud.browserstack.com/app-automate/upload" \
+            -F "file=@app/staynest.apk" > bs_app.json
+          echo "APP_URL=$(jq -r .app_url bs_app.json)" >> $GITHUB_ENV
+      - name: Run tests
+        run: mvn test -DsuiteXmlFile=testng-browserstack.xml
+        env:
+          BROWSERSTACK_USERNAME: ${{ secrets.BS_USERNAME }}
+          BROWSERSTACK_ACCESS_KEY: ${{ secrets.BS_ACCESS_KEY }}
+          BROWSERSTACK_APP_URL: ${{ env.APP_URL }}
+```
+
+**Success criteria:**
+- [ ] CI pipeline uploads the app and runs tests on BrowserStack
+- [ ] Results are visible in both CI and BrowserStack dashboard
+- [ ] Pipeline handles app upload, test execution, and reporting
+
+---
+
+## Tests to Write
+
+| Test Class | Test | Priority | Description |
+| --- | --- | --- | --- |
+| LoginTest | shouldLoginWithValidCredentials | P0 | Login → verify home screen |
+| LoginTest | shouldShowErrorForInvalidCredentials | P0 | Wrong password → error |
+| SearchTest | shouldSearchHotelsByCity | P0 | Enter city + dates → results |
+| SearchTest | shouldScrollThroughResults | P1 | Swipe to load more hotels |
+| SearchTest | shouldNavigateToHotelDetail | P0 | Tap hotel → detail screen |
+| BookingFlowTest | shouldCompleteBookingFlow | P0 | Full flow via UI |
+| BookingFlowTest | shouldViewBookingHistory | P1 | Navigate to my bookings |
+| NavigationTest | shouldNavigateBackFromDetail | P1 | Back button from detail |
+| NavigationTest | shouldPullToRefreshResults | P2 | Pull to refresh search results |
+
+---
+
+## Mobile-Specific Challenges and Solutions
+
+| Challenge | Solution |
+| --- | --- |
+| Different locators per platform | Method-based locator strategy (`emailField()` returns platform-specific By) |
+| Keyboard covers input fields | `driver.hideKeyboard()` after typing, or scroll element into view first |
+| Elements below the fold | `GestureHelper.scrollToElement()` with max swipes |
+| Slow element rendering | Longer explicit waits (15s default for mobile vs 10s for web) |
+| App state persistence | `driver.resetApp()` or `driver.terminateApp()` + `driver.activateApp()` between tests |
+| Network dependency | API test data setup ensures backend state is correct before mobile tests |
+
+---
+
+**Related:** Project Roadmap

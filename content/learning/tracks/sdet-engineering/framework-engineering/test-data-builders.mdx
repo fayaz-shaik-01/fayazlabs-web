@@ -1,0 +1,738 @@
+---
+title: "Test Data Builders"
+description: "What: Test data builders are objects that construct test data using a fluent, step-by-step API with sensible defaults. Instead of calling a constructor with 8 parameters (most of which you don't care about for this specific test), you call UserBuilder.aUser().withEmail(\"admin@test.com\").withRole(\"ADMIN\").build() — setting only the fields relevant to the test case and letting the builder fill in the rest with valid defaults."
+summary: "SDET Engineering guide: Test Data Builders"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "framework-engineering"
+lesson: "test-data-builders"
+difficulty: "intermediate"
+estimatedMinutes: 47
+prerequisites: []
+tags: ["SDET", "Framework", "Architecture"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/framework-engineering/test-data-builders"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Test Data Builders
+
+> **Module:** 03 — Framework Engineering > Test Data Builders  
+> **Prerequisites:** Api Client Design, Framework Architecture, Test Data Management  
+> **Mastery Target:** L3 (Independent) → L4 (Engineering Judgment)
+
+---
+
+## Quick Overview (Layer 1)
+
+**What:** Test data builders are objects that construct test data using a fluent, step-by-step API with sensible defaults. Instead of calling a constructor with 8 parameters (most of which you don't care about for this specific test), you call `UserBuilder.aUser().withEmail("admin@test.com").withRole("ADMIN").build()` — setting only the fields relevant to the test case and letting the builder fill in the rest with valid defaults.
+
+**Why it matters:** Test data construction is the most repetitive code in a test suite. Without builders, every test that needs a user creates one from scratch — specifying name, email, password, role, phone, address, status, and creation date. 80% of those fields are irrelevant to the test's purpose. Builders eliminate the noise: `UserBuilder.anAdminUser().build()` creates a complete, valid user with one line. When the `User` model adds a new required field, you update the builder's defaults once — not 60 test files.
+
+**Where you encounter it:** Every test that needs test data. API tests that create resources via POST. UI tests that set up preconditions via API. Data-driven tests that need variations of the same base object.
+
+<MentalModel>
+
+Think of a builder as a **form with pre-filled defaults**. When you fill out an online form, most fields have sensible defaults (country = your country, language = your language). You only change the fields you care about. A test data builder works the same way: it pre-fills every field with a valid default, and you override only what matters for this specific test scenario.
+
+</MentalModel>
+
+
+```
+Builder defaults:  name=John, email=random@test.com, role=GUEST, active=true
+Test needs admin:  UserBuilder.aUser().withRole("ADMIN").build()
+  → name=John, email=unique-abc@test.com, role=ADMIN, active=true
+```
+
+The test reads clearly: "I need a user, and the important thing about this user is that they're an admin." Everything else is irrelevant noise that the builder handles.
+
+<KeyTakeaways>
+
+1. **Builders eliminate irrelevant detail** — tests specify only what matters for the scenario, making the test's intent immediately clear.
+2. **Sensible defaults keep data valid** — every field has a default value that produces a valid object. No test should need to specify 8 fields when it cares about 1.
+3. **Unique data prevents collisions** — defaults include UUIDs or timestamps so parallel tests never fight over the same email, username, or ID.
+4. **Factory methods create common profiles** — `validUser()`, `adminUser()`, `guestUser()` are shortcuts for frequently used configurations.
+5. **Builders create, tests clean up** — the builder's job is construction. Cleanup responsibility belongs to the test's teardown (`@AfterMethod` or `try/finally`).
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation (Layer 2)
+
+### The Problem: Constructor Noise
+
+Consider a test that creates a user without a builder:
+
+
+```java
+@Test
+public void adminShouldSeeUserList() {
+    // What matters: role = ADMIN
+    // What's noise: everything else
+    User admin = new User(
+        "John Smith",                    // name — irrelevant
+        "john.smith@test.com",           // email — irrelevant (and will collide in parallel)
+        "SecurePass123!",                // password — irrelevant
+        "ADMIN",                         // role — THIS is what matters
+        "+1-555-0100",                   // phone — irrelevant
+        "123 Test St, City, ST 12345",   // address — irrelevant
+        true,                            // active — irrelevant
+        LocalDateTime.now()              // createdAt — irrelevant
+    );
+    // ...
+}
+```
+
+Seven of eight parameters are noise. A reader has to scan all eight to find the one that matters (`"ADMIN"`). And `"john.smith@test.com"` is a ticking time bomb — run two instances in parallel and they'll fight over the same email.
+
+### The Builder Pattern for Test Data
+
+The builder pattern solves this by providing a fluent API with defaults:
+
+
+```java
+@Test
+public void adminShouldSeeUserList() {
+    User admin = UserBuilder.aUser()
+        .withRole("ADMIN")
+        .build();
+    // ...
+}
+```
+
+One line. The intent is crystal clear: "I need an admin user." The builder handles name, email, password, phone, address, active status, and creation date — all with valid defaults that include unique data (UUID in email) to prevent collisions.
+
+### Builder Structure
+
+A builder has four parts:
+
+1. **Default values** — every field gets a valid default.
+2. **`with*()` methods** — fluent setters that return `this` for chaining.
+3. **`build()` method** — constructs the final object.
+4. **Factory methods** — shortcuts for common profiles.
+
+
+```java
+public class UserBuilder {
+
+    // 1. Defaults — every field has a valid value
+    private String name = "Test User";
+    private String email = "testuser-" + UUID.randomUUID() + "@test.com";
+    private String password = "TestPass123!";
+    private String role = "GUEST";
+    private String phone = "+1-555-" + ThreadLocalRandom.current().nextInt(1000, 9999);
+    private boolean active = true;
+
+    // Private constructor — use factory methods
+    private UserBuilder() {}
+
+    // Entry point
+    public static UserBuilder aUser() {
+        return new UserBuilder();
+    }
+
+    // 2. Fluent setters — each returns `this` for chaining
+    public UserBuilder withName(String name) {
+        this.name = name;
+        return this;
+    }
+
+    public UserBuilder withEmail(String email) {
+        this.email = email;
+        return this;
+    }
+
+    public UserBuilder withPassword(String password) {
+        this.password = password;
+        return this;
+    }
+
+    public UserBuilder withRole(String role) {
+        this.role = role;
+        return this;
+    }
+
+    public UserBuilder withPhone(String phone) {
+        this.phone = phone;
+        return this;
+    }
+
+    public UserBuilder active() {
+        this.active = true;
+        return this;
+    }
+
+    public UserBuilder inactive() {
+        this.active = false;
+        return this;
+    }
+
+    // 3. Build — construct the final object
+    public User build() {
+        User user = new User();
+        user.setName(name);
+        user.setEmail(email);
+        user.setPassword(password);
+        user.setRole(role);
+        user.setPhone(phone);
+        user.setActive(active);
+        return user;
+    }
+
+    // 4. Factory methods — shortcuts for common profiles
+    public static UserBuilder anAdminUser() {
+        return aUser().withRole("ADMIN").withName("Admin User");
+    }
+
+    public static UserBuilder aGuestUser() {
+        return aUser().withRole("GUEST").withName("Guest User");
+    }
+
+    public static UserBuilder aHostUser() {
+        return aUser().withRole("HOST").withName("Host User");
+    }
+}
+```
+
+**Key design decisions:**
+- **UUID in default email** — every `aUser()` call produces a unique email. No two tests collide, even in parallel.
+- **Private constructor** — forces usage through `aUser()`, which reads more naturally than `new UserBuilder()`.
+- **Return `this`** — every `with*()` method returns the builder, enabling chaining: `.withName("x").withRole("y")`.
+- **Factory methods** — `anAdminUser()` is a shortcut for the most common admin configuration. It can still be further customized: `anAdminUser().withEmail("specific@test.com").build()`.
+
+### Factory Methods for Common Profiles
+
+Beyond builder factory methods, standalone factory methods provide one-call convenience for the most common test data:
+
+
+```java
+public class TestUsers {
+
+    public static User validUser() {
+        return UserBuilder.aUser().build();
+    }
+
+    public static User adminUser() {
+        return UserBuilder.anAdminUser().build();
+    }
+
+    public static User guestUser() {
+        return UserBuilder.aGuestUser().build();
+    }
+
+    public static User inactiveUser() {
+        return UserBuilder.aUser().inactive().build();
+    }
+
+    public static User userWithEmail(String email) {
+        return UserBuilder.aUser().withEmail(email).build();
+    }
+}
+```
+
+**Usage:** `User admin = TestUsers.adminUser();` — one call, no builder chain needed for the common case.
+
+### Data Cleanup Responsibility
+
+**Rule: The builder creates. The test cleans up.**
+
+Builders should not manage lifecycle — they're factories, not managers. Cleanup belongs in `@AfterMethod` or `try/finally`:
+
+
+```java
+public class AdminUserTest extends BaseApiTest {
+
+    private String createdUserId;
+
+    @Test
+    public void adminShouldSeeUserList() {
+        User admin = UserBuilder.anAdminUser().build();
+        createdUserId = userService.createUser(admin).getId();
+
+        // ... test logic ...
+    }
+
+    @AfterMethod(alwaysRun = true)
+    public void cleanup() {
+        if (createdUserId != null) {
+            userService.deleteUser(createdUserId);
+            createdUserId = null;
+        }
+    }
+}
+```
+
+### Integration with API: Builder That Creates via API
+
+For integration tests, a builder can create the resource via API and return the created entity (with server-generated ID):
+
+
+```java
+public class UserBuilder {
+
+    // ... fields and with*() methods as above ...
+
+    public User build() {
+        // Returns a local User object — no API call
+        User user = new User();
+        user.setName(name);
+        user.setEmail(email);
+        // ... set all fields
+        return user;
+    }
+
+    public CreatedUser createVia(UserService userService) {
+        // Builds the user AND creates it via API
+        User user = build();
+        UserResponse response = userService.createUser(user);
+        return new CreatedUser(response.getId(), user, userService);
+    }
+}
+
+// Wrapper that holds the ID and can clean itself up
+public class CreatedUser implements AutoCloseable {
+
+    private final String id;
+    private final User user;
+    private final UserService userService;
+
+    public CreatedUser(String id, User user, UserService userService) {
+        this.id = id;
+        this.user = user;
+        this.userService = userService;
+    }
+
+    public String getId() { return id; }
+    public User getUser() { return user; }
+
+    @Override
+    public void close() {
+        userService.deleteUser(id);
+    }
+}
+```
+
+**Usage with try-with-resources:**
+
+
+```java
+@Test
+public void adminShouldSeeNewlyCreatedUser() {
+    try (CreatedUser admin = UserBuilder.anAdminUser()
+            .createVia(userService)) {
+
+        List<UserResponse> users = userService.listUsers();
+        assertThat(users).anyMatch(u -> u.getId().equals(admin.getId()));
+
+    }  // auto-cleanup: admin user deleted here
+}
+```
+
+---
+
+## Practical Implementation (Layer 3)
+
+### Example: Complete UserBuilder and BookingBuilder for StayNest
+
+
+```java
+public class UserBuilder {
+
+    private String name = "Test User";
+    private String email = "user-" + UUID.randomUUID() + "@test.staynest.com";
+    private String password = "TestPass123!";
+    private String role = "GUEST";
+    private String phone = "+1-555-" + ThreadLocalRandom.current().nextInt(1000, 9999);
+    private boolean active = true;
+
+    private UserBuilder() {}
+
+    public static UserBuilder aUser() { return new UserBuilder(); }
+    public static UserBuilder anAdminUser() {
+        return aUser().withRole("ADMIN").withName("Admin User");
+    }
+    public static UserBuilder aGuestUser() {
+        return aUser().withRole("GUEST");
+    }
+    public static UserBuilder aHostUser() {
+        return aUser().withRole("HOST").withName("Host User");
+    }
+
+    public UserBuilder withName(String name) { this.name = name; return this; }
+    public UserBuilder withEmail(String email) { this.email = email; return this; }
+    public UserBuilder withPassword(String password) { this.password = password; return this; }
+    public UserBuilder withRole(String role) { this.role = role; return this; }
+    public UserBuilder withPhone(String phone) { this.phone = phone; return this; }
+    public UserBuilder active() { this.active = true; return this; }
+    public UserBuilder inactive() { this.active = false; return this; }
+
+    public User build() {
+        User user = new User();
+        user.setName(name);
+        user.setEmail(email);
+        user.setPassword(password);
+        user.setRole(role);
+        user.setPhone(phone);
+        user.setActive(active);
+        return user;
+    }
+
+    public CreatedUser createVia(UserService service) {
+        UserResponse resp = service.createUser(build());
+        return new CreatedUser(resp.getId(), build(), service);
+    }
+}
+```
+
+
+```java
+public class BookingBuilder {
+
+    private String propertyId = "prop-" + UUID.randomUUID().toString().substring(0, 8);
+    private String checkIn = LocalDate.now().plusDays(30).toString();
+    private String checkOut = LocalDate.now().plusDays(33).toString();
+    private int guests = 2;
+    private String guestUserId = null;
+    private String specialRequests = "";
+
+    private BookingBuilder() {}
+
+    public static BookingBuilder aBooking() { return new BookingBuilder(); }
+
+    public static BookingBuilder aWeekendBooking() {
+        // Next Saturday → Sunday
+        LocalDate nextSaturday = LocalDate.now().with(
+            java.time.temporal.TemporalAdjusters.next(DayOfWeek.SATURDAY));
+        return aBooking()
+            .withCheckIn(nextSaturday.toString())
+            .withCheckOut(nextSaturday.plusDays(2).toString());
+    }
+
+    public static BookingBuilder aLongStayBooking() {
+        return aBooking()
+            .withCheckIn(LocalDate.now().plusDays(30).toString())
+            .withCheckOut(LocalDate.now().plusDays(60).toString());
+    }
+
+    public BookingBuilder withPropertyId(String propertyId) {
+        this.propertyId = propertyId;
+        return this;
+    }
+
+    public BookingBuilder withCheckIn(String checkIn) {
+        this.checkIn = checkIn;
+        return this;
+    }
+
+    public BookingBuilder withCheckOut(String checkOut) {
+        this.checkOut = checkOut;
+        return this;
+    }
+
+    public BookingBuilder withDates(String checkIn, String checkOut) {
+        this.checkIn = checkIn;
+        this.checkOut = checkOut;
+        return this;
+    }
+
+    public BookingBuilder withGuests(int guests) {
+        this.guests = guests;
+        return this;
+    }
+
+    public BookingBuilder forUser(String userId) {
+        this.guestUserId = userId;
+        return this;
+    }
+
+    public BookingBuilder withSpecialRequests(String requests) {
+        this.specialRequests = requests;
+        return this;
+    }
+
+    public BookingRequest build() {
+        BookingRequest request = new BookingRequest();
+        request.setPropertyId(propertyId);
+        request.setCheckIn(checkIn);
+        request.setCheckOut(checkOut);
+        request.setGuests(guests);
+        request.setGuestUserId(guestUserId);
+        request.setSpecialRequests(specialRequests);
+        return request;
+    }
+
+    public CreatedBooking createVia(BookingService service) {
+        BookingResponse resp = service.createBooking(build());
+        return new CreatedBooking(resp.getId(), resp, service);
+    }
+}
+
+public class CreatedBooking implements AutoCloseable {
+
+    private final String id;
+    private final BookingResponse response;
+    private final BookingService service;
+
+    public CreatedBooking(String id, BookingResponse response,
+                          BookingService service) {
+        this.id = id;
+        this.response = response;
+        this.service = service;
+    }
+
+    public String getId() { return id; }
+    public BookingResponse getResponse() { return response; }
+
+    @Override
+    public void close() {
+        try {
+            service.deleteBooking(id);
+        } catch (Exception e) {
+            // Log but don't fail the test — cleanup is best-effort
+            System.err.println("Warning: failed to delete booking " + id + ": " + e.getMessage());
+        }
+    }
+}
+```
+
+### Example: Tests Using Builders
+
+
+```java
+public class BookingApiTest extends BaseApiTest {
+
+    @Test
+    public void shouldCreateBookingWithMinimalData() {
+        // Only specify what matters — builder handles the rest
+        BookingRequest request = BookingBuilder.aBooking()
+            .withPropertyId("tokyo-suite-001")
+            .build();
+
+        BookingResponse response = bookingService.createBooking(request);
+
+        assertThat(response.getStatus()).isEqualTo("CONFIRMED");
+        assertThat(response.getGuests()).isEqualTo(2);  // default from builder
+    }
+
+    @Test
+    public void shouldCreateWeekendBooking() {
+        BookingRequest request = BookingBuilder.aWeekendBooking()
+            .withPropertyId("tokyo-suite-001")
+            .withGuests(4)
+            .build();
+
+        BookingResponse response = bookingService.createBooking(request);
+
+        assertThat(response.getStatus()).isEqualTo("CONFIRMED");
+    }
+
+    @Test
+    public void shouldCreateBookingWithAutoCleanup() {
+        try (CreatedBooking booking = BookingBuilder.aBooking()
+                .withPropertyId("tokyo-suite-001")
+                .createVia(bookingService)) {
+
+            BookingResponse fetched = bookingService.getBooking(booking.getId());
+            assertThat(fetched.getStatus()).isEqualTo("CONFIRMED");
+
+        }  // booking deleted automatically
+    }
+
+    @Test
+    public void shouldRejectBookingWithTooManyGuests() {
+        BookingRequest request = BookingBuilder.aBooking()
+            .withGuests(100)  // only specify what makes this test unique
+            .build();
+
+        Response response = bookingService.createBookingRaw(request);
+
+        assertThat(response.getStatusCode()).isEqualTo(400);
+        assertThat(response.jsonPath().getString("error"))
+            .contains("maximum guests exceeded");
+    }
+}
+```
+
+---
+
+## Failure and Debugging (Layer 4)
+
+### Failure 1: Hardcoded Test Data Causes Parallel Collisions
+
+**The Problem:**
+
+
+```java
+@Test
+public void shouldCreateUser() {
+    User user = new User("John", "john@test.com", "pass", "GUEST");
+    userService.createUser(user);
+    // ...
+}
+```
+
+**What happens with `parallel="methods"`:** Thread-1 and Thread-2 both run this test simultaneously. Both try to create `"john@test.com"`. The second call fails with "email already exists." The test is not parallelizable.
+
+**The fix — unique data in defaults:**
+
+
+```java
+@Test
+public void shouldCreateUser() {
+    User user = UserBuilder.aUser().build();
+    // email = "user-550e8400-e29b-41d4-a716-446655440000@test.staynest.com"
+    // Unique every time — no collisions
+    userService.createUser(user);
+}
+```
+
+### Failure 2: Builder Defaults Produce Invalid Objects
+
+**The Problem:**
+
+
+```java
+public class BookingBuilder {
+    private String checkIn = "2020-01-01";   // default is in the PAST
+    private String checkOut = "2020-01-05";
+
+    public BookingRequest build() {
+        return new BookingRequest(propertyId, checkIn, checkOut, guests);
+    }
+}
+```
+
+**What happens:** Every test that uses `BookingBuilder.aBooking().build()` without overriding dates gets a booking with past dates. The API rejects it with a 400. The developer overrides dates in every test, defeating the purpose of defaults.
+
+**The fix — defaults that produce valid objects:**
+
+
+```java
+public class BookingBuilder {
+    // Defaults are always in the future — always valid
+    private String checkIn = LocalDate.now().plusDays(30).toString();
+    private String checkOut = LocalDate.now().plusDays(33).toString();
+}
+```
+
+**Rule:** A builder with zero customization (`Builder.aBooking().build()`) must always produce a valid, API-acceptable object. If the default output fails validation, the defaults are wrong.
+
+### Failure 3: No Cleanup — Data Accumulates
+
+**The Problem:**
+
+
+```java
+@Test
+public void shouldListBookings() {
+    // Creates a booking but never deletes it
+    bookingService.createBooking(BookingBuilder.aBooking().build());
+
+    List<BookingResponse> bookings = bookingService.listBookings();
+    assertThat(bookings).isNotEmpty();
+}
+```
+
+**What happens:** After 500 test runs, the database has 500 orphaned bookings. Listing tests slow down. The test environment becomes unreliable — assertions that check "at least 1 booking" pass, but assertions that check "exactly 1 booking" fail because of accumulated garbage.
+
+**The fix — always clean up:**
+
+
+```java
+@Test
+public void shouldListBookings() {
+    try (CreatedBooking booking = BookingBuilder.aBooking()
+            .createVia(bookingService)) {
+
+        List<BookingResponse> bookings = bookingService.listBookings();
+        assertThat(bookings).anyMatch(b -> b.getId().equals(booking.getId()));
+
+    }  // auto-deleted
+}
+```
+
+---
+
+## Engineering Judgment (Layer 5)
+
+### Builders vs Constructors vs Factory Methods
+
+| Approach | Use When | Avoid When |
+|----------|----------|------------|
+| **Builder** | Object has 4+ fields, tests need different field combinations, defaults make sense | Object has 1-2 fields (overkill) |
+| **Constructor** | Object has 1-3 fields, all fields are always relevant | 5+ parameters — becomes unreadable |
+| **Static factory method** | One common profile (e.g., `TestUsers.admin()`) with no customization needed | Caller needs to customize individual fields |
+
+### When to Use `createVia()` vs Separate Build and Create
+
+| Approach | Use When |
+|----------|----------|
+| `builder.build()` + `service.create()` | Test needs to inspect the request before sending, or send intentionally invalid data |
+| `builder.createVia(service)` | Test needs a valid, created resource with ID for further operations or cleanup |
+
+### How Much to Default?
+
+**Default everything that produces a valid object.** If the API requires 8 fields and the test cares about 1, the builder should default the other 7. The test author specifies only what the test is *about*.
+
+**Don't default things that are semantically important.** If every test needs to specify a property ID because the behavior depends on which property is booked, don't default it — force the test author to be explicit. This is a judgment call: default for convenience, require for clarity.
+
+---
+
+## Interview and Revision (Layer 6)
+
+### Fundamental Questions
+
+**Q1: What is the Builder pattern and why is it important for test data?**
+
+**A:** The Builder pattern constructs complex objects step by step with a fluent API. For test data, it's important because tests typically need objects with many fields but only care about one or two for their specific scenario. `UserBuilder.aUser().withRole("ADMIN").build()` creates a complete, valid user while highlighting that the role is what matters. Without a builder, the test specifies 8 parameters — 7 of which are irrelevant noise. Builders also include unique defaults (UUID in email) so parallel tests don't collide.
+
+**Q2: How do you handle test data cleanup?**
+
+**A:** I follow the "builder creates, test cleans up" principle. For API-created data, I use the `CreatedResource` pattern that implements `AutoCloseable` — the resource is created via API and automatically deleted in `close()`. Tests use `try-with-resources` for guaranteed cleanup, or store the ID and delete in `@AfterMethod(alwaysRun = true)`. The key is that cleanup runs even on test failure, and each test is responsible for cleaning up only the data it created.
+
+**Q3: How do you prevent test data collisions in parallel execution?**
+
+**A:** Every builder default that could collide includes a UUID or random component. Email defaults to `"user-" + UUID.randomUUID() + "@test.com"`. User names include random suffixes. Property bookings use future dates generated relative to "today" so they're always valid. No two tests create the same email, username, or identifier — even running 50 threads simultaneously. I never use hardcoded test data like `"john@test.com"` because that's a guaranteed collision point.
+
+**Q4: What makes a good builder default?**
+
+**A:** A good default produces a valid, complete object with zero customization. `BookingBuilder.aBooking().build()` should create a booking that the API accepts — future dates, valid guest count, existing property. A bad default uses past dates (API rejects it) or hardcoded emails (collisions). Defaults should also be semantically neutral — defaulting role to `"GUEST"` is safe; defaulting to `"ADMIN"` would give unexpected permissions. The test of a good default: "If I call `.build()` with no customization, does the object work?"
+
+
+
+
+| # | Front (Question) | Back (Answer) |
+|---|---|---|
+| 1 | Why should builder defaults include UUIDs? | To prevent data collisions in parallel execution. `"user-" + UUID.randomUUID() + "@test.com"` guarantees every test gets a unique email, even with 50 threads running simultaneously. |
+| 2 | What is the `CreatedResource` pattern? | A wrapper that holds a resource's ID and service reference, implementing `AutoCloseable`. Used with try-with-resources for automatic cleanup: the resource is deleted when the try block exits, even on failure. |
+| 3 | What makes a builder default "valid"? | `Builder.build()` with zero customization produces an object the API accepts. Future dates (not past), valid ranges, unique identifiers. If the default output fails validation, the defaults are wrong. |
+| 4 | When should you use a factory method instead of a builder? | When one common profile (e.g., `TestUsers.admin()`) needs no customization. Factory methods are one-call convenience wrappers; builders are for when callers need to customize individual fields. |
+| 5 | Why is "builder creates, test cleans up" the right principle? | Builders are factories — they construct objects. Lifecycle management (cleanup, deletion) is the test's responsibility via `@AfterMethod` or `try-with-resources`. Mixing construction and lifecycle makes builders complex and tests implicit. |
+
+### Mastery Checklist
+
+- [ ] Can implement a `UserBuilder` with fluent API, sensible defaults, and UUID-based uniqueness
+- [ ] Can implement a `BookingBuilder` with future-dated defaults and chaining
+- [ ] Can create factory methods for common profiles (`adminUser()`, `guestUser()`)
+- [ ] Can implement the `CreatedResource` pattern with `AutoCloseable` for automatic cleanup
+- [ ] Can use builders with `try-with-resources` for guaranteed data cleanup
+- [ ] Can explain why builder defaults must produce valid objects
+- [ ] Can prevent parallel test data collisions through UUID-based unique defaults
+- [ ] Can decide when a builder is appropriate vs a constructor or factory method
+
+---
+
+**Next:** Logging And Reporting | **Related:** Api Client Design, Test Data Management
+
+*Last updated: *

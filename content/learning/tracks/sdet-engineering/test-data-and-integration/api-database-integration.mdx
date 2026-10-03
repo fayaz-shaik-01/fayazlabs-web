@@ -1,0 +1,352 @@
+---
+title: "API-Database Integration Testing"
+description: "What: API-database integration testing validates the full write path: send an API request, verify the response, then independently verify the database state matches. This two-layer verification catches bugs that either layer alone would miss — the API might return success while the database write silently fails, or the database might contain correct data but the API serializes it incorrectly."
+summary: "SDET Engineering guide: API-Database Integration Testing"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "test-data-and-integration"
+lesson: "api-database-integration"
+difficulty: "intermediate"
+estimatedMinutes: 30
+prerequisites: []
+tags: ["SDET", "Test Data", "Integration"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/test-data-and-integration/api-database-integration"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# API-Database Integration Testing
+
+> **Module:** 07 — Test Data & Integration  
+> **Prerequisites:** Database Testing Patterns, Rest Assured Fundamentals  
+> **Mastery Target:** L3 (Independent) — can design and implement end-to-end API + DB verification tests with proper connection management and cleanup
+
+---
+
+## Quick Overview (Layer 1)
+
+**What:** API-database integration testing validates the full write path: send an API request, verify the response, then independently verify the database state matches. This two-layer verification catches bugs that either layer alone would miss — the API might return success while the database write silently fails, or the database might contain correct data but the API serializes it incorrectly.
+
+**Why:** In microservice architectures, the API layer and the database are separated by ORM mappings, transaction boundaries, and caching layers. Each is a potential failure point. A `POST /bookings` returning `201` with correct JSON doesn't guarantee the booking was committed (transaction might rollback after response). Conversely, correct DB state doesn't guarantee the API reads it properly (ORM mapping bugs, lazy loading failures).
+
+**Where:** Critical business flows where data correctness has financial or legal impact. In StayNest: booking creation, payment processing, cancellation with refund, hotel inventory management. Not needed for read-only endpoints where the API *is* the source of truth.
+
+<KeyTakeaways>
+
+1. The pattern is always: **API call → verify response → verify DB state → cleanup**. This order matters.
+2. Connection pooling prevents test suites from exhausting database connections — use HikariCP or a shared connection.
+3. Cleanup is not optional. Every test must undo its writes. Use `@AfterMethod` or `try/finally` blocks.
+4. Time your DB verification — a read-after-write might hit a replica that hasn't synced. Add a small delay or query the primary.
+5. Don't over-verify. Check the fields that matter for business logic, not every column in every table.
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation (Layer 2)
+
+### The Integration Test Pattern
+
+```
+┌──────────────┐     ┌──────────────┐     ┌──────────────┐     ┌──────────────┐
+│  1. API Call  │────→│  2. Verify   │────→│  3. Verify   │────→│  4. Cleanup  │
+│  POST /books │     │  Response    │     │  DB State    │     │  DELETE or   │
+│              │     │  201, body   │     │  SELECT ...  │     │  TRUNCATE    │
+└──────────────┘     └──────────────┘     └──────────────┘     └──────────────┘
+```
+
+### Why Both Layers?
+
+| Scenario | API Response | DB State | Bug Caught By |
+|----------|-------------|----------|---------------|
+| Happy path | 201 + correct body | Row inserted correctly | Either layer |
+| Transaction rollback after response | 201 + correct body | **No row inserted** | DB verification only |
+| ORM mapping bug | 201 + **wrong field values** | Row correct in DB | API verification only |
+| Async write (eventual consistency) | 202 + "processing" | Row appears after delay | DB verification with polling |
+| Cascade not configured | 204 (delete success) | **Orphan records remain** | DB verification only |
+
+### Connection Pooling for Test Suites
+
+Opening a JDBC connection takes 50-200ms. A 200-test suite with per-test connections adds 10-40 seconds of pure overhead. Connection pooling solves this:
+
+```
+Test 1 ──→ borrows connection ──→ runs query ──→ returns connection to pool
+Test 2 ──→ borrows same connection ──→ runs query ──→ returns to pool
+Test 3 ──→ borrows connection ──→ ...
+```
+
+---
+
+## Practical Implementation (Layer 3)
+
+### Connection Pool Setup with HikariCP
+
+
+```java
+import com.zaxxer.hikari.HikariConfig;
+import com.zaxxer.hikari.HikariDataSource;
+import java.sql.Connection;
+import java.sql.SQLException;
+
+public class TestConnectionPool {
+    private static HikariDataSource dataSource;
+
+    static {
+        HikariConfig config = new HikariConfig();
+        config.setJdbcUrl(System.getProperty("test.db.url",
+            "jdbc:postgresql://localhost:5432/staynest_test"));
+        config.setUsername(System.getProperty("test.db.user", "test_user"));
+        config.setPassword(System.getProperty("test.db.pass", "test_pass"));
+        config.setMaximumPoolSize(5);       // Enough for parallel tests
+        config.setMinimumIdle(1);            // Keep 1 connection warm
+        config.setConnectionTimeout(5000);   // Fail fast if DB unreachable
+        dataSource = new HikariDataSource(config);
+    }
+
+    public static Connection getConnection() throws SQLException {
+        return dataSource.getConnection();
+    }
+
+    public static void shutdown() {
+        if (dataSource != null) dataSource.close();
+    }
+}
+```
+
+### Complete API + DB Integration Test — StayNest Room Booking
+
+
+```java
+import io.restassured.response.Response;
+import org.testng.annotations.*;
+import java.sql.*;
+import java.time.LocalDate;
+import static io.restassured.RestAssured.*;
+import static org.testng.Assert.*;
+
+public class BookingIntegrationTest {
+
+    private long createdBookingId;
+    private final String guestToken = AuthFactory.guest().getAuthHeader();
+
+    @Test
+    public void fullBookingLifecycle_apiAndDbVerification() throws SQLException {
+        // ─── STEP 1: Create booking via API ───
+        String bookingBody = BookingBuilder.aBooking()
+            .withRoomId(1L)
+            .withCheckIn("2025-09-01")
+            .withCheckOut("2025-09-05")
+            .withGuests(2)
+            .buildJson();
+
+        Response createResponse = given()
+            .contentType("application/json")
+            .header("Authorization", guestToken)
+            .body(bookingBody)
+        .when()
+            .post("/bookings")
+        .then()
+            .statusCode(201)
+            .extract().response();
+
+        createdBookingId = createResponse.jsonPath().getLong("data.id");
+        String apiStatus = createResponse.jsonPath().getString("data.status");
+
+        // ─── STEP 2: Verify API response ───
+        assertEquals(apiStatus, "CONFIRMED", "API should return CONFIRMED status");
+
+        // ─── STEP 3: Verify DB state matches API ───
+        try (Connection conn = TestConnectionPool.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(
+                 "SELECT status, check_in_date, check_out_date, number_of_guests, room_id " +
+                 "FROM bookings WHERE id = ?")) {
+            stmt.setLong(1, createdBookingId);
+            ResultSet rs = stmt.executeQuery();
+
+            assertTrue(rs.next(), "Booking must exist in database");
+            assertEquals(rs.getString("status"), "CONFIRMED");
+            assertEquals(rs.getDate("check_in_date").toLocalDate(), LocalDate.of(2025, 9, 1));
+            assertEquals(rs.getDate("check_out_date").toLocalDate(), LocalDate.of(2025, 9, 5));
+            assertEquals(rs.getInt("number_of_guests"), 2);
+            assertEquals(rs.getLong("room_id"), 1L);
+        }
+
+        // ─── STEP 4: Cancel and verify state transition ───
+        given().header("Authorization", guestToken)
+        .when().patch("/bookings/" + createdBookingId + "/cancel")
+        .then().statusCode(200);
+
+        try (Connection conn = TestConnectionPool.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(
+                 "SELECT status FROM bookings WHERE id = ?")) {
+            stmt.setLong(1, createdBookingId);
+            ResultSet rs = stmt.executeQuery();
+            assertTrue(rs.next(), "Cancelled booking should still exist (soft delete)");
+            assertEquals(rs.getString("status"), "CANCELLED");
+        }
+    }
+
+    @AfterMethod
+    public void cleanup() throws SQLException {
+        if (createdBookingId > 0) {
+            try (Connection conn = TestConnectionPool.getConnection();
+                 PreparedStatement stmt = conn.prepareStatement(
+                     "DELETE FROM bookings WHERE id = ?")) {
+                stmt.setLong(1, createdBookingId);
+                stmt.executeUpdate();
+            }
+        }
+    }
+
+    @AfterSuite
+    public void teardownPool() {
+        TestConnectionPool.shutdown();
+    }
+}
+```
+
+### Reusable DB Assertion Helper
+
+
+```java
+public class DbAssertions {
+
+    public static void assertRowExists(String table, String whereColumn, Object whereValue)
+            throws SQLException {
+        String sql = "SELECT COUNT(*) FROM " + table + " WHERE " + whereColumn + " = ?";
+        try (Connection conn = TestConnectionPool.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setObject(1, whereValue);
+            ResultSet rs = stmt.executeQuery();
+            rs.next();
+            assertTrue(rs.getInt(1) > 0,
+                "Expected row in " + table + " where " + whereColumn + " = " + whereValue);
+        }
+    }
+
+    public static void assertRowNotExists(String table, String whereColumn, Object whereValue)
+            throws SQLException {
+        String sql = "SELECT COUNT(*) FROM " + table + " WHERE " + whereColumn + " = ?";
+        try (Connection conn = TestConnectionPool.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setObject(1, whereValue);
+            ResultSet rs = stmt.executeQuery();
+            rs.next();
+            assertEquals(rs.getInt(1), 0,
+                "Expected NO row in " + table + " where " + whereColumn + " = " + whereValue);
+        }
+    }
+
+    public static String assertFieldEquals(String table, String selectColumn,
+            String whereColumn, Object whereValue, Object expectedValue) throws SQLException {
+        String sql = "SELECT " + selectColumn + " FROM " + table + " WHERE " + whereColumn + " = ?";
+        try (Connection conn = TestConnectionPool.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setObject(1, whereValue);
+            ResultSet rs = stmt.executeQuery();
+            assertTrue(rs.next(), "Row not found");
+            String actual = rs.getString(selectColumn);
+            assertEquals(actual, expectedValue.toString());
+            return actual;
+        }
+    }
+}
+```
+
+---
+
+## Failure and Debugging (Layer 4)
+
+### Failure 1: DB Read Returns Stale Data (Read Replica Lag)
+
+**The Problem:** API returns `201`, but the immediate DB `SELECT` finds no row. Running the test again 2 seconds later, the row appears.
+
+**Root cause:** The test reads from a read replica that hasn't received the write yet. Common with primary-replica PostgreSQL setups.
+
+**The fix:** Query the primary database in tests, or add a brief polling wait:
+
+
+```java
+// Polling approach: wait up to 2 seconds for the row to appear
+Awaitility.await().atMost(2, TimeUnit.SECONDS).pollInterval(200, TimeUnit.MILLISECONDS)
+    .untilAsserted(() -> {
+        Map<String, Object> row = BookingDbQueries.findBookingById(bookingId);
+        assertFalse(row.isEmpty(), "Booking should appear in DB");
+    });
+```
+
+### Failure 2: Connection Pool Exhausted
+
+**The Problem:** After ~5 tests, new tests hang or fail with `Connection is not available, request timed out`.
+
+**Root cause:** Connections are borrowed from the pool but never returned. Missing `try-with-resources` or `close()` calls.
+
+**The fix:** Always use try-with-resources for connections and statements:
+
+
+```java
+// Bad: connection leak
+Connection conn = TestConnectionPool.getConnection();
+PreparedStatement stmt = conn.prepareStatement(sql);
+// If an exception occurs, conn is never returned to pool
+
+// Good: auto-closed, always returned to pool
+try (Connection conn = TestConnectionPool.getConnection();
+     PreparedStatement stmt = conn.prepareStatement(sql)) {
+    // use stmt
+} // conn.close() returns it to pool
+```
+
+---
+
+## Engineering Judgment (Layer 5)
+
+### How Much DB Verification Is Enough?
+
+| Level | What You Verify | When to Use |
+|-------|----------------|-------------|
+| **Existence only** | `SELECT COUNT(*) ... > 0` | Low-risk operations, smoke tests |
+| **Key fields** | Status, amount, foreign keys | Most integration tests |
+| **Full row** | Every column matches expected values | Financial, regulatory, audit-critical flows |
+| **Multi-table** | Parent + child + junction tables | Cascade operations, complex transactions |
+
+**Guideline:** Verify the fields that carry business meaning. Don't assert on `created_at` timestamps (they'll differ by milliseconds) or auto-generated IDs (they're unpredictable). Focus on status, amounts, relationships, and business-critical flags.
+
+---
+
+## Interview and Revision (Layer 6)
+
+
+
+
+| # | Front | Back |
+|---|-------|------|
+| 1 | Why verify both API response and DB state? | API can return success while DB write fails (transaction rollback after response). DB can be correct while API serializes wrong (ORM mapping bug). Both layers catch different bugs |
+| 2 | Why use connection pooling in test suites? | Opening a JDBC connection takes 50-200ms. Pooling reuses connections, saving 10-40 seconds in a 200-test suite and preventing connection exhaustion |
+| 3 | What causes "connection pool exhausted" errors? | Connections borrowed but never returned — missing try-with-resources or close() calls. Each leaked connection is one fewer available in the pool |
+| 4 | How do you handle read replica lag in DB verification? | Either query the primary directly, or use polling (Awaitility) to wait for the row to appear with a reasonable timeout |
+| 5 | Should you verify every DB column in integration tests? | No. Verify business-critical fields (status, amounts, FK relationships). Skip auto-generated timestamps and IDs that don't carry business meaning |
+
+### Mastery Checklist
+
+- [ ] Can implement the full pattern: API call → response verification → DB verification → cleanup
+- [ ] Can configure HikariCP connection pooling for test suites
+- [ ] Can write reusable DB assertion helpers (assertRowExists, assertFieldEquals)
+- [ ] Can diagnose replica lag and connection pool exhaustion issues
+- [ ] Can judge which flows warrant DB-level verification and which can trust the API alone
+
+---
+
+**Next:** External Service Mocking | **Related:** Database Testing Patterns
+
+*Last updated: *

@@ -1,0 +1,991 @@
+---
+title: "Coding Exercises for SDET Interviews"
+description: "These are NOT pure algorithm problems. They are practical coding tasks that test whether you can write production-quality utility code for test automation. Each problem includes: problem statement, constraints, hints, solution with explanation, and complexity analysis. Code is marked `` — validate in your IDE."
+summary: "SDET Engineering guide: Coding Exercises for SDET Interviews"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "interview-preparation"
+lesson: "coding-exercises-practice-problems"
+difficulty: "intermediate"
+estimatedMinutes: 64
+prerequisites: []
+tags: ["SDET", "Interview", "Preparation"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "lab"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/interview-preparation/coding-exercises-practice-problems"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Coding Exercises for SDET Interviews
+
+> **Module:** 13 — Interview Preparation
+> **Focus:** 10 automation-related coding exercises commonly given in SDET interviews
+> **Audience:** SDET with ~3 years experience targeting senior roles
+> **Complements:** Fastenal-Prep covers pure DSA coding problems; this file focuses on practical automation-adjacent coding that SDETs are actually asked to implement
+
+---
+
+## How to Use This File
+
+These are NOT pure algorithm problems. They are practical coding tasks that test whether you can write production-quality utility code for test automation. Each problem includes: problem statement, constraints, hints, solution with explanation, and complexity analysis. Code is marked `` — validate in your IDE.
+
+**Interview tip:** For each problem, explain your approach before coding. Mention edge cases. Write clean, readable code over clever code.
+
+---
+
+## Problem 1: Parse a JSON Response and Extract Nested Values
+
+**Problem Statement:** Write a method that takes a JSON string and a dot-notation path (e.g., `"data.users[0].name"`) and returns the value at that path. Handle objects, arrays, and missing paths.
+
+**Constraints:**
+- Use standard Java libraries (org.json, Jackson, or Gson)
+- Return `null` for non-existent paths (don't throw exceptions)
+- Support array index notation: `users[0]`, `addresses[2]`
+
+**Hints:**
+- Split the path by `.`
+- For each segment, check if it contains `[index]`
+- Navigate the JSON tree step by step
+
+**Solution:**
+
+```java
+<!-- unverified -->
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+public class JsonPathExtractor {
+    private static final ObjectMapper mapper = new ObjectMapper();
+    
+    public static String extractValue(String json, String path) {
+        try {
+            JsonNode node = mapper.readTree(json);
+            String[] segments = path.split("\\.");
+            
+            for (String segment : segments) {
+                if (node == null || node.isMissingNode()) return null;
+                
+                // Check for array notation: "users[0]"
+                if (segment.contains("[")) {
+                    String fieldName = segment.substring(0, segment.indexOf('['));
+                    int index = Integer.parseInt(
+                        segment.substring(segment.indexOf('[') + 1, segment.indexOf(']'))
+                    );
+                    
+                    node = node.get(fieldName);
+                    if (node == null || !node.isArray() || index >= node.size()) return null;
+                    node = node.get(index);
+                } else {
+                    node = node.get(segment);
+                }
+            }
+            
+            return node != null ? node.asText() : null;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+}
+
+// Test cases:
+// JSON: {"data": {"users": [{"name": "John", "age": 30}, {"name": "Jane"}]}}
+// extractValue(json, "data.users[0].name")  => "John"
+// extractValue(json, "data.users[1].name")  => "Jane"
+// extractValue(json, "data.users[0].age")   => "30"
+// extractValue(json, "data.users[5].name")  => null (out of bounds)
+// extractValue(json, "data.missing.path")   => null
+// extractValue(json, "data.users")          => "[{\"name\":\"John\"...}]" (array as string)
+```
+
+**Complexity:** O(p) where p is the number of path segments. JSON parsing is O(n) for input length n.
+
+**Follow-up:** How would you handle wildcard paths like `data.users[*].name` that return all matching values?
+
+---
+
+## Problem 2: Write a Retry Mechanism with Exponential Backoff
+
+**Problem Statement:** Implement a generic retry method that retries a given operation with exponential backoff. It should accept the operation, max retries, initial delay, and a list of retryable exceptions.
+
+**Constraints:**
+- Generic return type (works with any operation)
+- Exponential backoff: delay doubles each retry (100ms, 200ms, 400ms, 800ms...)
+- Add jitter (random variation) to prevent thundering herd
+- Only retry on specified exception types
+
+**Solution:**
+
+```java
+<!-- unverified -->
+import java.util.List;
+import java.util.Random;
+import java.util.concurrent.Callable;
+
+public class RetryExecutor {
+    private static final Random random = new Random();
+    
+    public static <T> T executeWithRetry(
+            Callable<T> operation,
+            int maxRetries,
+            long initialDelayMs,
+            List<Class<? extends Exception>> retryableExceptions) throws Exception {
+        
+        Exception lastException = null;
+        
+        for (int attempt = 0; attempt <= maxRetries; attempt++) {
+            try {
+                return operation.call();
+            } catch (Exception e) {
+                lastException = e;
+                
+                // Check if exception is retryable
+                boolean isRetryable = retryableExceptions.stream()
+                    .anyMatch(ex -> ex.isInstance(e));
+                
+                if (!isRetryable || attempt == maxRetries) {
+                    throw e;
+                }
+                
+                // Exponential backoff with jitter
+                long delay = initialDelayMs * (1L << attempt); // 2^attempt * initialDelay
+                long jitter = (long) (delay * 0.3 * random.nextDouble()); // 0-30% jitter
+                long totalDelay = delay + jitter;
+                
+                System.out.printf("Attempt %d failed (%s). Retrying in %dms...%n",
+                    attempt + 1, e.getMessage(), totalDelay);
+                
+                Thread.sleep(totalDelay);
+            }
+        }
+        
+        throw lastException; // Should never reach here
+    }
+}
+
+// Usage in test automation:
+// Retry API call that might fail due to service startup
+// ApiResponse response = RetryExecutor.executeWithRetry(
+//     () -> apiClient.healthCheck(),
+//     3,                           // max 3 retries
+//     1000,                        // start with 1 second delay
+//     List.of(ConnectException.class, SocketTimeoutException.class)
+// );
+
+// Usage with Selenium:
+// WebElement element = RetryExecutor.executeWithRetry(
+//     () -> driver.findElement(By.id("dynamic-element")),
+//     2,
+//     500,
+//     List.of(StaleElementReferenceException.class, NoSuchElementException.class)
+// );
+```
+
+**Complexity:** O(n) where n is the number of retries. Total wait time: O(2^n * initialDelay).
+
+**Key design decisions:**
+- Callable`<T>` makes it generic — works with any return type
+- Jitter prevents multiple threads from retrying at exactly the same time
+- Only specific exceptions trigger retry — unexpected exceptions fail immediately
+- Logging each retry helps debugging in CI
+
+---
+
+## Problem 3: Implement a Simple Test Data Builder
+
+**Problem Statement:** Implement a Builder pattern for a `Booking` object with sensible defaults. Each call should produce a unique, valid booking without specifying all fields.
+
+**Constraints:**
+- Default values for all fields
+- Fluent API (method chaining)
+- Unique identifiers per instance
+- `build()` method returns an immutable object
+
+**Solution:**
+
+```java
+<!-- unverified -->
+import java.time.LocalDate;
+import java.util.UUID;
+
+public class BookingBuilder {
+    private String guestFirstName = "Test";
+    private String guestLastName = "User";
+    private String guestEmail = "test-" + UUID.randomUUID().toString().substring(0, 8) + "@test.com";
+    private LocalDate checkIn = LocalDate.now().plusDays(1);
+    private LocalDate checkOut = LocalDate.now().plusDays(3);
+    private int roomId = 1;
+    private String roomType = "STANDARD";
+    private double totalPrice = 150.00;
+    private String status = "PENDING";
+    
+    // Private constructor — use static factory methods
+    private BookingBuilder() {}
+    
+    public static BookingBuilder aBooking() {
+        return new BookingBuilder();
+    }
+    
+    public static BookingBuilder aMinimalBooking() {
+        return new BookingBuilder()
+            .withRoomType("STANDARD")
+            .withTotalPrice(100.00);
+    }
+    
+    public static BookingBuilder aLuxuryBooking() {
+        return new BookingBuilder()
+            .withRoomType("SUITE")
+            .withTotalPrice(500.00)
+            .withCheckOut(LocalDate.now().plusDays(7));
+    }
+    
+    public BookingBuilder withGuestName(String firstName, String lastName) {
+        this.guestFirstName = firstName;
+        this.guestLastName = lastName;
+        return this;
+    }
+    
+    public BookingBuilder withGuestEmail(String email) {
+        this.guestEmail = email;
+        return this;
+    }
+    
+    public BookingBuilder withCheckIn(LocalDate checkIn) {
+        this.checkIn = checkIn;
+        return this;
+    }
+    
+    public BookingBuilder withCheckOut(LocalDate checkOut) {
+        this.checkOut = checkOut;
+        return this;
+    }
+    
+    public BookingBuilder withRoomId(int roomId) {
+        this.roomId = roomId;
+        return this;
+    }
+    
+    public BookingBuilder withRoomType(String roomType) {
+        this.roomType = roomType;
+        return this;
+    }
+    
+    public BookingBuilder withTotalPrice(double totalPrice) {
+        this.totalPrice = totalPrice;
+        return this;
+    }
+    
+    public BookingBuilder withStatus(String status) {
+        this.status = status;
+        return this;
+    }
+    
+    public Booking build() {
+        // Validation
+        if (checkOut.isBefore(checkIn) || checkOut.isEqual(checkIn)) {
+            throw new IllegalStateException("checkOut must be after checkIn");
+        }
+        if (totalPrice < 0) {
+            throw new IllegalStateException("totalPrice cannot be negative");
+        }
+        
+        return new Booking(
+            guestFirstName, guestLastName, guestEmail,
+            checkIn, checkOut, roomId, roomType, totalPrice, status
+        );
+    }
+}
+
+// Usage:
+// Booking b1 = BookingBuilder.aBooking().build();                     // Unique defaults
+// Booking b2 = BookingBuilder.aBooking().withGuestName("John", "Doe").build(); // Custom name
+// Booking b3 = BookingBuilder.aLuxuryBooking().build();               // Preset for luxury
+```
+
+**Complexity:** O(1) for building. UUID generation is effectively O(1).
+
+**Why this pattern matters:** Every test creates unique data without specifying 10 fields. The `aMinimalBooking()` and `aLuxuryBooking()` presets reduce boilerplate further.
+
+---
+
+## Problem 4: Compare Two API Responses Ignoring Dynamic Fields
+
+**Problem Statement:** Write a method that compares two JSON responses, ignoring specified fields (like `timestamp`, `id`, `createdAt`). Return a list of differences.
+
+**Solution:**
+
+```java
+<!-- unverified -->
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import java.util.*;
+
+public class JsonComparator {
+    private static final ObjectMapper mapper = new ObjectMapper();
+    
+    public static List<String> compare(String json1, String json2, Set<String> ignoreFields) {
+        try {
+            JsonNode node1 = mapper.readTree(json1);
+            JsonNode node2 = mapper.readTree(json2);
+            
+            List<String> differences = new ArrayList<>();
+            compareNodes(node1, node2, "", ignoreFields, differences);
+            return differences;
+        } catch (Exception e) {
+            return List.of("Error parsing JSON: " + e.getMessage());
+        }
+    }
+    
+    private static void compareNodes(JsonNode node1, JsonNode node2, String path,
+                                     Set<String> ignoreFields, List<String> differences) {
+        if (node1 == null && node2 == null) return;
+        if (node1 == null || node2 == null) {
+            differences.add(String.format("Path '%s': one side is null", path));
+            return;
+        }
+        
+        if (node1.isObject() && node2.isObject()) {
+            // Collect all field names from both
+            Set<String> allFields = new HashSet<>();
+            node1.fieldNames().forEachRemaining(allFields::add);
+            node2.fieldNames().forEachRemaining(allFields::add);
+            
+            for (String field : allFields) {
+                if (ignoreFields.contains(field)) continue;
+                
+                String childPath = path.isEmpty() ? field : path + "." + field;
+                compareNodes(node1.get(field), node2.get(field), childPath, 
+                            ignoreFields, differences);
+            }
+        } else if (node1.isArray() && node2.isArray()) {
+            if (node1.size() != node2.size()) {
+                differences.add(String.format("Path '%s': array sizes differ (%d vs %d)", 
+                    path, node1.size(), node2.size()));
+                return;
+            }
+            for (int i = 0; i < node1.size(); i++) {
+                compareNodes(node1.get(i), node2.get(i), path + "[" + i + "]",
+                            ignoreFields, differences);
+            }
+        } else if (!node1.equals(node2)) {
+            differences.add(String.format("Path '%s': '%s' != '%s'", 
+                path, node1.asText(), node2.asText()));
+        }
+    }
+}
+
+// Usage:
+// List<String> diffs = JsonComparator.compare(response1, response2, 
+//     Set.of("id", "createdAt", "updatedAt", "timestamp"));
+// assertThat(diffs).isEmpty();
+//
+// If differences exist:
+// diffs = ["Path 'guestName': 'John' != 'Jane'", "Path 'totalPrice': '150' != '200'"]
+```
+
+**Complexity:** O(n) where n is the total number of nodes in the JSON tree.
+
+**Follow-up:** How would you handle unordered arrays (where element order doesn't matter)?
+
+---
+
+## Problem 5: Implement a Thread-Safe Singleton (DriverManager)
+
+**Problem Statement:** Implement a thread-safe singleton DriverManager using the double-checked locking pattern. Then explain why `enum` or `Holder` pattern is better.
+
+**Solution:**
+
+```java
+<!-- unverified -->
+// Approach 1: Double-Checked Locking (interview classic)
+public class DriverManager {
+    private static volatile DriverManager instance;
+    private final Map<Long, WebDriver> driverMap = new ConcurrentHashMap<>();
+    
+    private DriverManager() {
+        // Private constructor prevents instantiation
+    }
+    
+    public static DriverManager getInstance() {
+        if (instance == null) {                    // First check (no lock)
+            synchronized (DriverManager.class) {
+                if (instance == null) {            // Second check (with lock)
+                    instance = new DriverManager();
+                }
+            }
+        }
+        return instance;
+    }
+    
+    public WebDriver getDriver() {
+        long threadId = Thread.currentThread().getId();
+        return driverMap.get(threadId);
+    }
+    
+    public void setDriver(WebDriver driver) {
+        long threadId = Thread.currentThread().getId();
+        driverMap.put(threadId, driver);
+    }
+    
+    public void quitDriver() {
+        long threadId = Thread.currentThread().getId();
+        WebDriver driver = driverMap.remove(threadId);
+        if (driver != null) {
+            driver.quit();
+        }
+    }
+}
+
+// Approach 2: Initialization-on-Demand Holder (better)
+public class DriverManagerHolder {
+    private DriverManagerHolder() {}
+    
+    private static class Holder {
+        private static final DriverManagerHolder INSTANCE = new DriverManagerHolder();
+    }
+    
+    public static DriverManagerHolder getInstance() {
+        return Holder.INSTANCE;
+    }
+    // ... same driver management methods
+}
+
+// Approach 3: Enum Singleton (simplest, recommended by Joshua Bloch)
+public enum DriverManagerEnum {
+    INSTANCE;
+    
+    private final Map<Long, WebDriver> driverMap = new ConcurrentHashMap<>();
+    
+    public WebDriver getDriver() {
+        return driverMap.get(Thread.currentThread().getId());
+    }
+    
+    public void setDriver(WebDriver driver) {
+        driverMap.put(Thread.currentThread().getId(), driver);
+    }
+    
+    public void quitDriver() {
+        long threadId = Thread.currentThread().getId();
+        WebDriver driver = driverMap.remove(threadId);
+        if (driver != null) driver.quit();
+    }
+}
+// Usage: DriverManagerEnum.INSTANCE.getDriver();
+```
+
+**Why `volatile` is required in Approach 1:** Without `volatile`, Thread B might see a partially constructed `instance` — the reference is assigned before the constructor finishes due to instruction reordering.
+
+**Complexity:** O(1) for all operations after initialization.
+
+---
+
+## Problem 6: Parse CSV Test Data and Return as List`<Map>`
+
+**Problem Statement:** Write a method that reads a CSV file and returns each row as a `Map<String, String>` where keys are column headers.
+
+**Solution:**
+
+```java
+<!-- unverified -->
+import java.io.*;
+import java.util.*;
+import java.util.stream.*;
+
+public class CsvReader {
+    
+    public static List<Map<String, String>> read(String filePath) throws IOException {
+        List<Map<String, String>> result = new ArrayList<>();
+        
+        try (BufferedReader reader = new BufferedReader(new FileReader(filePath))) {
+            String headerLine = reader.readLine();
+            if (headerLine == null) return result;
+            
+            String[] headers = parseLine(headerLine);
+            
+            String line;
+            while ((line = reader.readLine()) != null) {
+                if (line.trim().isEmpty()) continue; // Skip empty lines
+                
+                String[] values = parseLine(line);
+                Map<String, String> row = new LinkedHashMap<>(); // Preserves insertion order
+                
+                for (int i = 0; i < headers.length; i++) {
+                    String value = i < values.length ? values[i].trim() : "";
+                    row.put(headers[i].trim(), value);
+                }
+                
+                result.add(row);
+            }
+        }
+        
+        return result;
+    }
+    
+    private static String[] parseLine(String line) {
+        // Simple CSV parsing — handles quoted fields with commas
+        List<String> fields = new ArrayList<>();
+        StringBuilder current = new StringBuilder();
+        boolean inQuotes = false;
+        
+        for (char c : line.toCharArray()) {
+            if (c == '"') {
+                inQuotes = !inQuotes;
+            } else if (c == ',' && !inQuotes) {
+                fields.add(current.toString());
+                current = new StringBuilder();
+            } else {
+                current.append(c);
+            }
+        }
+        fields.add(current.toString());
+        
+        return fields.toArray(new String[0]);
+    }
+}
+
+// CSV file:
+// username,password,expected_result
+// admin@test.com,Admin123!,true
+// user@test.com,wrong,false
+// "",Admin123!,false
+//
+// Result:
+// [
+//   {"username": "admin@test.com", "password": "Admin123!", "expected_result": "true"},
+//   {"username": "user@test.com", "password": "wrong", "expected_result": "false"},
+//   {"username": "", "password": "Admin123!", "expected_result": "false"}
+// ]
+
+// Integration with TestNG DataProvider:
+// @DataProvider
+// public Iterator<Object[]> csvData() throws IOException {
+//     return CsvReader.read("testdata/login.csv").stream()
+//         .map(row -> new Object[]{row})
+//         .iterator();
+// }
+```
+
+**Complexity:** O(n * m) where n is the number of rows and m is the average row length.
+
+**Follow-up:** How would you handle different data types (converting "true" to boolean, "150.00" to BigDecimal)?
+
+---
+
+## Problem 7: Write a Custom TestNG Listener That Captures Screenshots
+
+**Problem Statement:** Implement a TestNG listener that automatically captures a screenshot when a test fails and attaches it to the Allure report.
+
+**Solution:**
+
+```java
+<!-- unverified -->
+import io.qameta.allure.Allure;
+import org.openqa.selenium.OutputType;
+import org.openqa.selenium.TakesScreenshot;
+import org.openqa.selenium.WebDriver;
+import org.testng.ITestListener;
+import org.testng.ITestResult;
+
+import java.io.ByteArrayInputStream;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+
+public class TestListener implements ITestListener {
+    
+    @Override
+    public void onTestStart(ITestResult result) {
+        String testName = result.getMethod().getMethodName();
+        Allure.step("Starting test: " + testName);
+        System.out.printf("[%s] STARTED: %s%n", timestamp(), testName);
+    }
+    
+    @Override
+    public void onTestSuccess(ITestResult result) {
+        long duration = result.getEndMillis() - result.getStartMillis();
+        System.out.printf("[%s] PASSED: %s (%dms)%n", 
+            timestamp(), result.getMethod().getMethodName(), duration);
+    }
+    
+    @Override
+    public void onTestFailure(ITestResult result) {
+        String testName = result.getMethod().getMethodName();
+        long duration = result.getEndMillis() - result.getStartMillis();
+        
+        System.out.printf("[%s] FAILED: %s (%dms) — %s%n",
+            timestamp(), testName, duration, result.getThrowable().getMessage());
+        
+        // Capture screenshot
+        captureScreenshot(testName);
+        
+        // Attach failure details to Allure
+        Allure.addAttachment("Failure Stack Trace", 
+            "text/plain", getStackTrace(result.getThrowable()));
+    }
+    
+    @Override
+    public void onTestSkipped(ITestResult result) {
+        System.out.printf("[%s] SKIPPED: %s%n", 
+            timestamp(), result.getMethod().getMethodName());
+    }
+    
+    private void captureScreenshot(String testName) {
+        try {
+            WebDriver driver = DriverFactory.getDriver();
+            if (driver instanceof TakesScreenshot) {
+                byte[] screenshot = ((TakesScreenshot) driver)
+                    .getScreenshotAs(OutputType.BYTES);
+                
+                Allure.addAttachment(
+                    testName + "_failure_" + timestamp(),
+                    "image/png",
+                    new ByteArrayInputStream(screenshot),
+                    ".png"
+                );
+            }
+        } catch (Exception e) {
+            System.err.println("Failed to capture screenshot: " + e.getMessage());
+        }
+    }
+    
+    private String getStackTrace(Throwable t) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(t.toString()).append("\n");
+        for (StackTraceElement element : t.getStackTrace()) {
+            sb.append("\tat ").append(element.toString()).append("\n");
+        }
+        return sb.toString();
+    }
+    
+    private String timestamp() {
+        return new SimpleDateFormat("HH:mm:ss.SSS").format(new Date());
+    }
+}
+
+// Register in testng.xml:
+// <listeners>
+//     <listener class-name="com.framework.listeners.TestListener"/>
+// </listeners>
+//
+// Or via annotation:
+// @Listeners(TestListener.class)
+// public class BaseTest { }
+```
+
+**Complexity:** O(1) per test event (screenshot capture is I/O bound, not CPU bound).
+
+---
+
+## Problem 8: Implement a Simple Fluent Assertion Library
+
+**Problem Statement:** Create a fluent assertion class for API response validation that reads naturally.
+
+**Solution:**
+
+```java
+<!-- unverified -->
+public class ApiAssert {
+    private final int statusCode;
+    private final String body;
+    private final Map<String, String> headers;
+    private final long responseTime;
+    
+    private ApiAssert(int statusCode, String body, Map<String, String> headers, long responseTime) {
+        this.statusCode = statusCode;
+        this.body = body;
+        this.headers = headers;
+        this.responseTime = responseTime;
+    }
+    
+    public static ApiAssert assertResponse(ApiResponse response) {
+        return new ApiAssert(
+            response.getStatusCode(),
+            response.getBody(),
+            response.getHeaders(),
+            response.getResponseTime()
+        );
+    }
+    
+    public ApiAssert hasStatus(int expected) {
+        if (statusCode != expected) {
+            throw new AssertionError(String.format(
+                "Expected status %d but got %d. Body: %s", expected, statusCode, body));
+        }
+        return this;
+    }
+    
+    public ApiAssert bodyContains(String expected) {
+        if (!body.contains(expected)) {
+            throw new AssertionError(String.format(
+                "Expected body to contain '%s'. Actual body: %s", expected, body));
+        }
+        return this;
+    }
+    
+    public ApiAssert bodyFieldEquals(String jsonPath, Object expected) {
+        String actual = JsonPathExtractor.extractValue(body, jsonPath);
+        if (!String.valueOf(expected).equals(actual)) {
+            throw new AssertionError(String.format(
+                "Expected '%s' = '%s' but got '%s'", jsonPath, expected, actual));
+        }
+        return this;
+    }
+    
+    public ApiAssert hasHeader(String name, String value) {
+        String actual = headers.get(name);
+        if (!value.equals(actual)) {
+            throw new AssertionError(String.format(
+                "Expected header '%s' = '%s' but got '%s'", name, value, actual));
+        }
+        return this;
+    }
+    
+    public ApiAssert responseTimeBelow(long maxMs) {
+        if (responseTime > maxMs) {
+            throw new AssertionError(String.format(
+                "Response time %dms exceeded maximum %dms", responseTime, maxMs));
+        }
+        return this;
+    }
+    
+    public ApiAssert bodyMatchesSchema(String schemaPath) {
+        // Delegate to JSON Schema validation
+        boolean valid = SchemaValidator.validate(body, schemaPath);
+        if (!valid) {
+            throw new AssertionError("Response body does not match schema: " + schemaPath);
+        }
+        return this;
+    }
+}
+
+// Usage — reads like English:
+// assertResponse(apiClient.getBooking(1))
+//     .hasStatus(200)
+//     .bodyFieldEquals("guestName", "John Doe")
+//     .bodyFieldEquals("status", "CONFIRMED")
+//     .hasHeader("Content-Type", "application/json")
+//     .responseTimeBelow(2000)
+//     .bodyMatchesSchema("schemas/booking.json");
+```
+
+**Complexity:** O(1) per assertion. JSON path extraction is O(p) per field assertion.
+
+**Design insight:** Error messages include actual values — this is critical for debugging failures in CI logs.
+
+---
+
+## Problem 9: Write a Method to Validate JSON Against a Schema
+
+**Problem Statement:** Implement a simple JSON schema validator that checks required fields, types, and enum values.
+
+**Solution:**
+
+```java
+<!-- unverified -->
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.*;
+
+public class SimpleSchemaValidator {
+    private static final ObjectMapper mapper = new ObjectMapper();
+    
+    public static ValidationResult validate(String json, String schema) {
+        try {
+            JsonNode dataNode = mapper.readTree(json);
+            JsonNode schemaNode = mapper.readTree(schema);
+            
+            List<String> errors = new ArrayList<>();
+            validateNode(dataNode, schemaNode, "", errors);
+            
+            return new ValidationResult(errors.isEmpty(), errors);
+        } catch (Exception e) {
+            return new ValidationResult(false, List.of("Parse error: " + e.getMessage()));
+        }
+    }
+    
+    private static void validateNode(JsonNode data, JsonNode schema, String path,
+                                     List<String> errors) {
+        // Check required fields
+        if (schema.has("required")) {
+            for (JsonNode required : schema.get("required")) {
+                String field = required.asText();
+                if (!data.has(field) || data.get(field).isNull()) {
+                    errors.add(String.format("Missing required field: %s%s", 
+                        path, field));
+                }
+            }
+        }
+        
+        // Check properties
+        if (schema.has("properties")) {
+            Iterator<Map.Entry<String, JsonNode>> fields = schema.get("properties").fields();
+            while (fields.hasNext()) {
+                Map.Entry<String, JsonNode> prop = fields.next();
+                String fieldName = prop.getKey();
+                JsonNode fieldSchema = prop.getValue();
+                JsonNode fieldData = data.get(fieldName);
+                
+                if (fieldData == null || fieldData.isNull()) continue; // Not required
+                
+                String fieldPath = path.isEmpty() ? fieldName + "." : path + fieldName + ".";
+                
+                // Type check
+                if (fieldSchema.has("type")) {
+                    String expectedType = fieldSchema.get("type").asText();
+                    if (!matchesType(fieldData, expectedType)) {
+                        errors.add(String.format("Field '%s%s': expected type '%s', got '%s'",
+                            path, fieldName, expectedType, fieldData.getNodeType()));
+                    }
+                }
+                
+                // Enum check
+                if (fieldSchema.has("enum")) {
+                    List<String> allowed = new ArrayList<>();
+                    fieldSchema.get("enum").forEach(v -> allowed.add(v.asText()));
+                    if (!allowed.contains(fieldData.asText())) {
+                        errors.add(String.format("Field '%s%s': value '%s' not in enum %s",
+                            path, fieldName, fieldData.asText(), allowed));
+                    }
+                }
+                
+                // Recurse for nested objects
+                if (fieldSchema.has("properties") && fieldData.isObject()) {
+                    validateNode(fieldData, fieldSchema, fieldPath, errors);
+                }
+            }
+        }
+    }
+    
+    private static boolean matchesType(JsonNode node, String expectedType) {
+        return switch (expectedType) {
+            case "string" -> node.isTextual();
+            case "integer" -> node.isInt() || node.isLong();
+            case "number" -> node.isNumber();
+            case "boolean" -> node.isBoolean();
+            case "object" -> node.isObject();
+            case "array" -> node.isArray();
+            default -> true;
+        };
+    }
+    
+    public record ValidationResult(boolean isValid, List<String> errors) {}
+}
+
+// Usage:
+// String schema = """
+//     {"required": ["id", "name"], "properties": {
+//         "id": {"type": "integer"},
+//         "name": {"type": "string"},
+//         "status": {"type": "string", "enum": ["ACTIVE", "INACTIVE"]}
+//     }}""";
+// ValidationResult result = SimpleSchemaValidator.validate(jsonResponse, schema);
+// assertThat(result.isValid()).isTrue();
+// If invalid: result.errors() => ["Missing required field: name", "Field 'status': value 'UNKNOWN' not in enum [ACTIVE, INACTIVE]"]
+```
+
+**Complexity:** O(n * m) where n is the number of schema properties and m is the depth of nesting.
+
+---
+
+## Problem 10: Implement a Simple Rate Limiter for API Calls
+
+**Problem Statement:** Implement a rate limiter that allows at most N requests per time window. Use it to prevent your test framework from overwhelming the API.
+
+**Solution:**
+
+```java
+<!-- unverified -->
+import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.concurrent.TimeUnit;
+
+public class RateLimiter {
+    private final int maxRequests;
+    private final long windowMs;
+    private final ConcurrentLinkedDeque<Long> requestTimestamps = new ConcurrentLinkedDeque<>();
+    
+    public RateLimiter(int maxRequests, long windowDuration, TimeUnit unit) {
+        this.maxRequests = maxRequests;
+        this.windowMs = unit.toMillis(windowDuration);
+    }
+    
+    public synchronized void acquire() throws InterruptedException {
+        while (true) {
+            long now = System.currentTimeMillis();
+            
+            // Remove timestamps outside the window
+            while (!requestTimestamps.isEmpty() && 
+                   now - requestTimestamps.peekFirst() > windowMs) {
+                requestTimestamps.pollFirst();
+            }
+            
+            if (requestTimestamps.size() < maxRequests) {
+                requestTimestamps.addLast(now);
+                return; // Allowed — proceed with request
+            }
+            
+            // Calculate wait time until the oldest request exits the window
+            long oldestTimestamp = requestTimestamps.peekFirst();
+            long waitTime = windowMs - (now - oldestTimestamp) + 1;
+            
+            if (waitTime > 0) {
+                Thread.sleep(waitTime);
+            }
+        }
+    }
+    
+    public boolean tryAcquire() {
+        long now = System.currentTimeMillis();
+        
+        synchronized (this) {
+            while (!requestTimestamps.isEmpty() && 
+                   now - requestTimestamps.peekFirst() > windowMs) {
+                requestTimestamps.pollFirst();
+            }
+            
+            if (requestTimestamps.size() < maxRequests) {
+                requestTimestamps.addLast(now);
+                return true;
+            }
+            return false;
+        }
+    }
+}
+
+// Usage:
+// RateLimiter limiter = new RateLimiter(100, 1, TimeUnit.MINUTES); // 100 req/min
+//
+// // In API client base class
+// public Response get(String path) {
+//     try {
+//         limiter.acquire(); // Blocks until allowed
+//     } catch (InterruptedException e) {
+//         Thread.currentThread().interrupt();
+//         throw new RuntimeException("Rate limiter interrupted", e);
+//     }
+//     return RestAssured.given().get(path);
+// }
+//
+// // Non-blocking version:
+// if (limiter.tryAcquire()) {
+//     makeApiCall();
+// } else {
+//     System.out.println("Rate limit reached — skipping");
+// }
+```
+
+**Complexity:** `acquire()` is O(k) where k is the number of expired timestamps to clean up. Amortized O(1).
+
+**Algorithm:** Sliding window log — store timestamps of each request, remove those outside the window, count remaining. If count &lt; max, allow.
+
+**Follow-up:** What is the difference between this sliding window approach and a token bucket? (Token bucket adds tokens at a fixed rate, allows bursts up to bucket capacity.)
+
+---
+
+**Related:** Java Coding Exercises, Methods And Parameters

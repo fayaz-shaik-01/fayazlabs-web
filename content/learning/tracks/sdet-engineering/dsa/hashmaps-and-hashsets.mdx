@@ -1,0 +1,502 @@
+---
+title: "HashMaps and HashSets"
+description: "What: HashMaps and HashSets are the go-to data structures for O(1) average-time lookup, insertion, and deletion. A HashMap stores key-value pairs; a HashSet stores unique elements."
+summary: "SDET Engineering guide: HashMaps and HashSets"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "dsa"
+lesson: "hashmaps-and-hashsets"
+difficulty: "intermediate"
+estimatedMinutes: 31
+prerequisites: []
+tags: ["SDET", "DSA", "Algorithms"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/dsa/hashmaps-and-hashsets"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# HashMaps and HashSets
+
+> **Module:** 01-programming-foundations / dsa
+> **Prerequisites:** Complexity Analysis, Collections And Generics, Equals And Hashcode
+> **Mastery Target:** L3
+
+---
+
+## Quick Overview (Layer 1)
+
+**What:** HashMaps and HashSets are the go-to data structures for O(1) average-time lookup, insertion, and deletion. A HashMap stores key-value pairs; a HashSet stores unique elements.
+
+**Why:** Deduplicating test users, validating API response fields, counting pass/fail/skip statuses — all become trivial with hash-based structures. In interviews, HashMap is the single most common tool for optimizing brute-force O(n^2) solutions to O(n).
+
+**Where:** Test data deduplication, API response validation, configuration management, frequency counting, duplicate detection, grouping test results, and almost every DSA problem involving "find/count/check existence."
+
+<MentalModel>
+
+Think of a HashMap as a **library card catalog**. You look up the subject (hash the key), it tells you which shelf (bucket) to go to, and you grab the book directly. The cost doesn't depend on how many books exist — always one catalog lookup + one walk to the shelf. A HashSet is the same catalog, but you only care whether a book exists — no value attached.
+
+</MentalModel>
+
+
+<KeyTakeaways>
+
+1. **HashMap is the #1 tool for optimization.** When a brute-force solution uses nested loops to search, a HashMap almost always reduces it to a single pass.
+2. **HashSet is a HashMap without values.** Internally, Java's `HashSet` is backed by a `HashMap` where every value is a dummy object.
+3. **O(1) average, O(n) worst case.** Good hash functions keep operations at O(1). Pathological collisions degrade to O(n) — but Java 8+ mitigates this by converting long bucket chains to balanced trees.
+4. **Insertion order is NOT guaranteed** in `HashMap`/`HashSet`. Use `LinkedHashMap`/`LinkedHashSet` when order matters.
+5. **The `equals()`/`hashCode()` contract is non-negotiable.** If two objects are equal, they must have the same hash code. Breaking this makes objects invisible in hash-based collections.
+
+</KeyTakeaways>
+
+
+---
+
+## Patterns and Internals (Layer 2)
+
+### Pattern 1: Frequency Map — Count Occurrences of Anything
+
+Build a `Map<T, Integer>` where the key is the item and the value is its count.
+
+
+```java
+Map<String, Integer> freq = new HashMap<>();
+for (String item : items) freq.merge(item, 1, Integer::sum);
+// {"apple": 3, "banana": 1, "cherry": 2, ...}
+```
+
+**When to use:** Counting test statuses, character frequencies, error code occurrences, duplicate detection by count.
+
+### Pattern 2: Lookup Table — Instant Existence Check
+
+Build a `HashSet` from one dataset, then query it while iterating another. Turns O(n) searches into O(1).
+
+
+```java
+Set<String> expected = new HashSet<>(List.of("id", "name", "email", "status"));
+for (String field : actualResponseFields) {
+    if (!expected.contains(field)) System.out.println("Unexpected: " + field);
+}
+```
+
+**When to use:** Two Sum, membership checks, validating elements against a reference set.
+
+### Pattern 3: Grouping — Group Items by a Key
+
+Use `computeIfAbsent` to build a `Map<K, List<V>>` grouping items by a property.
+
+
+```java
+Map<String, List<String>> byStatus = new HashMap<>();
+for (TestResult r : results) {
+    byStatus.computeIfAbsent(r.getStatus(), k -> new ArrayList<>()).add(r.getTestName());
+}
+// {"PASS": ["loginTest", "searchTest"], "FAIL": ["checkoutTest"], ...}
+```
+
+**When to use:** Grouping tests by module, errors by category, results by environment.
+
+### Pattern 4: Two-Pass with HashMap — Build Then Query
+
+First pass builds the map. Second pass queries it. Cleaner than single-pass when you need the complete map before any lookups.
+
+
+```java
+// Pass 1: index every element
+Map<Integer, Integer> indexMap = new HashMap<>();
+for (int i = 0; i < nums.length; i++) { indexMap.put(nums[i], i); }
+
+// Pass 2: query for complements
+for (int i = 0; i < nums.length; i++) {
+    int complement = target - nums[i];
+    if (indexMap.containsKey(complement) && indexMap.get(complement) != i) {
+        return new int[]{i, indexMap.get(complement)};
+    }
+}
+```
+
+**When to use:** Finding pairs, mapping relationships, any problem where the full dataset must be indexed first.
+
+### Pattern 5: HashSet for Uniqueness — Duplicates, Intersection, Union
+
+`add()` returns `false` if the element already exists (duplicate detection). Use `retainAll`/`addAll` for intersection/union.
+
+
+```java
+// Detect duplicates
+Set<String> seen = new HashSet<>();
+for (String item : items) {
+    if (!seen.add(item)) System.out.println("Duplicate: " + item);
+}
+// Intersection
+Set<String> setA = new HashSet<>(listA);
+setA.retainAll(new HashSet<>(listB));  // setA now contains only common elements
+```
+
+**When to use:** Duplicate detection, finding common elements, computing differences between datasets.
+
+### How HashMap Works Internally (Brief)
+
+1. **Hashing:** `map.put(key, value)` calls `key.hashCode()`, then maps the integer to a bucket index via `hash & (capacity - 1)`.
+2. **Buckets:** Internal storage is an array (default capacity: 16). Each slot holds entries that hash to the same index.
+3. **Collisions:** Same-bucket entries form a linked list. Java 8+ converts chains longer than 8 entries into a red-black tree (O(log n) instead of O(n) within that bucket).
+4. **Load factor:** Default 0.75. When `size > capacity * 0.75`, the map doubles capacity and rehashes all entries.
+5. **Why `equals()`/`hashCode()` matter:** `hashCode()` picks the bucket; `equals()` identifies the entry within it. Inconsistent implementations cause `get()` to search the wrong bucket and return `null`.
+
+---
+
+## Problems (Layer 3)
+
+### Problem 1: Two Sum (Revisited with HashMap)
+
+**Problem:** Given an array of integers `nums` and an integer `target`, return the indices of the two numbers that add up to `target`. Assume exactly one solution exists.
+
+**Examples:**
+- Input: `nums = [2, 7, 11, 15]`, `target = 9` → Output: `[0, 1]` (because 2 + 7 = 9)
+- Input: `nums = [3, 2, 4]`, `target = 6` → Output: `[1, 2]` (because 2 + 4 = 6)
+
+**Hints:**
+1. For each number, the "complement" you need is `target - num`. Can you check if the complement has already been seen?
+2. You only need a single pass if you check before inserting into the map.
+
+
+**Solution**
+
+
+```java
+public int[] twoSum(int[] nums, int target) {
+    Map<Integer, Integer> seen = new HashMap<>();  // value -> index
+
+    for (int i = 0; i < nums.length; i++) {
+        int complement = target - nums[i];
+        if (seen.containsKey(complement)) {
+            return new int[]{seen.get(complement), i};
+        }
+        seen.put(nums[i], i);
+    }
+    throw new IllegalArgumentException("No two sum solution");
+}
+```
+
+**Why it works:** Before storing each number, we check if its complement exists in the map. If it does, we've found our pair — all in a single pass.
+
+**Complexity:** Time O(n), Space O(n).
+
+
+
+### Problem 2: Contains Duplicate
+
+**Problem:** Given an integer array `nums`, return `true` if any value appears at least twice, `false` if every element is distinct.
+
+**Examples:**
+- Input: `[1, 2, 3, 1]` → Output: `true`
+- Input: `[1, 2, 3, 4]` → Output: `false`
+
+**Hints:**
+1. What data structure gives you O(1) duplicate checking?
+2. `HashSet.add()` returns a boolean — what does `false` mean?
+
+
+**Solution**
+
+
+```java
+public boolean containsDuplicate(int[] nums) {
+    Set<Integer> seen = new HashSet<>();
+    for (int num : nums) {
+        if (!seen.add(num)) {  // returns false if already present
+            return true;
+        }
+    }
+    return false;
+}
+```
+
+**Why it works:** `HashSet.add()` returns `false` when the element already exists — instant duplicate detection.
+
+**Complexity:** Time O(n), Space O(n).
+
+
+
+### Problem 3: First Non-Repeating Character
+
+**Problem:** Given a string `s`, find the first character that does not repeat and return its index. Return `-1` if none exists.
+
+**Examples:**
+- Input: `"leetcode"` → Output: `0` (`'l'` appears only once)
+- Input: `"aabb"` → Output: `-1`
+
+**Hints:**
+1. Two passes: first count frequencies, then find the first character with count 1.
+2. `LinkedHashMap` preserves insertion order — the first entry with count 1 is your answer.
+
+
+**Solution**
+
+
+```java
+// Approach 1: Frequency array (optimal for lowercase letters)
+public int firstUniqChar(String s) {
+    int[] freq = new int[26];
+    for (char c : s.toCharArray()) freq[c - 'a']++;
+    for (int i = 0; i < s.length(); i++) {
+        if (freq[s.charAt(i) - 'a'] == 1) return i;
+    }
+    return -1;
+}
+
+// Approach 2: LinkedHashMap (any character set, preserves insertion order)
+public int firstUniqCharGeneral(String s) {
+    Map<Character, Integer> freq = new LinkedHashMap<>();
+    for (char c : s.toCharArray()) freq.merge(c, 1, Integer::sum);
+    for (var entry : freq.entrySet()) {
+        if (entry.getValue() == 1) return s.indexOf(entry.getKey());
+    }
+    return -1;
+}
+```
+
+**Why LinkedHashMap:** Iteration order matches insertion order, so the first entry with count 1 is the earliest non-repeating character.
+
+**Complexity:** Time O(n), Space O(1) — bounded by character set size.
+
+
+
+### Problem 4: Intersection of Two Arrays
+
+**Problem:** Given two integer arrays `nums1` and `nums2`, return an array of their intersection. Each element in the result must be unique, and the order doesn't matter.
+
+**Examples:**
+- Input: `nums1 = [1, 2, 2, 1]`, `nums2 = [2, 2]` → Output: `[2]`
+- Input: `nums1 = [4, 9, 5]`, `nums2 = [9, 4, 9, 8, 4]` → Output: `[4, 9]`
+
+**Hints:**
+1. Put all elements of one array into a HashSet. Then iterate the other array and check membership.
+2. Use a result set to avoid duplicate results.
+
+
+**Solution**
+
+
+```java
+public int[] intersection(int[] nums1, int[] nums2) {
+    Set<Integer> set1 = new HashSet<>();
+    for (int num : nums1) set1.add(num);
+
+    Set<Integer> result = new HashSet<>();
+    for (int num : nums2) {
+        if (set1.contains(num)) result.add(num);
+    }
+    return result.stream().mapToInt(Integer::intValue).toArray();
+}
+```
+
+**Why it works:** `set1` gives O(1) membership checks; the result set deduplicates automatically.
+
+**Complexity:** Time O(n + m), Space O(n).
+
+
+
+### Problem 5: Isomorphic Strings
+
+**Problem:** Given two strings `s` and `t`, determine if they are isomorphic — every character in `s` maps to exactly one character in `t` and vice versa (bidirectional, consistent mapping).
+
+**Examples:**
+- `s = "egg"`, `t = "add"` → `true` (e→a, g→d)
+- `s = "foo"`, `t = "bar"` → `false` (o maps to both 'a' and 'r')
+- `s = "paper"`, `t = "title"` → `true` (p→t, a→i, e→l, r→e)
+
+**Hints:**
+1. Two maps needed: s→t and t→s. A single map misses the reverse constraint.
+2. `s="ab"`, `t="aa"` — one map says "true" (a→a, b→a), but two characters map to 'a', violating bijectivity.
+
+
+**Solution**
+
+
+```java
+public boolean isIsomorphic(String s, String t) {
+    if (s.length() != t.length()) return false;
+    Map<Character, Character> sToT = new HashMap<>(), tToS = new HashMap<>();
+
+    for (int i = 0; i < s.length(); i++) {
+        char sc = s.charAt(i), tc = t.charAt(i);
+        if (sToT.containsKey(sc) && sToT.get(sc) != tc) return false;
+        if (tToS.containsKey(tc) && tToS.get(tc) != sc) return false;
+        sToT.put(sc, tc);
+        tToS.put(tc, sc);
+    }
+    return true;
+}
+```
+
+**Why two maps:** A single map enforces only s→t. The reverse map catches cases where two different `s` characters would map to the same `t` character.
+
+**Complexity:** Time O(n), Space O(k) where k is the character set size.
+
+
+
+---
+
+## Common Mistakes (Layer 4)
+
+### Mistake 1: Using Mutable Objects as HashMap Keys
+
+
+```java
+Map<List<String>, String> map = new HashMap<>();
+List<String> key = new ArrayList<>(List.of("a", "b"));
+map.put(key, "value1");
+key.add("c");                    // mutates the key — hashCode changes!
+System.out.println(map.get(key)); // null — entry is orphaned in the wrong bucket
+```
+
+<BestPractice>
+
+**Fix:** Use immutable keys (`String`, `Integer`, `List.copyOf()`). Mutable keys change their hash code after insertion, making the entry unreachable.
+
+</BestPractice>
+
+
+### Mistake 2: Assuming HashMap Iteration Order
+
+
+```java
+Map<String, String> config = new HashMap<>();
+config.put("first", "1");
+config.put("second", "2");
+config.put("third", "3");
+config.forEach((k, v) -> System.out.println(k)); // prints in ANY order!
+```
+
+<BestPractice>
+
+**Fix:** Use `LinkedHashMap` for insertion order or `TreeMap` for sorted order. Never write assertions that depend on `HashMap` iteration order.
+
+</BestPractice>
+
+
+### Mistake 3: NullPointerException from `map.get()` on a Missing Key
+
+
+```java
+Map<String, Integer> counts = new HashMap<>();
+int value = counts.get("missing");  // NullPointerException! auto-unboxing null to int
+
+// FIX 1: Use getOrDefault
+int safe = counts.getOrDefault("missing", 0);
+// FIX 2: Use merge (best for counting)
+counts.merge("missing", 1, Integer::sum);
+```
+
+**Why it's dangerous:** `get()` returns `null` for missing keys. Auto-unboxing `null` to a primitive (`int`, `long`) throws `NullPointerException` — extremely common in frequency-counting code.
+
+---
+
+## Automation Connections (Layer 5)
+
+### Building a Test Data Registry (Avoid Duplicate Test Users)
+
+
+```java
+// Thread-safe registry — prevents duplicate user creation across parallel tests
+public class TestUserRegistry {
+    private final Set<String> provisioned = ConcurrentHashMap.newKeySet();
+
+    public boolean registerUser(String email) {
+        return provisioned.add(email);  // false if already registered
+    }
+
+    public void deregisterUser(String email) { provisioned.remove(email); }
+
+    public Set<String> getAllRegistered() {
+        return Collections.unmodifiableSet(provisioned);
+    }
+}
+
+// Usage: skip creation if user already exists
+if (!registry.registerUser("test-user-1@example.com")) { /* reuse existing */ }
+```
+
+### Comparing Expected vs Actual API Response Fields
+
+
+```java
+// Set difference finds missing and unexpected fields in O(n)
+public static void validateResponseFields(Map<String, Object> response,
+                                           Set<String> expectedFields) {
+    Set<String> missing = new HashSet<>(expectedFields);
+    missing.removeAll(response.keySet());
+    Set<String> unexpected = new HashSet<>(response.keySet());
+    unexpected.removeAll(expectedFields);
+    assert missing.isEmpty() && unexpected.isEmpty()
+        : "Field mismatch — missing: " + missing + ", unexpected: " + unexpected;
+}
+```
+
+### Counting Test Result Statuses from a Test Run
+
+
+```java
+// Frequency map pattern applied to test result aggregation
+public static Map<String, Integer> summarizeResults(List<TestResult> results) {
+    Map<String, Integer> summary = new LinkedHashMap<>();
+    for (TestResult r : results) summary.merge(r.getStatus(), 1, Integer::sum);
+    return summary;
+}
+// summary = {"PASS": 142, "FAIL": 7, "SKIP": 3}
+```
+
+---
+
+## Interview and Revision (Layer 6)
+
+### Interview Tips
+
+1. **"Can I use extra space?"** — This hints at a HashMap solution. Trade O(n) space for O(1) lookup.
+2. **Name the pattern before coding.** "I'll use a frequency map" or "I'll build a lookup table" — shows structured thinking.
+3. **State the trade-off.** "O(n) time and O(n) space vs brute-force O(n^2) time and O(1) space."
+4. **Edge cases to mention:** Empty input, single element, all duplicates, no match found, negative keys.
+5. **Know `getOrDefault` and `merge`.** One-liners that replace 3-4 lines of null-checking — signals API fluency.
+
+
+
+
+**Q:** What is the average time complexity of `HashMap.get()` and `HashMap.put()`?
+**A:** O(1) average. Worst case is O(n) if all keys hash to the same bucket, but Java 8+ degrades to O(log n) by converting long chains to red-black trees.
+
+**Q:** How do you count character frequencies in a string using a HashMap?
+**A:** Use `map.merge(ch, 1, Integer::sum)` in a loop. This initializes missing keys to 1 and increments existing keys by 1 — no null checks needed.
+
+**Q:** Why does HashMap require both `equals()` and `hashCode()` to work correctly?
+**A:** `hashCode()` determines which bucket an entry is stored in. `equals()` determines which entry within that bucket is the correct match. If two equal objects have different hash codes, `get()` will search the wrong bucket and return `null`.
+
+**Q:** What's the difference between `HashMap` and `LinkedHashMap`?
+**A:** `LinkedHashMap` maintains insertion order — iterating over it returns entries in the order they were added. `HashMap` has no order guarantee. Both have the same O(1) average-time performance.
+
+**Q:** How do you detect a duplicate in a single pass using a HashSet?
+**A:** `HashSet.add(element)` returns `false` if the element already exists. Check the return value: `if (!set.add(item))` means the item is a duplicate.
+
+### Mastery Checklist
+
+- [ ] Can explain how HashMap uses `hashCode()` and `equals()` internally
+- [ ] Can implement the frequency map pattern from memory
+- [ ] Can solve Two Sum with a single-pass HashMap approach
+- [ ] Can choose between HashMap, LinkedHashMap, and TreeMap for a given problem
+- [ ] Can detect duplicates with HashSet in O(n) time
+- [ ] Can identify "lookup table" vs "frequency map" problems on sight
+- [ ] Can explain why mutable keys break HashMap behavior
+- [ ] Can use `getOrDefault`, `merge`, and `computeIfAbsent` fluently
+- [ ] Can articulate the space-time trade-off of HashMap solutions in an interview
+
+---
+
+**Next:** Two Pointers And Sliding Window | **Related:** Arrays And Strings, Complexity Analysis

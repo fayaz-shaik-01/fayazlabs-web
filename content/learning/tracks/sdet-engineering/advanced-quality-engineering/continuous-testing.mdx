@@ -1,0 +1,348 @@
+---
+title: "Continuous Testing"
+description: "What: Continuous testing means executing automated tests at every stage of the CI/CD pipeline — not just at the end. Unit tests run on every commit. API tests run on every pull request. E2E tests run on every merge to main. Performance tests run before every production deployment. Each stage has quality gates that determine whether the pipeline continues or stops."
+summary: "SDET Engineering guide: Continuous Testing"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "advanced-quality-engineering"
+lesson: "continuous-testing"
+difficulty: "advanced"
+estimatedMinutes: 30
+prerequisites: []
+tags: ["SDET", "Quality Engineering", "Advanced"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/advanced-quality-engineering/continuous-testing"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Continuous Testing
+
+> **Module:** 09 — Advanced Quality Engineering  
+> **Prerequisites:** Metrics And Kpis, Pipeline As Code  
+> **Mastery Target:** L3 (Independent) — can define quality gates for each CI/CD stage and design a continuous testing strategy that balances speed with coverage
+
+---
+
+## Quick Overview (Layer 1)
+
+**What:** Continuous testing means executing automated tests at every stage of the CI/CD pipeline — not just at the end. Unit tests run on every commit. API tests run on every pull request. E2E tests run on every merge to main. Performance tests run before every production deployment. Each stage has quality gates that determine whether the pipeline continues or stops.
+
+**Why:** Traditional testing happens in a separate "QA phase" after development. This creates two problems: (1) feedback is delayed by hours or days, and (2) bugs accumulate until the test phase, creating a bottleneck. Continuous testing provides feedback in minutes. A developer pushes code, and within 10 minutes knows if their change broke anything. This is only possible when tests are fast, reliable, and automated at every level.
+
+**Where:** Every stage of the CI/CD pipeline. In StayNest: commit triggers unit tests (2 min), PR triggers API tests (8 min), merge triggers E2E tests (15 min), staging deploy triggers performance baseline (30 min), production deploy triggers smoke tests (2 min).
+
+<KeyTakeaways>
+
+1. Continuous testing is the test pyramid applied to the CI/CD pipeline — fast tests first, comprehensive tests later.
+2. Quality gates are pass/fail criteria at each stage. If a gate fails, the pipeline stops and the team is notified.
+3. The tradeoff is speed vs coverage. Earlier stages must be fast (unit: &lt;2 min), later stages can be slower (E2E: &lt;15 min).
+4. Release confidence is the ultimate output — a green pipeline means "this code is safe to deploy" based on evidence, not hope.
+5. Every quality gate must have an owner and an escalation path. "The E2E gate failed — who decides if we deploy anyway?"
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation (Layer 2)
+
+### Test Pyramid in CI/CD
+
+```
+Production  ─────────────── Smoke Tests (2 min)          ← Post-deploy verification
+    ▲                       "Is the app alive? Can users log in?"
+    │
+Staging     ─────────────── Performance Baseline (30 min) ← Pre-prod validation
+    ▲                       "Is response time within 200ms?"
+    │
+Merge to    ─────────────── E2E Tests (15 min)           ← Integration validation
+Main            "Does the complete booking flow work?"
+    ▲
+    │
+Pull        ─────────────── API + Integration (8 min)    ← Feature validation
+Request         "Do the API endpoints return correct responses?"
+    ▲
+    │
+Commit      ─────────────── Unit Tests + Lint (2 min)    ← Code correctness
+                "Does the code compile? Do functions return expected values?"
+```
+
+### Quality Gate Anatomy
+
+A quality gate has four components:
+
+| Component | Description | Example |
+|-----------|-------------|---------|
+| **Criteria** | What must be true to pass | Pass rate ≥ 95% |
+| **Tests** | Which tests run at this gate | API regression suite |
+| **Timeout** | Maximum time before auto-fail | 10 minutes |
+| **Action on failure** | What happens when the gate fails | Block merge, notify team |
+
+### Release Confidence Model
+
+```
+Confidence Level:
+    100% ─────────────────────────────────── "Safe to deploy"
+     │
+     │   ┌─── Smoke pass (+5%)
+     │   │   ┌─── Performance pass (+10%)
+     │   │   │   ┌─── E2E pass (+25%)
+     │   │   │   │   ┌─── API tests pass (+30%)
+     │   │   │   │   │   ┌─── Unit tests pass (+30%)
+     │   │   │   │   │   │
+     0% ─┴───┴───┴───┴───┴─── "Unknown risk"
+         Commit PR  Merge Staging Prod
+```
+
+Each passing gate adds confidence. The pipeline accumulates evidence that the change is safe.
+
+---
+
+## Practical Implementation (Layer 3)
+
+### Quality Gates for StayNest Deployment Pipeline
+
+
+```java
+/**
+ * Quality gate definitions for each pipeline stage.
+ * These are enforced by CI (Jenkins/GitHub Actions) and monitored by the SDET team.
+ */
+public class QualityGates {
+
+    public enum Stage { COMMIT, PR, MERGE, STAGING, PRODUCTION }
+
+    public record Gate(
+        Stage stage,
+        String name,
+        String testsToRun,
+        int timeoutMinutes,
+        double minPassRate,
+        boolean blocking  // true = pipeline stops on failure
+    ) {}
+
+    public static final List<Gate> STAYNEST_GATES = List.of(
+
+        // Gate 1: Commit — fast feedback
+        new Gate(Stage.COMMIT, "Unit + Lint",
+            "unit-tests,checkstyle",
+            2, 100.0, true),
+
+        // Gate 2: Pull Request — feature validation
+        new Gate(Stage.PR, "API Regression",
+            "api-smoke,api-regression-changed-modules",
+            8, 95.0, true),
+
+        // Gate 3: Merge to Main — integration validation
+        new Gate(Stage.MERGE, "Full API + E2E",
+            "api-full-suite,e2e-critical-paths",
+            15, 95.0, true),
+
+        // Gate 4: Staging — pre-production validation
+        new Gate(Stage.STAGING, "E2E + Performance",
+            "e2e-full-suite,performance-baseline",
+            30, 95.0, true),
+
+        // Gate 5: Production — post-deploy smoke
+        new Gate(Stage.PRODUCTION, "Smoke Tests",
+            "smoke-production",
+            3, 100.0, true)  // 100% — any smoke failure triggers rollback
+    );
+}
+```
+
+### Pipeline Stage Executor
+
+
+```java
+/**
+ * Executes quality gates and determines pass/fail.
+ * In practice, this logic lives in Jenkinsfile/GitHub Actions,
+ * but the decision rules are defined here for clarity.
+ */
+public class QualityGateEvaluator {
+
+    public record GateResult(
+        QualityGates.Gate gate,
+        int totalTests,
+        int passedTests,
+        int failedTests,
+        long executionTimeMs,
+        boolean passed
+    ) {
+        public double passRate() {
+            return totalTests == 0 ? 0 : (passedTests * 100.0 / totalTests);
+        }
+    }
+
+    public static GateResult evaluate(QualityGates.Gate gate, TestSuiteResult result) {
+        double passRate = result.passRate();
+        boolean timeoutExceeded = result.durationMs() > gate.timeoutMinutes() * 60_000L;
+        boolean passed = passRate >= gate.minPassRate() && !timeoutExceeded;
+
+        GateResult gateResult = new GateResult(
+            gate, result.total(), result.passed(), result.failed(),
+            result.durationMs(), passed
+        );
+
+        if (!passed && gate.blocking()) {
+            System.err.printf("[GATE FAILED] %s: %.1f%% pass rate (required: %.1f%%)%n",
+                gate.name(), passRate, gate.minPassRate());
+            if (timeoutExceeded) {
+                System.err.printf("[GATE FAILED] %s: exceeded %d min timeout%n",
+                    gate.name(), gate.timeoutMinutes());
+            }
+        } else {
+            System.out.printf("[GATE PASSED] %s: %.1f%% pass rate in %ds%n",
+                gate.name(), passRate, result.durationMs() / 1000);
+        }
+
+        return gateResult;
+    }
+}
+```
+
+### Test Suite Selection by Pipeline Stage
+
+
+```java
+/**
+ * Selects which TestNG groups/suites to run based on the pipeline stage.
+ */
+public class TestSuiteSelector {
+
+    public static String[] getTestGroups(QualityGates.Stage stage) {
+        return switch (stage) {
+            case COMMIT -> new String[]{"unit"};
+            case PR -> new String[]{"api-smoke", "api-regression"};
+            case MERGE -> new String[]{"api-smoke", "api-regression", "e2e-critical"};
+            case STAGING -> new String[]{"api-smoke", "api-regression", "e2e-critical",
+                                         "e2e-extended", "performance-baseline"};
+            case PRODUCTION -> new String[]{"smoke-production"};
+        };
+    }
+
+    /**
+     * TestNG XML generation for dynamic suite selection.
+     * Called by CI to generate the suite file for the current stage.
+     */
+    public static void generateSuiteXml(QualityGates.Stage stage, String outputPath)
+            throws Exception {
+        String[] groups = getTestGroups(stage);
+        String groupsXml = String.join(",", groups);
+
+        String xml = String.format("""
+            <?xml version="1.0" encoding="UTF-8"?>
+            <!DOCTYPE suite SYSTEM "https://testng.org/testng-1.0.dtd">
+            <suite name="%s-suite" parallel="classes" thread-count="4">
+                <test name="%s-tests">
+                    <groups><run><include name="%s"/></run></groups>
+                    <packages><package name="com.staynest.tests.*"/></packages>
+                </test>
+            </suite>""", stage.name(), stage.name(), groupsXml);
+
+        java.nio.file.Files.writeString(java.nio.file.Path.of(outputPath), xml);
+    }
+}
+```
+
+---
+
+## Failure and Debugging (Layer 4)
+
+### Failure 1: E2E Gate Takes 45 Minutes — Developers Stop Waiting
+
+**The Problem:** The E2E quality gate was designed for 15 minutes but has grown to 45 minutes as more tests were added. Developers merge without waiting for results.
+
+**Root cause:** No enforcement of the time budget. Tests were added without removing slower duplicates.
+
+**The fix:** Enforce time budgets as part of the gate definition. When execution exceeds budget, the gate either fails (forcing optimization) or the team reviews which tests to move to a later stage:
+
+
+```java
+// Enforce time budget
+if (result.durationMs() > gate.timeoutMinutes() * 60_000L) {
+    System.err.println("[GATE FAILED] Time budget exceeded. Optimize or move tests to staging.");
+    return new GateResult(gate, /* ... */ false);
+}
+```
+
+### Failure 2: Flaky Tests Block the Pipeline Daily
+
+**The Problem:** A flaky E2E test fails 10% of the time. With 50 PRs/day, it blocks ~5 PRs with false failures.
+
+**The fix:** Quarantine known flaky tests (move to non-blocking gate), fix them within SLA (1 week), and add retry logic for infrastructure-related flakiness:
+
+
+```java
+// TestNG retry analyzer for infrastructure flakiness
+public class RetryAnalyzer implements IRetryAnalyzer {
+    private int retryCount = 0;
+    private static final int MAX_RETRY = 1; // Retry once
+
+    @Override
+    public boolean retry(ITestResult result) {
+        if (retryCount < MAX_RETRY) {
+            retryCount++;
+            return true; // Retry the test
+        }
+        return false;
+    }
+}
+```
+
+---
+
+## Engineering Judgment (Layer 5)
+
+### Designing Gate Strictness
+
+| Stage | Strictness | Rationale |
+|-------|-----------|-----------|
+| Commit (unit) | 100% pass required | Unit tests are fast and deterministic — any failure is a real bug |
+| PR (API) | 95% pass required | Allows for rare environment flakes; failures reviewed before merge |
+| Merge (E2E) | 95% pass required | E2E tests are inherently less stable; focus on critical path |
+| Staging (perf) | Baseline within 10% | Performance varies; flag regressions, not absolute values |
+| Production (smoke) | 100% pass required | Any post-deploy failure triggers rollback investigation |
+
+### When to Override a Quality Gate
+
+Override is acceptable when: (1) the failure is a known infrastructure issue (documented), (2) the fix is already in progress, (3) a senior engineer approves the override, and (4) the override is logged with justification. Override is NOT acceptable for: new test failures with unknown cause, performance regressions, or security scan failures.
+
+---
+
+## Interview and Revision (Layer 6)
+
+
+
+
+| # | Front | Back |
+|---|-------|------|
+| 1 | What is continuous testing? | Running automated tests at every CI/CD pipeline stage — commit, PR, merge, staging, production — with quality gates that block progression on failure |
+| 2 | How does the test pyramid map to CI/CD stages? | Unit tests on commit (fastest, most), API tests on PR, E2E on merge, performance on staging, smoke on production (slowest, fewest) |
+| 3 | What are the four components of a quality gate? | Criteria (pass rate threshold), tests (which suite), timeout (max duration), action on failure (block/notify) |
+| 4 | When is it acceptable to override a quality gate? | Known infrastructure issue, fix in progress, senior engineer approval, and override logged. Never for unknown failures or security issues |
+| 5 | How do you handle flaky tests in quality gates? | Quarantine known flaky tests to non-blocking gates, add retry logic for infrastructure flakes, enforce fix SLA (1 week), track flaky rate as a metric |
+
+### Mastery Checklist
+
+- [ ] Can map the test pyramid to CI/CD pipeline stages with time budgets
+- [ ] Can define quality gates with criteria, tests, timeout, and failure actions
+- [ ] Can implement a gate evaluator that determines pass/fail based on results
+- [ ] Can design a test suite selector that runs appropriate tests per pipeline stage
+- [ ] Can articulate when gate overrides are acceptable and when they're not
+
+---
+
+**Next:** Performance Testing Overview | **Related:** Metrics And Kpis
+
+*Last updated: *

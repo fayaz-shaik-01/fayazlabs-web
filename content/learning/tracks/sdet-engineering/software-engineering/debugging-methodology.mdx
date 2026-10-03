@@ -1,0 +1,367 @@
+---
+title: "Debugging Methodology"
+description: "What: Debugging methodology is the systematic process of finding and fixing defects. It's not \"stare at the code until the bug reveals itself\" — it's a repeatable, evidence-based process: reproduce, isolate, diagnose, fix, verify, and prevent. For SDETs, this applies to both the application under test and the test framework itself."
+summary: "SDET Engineering guide: Debugging Methodology"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "software-engineering"
+lesson: "debugging-methodology"
+difficulty: "intermediate"
+estimatedMinutes: 30
+prerequisites: []
+tags: ["SDET", "Software Engineering"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/software-engineering/debugging-methodology"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Debugging Methodology
+
+> **Module:** 01-Programming Foundations / Software Engineering  
+> **Prerequisites:** Clean Code, Design Patterns, Dependency Management  
+> **Mastery Target:** L3 (Independent)
+
+---
+
+## Quick Overview (2-minute read)
+
+**What:** Debugging methodology is the systematic process of finding and fixing defects. It's not "stare at the code until the bug reveals itself" — it's a repeatable, evidence-based process: reproduce, isolate, diagnose, fix, verify, and prevent. For SDETs, this applies to both the application under test *and* the test framework itself.
+
+**Why:** SDETs debug two layers: (1) application bugs discovered by tests, and (2) test infrastructure bugs (flaky tests, environment issues, framework defects). A senior SDET is expected to debug both efficiently. The difference between a junior and senior SDET is often *how* they debug — random changes vs. systematic elimination. A methodical approach saves hours and builds confidence that the fix is correct, not just a lucky change.
+
+**Where:** Every test failure investigation, flaky test analysis, CI pipeline diagnosis, environment mismatch resolution, and framework migration issue.
+
+<MentalModel>
+
+Debugging is the **scientific method applied to software**. You observe a symptom (test failure), form a hypothesis ("the locator changed"), design an experiment (run the test with verbose logging), collect evidence (screenshot shows old page layout), and draw a conclusion (the feature branch changed the DOM structure). If your hypothesis was wrong, you revise and try again. The key discipline: *never change code without a hypothesis for why the change will fix the problem.*
+
+</MentalModel>
+
+
+<KeyTakeaways>
+
+1. **Reproduce first, always** — a bug you can't reproduce is a bug you can't fix. If it only fails in CI, make your local environment match CI exactly.
+2. **Isolate before diagnosing** — narrow the problem space. Is it this test, this page, this browser, this environment? Binary search elimination.
+3. **Collect evidence, don't guess** — screenshots, logs, network traces, and stack traces are your data. Hypotheses without evidence are guesses.
+4. **The fix should explain the failure** — if your fix works but you can't explain *why* the original code failed, you haven't found the root cause.
+5. **Prevent recurrence** — every bug fix should include a guard: a new assertion, a CI check, a linter rule, or a monitoring alert.
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation
+
+### The Debugging Process: 6 Steps
+
+```
+1. REPRODUCE  →  2. ISOLATE  →  3. DIAGNOSE  →  4. FIX  →  5. VERIFY  →  6. PREVENT
+     ↑                                                              │
+     └──── If fix doesn't work, go back with new hypothesis ───────┘
+```
+
+**Step 1: Reproduce** — Can you make the bug happen reliably?
+- Run the exact test that failed, with the same data, browser, and environment.
+- If it's intermittent: run it 10-20 times. Note the failure rate (1 in 5? 1 in 20?).
+- If it only fails in CI: compare CI environment (OS, browser version, screen resolution, network) vs. local.
+
+**Step 2: Isolate** — Narrow the problem space.
+- Is it one test or many? One page or many? One browser or all?
+- Comment out parts of the test. Find the smallest failing test.
+- Run in headed mode. Watch what the browser does.
+
+**Step 3: Diagnose** — Form and test hypotheses.
+- Read the error message and stack trace carefully — every word matters.
+- Add logging, inspect screenshots, check network responses.
+- Ask: "What changed?" (code, dependencies, environment, test data, application under test).
+
+**Step 4: Fix** — Change only what the diagnosis points to.
+- One change at a time. If you change three things and the bug goes away, you don't know which change fixed it.
+- The fix should logically explain why the original code was broken.
+
+**Step 5: Verify** — Confirm the fix works.
+- Run the failing test. Run related tests. Run the full suite.
+- If it was intermittent: run 20+ times to confirm the failure rate dropped to zero.
+- In CI: push the fix and verify the pipeline passes.
+
+**Step 6: Prevent** — Make sure it doesn't come back.
+- Add a regression test for the specific scenario.
+- Add a linter rule, CI check, or code review checkpoint.
+- Document in the debugging diary: what happened, how you found it, how you fixed it.
+
+### Scientific Method Applied to Debugging
+
+| Scientific Method | Debugging Equivalent | Example |
+|---|---|---|
+| Observation | Test failure with error details | "Login test fails with TimeoutError waiting for #dashboard" |
+| Hypothesis | Proposed root cause | "The login response is slow because the API is rate-limited in CI" |
+| Experiment | Targeted test to validate | Add network logging, check response times |
+| Data collection | Evidence gathering | API response: 429 Too Many Requests, 2.3s delay |
+| Conclusion | Root cause confirmed | CI runs tests in parallel, all hitting the same API with same credentials |
+| Peer review | Code review of the fix | Add unique user per test, implement API request queuing |
+
+### Binary Search Debugging
+
+When you have a long test with many steps and the failure is "something on this page isn't right," use binary search:
+
+1. Comment out the second half of the test. Does it still fail?
+2. If yes: the bug is in the first half. Comment out the second quarter. Repeat.
+3. If no: the bug is in the second half. Restore first half, comment out fourth quarter. Repeat.
+
+**This cuts your search space in half each iteration.** A 30-step test takes at most 5 iterations to pinpoint the failing step.
+
+For git history, `git bisect` does this automatically:
+
+
+```bash
+# Find which commit introduced the failure
+git bisect start
+git bisect bad                    # current commit is broken
+git bisect good abc1234           # this old commit was working
+# Git checks out a middle commit — run the test, then:
+git bisect good                   # or: git bisect bad
+# Repeat until git identifies the exact commit
+git bisect reset                  # return to original branch
+```
+
+### Rubber Duck Debugging
+
+Explain the problem out loud to an inanimate object (or a patient colleague). The act of articulating each step — "so the test clicks the login button, then waits for the dashboard URL, but the URL doesn't change because..." — forces you to slow down and often reveals the gap in your understanding. If you can't explain what the code *should* do at each step, that's where the bug is.
+
+### Evidence Collection
+
+| Evidence Type | How to Collect | What It Reveals |
+|---|---|---|
+| **Stack trace** | Error output, test report | Which line threw, which method called it |
+| **Screenshot** | `page.screenshot()`, Playwright trace | Visual state of the page at failure time |
+| **Network trace** | Playwright trace viewer, browser DevTools | API responses, status codes, timing |
+| **Console logs** | `page.on('console', ...)` | JavaScript errors, warnings from the application |
+| **Video** | `video: "retain-on-failure"` in Playwright config | Full replay of what the browser did |
+| **DOM snapshot** | `page.content()` | The actual HTML at the time of failure |
+| **Timestamps** | Logging with `Date.now()` | Timing issues, race conditions, slow operations |
+
+---
+
+## Practical Implementation (Layer 3)
+
+### Walkthrough: Debugging a Test That Passes Locally, Fails in CI
+
+**The failure report (CI):**
+```
+FAIL tests/booking/create-booking.spec.ts
+  ✗ should create booking with valid details (12345ms)
+    TimeoutError: locator.click: Timeout 5000ms exceeded.
+    waiting for locator('role=button[name="Book Now"]')
+```
+
+**Step 1: Reproduce** — Try to reproduce locally.
+
+```bash
+# Run the exact test
+npx playwright test tests/booking/create-booking.spec.ts --project=chromium
+
+# It passes locally. Try to match CI conditions:
+# 1. Run headless (CI doesn't have a display)
+npx playwright test tests/booking/create-booking.spec.ts --project=chromium
+
+# 2. Run with CI-like resource constraints
+# Increase concurrency to stress the system
+npx playwright test --workers=4
+
+# 3. Run multiple times to catch intermittent failures
+npx playwright test tests/booking/create-booking.spec.ts --repeat-each=20
+```
+
+**Step 2: Isolate** — What's different about CI?
+
+| Factor | Local | CI | Could Cause Failure? |
+|---|---|---|---|
+| Browser version | Chromium 124 | Chromium 124 | No (same) |
+| OS | macOS | Ubuntu Linux | Possible (font rendering, timing) |
+| CPU/memory | 16GB, fast SSD | 2 vCPU, limited RAM | **Yes** — slower renders |
+| Network | Localhost | Docker container | **Yes** — different DNS/latency |
+| Parallelism | 1 worker | 4 workers | **Yes** — resource contention |
+| Screen size | 1920x1080 | 1280x720 (default) | **Yes** — responsive layout |
+
+**Step 3: Diagnose** — Collect evidence from CI.
+
+
+```typescript
+// Add trace capture to the failing test temporarily
+// playwright.config.ts
+use: {
+    trace: "on",              // capture trace for every test (temporary)
+    screenshot: "on",         // capture screenshot at every step
+    video: "on",              // record video
+}
+```
+
+**Examining the trace reveals:** On the smaller CI screen (1280x720), the booking form has a scrollable section. The "Book Now" button is below the fold. Playwright's `click()` auto-scrolls, but a sticky header covers the button after scrolling.
+
+**Step 4: Fix:**
+
+```typescript
+// Option A: Scroll the button into view explicitly
+await page.getByRole("button", { name: "Book Now" }).scrollIntoViewIfNeeded();
+await page.getByRole("button", { name: "Book Now" }).click();
+
+// Option B: Use force click to bypass visibility checks (less preferred)
+// await page.getByRole("button", { name: "Book Now" }).click({ force: true });
+
+// Option C (best): Fix the sticky header overlap in CSS — this is an application bug
+// File a bug for the dev team: "Sticky header overlaps action buttons on small viewports"
+```
+
+**Step 5: Verify** — Push fix to CI, run 20x:
+
+```bash
+# In CI pipeline, run the test multiple times
+npx playwright test tests/booking/create-booking.spec.ts --repeat-each=20
+# All 20 pass → fix is confirmed
+```
+
+**Step 6: Prevent:**
+- Set `viewport: { width: 1280, height: 720 }` in `playwright.config.ts` to match CI locally.
+- Add the smaller viewport as a CI-specific project in `playwright.config.ts`.
+- Document in debugging diary.
+
+### Flaky Test Debugging Framework
+
+When a test fails intermittently, use this checklist:
+
+| Category | Check | How to Verify |
+|---|---|---|
+| **Timing** | Is there a race condition? | Add explicit waits, check for missing `await` |
+| **Test data** | Does the test depend on data from another test? | Run the test in isolation: `--grep "test name"` |
+| **State** | Does the test leave behind state that affects other tests? | Run tests in reverse order, check for shared cookies/storage |
+| **Environment** | Does it depend on external services? | Check if external APIs are flaky, add health checks |
+| **Concurrency** | Does it fail only with parallel workers? | Run with `--workers=1`, then increase gradually |
+| **Viewport** | Is the UI different on different screen sizes? | Set explicit viewport in config |
+| **Animation** | Is there an animation that causes timing issues? | Disable animations in test config: `reducedMotion: "reduce"` |
+
+---
+
+## Failure and Debugging (Layer 4)
+
+### Common Debugging Anti-Patterns
+
+| Anti-Pattern | Why It's Bad | What to Do Instead |
+|---|---|---|
+| **Shotgun debugging** — change multiple things at once | You don't know which change fixed it; you may introduce new bugs | One change at a time, verify after each |
+| **Adding `sleep`/`wait` to fix timing issues** | Hides the real problem, slows down the suite, still flaky at higher load | Find the proper wait condition (element visible, URL changed, API responded) |
+| **Blaming the framework** — "Playwright has a bug" | 99% of the time, it's your code or your understanding | Reproduce with a minimal example before reporting |
+| **Ignoring intermittent failures** — "it only fails sometimes" | Flaky tests erode trust in the entire suite | Apply the flaky test framework above; treat flakiness as a bug |
+| **Fixing the symptom, not the cause** — retry the test 5 times | The root cause still exists and may affect other tests | Find and fix the root cause; retries are a temporary crutch |
+
+### Scenario: Test Passes in Isolation, Fails in Suite
+
+**Symptoms:** `create-booking.spec.ts` passes when run alone, fails when run after `delete-booking.spec.ts`.
+
+**Diagnosis:**
+
+```bash
+# Run in isolation — passes
+npx playwright test tests/booking/create-booking.spec.ts
+
+# Run the full suite — fails
+npx playwright test tests/booking/
+
+# Run just the two suspicious tests in order
+npx playwright test tests/booking/delete-booking.spec.ts tests/booking/create-booking.spec.ts
+# FAILS — confirmed: delete-booking affects create-booking
+```
+
+**Root cause:** `delete-booking.spec.ts` deletes all bookings for the test user but doesn't recreate the precondition data that `create-booking.spec.ts` expects (an existing booking to verify the "Bookings" tab is visible).
+
+<BestPractice>
+
+**Fix:** Make each test self-contained — `create-booking.spec.ts` should create its own preconditions via API in a `beforeEach` fixture, not rely on database state from other tests.
+
+</BestPractice>
+
+
+---
+
+## Engineering Judgment (Layer 5)
+
+### When to Debug vs. When to Rewrite
+
+| Signal | Action |
+|---|---|
+| Clear error, simple fix (typo in locator) | Debug and fix — 5 minutes |
+| Test has been flaky for weeks, multiple "fixes" applied | Rewrite the test from scratch with proper waits and isolation |
+| Framework bug confirmed with minimal repro | File an issue, implement a workaround, document it |
+| The test is testing the wrong thing | Delete it and write a correct test |
+| Debugging has taken > 2 hours with no hypothesis | Step away, explain the problem to a colleague (rubber duck), or ask for a second pair of eyes |
+
+### Environment Debugging Checklist: "Works Locally, Fails in CI"
+
+Go through these in order — most common causes first:
+
+1. **Browser version mismatch** — `npx playwright install` in CI? Check Playwright version matches.
+2. **Missing `await`** — timing-dependent failures are amplified by slower CI machines.
+3. **Screen size** — CI may use a smaller viewport. Set explicit viewport in config.
+4. **Network** — localhost vs. container networking. Base URL correct?
+5. **Parallelism** — tests share state (cookies, database, API limits)?
+6. **File system** — case-sensitive on Linux CI, case-insensitive on macOS locally.
+7. **Dependencies** — `npm ci` vs `npm install`? Lock file committed?
+8. **Timezone** — CI runs in UTC, you're in IST. Date comparisons break.
+9. **Resources** — CI has less CPU/RAM. Timeouts need to be generous.
+10. **Permissions** — file write permissions, network access restrictions in CI.
+
+---
+
+## Interview and Revision (Layer 6)
+
+### Fundamental Questions
+
+**Q1: Describe your debugging process when a test fails.**  
+**A:** I follow a systematic 6-step process: (1) Reproduce — run the exact test with the same configuration. (2) Isolate — determine if it's test-specific, page-specific, or environment-specific. (3) Diagnose — collect evidence (screenshots, traces, logs), form hypotheses, and test them one at a time. (4) Fix — make the minimal change that addresses the root cause. (5) Verify — run the test multiple times, run related tests, verify in CI. (6) Prevent — add a guard (assertion, linter rule, CI check) so it can't recur silently.
+
+**Q2: A test passes locally but fails in CI. How do you approach this?**  
+**A:** I start with the environment checklist: (1) Check browser versions match. (2) Check viewport size — CI may use a smaller default. (3) Check for missing `await` — slower CI machines expose timing issues. (4) Check network — base URL, DNS resolution in containers. (5) Check parallelism — shared state between tests. (6) Enable trace/video capture in CI and analyze the Playwright trace to see exactly what happened. Most "works locally, fails in CI" issues are timing or environment-related.
+
+**Q3: How do you debug a flaky test?**  
+**A:** First, I quantify the flake rate — run it 20-50 times to establish a baseline (fails 1 in 5? 1 in 20?). Then I work through the flaky test checklist: timing issues (missing `await`, race conditions), test data isolation (depends on other tests?), state leaks (cookies, storage), external service instability, and concurrency (only fails with parallel workers). I enable full tracing and compare a passing run with a failing run to spot the difference.
+
+**Q4: What is `git bisect` and when would you use it?**  
+**A:** `git bisect` performs a binary search through commit history to find the exact commit that introduced a failure. You mark the current commit as "bad" and a known-good old commit as "good," and Git checks out the midpoint for you to test. It's invaluable when a test was passing last week and now fails — instead of reviewing 50 commits, `git bisect` finds the culprit in ~6 steps.
+
+
+
+
+| # | Front (Question) | Back (Answer) |
+|---|---|---|
+| 1 | What are the 6 steps of systematic debugging? | Reproduce, Isolate, Diagnose, Fix, Verify, Prevent. |
+| 2 | Why should you make only one change at a time when debugging? | If you change multiple things and the bug disappears, you don't know which change was the fix — and the others may introduce new bugs. |
+| 3 | What is the first thing to check for a "passes locally, fails in CI" test? | Browser version, viewport size, and missing `await` — these are the top three causes. |
+| 4 | What is binary search debugging? | Commenting out half the code, checking if the bug persists, and repeating on the relevant half. Pinpoints the failing line in O(log n) steps. |
+| 5 | When should you rewrite a test vs. keep debugging it? | If the test has been flaky for weeks with multiple "fixes" applied, or if it's fundamentally testing the wrong thing, rewrite from scratch. |
+
+### Mastery Checklist
+
+- [ ] Can follow the 6-step debugging process for any test failure
+- [ ] Can systematically debug "passes locally, fails in CI" issues using the environment checklist
+- [ ] Can use `git bisect` to find the commit that introduced a regression
+- [ ] Can quantify and diagnose flaky tests using the flaky test framework
+- [ ] Can collect and analyze debugging evidence: traces, screenshots, network logs, DOM snapshots
+- [ ] Can explain the root cause of a fix, not just that it works
+- [ ] Can identify debugging anti-patterns: shotgun debugging, sleep-driven fixes, symptom-only fixes
+
+---
+
+**Next:** Code Review | **Related:** Java Debugging And Profiling
+
+---
+
+*Last updated: *

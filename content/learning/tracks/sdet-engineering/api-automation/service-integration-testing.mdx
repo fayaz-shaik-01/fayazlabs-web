@@ -1,0 +1,772 @@
+---
+title: "Service Integration Testing"
+description: "What: Service integration testing verifies that components work correctly together — not just in isolation. For API testing, this means chaining multiple API calls into realistic flows (signup → login → create hotel → book room → pay → cancel) and verifying that data propagates correctly across the chain. It also includes testing interactions with external services using test doubles like WireMock."
+summary: "SDET Engineering guide: Service Integration Testing"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "api-automation"
+lesson: "service-integration-testing"
+difficulty: "intermediate"
+estimatedMinutes: 49
+prerequisites: []
+tags: ["SDET", "API", "REST", "Testing"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/api-automation/service-integration-testing"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Service Integration Testing
+
+> **Module:** 04 — API Automation  
+> **Prerequisites:** Database Validation, Authentication And Authorization, Status Codes Headers And Json  
+> **Mastery Target:** L3 (Independent) — can design multi-step API flows, set up WireMock stubs for external services, and diagnose cross-service interaction failures
+
+---
+
+## Quick Overview (Layer 1)
+
+**What:** Service integration testing verifies that components work correctly *together* — not just in isolation. For API testing, this means chaining multiple API calls into realistic flows (signup → login → create hotel → book room → pay → cancel) and verifying that data propagates correctly across the chain. It also includes testing interactions with external services using test doubles like WireMock.
+
+**Why:** Individual endpoint tests tell you each API works in isolation. But real usage involves sequences of calls where the output of one becomes the input of the next. A booking flow touches authentication, hotel data, room inventory, booking state, payment processing, and notifications. A bug in how data flows between these steps — a missing field, a wrong ID, a state transition that doesn't trigger — is invisible to single-endpoint tests. Integration tests catch these data propagation and state transition bugs.
+
+**Where:** End-to-end booking flows, multi-step user journeys, cross-service interactions (StayNest → Stripe), error propagation testing (what happens when an upstream service fails), and any scenario where the interaction between components is the thing being tested — not the components themselves.
+
+<MentalModel>
+
+Think of integration testing as **test-driving a car, not testing individual parts**. Unit tests verify the engine, brakes, and steering each work independently. Integration tests verify that pressing the brake pedal actually engages the brakes, that the steering wheel turns the wheels, and that the engine responds to the accelerator. A car where every part passes individual testing but the brake pedal isn't connected to the brakes is a disaster — and integration tests catch that disconnection.
+
+</MentalModel>
+
+
+<KeyTakeaways>
+
+1. Integration tests verify *interactions*, not individual endpoints. The test's purpose is to prove data flows correctly across API calls.
+2. Chain API calls using extracted values: the ID from a create response becomes the path parameter for the next request.
+3. External services (Stripe, email, SMS) should be mocked in tests — you can't depend on third-party availability for your test suite reliability.
+4. WireMock simulates external services by intercepting HTTP calls and returning predefined responses — including error scenarios you can't trigger against real services.
+5. Integration tests are slower than unit tests and more fragile — use them for critical flows, not for testing every edge case.
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation (Layer 2)
+
+### What Integration Tests Verify
+
+| Unit/Endpoint Test | Integration Test |
+|-------------------|------------------|
+| `POST /auth/signup` returns 201 | Signup → Login → Get Profile: the created user can authenticate and has the right profile data |
+| `POST /bookings/init` returns 200 | Full booking flow: hotel exists → room has inventory → booking created → payment processed → status confirmed |
+| `DELETE /admin/hotels/{id}` returns 204 | Delete hotel → verify bookings are cancelled → verify rooms deleted → verify inventory released |
+
+### Chained API Flows
+
+A chained flow is a sequence of API calls where each call depends on the output of the previous one:
+
+```
+Step 1: POST /auth/signup      → Extract userId
+Step 2: POST /auth/login       → Extract accessToken
+Step 3: POST /admin/hotels     → Extract hotelId  (requires managerToken)
+Step 4: POST /admin/hotels/{hotelId}/rooms → Extract roomId
+Step 5: PATCH /admin/hotels/{hotelId}/activate → Hotel becomes searchable
+Step 6: POST /bookings/init    → Extract bookingId (requires guestToken, hotelId, roomId)
+Step 7: POST /bookings/{bookingId}/addGuests → Status changes to GUESTS_ADDED
+Step 8: POST /bookings/{bookingId}/payments → Status changes to CONFIRMED
+Step 9: POST /bookings/{bookingId}/cancel   → Status changes to CANCELLED
+```
+
+Each arrow represents a data dependency — the output of one step feeds the input of the next. If any step produces incorrect data, all downstream steps fail.
+
+### Data Propagation
+
+Data propagation means verifying that data created or modified by one API call appears correctly in subsequent calls:
+
+| Created In | Should Appear In | What to Verify |
+|-----------|------------------|----------------|
+| `POST /auth/signup` (name, email) | `GET /users/profile` | Same name and email returned |
+| `POST /admin/hotels` (name, city) | `POST /hotels/search` (after activation) | Hotel appears in search results |
+| `POST /bookings/init` (dates, roomsCount) | `GET /bookings/{id}/status` | Booking has correct status |
+| `POST /bookings/{id}/cancel` | `GET /admin/hotels/{id}/bookings` | Booking shows as CANCELLED in manager's view |
+
+### Error Propagation
+
+When an upstream service or operation fails, how does it affect downstream consumers?
+
+| Upstream Failure | Expected Downstream Behavior |
+|-----------------|------------------------------|
+| Stripe payment fails | Booking stays in RESERVED (not confirmed); inventory not permanently committed |
+| Database is temporarily unavailable | API returns 503; client can retry |
+| Auth service returns invalid token format | All authenticated endpoints return 401 |
+| Hotel deletion while booking in progress | Booking should either be cancelled or the deletion should be blocked |
+
+### Test Doubles: Why and When
+
+Test doubles replace real external services in your test environment:
+
+| Double Type | What It Does | When to Use |
+|-------------|-------------|-------------|
+| **Mock** | Returns predefined responses, verifies calls were made | Testing that your code calls the external service correctly |
+| **Stub** | Returns predefined responses, doesn't verify calls | Providing a stable dependency for integration tests |
+| **Fake** | Working implementation with shortcuts (in-memory DB) | When you need realistic behavior without real infrastructure |
+| **Spy** | Wraps the real implementation, records interactions | When you need the real behavior but want to verify calls |
+
+**WireMock** is a stub/mock server for HTTP-based services. It intercepts HTTP requests and returns predefined responses.
+
+### WireMock — How It Works
+
+```
+Without WireMock:
+  StayNest Backend → [Internet] → Stripe API
+  Problem: Stripe might be down, slow, or return unexpected data.
+           Can't test error scenarios (payment declined, timeout).
+
+With WireMock:
+  StayNest Backend → [localhost:9090] → WireMock (pretending to be Stripe)
+  Benefit: Predictable responses, error simulation, no external dependency.
+```
+
+WireMock runs as a local HTTP server. You configure it to match incoming requests and return specific responses:
+
+```
+Request: POST /v1/checkout/sessions
+         Content-Type: application/json
+         Body: { "amount": 500, "currency": "usd" }
+
+WireMock Response: 200 OK
+                   { "id": "cs_test_123", "url": "https://checkout.stripe.com/cs_test_123" }
+```
+
+---
+
+## Practical Implementation (Layer 3)
+
+### Complete Chained Booking Flow Test
+
+
+```java
+import io.restassured.response.Response;
+import org.testng.annotations.Test;
+import static io.restassured.RestAssured.*;
+import static org.hamcrest.Matchers.*;
+import static org.testng.Assert.*;
+
+/**
+ * Integration test: complete booking lifecycle.
+ * Tests the full chain: create hotel → create room → activate →
+ * book → add guests → pay → verify → cancel.
+ *
+ * This test verifies data propagation across all steps.
+ */
+public class BookingFlowIntegrationTest {
+
+    private String managerToken;
+    private String guestToken;
+
+    @Test
+    public void fullBookingLifecycle() {
+        // ---- SETUP: Manager creates hotel and room ----
+
+        managerToken = AuthFactory.manager().getAccessToken();
+        guestToken = AuthFactory.guest().getAccessToken();
+
+        // Step 1: Create hotel
+        int hotelId = given()
+            .contentType("application/json")
+            .header("Authorization", "Bearer " + managerToken)
+            .body("""
+                {
+                    "name": "Integration Test Hotel",
+                    "city": "Chicago",
+                    "photos": [],
+                    "amenities": ["WIFI", "POOL"],
+                    "contactInfo": {
+                        "address": "100 Lake Shore Dr",
+                        "phoneNumber": "555-1000",
+                        "email": "integration@staynest.com",
+                        "location": "Downtown"
+                    }
+                }
+                """)
+        .when()
+            .post("/admin/hotels")
+        .then()
+            .statusCode(201)
+            .body("data.name", equalTo("Integration Test Hotel"))
+            .extract().jsonPath().getInt("data.id");
+
+        // Step 2: Create room in the hotel
+        int roomId = given()
+            .contentType("application/json")
+            .header("Authorization", "Bearer " + managerToken)
+            .body("""
+                {
+                    "type": "DELUXE",
+                    "basePrice": 200.00,
+                    "photos": [],
+                    "amenities": ["WIFI"],
+                    "totalCount": 5,
+                    "capacity": 2
+                }
+                """)
+        .when()
+            .post("/admin/hotels/" + hotelId + "/rooms")
+        .then()
+            .statusCode(201)
+            .body("data.type", equalTo("DELUXE"))
+            .extract().jsonPath().getInt("data.id");
+
+        // Step 3: Activate the hotel (makes it searchable)
+        given()
+            .header("Authorization", "Bearer " + managerToken)
+        .when()
+            .patch("/admin/hotels/" + hotelId + "/activate")
+        .then()
+            .statusCode(204);
+
+        // ---- VERIFICATION: Hotel appears in search ----
+
+        // Step 4: Search for the hotel (public endpoint, no auth)
+        given()
+            .contentType("application/json")
+            .body("""
+                {
+                    "city": "Chicago",
+                    "startDate": "2025-09-01",
+                    "endDate": "2025-09-05",
+                    "roomsCount": 1
+                }
+                """)
+        .when()
+            .post("/hotels/search")
+        .then()
+            .statusCode(200)
+            .body("data.content.find { it.id == " + hotelId + " }.name",
+                equalTo("Integration Test Hotel"));
+
+        // ---- BOOKING FLOW: Guest books a room ----
+
+        // Step 5: Create a guest for the booking
+        int guestId = given()
+            .contentType("application/json")
+            .header("Authorization", "Bearer " + guestToken)
+            .body("""
+                {
+                    "name": "Test Guest",
+                    "gender": "MALE",
+                    "dateOfBirth": "1990-01-15"
+                }
+                """)
+        .when()
+            .post("/users/guests")
+        .then()
+            .statusCode(201)
+            .extract().jsonPath().getInt("data.id");
+
+        // Step 6: Initiate booking
+        int bookingId = given()
+            .contentType("application/json")
+            .header("Authorization", "Bearer " + guestToken)
+            .body(String.format("""
+                {
+                    "hotelId": %d,
+                    "roomId": %d,
+                    "checkInDate": "2025-09-01",
+                    "checkOutDate": "2025-09-05",
+                    "roomsCount": 1
+                }
+                """, hotelId, roomId))
+        .when()
+            .post("/bookings/init")
+        .then()
+            .statusCode(200)
+            .body("data.bookingStatus", equalTo("RESERVED"))
+            .extract().jsonPath().getInt("data.id");
+
+        // Step 7: Add guests to booking
+        given()
+            .contentType("application/json")
+            .header("Authorization", "Bearer " + guestToken)
+            .body("[" + guestId + "]")
+        .when()
+            .post("/bookings/" + bookingId + "/addGuests")
+        .then()
+            .statusCode(200)
+            .body("data.bookingStatus", equalTo("GUESTS_ADDED"));
+
+        // Step 8: Process payment (mock mode — auto-confirms)
+        given()
+            .header("Authorization", "Bearer " + guestToken)
+        .when()
+            .post("/bookings/" + bookingId + "/payments")
+        .then()
+            .statusCode(200);
+
+        // Step 9: Verify booking is confirmed
+        given()
+            .header("Authorization", "Bearer " + guestToken)
+        .when()
+            .get("/bookings/" + bookingId + "/status")
+        .then()
+            .statusCode(200)
+            .body("data.bookingStatus", equalTo("CONFIRMED"));
+
+        // ---- CROSS-ROLE VERIFICATION ----
+
+        // Step 10: Manager can see the booking in their hotel's bookings
+        given()
+            .header("Authorization", "Bearer " + managerToken)
+        .when()
+            .get("/admin/hotels/" + hotelId + "/bookings")
+        .then()
+            .statusCode(200)
+            .body("data.find { it.id == " + bookingId + " }.bookingStatus",
+                equalTo("CONFIRMED"));
+
+        // ---- CANCELLATION FLOW ----
+
+        // Step 11: Guest cancels the booking
+        given()
+            .header("Authorization", "Bearer " + guestToken)
+        .when()
+            .post("/bookings/" + bookingId + "/cancel")
+        .then()
+            .statusCode(204);
+
+        // Step 12: Verify cancellation
+        given()
+            .header("Authorization", "Bearer " + guestToken)
+        .when()
+            .get("/bookings/" + bookingId + "/status")
+        .then()
+            .statusCode(200)
+            .body("data.bookingStatus", equalTo("CANCELLED"));
+
+        // Step 13: Guest's booking list shows cancelled status
+        given()
+            .header("Authorization", "Bearer " + guestToken)
+        .when()
+            .get("/users/myBookings")
+        .then()
+            .statusCode(200)
+            .body("data.find { it.id == " + bookingId + " }.bookingStatus",
+                equalTo("CANCELLED"));
+    }
+}
+```
+
+### WireMock Setup for External Service Simulation
+
+
+```java
+import com.github.tomakehurst.wiremock.WireMockServer;
+import com.github.tomakehurst.wiremock.client.WireMock;
+import static com.github.tomakehurst.wiremock.client.WireMock.*;
+import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.wireMockConfig;
+
+import org.testng.annotations.*;
+
+/**
+ * WireMock setup for simulating external payment service (Stripe).
+ * StayNest calls Stripe to create checkout sessions; WireMock
+ * intercepts these calls and returns controlled responses.
+ */
+public class PaymentServiceWireMock {
+
+    private WireMockServer wireMockServer;
+
+    @BeforeClass
+    public void startWireMock() {
+        wireMockServer = new WireMockServer(wireMockConfig().port(9090));
+        wireMockServer.start();
+        WireMock.configureFor("localhost", 9090);
+    }
+
+    /**
+     * Stub: successful payment session creation.
+     * Simulates Stripe returning a checkout URL.
+     */
+    public void stubSuccessfulPayment() {
+        stubFor(post(urlPathEqualTo("/v1/checkout/sessions"))
+            .willReturn(aResponse()
+                .withStatus(200)
+                .withHeader("Content-Type", "application/json")
+                .withBody("""
+                    {
+                        "id": "cs_test_mock_123",
+                        "url": "https://checkout.stripe.com/cs_test_mock_123",
+                        "status": "open"
+                    }
+                    """)));
+    }
+
+    /**
+     * Stub: payment service returns a server error.
+     * Tests how StayNest handles payment failures.
+     */
+    public void stubPaymentServiceError() {
+        stubFor(post(urlPathEqualTo("/v1/checkout/sessions"))
+            .willReturn(aResponse()
+                .withStatus(500)
+                .withHeader("Content-Type", "application/json")
+                .withBody("""
+                    {
+                        "error": {
+                            "type": "api_error",
+                            "message": "Internal server error"
+                        }
+                    }
+                    """)));
+    }
+
+    /**
+     * Stub: payment service times out.
+     * Tests StayNest's timeout handling.
+     */
+    public void stubPaymentTimeout() {
+        stubFor(post(urlPathEqualTo("/v1/checkout/sessions"))
+            .willReturn(aResponse()
+                .withStatus(200)
+                .withFixedDelay(30000)  // 30-second delay → triggers client timeout
+                .withBody("{}")));
+    }
+
+    /**
+     * Stub: payment is declined.
+     * Simulates Stripe rejecting the card.
+     */
+    public void stubPaymentDeclined() {
+        stubFor(post(urlPathEqualTo("/v1/checkout/sessions"))
+            .willReturn(aResponse()
+                .withStatus(402)
+                .withHeader("Content-Type", "application/json")
+                .withBody("""
+                    {
+                        "error": {
+                            "type": "card_error",
+                            "code": "card_declined",
+                            "message": "Your card was declined."
+                        }
+                    }
+                    """)));
+    }
+
+    /**
+     * Verify that StayNest actually called the payment service
+     * with the expected request body.
+     */
+    public void verifyPaymentCalled(int expectedCalls) {
+        verify(expectedCalls, postRequestedFor(urlPathEqualTo("/v1/checkout/sessions")));
+    }
+
+    /**
+     * Verify the request body contained expected fields.
+     */
+    public void verifyPaymentRequestContains(String jsonPath, String expectedValue) {
+        verify(postRequestedFor(urlPathEqualTo("/v1/checkout/sessions"))
+            .withRequestBody(matchingJsonPath(jsonPath,
+                equalTo(expectedValue))));
+    }
+
+    @AfterClass
+    public void stopWireMock() {
+        if (wireMockServer != null) {
+            wireMockServer.stop();
+        }
+    }
+
+    @AfterMethod
+    public void resetStubs() {
+        // Reset all stubs between tests to prevent leakage
+        WireMock.reset();
+    }
+}
+```
+
+### Integration Test with WireMock
+
+
+```java
+/**
+ * Tests StayNest's behavior when the external payment service fails.
+ * WireMock simulates Stripe errors so we can test error handling.
+ *
+ * Note: These tests require StayNest to be configured to call
+ * WireMock (localhost:9090) instead of real Stripe.
+ */
+public class PaymentErrorHandlingTests extends PaymentServiceWireMock {
+
+    @Test
+    public void paymentServiceDown_bookingRemainsReserved() {
+        // Arrange: stub Stripe to return 500
+        stubPaymentServiceError();
+
+        // Create a booking in GUESTS_ADDED state (prerequisite)
+        int bookingId = createBookingWithGuests();
+
+        // Act: attempt payment
+        given()
+            .header("Authorization", "Bearer " + guestToken)
+        .when()
+            .post("/bookings/" + bookingId + "/payments")
+        .then()
+            .statusCode(anyOf(is(500), is(502), is(503)));
+            // StayNest should return an error, not silently succeed
+
+        // Assert: booking should NOT be confirmed
+        given()
+            .header("Authorization", "Bearer " + guestToken)
+        .when()
+            .get("/bookings/" + bookingId + "/status")
+        .then()
+            .body("data.bookingStatus", not(equalTo("CONFIRMED")));
+
+        // Verify: StayNest actually called Stripe
+        verifyPaymentCalled(1);
+    }
+
+    @Test
+    public void paymentSucceeds_bookingConfirmed() {
+        // Arrange: stub Stripe to succeed
+        stubSuccessfulPayment();
+
+        int bookingId = createBookingWithGuests();
+
+        // Act: process payment
+        given()
+            .header("Authorization", "Bearer " + guestToken)
+        .when()
+            .post("/bookings/" + bookingId + "/payments")
+        .then()
+            .statusCode(200);
+
+        // Verify Stripe was called with correct data
+        verifyPaymentCalled(1);
+    }
+
+    private int createBookingWithGuests() {
+        // Helper: creates booking and adds guests (returns booking ID)
+        // ... (omitted for brevity — see full booking flow test above)
+        return -1; // placeholder
+    }
+}
+```
+
+### Error Propagation Test
+
+
+```java
+/**
+ * Tests error propagation: what happens when operations
+ * are attempted in the wrong order or with invalid state?
+ */
+public class ErrorPropagationTests {
+
+    @Test
+    public void cannotAddGuestsToConfirmedBooking() {
+        // Create and fully confirm a booking
+        int bookingId = createConfirmedBooking();
+
+        // Attempt to add guests to an already-confirmed booking
+        given()
+            .contentType("application/json")
+            .header("Authorization", "Bearer " + guestToken)
+            .body("[1]")
+        .when()
+            .post("/bookings/" + bookingId + "/addGuests")
+        .then()
+            .statusCode(409)  // Conflict — wrong state for this operation
+            .body("error", notNullValue());
+    }
+
+    @Test
+    public void cannotCancelReservedBooking() {
+        // Create a booking (RESERVED state — not yet confirmed)
+        int bookingId = createReservedBooking();
+
+        // Attempt to cancel — should fail because it's not CONFIRMED
+        given()
+            .header("Authorization", "Bearer " + guestToken)
+        .when()
+            .post("/bookings/" + bookingId + "/cancel")
+        .then()
+            .statusCode(409);  // Can only cancel CONFIRMED bookings
+    }
+
+    @Test
+    public void cannotPayForExpiredBooking() {
+        // A booking that has passed its expiry window
+        int bookingId = createExpiredBooking();
+
+        given()
+            .header("Authorization", "Bearer " + guestToken)
+        .when()
+            .post("/bookings/" + bookingId + "/payments")
+        .then()
+            .statusCode(409)  // Booking expired
+            .body("error", notNullValue());
+    }
+}
+```
+
+---
+
+## Failure and Debugging (Layer 4)
+
+### Failure 1: Chained Test Fails at Step 6 — Data from Step 2 Is Missing
+
+**The Problem:**
+
+
+```java
+// Step 2: Create room
+int roomId = createRoom(hotelId, managerToken);  // Returns roomId = 5
+
+// ... several steps later ...
+
+// Step 6: Book the room
+given()
+    .body("{\"hotelId\":" + hotelId + ",\"roomId\":" + roomId + ",...}")
+    .post("/bookings/init")
+.then()
+    .statusCode(200);  // FAILS — 404 room not found!
+```
+
+**Root cause:** Between step 2 and step 6, another test (running in parallel) deleted the hotel, which cascade-deleted the room. Or the hotel wasn't activated (step 3 failed silently), so the room isn't available for booking.
+
+**The fix:** (1) Don't run integration tests in parallel — they depend on shared state. (2) Add assertions after every step, not just the final one. (3) Use unique test data (see Api Test Data And Cleanup).
+
+### Failure 2: WireMock Stub Not Matching — Real Service Called Instead
+
+**The Problem:**
+
+```
+Expected: WireMock to intercept POST /v1/checkout/sessions
+Actual:   StayNest called real Stripe API (or got connection refused)
+```
+
+**Root cause:** StayNest isn't configured to route requests to WireMock. The payment service URL is pointing to the real Stripe API, not `http://localhost:9090`.
+
+**The fix:** Configure StayNest's external service URL via environment variable or config file:
+
+```properties
+# application-test.properties
+stripe.api.base-url=http://localhost:9090
+```
+
+Ensure the test environment uses this configuration. WireMock must be started *before* StayNest.
+
+### Failure 3: WireMock Stubs Leaking Between Tests
+
+**The Problem:** Test A stubs a successful payment. Test B (which tests payment failure) still gets the success stub from Test A.
+
+**Root cause:** WireMock stubs persist until explicitly cleared. If test A's stub isn't removed, it stays active for test B.
+
+**The fix:** Reset WireMock stubs between tests:
+
+
+```java
+@AfterMethod
+public void resetWireMock() {
+    WireMock.reset();          // Removes all stubs
+    WireMock.resetRequests();  // Clears request log (for verify())
+}
+```
+
+---
+
+## Engineering Judgment (Layer 5)
+
+### Integration Tests: How Many and What to Cover
+
+| Test Type | What It Covers | How Many |
+|-----------|---------------|----------|
+| **Happy path flow** | Complete successful journey (signup → book → pay → cancel) | 1-2 per major flow |
+| **Error propagation** | Wrong state transitions, missing prerequisites | 3-5 per flow |
+| **Cross-role verification** | Data created by one role visible to another | 2-3 per shared resource |
+| **External service failures** | WireMock: timeout, 500, declined | 1 per failure type per integration |
+
+**Rule of thumb:** You should have 5-10x more unit/endpoint tests than integration tests. Integration tests are expensive to write, slow to run, and fragile. Use them for critical paths only.
+
+### When to Use WireMock vs Real Service vs StayNest Mock Mode
+
+| Approach | When to Use | Pros | Cons |
+|----------|------------|------|------|
+| **StayNest mock mode** (`MOCK_PAYMENT_SUCCESS`) | Most functional tests | Simple; no setup; fast | Can't test error scenarios |
+| **WireMock** | Error handling, timeout, specific response testing | Full control over responses; can test any scenario | Setup complexity; must configure service URL |
+| **Real Stripe (sandbox)** | Pre-release smoke tests | Tests real integration | Slow; requires internet; test API keys; can't test all scenarios |
+
+**For StayNest's daily CI:** Use mock mode for 90% of tests. Use WireMock for payment error handling tests. Use real Stripe sandbox for weekly smoke tests only.
+
+### Single Long Test vs Multiple Short Tests
+
+The booking flow test above is one long test method. Should it be split into separate tests?
+
+| Approach | Pros | Cons |
+|----------|------|------|
+| **One long flow test** | Tests real data propagation; realistic; no setup duplication | Hard to debug (which step failed?); slow; can't run individual steps |
+| **Split into steps with shared state** | Each step is a separate `@Test` with `@Test(dependsOnMethods=...)` | Better failure localization; still tests the flow | TestNG dependency management; all steps must run in order |
+| **Independent tests with setup helpers** | Each test creates its own prerequisites | True isolation; parallel-safe | Massive setup duplication; very slow |
+
+**Recommendation:** Use one long flow test for the happy path. Use independent tests (with setup helpers) for error scenarios. The happy path flow is a confidence test — "does the whole thing work?" Error tests are diagnostic tests — "what happens when X fails?"
+
+---
+
+## Interview and Revision (Layer 6)
+
+### Fundamental Questions
+
+**Q1: What's the difference between an endpoint test and an integration test?**
+
+**A:** An endpoint test validates a single API endpoint in isolation — send a request, check the response. An integration test validates the interaction between multiple endpoints or services — it chains calls together and verifies data flows correctly across them. For example, an endpoint test for `POST /bookings/init` checks that it returns 200 with a booking. An integration test verifies that after creating a booking, the room inventory decreases, the booking appears in the guest's booking list AND the manager's hotel bookings, and the status transitions correctly through the lifecycle. The value of integration tests is catching bugs in the "glue" between components.
+
+**Q2: What is WireMock and when would you use it?**
+
+**A:** WireMock is a tool that simulates HTTP-based external services. It runs as a local server, intercepts requests that would normally go to a real service (like Stripe), and returns predefined responses. I use it when I need to test error handling scenarios that can't be triggered against the real service — like payment timeouts, server errors, or specific error codes. It also eliminates external dependencies from the test suite, making tests faster and more reliable. The key configuration is pointing the application's external service URL to WireMock instead of the real service.
+
+**Q3: How do you handle test data dependencies in integration tests?**
+
+**A:** Integration tests have inherent data dependencies — step N needs the output of step N-1. I handle this by: (1) Creating all prerequisites within the test itself (self-contained setup). (2) Extracting IDs and tokens from each step's response and passing them to the next step. (3) Never depending on pre-existing data in the database. (4) Cleaning up all created data in `@AfterMethod` or `@AfterClass`. For parallel safety, I use unique identifiers (UUID-based emails, unique hotel names) so parallel integration tests don't collide.
+
+### Scenario-Based Questions
+
+**S1: "Your integration test passes 90% of the time but fails randomly at the payment step. How do you debug?"**
+
+**A:** A 10% failure rate at a specific step suggests a timing or state issue. I'd investigate: (1) **Booking expiry** — is the booking expiring between creation and payment because the test is too slow? I'd check the time between booking creation and payment call. (2) **Inventory race condition** — is another test or process booking the same room, leaving no inventory? I'd use unique hotels/rooms per test. (3) **Token expiry** — is the auth token expiring mid-flow? I'd check the token's `exp` claim. (4) **WireMock stub not set** — if using WireMock, is the stub sometimes not configured before the payment call? I'd verify WireMock setup order. I'd add logging at each step to capture the exact state and timestamps when the failure occurs.
+
+
+
+
+| # | Front (Question) | Back (Answer) |
+|---|---|---|
+| 1 | What does an integration test verify that an endpoint test doesn't? | Data propagation across multiple API calls — that the output of one call is correctly used by the next, and that state transitions are consistent across the system. |
+| 2 | What is WireMock? | A tool that simulates external HTTP services. It runs locally, intercepts outgoing HTTP requests, and returns predefined responses. Used to test error handling and remove external dependencies. |
+| 3 | Why reset WireMock stubs between tests? | To prevent stub leakage — stubs from one test persisting into the next. Without reset, a "success" stub from test A could mask a "failure" test in test B. |
+| 4 | One long flow test vs many short tests? | Long flow: tests real propagation, realistic, but hard to debug. Short tests: isolated, parallel-safe, but duplicate setup. Use long flow for happy path; short tests for error scenarios. |
+| 5 | When should you NOT use WireMock? | When the application has a built-in mock mode (like StayNest's `MOCK_PAYMENT_SUCCESS`). Also, pre-release smoke tests should hit real external services to verify the actual integration. |
+
+### Mastery Checklist
+
+- [ ] Can design a complete chained API flow test for a booking lifecycle
+- [ ] Can extract values from API responses and use them in subsequent requests
+- [ ] Can set up WireMock stubs for success, error, and timeout scenarios
+- [ ] Can verify WireMock received expected requests (method, path, body)
+- [ ] Can explain data propagation and error propagation with concrete examples
+- [ ] Can articulate the trade-offs between long flow tests and short isolated tests
+- [ ] Can configure an application to route external service calls to WireMock
+
+---
+
+**Next:** Api Test Data And Cleanup | **Related:** Database Validation
+
+*Last updated: *

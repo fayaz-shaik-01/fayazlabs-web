@@ -1,0 +1,1861 @@
+---
+title: "Collections and Generics"
+description: "What: The Java Collections Framework is a unified architecture of interfaces, implementations, and algorithms for storing, retrieving, and manipulating groups of objects. Generics are the type-safety mechanism that makes collections strongly typed at compile time."
+summary: "SDET Engineering guide: Collections and Generics"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "java"
+lesson: "collections-and-generics"
+difficulty: "beginner"
+estimatedMinutes: 122
+prerequisites: []
+tags: ["SDET", "Java", "Programming"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/java/collections-and-generics"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Collections and Generics
+
+> **Module:** 01 — Programming Foundations / Java  
+> **Prerequisites:** Syntax And Control Flow, Oop Fundamentals  
+> **Mastery Target:** L3 (independent — choose and use the right collection without guidance)
+
+---
+
+## Quick Overview (Layer 1)
+
+**What:** The Java Collections Framework is a unified architecture of interfaces, implementations, and algorithms for storing, retrieving, and manipulating groups of objects. Generics are the type-safety mechanism that makes collections strongly typed at compile time.
+
+**Why:** As an automation engineer, almost everything you do involves collections. Test data lives in `List<Map<String, String>>`. Page element locators are stored in maps. Test results are aggregated into lists, grouped into maps, and deduplicated with sets. Choosing the wrong collection means slow tests, mysterious bugs, and code that's painful to maintain.
+
+**Where:** Test data stores, configuration loaders, page object registries, result aggregators, retry queues, data-driven parameterization, API response parsing, and framework internals.
+
+<MentalModel>
+
+Think of the Collections Framework as a warehouse with specialized storage systems. An `ArrayList` is a numbered shelf — fast to grab item #47, slow to insert something in the middle because you have to shift everything. A `HashSet` is a system of labeled bins — you can instantly check if an item exists, but there's no "first" or "fifth" item. A `HashMap` is a filing cabinet with labeled drawers — give it a key, get back the value instantly. Each container is optimized for a specific access pattern. Your job is to pick the right container for the job.
+
+</MentalModel>
+
+
+<KeyTakeaways>
+
+1. **`ArrayList` and `HashMap` are your workhorses** — they cover 80%+ of automation use cases. Start there and switch only when you have a reason.
+2. **The interface hierarchy matters** — code to `List`, `Set`, `Map` interfaces, not `ArrayList`, `HashSet`, `HashMap` implementations. This makes your framework code flexible.
+3. **Generics prevent bugs at compile time** — `List<String>` catches type errors before tests run; raw types like `List` push errors to runtime.
+4. **Immutable collections (`List.of()`, `Map.of()`) are your friends** — use them for constants, expected values, and anything that shouldn't change. Mutation bugs in test data are hard to trace.
+5. **Know the Big-O basics** — `ArrayList.get()` is O(1), `ArrayList.contains()` is O(n), `HashSet.contains()` is O(1). This matters when processing thousands of test results.
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation (Layer 2)
+
+### The Problem This Solves
+
+Without collections, you'd work with raw arrays everywhere:
+
+
+```java
+// Without collections — painful
+String[] testNames = new String[100]; // Fixed size — what if you have 101 tests?
+int count = 0;
+testNames[count++] = "loginTest";
+testNames[count++] = "checkoutTest";
+// Want to remove one? Shift everything manually.
+// Want to check if a test exists? Loop through the whole array.
+// Want to associate test names with results? Maintain two parallel arrays.
+```
+
+Collections give you dynamic sizing, built-in search, key-value association, ordering guarantees, and thread-safe variants — all behind clean interfaces.
+
+### The Collections Hierarchy
+
+```
+                         Iterable<E>
+                             │
+                        Collection<E>
+                     ┌───────┼────────────┐
+                     │       │            │
+                  List<E>  Set<E>     Queue<E>
+                     │       │            │
+              ┌──────┤    ┌──┴───┐    ┌───┴───┐
+              │      │    │      │    │       │
+         ArrayList  LinkedList  HashSet  LinkedHashSet  TreeSet  ArrayDeque  PriorityQueue
+                     (also Queue)
+
+
+              Map<K,V>        ← separate hierarchy, NOT under Collection
+           ┌────┼──────┐
+           │    │      │
+       HashMap  LinkedHashMap  TreeMap
+           │
+    ConcurrentHashMap
+```
+
+**Why this hierarchy exists:** Each interface adds a contract.
+- `Iterable` — you can loop over it with for-each.
+- `Collection` — you can add, remove, check size, check contains.
+- `List` — ordered, indexed access (get by position), duplicates allowed.
+- `Set` — no duplicates, fast membership testing.
+- `Queue` — FIFO processing order, offer/poll semantics.
+- `Map` — key-value pairs, keys are unique.
+
+Each implementation makes different trade-offs on speed, ordering, and memory.
+
+### Connection to Related Concepts
+
+- Oop Fundamentals — Collections use interfaces and polymorphism heavily. `List<E>` is an interface; `ArrayList<E>` is a concrete class.
+- Lambdas And Streams — Streams are built on top of collections. You filter, map, and collect from collections.
+- Exception Handling — `ConcurrentModificationException` is one of the most common collection-related errors.
+
+---
+
+### List Implementations
+
+A `List` is an ordered collection that allows duplicates. Elements have an index (position).
+
+#### ArrayList
+
+The most commonly used collection. Backed by a resizable array internally.
+
+
+```java
+// Internal structure (simplified)
+// Object[] elementData = new Object[10];  ← starts with capacity 10
+// int size = 0;                            ← tracks actual element count
+```
+
+**Performance characteristics:**
+| Operation | Time | Why |
+|-----------|------|-----|
+| `get(index)` | O(1) | Direct array access: `elementData[index]` |
+| `add(element)` at end | O(1) amortized | Append to array; occasional resize (copy to larger array) |
+| `add(index, element)` in middle | O(n) | Must shift all elements after `index` to the right |
+| `remove(index)` | O(n) | Must shift all elements after `index` to the left |
+| `contains(element)` | O(n) | Linear scan — checks every element with `.equals()` |
+| `size()` | O(1) | Returns the `size` field |
+
+**When to use:** Almost always. It's the default List. Random access is fast, iteration is fast (cache-friendly because elements are contiguous in memory), and appending is fast.
+
+
+```java
+import java.util.ArrayList;
+import java.util.List;
+
+List<String> testNames = new ArrayList<>();
+testNames.add("loginTest");
+testNames.add("checkoutTest");
+testNames.add("searchTest");
+
+String second = testNames.get(1);          // "checkoutTest" — O(1)
+boolean exists = testNames.contains("loginTest"); // true — O(n) scan
+testNames.remove("searchTest");            // removes first occurrence
+int idx = testNames.indexOf("loginTest");  // 0
+```
+
+**Initial capacity tuning:** If you know roughly how many elements you'll have, set the initial capacity to avoid repeated resizing:
+
+
+```java
+// You expect ~500 test results — avoid resizing from default 10
+List<TestResult> results = new ArrayList<>(500);
+```
+
+#### LinkedList
+
+A doubly-linked list. Each element points to the previous and next element.
+
+**Performance characteristics:**
+| Operation | Time | Why |
+|-----------|------|-----|
+| `get(index)` | O(n) | Must traverse from head or tail to reach the index |
+| `add(element)` at end | O(1) | Update the tail pointer |
+| `addFirst(element)` | O(1) | Update the head pointer |
+| `remove(index)` | O(n) | Traversal to find it, then O(1) pointer update |
+| `contains(element)` | O(n) | Linear traversal |
+
+**When to use in automation:** Almost never. `ArrayList` beats `LinkedList` in practice for most workloads due to CPU cache locality. `LinkedList` is theoretically better for frequent insertions/removals at the beginning, but in automation you rarely do that at scale.
+
+The only reasonable use case: when you also need it as a `Queue` (FIFO) or `Deque` (double-ended queue) and want a single data structure.
+
+#### Immutable Lists (Java 9+)
+
+
+```java
+// Immutable — any modification throws UnsupportedOperationException
+List<String> browsers = List.of("chrome", "firefox", "safari");
+
+// Copy an existing list into an immutable one
+List<String> mutableList = new ArrayList<>(List.of("a", "b", "c"));
+List<String> snapshot = List.copyOf(mutableList); // immutable copy
+```
+
+**Why this matters in automation:** Use immutable lists for constants — supported browsers, expected status codes, environment names. This prevents accidental mutation across tests.
+
+#### Common List Operations
+
+
+```java
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
+
+List<String> tests = new ArrayList<>(List.of("login", "checkout", "search", "login"));
+
+// --- Size and emptiness ---
+tests.size();       // 4
+tests.isEmpty();    // false
+
+// --- Access ---
+tests.get(0);                // "login"
+tests.indexOf("login");      // 0 (first occurrence)
+tests.lastIndexOf("login");  // 3 (last occurrence)
+
+// --- Modification ---
+tests.add("payment");             // appends to end
+tests.add(1, "registration");     // inserts at index 1, shifts rest
+tests.set(0, "loginV2");          // replaces element at index 0
+tests.remove("checkout");         // removes first occurrence by value
+tests.remove(0);                  // removes by index — watch out for ambiguity with Integer lists!
+
+// --- Sublist ---
+List<String> subset = tests.subList(0, 2); // indices 0 and 1 (exclusive end)
+
+// --- Sorting ---
+tests.sort(Comparator.naturalOrder());               // alphabetical
+tests.sort(Comparator.reverseOrder());                // reverse alphabetical
+tests.sort(Comparator.comparing(String::length));     // by string length
+
+// --- Bulk operations ---
+tests.addAll(List.of("newTest1", "newTest2"));
+tests.removeAll(List.of("login", "search"));          // removes all matching
+tests.retainAll(List.of("payment"));                   // keeps only matching
+
+// --- Conversion ---
+String[] array = tests.toArray(new String[0]);
+List<String> fromArray = List.of(array);               // immutable from array
+
+// --- Stream operations (detailed in lambdas-and-streams module) ---
+List<String> filtered = tests.stream()
+    .filter(t -> t.startsWith("login"))
+    .toList();  // Java 16+ (or .collect(Collectors.toList()) for earlier)
+```
+
+---
+
+### Set Implementations
+
+A `Set` is a collection that contains **no duplicate elements**. It models the mathematical set abstraction.
+
+#### HashSet
+
+Uses a hash table internally (actually backed by a `HashMap` where values are a dummy object). Provides O(1) average performance for `add`, `contains`, and `remove`.
+
+**How it works internally (brief):**
+1. When you call `add(element)`, Java calls `element.hashCode()` to compute a bucket index.
+2. If the bucket is empty, the element goes in.
+3. If the bucket already has elements (hash collision), Java uses `element.equals()` to check if it's a duplicate.
+4. If `equals()` returns `true` for any existing element in the bucket, the add is rejected (no duplicates).
+
+**Critical rule:** If you override `equals()`, you **must** override `hashCode()`. Otherwise, two logically equal objects may land in different buckets, and the `Set` won't detect the duplicate.
+
+
+```java
+import java.util.HashSet;
+import java.util.Set;
+
+Set<String> executedTests = new HashSet<>();
+executedTests.add("loginTest");
+executedTests.add("checkoutTest");
+executedTests.add("loginTest");  // duplicate — silently ignored
+
+System.out.println(executedTests.size());     // 2
+System.out.println(executedTests.contains("loginTest")); // true — O(1)
+```
+
+**Iteration order:** Not guaranteed. May change between JVM versions or even between runs.
+
+#### LinkedHashSet
+
+Same performance as `HashSet`, but maintains **insertion order**. Uses a doubly-linked list running through all entries in addition to the hash table.
+
+
+```java
+import java.util.LinkedHashSet;
+import java.util.Set;
+
+Set<String> orderedTests = new LinkedHashSet<>();
+orderedTests.add("loginTest");
+orderedTests.add("checkoutTest");
+orderedTests.add("searchTest");
+
+// Iteration order is guaranteed: loginTest, checkoutTest, searchTest
+for (String test : orderedTests) {
+    System.out.println(test);
+}
+```
+
+**When to use in automation:** When you need both uniqueness and predictable order — for example, deduplicating test names while preserving the order they were discovered.
+
+#### TreeSet
+
+Stores elements in **sorted order** using a Red-Black tree. All operations are O(log n).
+
+
+```java
+import java.util.Set;
+import java.util.TreeSet;
+
+Set<String> sortedTests = new TreeSet<>();
+sortedTests.add("checkout");
+sortedTests.add("login");
+sortedTests.add("api-health");
+
+// Iteration: api-health, checkout, login (alphabetical)
+for (String test : sortedTests) {
+    System.out.println(test);
+}
+```
+
+**When to use in automation:** When you need sorted unique elements — for example, collecting all unique error codes from test results and displaying them in order.
+
+#### When to Use Each Set in Automation
+
+| Scenario | Best Set |
+|----------|----------|
+| Deduplicate test names, order doesn't matter | `HashSet` |
+| Deduplicate while preserving execution order | `LinkedHashSet` |
+| Collect unique values and display them sorted | `TreeSet` |
+| Constant set of expected values (immutable) | `Set.of(...)` |
+
+---
+
+### Map Implementations
+
+A `Map` stores key-value pairs. Keys must be unique; each key maps to exactly one value.
+
+#### HashMap
+
+The most commonly used `Map`. Uses a hash table — the same bucket + hash code mechanism as `HashSet`.
+
+**Performance characteristics:**
+| Operation | Time | Why |
+|-----------|------|-----|
+| `put(key, value)` | O(1) average | Hash the key, put in bucket |
+| `get(key)` | O(1) average | Hash the key, look up bucket |
+| `containsKey(key)` | O(1) average | Same as get |
+| `containsValue(value)` | O(n) | Must scan all values |
+| `remove(key)` | O(1) average | Hash the key, remove from bucket |
+
+**How hashing works (briefly):**
+1. `key.hashCode()` produces an integer.
+2. The integer is mapped to a bucket index (typically `hash & (capacity - 1)`).
+3. If multiple keys map to the same bucket (collision), they're stored in a linked list within the bucket.
+4. Java 8+: if a bucket grows beyond 8 elements, the linked list is converted to a balanced tree (O(log n) lookup within that bucket instead of O(n)).
+
+
+```java
+import java.util.HashMap;
+import java.util.Map;
+
+Map<String, String> envConfig = new HashMap<>();
+envConfig.put("baseUrl", "https://staging.staynest.com");
+envConfig.put("apiVersion", "v2");
+envConfig.put("timeout", "30");
+
+String url = envConfig.get("baseUrl");                        // "https://staging.staynest.com"
+String missing = envConfig.getOrDefault("retries", "3");      // "3" (key not present, uses default)
+boolean hasKey = envConfig.containsKey("timeout");            // true
+```
+
+#### LinkedHashMap
+
+Same as `HashMap` but maintains **insertion order**. Iteration follows the order keys were first inserted.
+
+
+```java
+import java.util.LinkedHashMap;
+import java.util.Map;
+
+// Preserves insertion order — useful for ordered test data or step-by-step configs
+Map<String, String> testSteps = new LinkedHashMap<>();
+testSteps.put("step1", "Navigate to login page");
+testSteps.put("step2", "Enter credentials");
+testSteps.put("step3", "Click submit");
+
+// Iteration order guaranteed: step1, step2, step3
+testSteps.forEach((key, value) -> System.out.println(key + ": " + value));
+```
+
+#### TreeMap
+
+Stores entries sorted by key. Keys must implement `Comparable` or you must provide a `Comparator`.
+
+
+```java
+import java.util.Map;
+import java.util.TreeMap;
+
+Map<String, Integer> testDurations = new TreeMap<>();
+testDurations.put("checkout", 4500);
+testDurations.put("login", 1200);
+testDurations.put("api-health", 300);
+
+// Iteration: api-health, checkout, login (sorted by key)
+testDurations.forEach((name, ms) -> System.out.println(name + ": " + ms + "ms"));
+```
+
+#### ConcurrentHashMap
+
+A thread-safe `HashMap` for parallel test execution. Unlike `Collections.synchronizedMap()`, it uses fine-grained locking (lock striping) — multiple threads can read/write to different segments simultaneously.
+
+
+```java
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.Map;
+
+// Safe for parallel test execution — multiple threads writing results
+Map<String, String> testResults = new ConcurrentHashMap<>();
+
+// In parallel test threads:
+testResults.put("loginTest", "PASS");   // Thread 1
+testResults.put("searchTest", "FAIL");  // Thread 2 — no corruption
+```
+
+**When to use:** When tests run in parallel and share a results map, a configuration registry, or any mutable state.
+
+#### Common Map Operations
+
+
+```java
+import java.util.HashMap;
+import java.util.Map;
+
+Map<String, Integer> testRetries = new HashMap<>();
+
+// --- Basic operations ---
+testRetries.put("loginTest", 0);
+testRetries.put("checkoutTest", 2);
+testRetries.put("searchTest", 1);
+
+testRetries.get("loginTest");                  // 0
+testRetries.getOrDefault("unknownTest", -1);   // -1
+
+// --- Check existence ---
+testRetries.containsKey("loginTest");          // true
+testRetries.containsValue(2);                  // true (but O(n))
+
+// --- Views ---
+testRetries.keySet();    // Set<String>: ["loginTest", "checkoutTest", "searchTest"]
+testRetries.values();    // Collection<Integer>: [0, 2, 1]
+testRetries.entrySet();  // Set<Map.Entry<String, Integer>>
+
+// --- Iteration ---
+for (Map.Entry<String, Integer> entry : testRetries.entrySet()) {
+    System.out.println(entry.getKey() + " retried " + entry.getValue() + " times");
+}
+
+// --- computeIfAbsent: create value only if key is missing ---
+// Great for building grouped data structures
+Map<String, List<String>> testsByModule = new HashMap<>();
+testsByModule.computeIfAbsent("auth", k -> new ArrayList<>()).add("loginTest");
+testsByModule.computeIfAbsent("auth", k -> new ArrayList<>()).add("logoutTest");
+testsByModule.computeIfAbsent("booking", k -> new ArrayList<>()).add("checkoutTest");
+// Result: {auth=[loginTest, logoutTest], booking=[checkoutTest]}
+
+// --- merge: combine values ---
+Map<String, Integer> failCounts = new HashMap<>();
+failCounts.merge("loginTest", 1, Integer::sum);  // loginTest -> 1
+failCounts.merge("loginTest", 1, Integer::sum);  // loginTest -> 2
+failCounts.merge("loginTest", 1, Integer::sum);  // loginTest -> 3
+
+// --- putIfAbsent: set only if key doesn't exist ---
+testRetries.putIfAbsent("loginTest", 99);  // no effect — key already exists
+testRetries.putIfAbsent("paymentTest", 0); // adds paymentTest -> 0
+
+// --- replaceAll ---
+testRetries.replaceAll((key, value) -> value + 1);  // increment all retry counts
+
+// --- remove with value check ---
+testRetries.remove("loginTest", 0);  // removes ONLY if value is 0
+```
+
+#### Immutable Maps (Java 9+)
+
+
+```java
+// Up to 10 entries
+Map<String, String> config = Map.of(
+    "browser", "chrome",
+    "headless", "true",
+    "timeout", "30"
+);
+
+// More than 10 entries — use Map.ofEntries
+Map<String, String> largeConfig = Map.ofEntries(
+    Map.entry("browser", "chrome"),
+    Map.entry("headless", "true"),
+    Map.entry("timeout", "30"),
+    Map.entry("retries", "2")
+    // ... any number of entries
+);
+
+// Copy mutable map to immutable
+Map<String, String> snapshot = Map.copyOf(mutableMap);
+```
+
+---
+
+### Queue and Deque
+
+Queues model waiting lines — elements are processed in a specific order.
+
+#### Queue (FIFO)
+
+
+```java
+import java.util.LinkedList;
+import java.util.Queue;
+
+Queue<String> retryQueue = new LinkedList<>();
+retryQueue.offer("loginTest");    // enqueue (add to tail)
+retryQueue.offer("searchTest");
+retryQueue.offer("checkoutTest");
+
+String next = retryQueue.poll();  // dequeue (remove from head) → "loginTest"
+String peek = retryQueue.peek();  // look at head without removing → "searchTest"
+System.out.println(retryQueue.size()); // 2
+```
+
+**`offer/poll/peek` vs `add/remove/element`:** The first set returns `null`/`false` on failure. The second set throws exceptions. In automation, prefer `offer/poll/peek` — no exception handling needed for normal conditions.
+
+#### ArrayDeque (Double-ended Queue)
+
+Faster than `LinkedList` for both stack (LIFO) and queue (FIFO) use cases. Backed by a resizable array.
+
+
+```java
+import java.util.ArrayDeque;
+import java.util.Deque;
+
+// As a stack (LIFO) — e.g., tracking page navigation for back-button testing
+Deque<String> pageStack = new ArrayDeque<>();
+pageStack.push("homePage");       // push onto top
+pageStack.push("searchResults");
+pageStack.push("productDetail");
+
+String current = pageStack.pop(); // "productDetail" — most recent
+String top = pageStack.peek();    // "searchResults" — without removing
+```
+
+#### PriorityQueue
+
+Elements are dequeued in priority order (natural ordering or custom `Comparator`), not insertion order.
+
+
+```java
+import java.util.Comparator;
+import java.util.PriorityQueue;
+import java.util.Queue;
+
+// Retry failed tests — prioritize by failure count (fewer failures = retry first)
+record FailedTest(String name, int failureCount) {}
+
+Queue<FailedTest> retryQueue = new PriorityQueue<>(
+    Comparator.comparingInt(FailedTest::failureCount)
+);
+
+retryQueue.offer(new FailedTest("checkoutTest", 5));
+retryQueue.offer(new FailedTest("loginTest", 1));
+retryQueue.offer(new FailedTest("searchTest", 3));
+
+// Dequeues in order: loginTest(1), searchTest(3), checkoutTest(5)
+while (!retryQueue.isEmpty()) {
+    FailedTest test = retryQueue.poll();
+    System.out.println("Retrying: " + test.name() + " (failed " + test.failureCount() + " times)");
+}
+```
+
+#### When Queues Are Useful in Automation
+
+- **Retry mechanisms:** Queue failed tests for retry in order.
+- **Event-driven test orchestration:** Process test events (start, pass, fail, skip) as they arrive.
+- **Rate-limited API testing:** Queue API calls and process them at controlled intervals.
+- **Priority-based execution:** Run critical tests first using a `PriorityQueue`.
+
+---
+
+### Generics
+
+Generics allow you to write classes, interfaces, and methods that work with any type while maintaining compile-time type safety.
+
+#### Why Generics Exist
+
+
+```java
+// Without generics (Java 1.4 and earlier) — raw types
+List rawList = new ArrayList();
+rawList.add("hello");
+rawList.add(42);           // no compile error — List accepts anything
+String s = (String) rawList.get(1);  // ClassCastException at RUNTIME — 42 is not a String
+
+// With generics — type-safe
+List<String> typedList = new ArrayList<>();
+typedList.add("hello");
+// typedList.add(42);      // COMPILE ERROR — caught before you run the test
+String s = typedList.get(0);  // no cast needed
+```
+
+Generics move errors from runtime to compile time. In test automation, a `ClassCastException` buried in a utility method at 2 AM during a CI run is much worse than a red squiggly in your IDE.
+
+#### Generic Classes
+
+
+```java
+/**
+ * A type-safe wrapper for configuration values.
+ * T is a type parameter — it's replaced with a real type when you create an instance.
+ */
+public class ConfigValue<T> {
+    private final String key;
+    private final T value;
+    private final T defaultValue;
+
+    public ConfigValue(String key, T value, T defaultValue) {
+        this.key = key;
+        this.value = value;
+        this.defaultValue = defaultValue;
+    }
+
+    public T getOrDefault() {
+        return value != null ? value : defaultValue;
+    }
+
+    public String getKey() {
+        return key;
+    }
+}
+
+// Usage — the compiler enforces type consistency
+ConfigValue<Integer> timeout = new ConfigValue<>("timeout", 30, 10);
+int t = timeout.getOrDefault();  // 30 — no cast needed
+
+ConfigValue<String> browser = new ConfigValue<>("browser", null, "chrome");
+String b = browser.getOrDefault();  // "chrome"
+
+ConfigValue<Boolean> headless = new ConfigValue<>("headless", true, false);
+boolean h = headless.getOrDefault();  // true
+```
+
+#### Generic Methods
+
+A method can have its own type parameters, independent of the class.
+
+
+```java
+public class TestUtils {
+
+    /**
+     * Finds the first element matching a predicate — works for any type.
+     * <T> before the return type declares a type parameter for this method.
+     */
+    public static <T> T findFirst(List<T> items, Predicate<T> condition) {
+        for (T item : items) {
+            if (condition.test(item)) {
+                return item;
+            }
+        }
+        return null;
+    }
+
+    // Usage
+    public static void main(String[] args) {
+        List<String> tests = List.of("loginTest", "checkoutTest", "searchTest");
+        String found = findFirst(tests, t -> t.contains("checkout"));  // "checkoutTest"
+
+        List<Integer> durations = List.of(100, 5000, 200, 8000);
+        Integer slow = findFirst(durations, d -> d > 3000);  // 5000
+    }
+}
+```
+
+#### Bounded Type Parameters
+
+Restrict which types can be used with a generic.
+
+
+```java
+/**
+ * T must implement Comparable<T> — this guarantees we can compare elements.
+ */
+public static <T extends Comparable<T>> T findMax(List<T> items) {
+    if (items.isEmpty()) {
+        throw new IllegalArgumentException("List is empty");
+    }
+    T max = items.get(0);
+    for (T item : items) {
+        if (item.compareTo(max) > 0) {
+            max = item;
+        }
+    }
+    return max;
+}
+
+// Works with any Comparable type
+String maxName = findMax(List.of("login", "checkout", "search"));  // "search"
+Integer maxDuration = findMax(List.of(100, 5000, 200));            // 5000
+```
+
+**Multiple bounds:** `<T extends Comparable<T> & Serializable>` — T must satisfy both.
+
+#### Wildcards: `?`, `? extends T`, `? super T`
+
+Wildcards are used when you want a method to accept multiple generic types.
+
+
+```java
+// Unbounded wildcard: ? — accepts any type
+public static void printAll(List<?> items) {
+    for (Object item : items) {
+        System.out.println(item);
+    }
+}
+// Works with List<String>, List<Integer>, List<TestResult>, etc.
+
+// Upper bounded wildcard: ? extends Number — accepts Number or any subclass
+public static double sum(List<? extends Number> numbers) {
+    double total = 0;
+    for (Number n : numbers) {
+        total += n.doubleValue();
+    }
+    return total;
+}
+// Works with List<Integer>, List<Double>, List<Long>, etc.
+
+// Lower bounded wildcard: ? super Integer — accepts Integer or any superclass
+public static void addNumbers(List<? super Integer> list) {
+    list.add(1);
+    list.add(2);
+    list.add(3);
+}
+// Works with List<Integer>, List<Number>, List<Object>
+```
+
+#### The PECS Rule (Producer Extends, Consumer Super)
+
+This is the key rule for remembering when to use `extends` vs `super`:
+
+- **Producer** (you READ from it) → use `? extends T`
+- **Consumer** (you WRITE to it) → use `? super T`
+
+
+```java
+// PRODUCER: source is a producer — we read from it → extends
+public static <T> void copy(List<? extends T> source, List<? super T> dest) {
+    for (T item : source) {
+        dest.add(item);  // CONSUMER: dest is a consumer — we write to it → super
+    }
+}
+
+List<Integer> ints = List.of(1, 2, 3);
+List<Number> nums = new ArrayList<>();
+copy(ints, nums);  // Works! Integer extends Number, Number is super of Integer
+```
+
+**Practical mnemonic:** If a method parameter is like a "source" or "input" that you only read from, use `extends`. If it's like a "destination" or "output" that you only write to, use `super`. If you both read and write, use the exact type (no wildcard).
+
+#### Type Erasure: What Happens at Runtime
+
+Generics exist only at compile time. The compiler checks types, then **erases** them — replacing type parameters with `Object` (or the bound, if any). This is called type erasure.
+
+
+```java
+// What you write:
+List<String> names = new ArrayList<>();
+names.add("test");
+String s = names.get(0);
+
+// What the compiler generates (approximately):
+List names = new ArrayList();    // type parameter erased
+names.add("test");
+String s = (String) names.get(0); // compiler inserts cast
+
+// Consequence: you can't do this
+// if (list instanceof List<String>) { }  // compile error — type info gone at runtime
+// T obj = new T();                        // compile error — can't instantiate type parameter
+```
+
+**Why this matters in automation:** If you're using reflection-based frameworks (e.g., deserializing JSON to a generic type), type erasure can bite you. Libraries like Jackson and Gson use `TypeReference` or `TypeToken` to work around this.
+
+---
+
+### Iteration Patterns
+
+#### For-each Loop
+
+The simplest and most common pattern:
+
+
+```java
+List<String> tests = List.of("login", "checkout", "search");
+
+for (String test : tests) {
+    System.out.println(test);
+}
+```
+
+Works with any `Iterable` — all `Collection` types, arrays, etc.
+
+#### Iterator and ListIterator
+
+Use `Iterator` when you need to remove elements during iteration (the only safe way to do it).
+
+
+```java
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+
+List<String> tests = new ArrayList<>(List.of("login", "checkout", "SKIP_search", "payment"));
+
+// Remove elements starting with "SKIP_" during iteration
+Iterator<String> it = tests.iterator();
+while (it.hasNext()) {
+    String test = it.next();
+    if (test.startsWith("SKIP_")) {
+        it.remove();  // safe removal during iteration
+    }
+}
+// tests = ["login", "checkout", "payment"]
+```
+
+`ListIterator` adds bidirectional traversal and the ability to replace or insert elements:
+
+
+```java
+import java.util.ArrayList;
+import java.util.List;
+import java.util.ListIterator;
+
+List<String> tests = new ArrayList<>(List.of("login", "checkout", "search"));
+
+ListIterator<String> lit = tests.listIterator();
+while (lit.hasNext()) {
+    String test = lit.next();
+    lit.set(test.toUpperCase());  // replace current element
+}
+// tests = ["LOGIN", "CHECKOUT", "SEARCH"]
+```
+
+#### forEach with Lambda
+
+
+```java
+List<String> tests = List.of("login", "checkout", "search");
+
+tests.forEach(test -> System.out.println("Running: " + test));
+
+// With method reference
+tests.forEach(System.out::println);
+
+// Map iteration with forEach
+Map<String, String> config = Map.of("browser", "chrome", "env", "staging");
+config.forEach((key, value) -> System.out.println(key + " = " + value));
+```
+
+#### Streams for Filtering, Mapping, Collecting
+
+
+```java
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
+record TestResult(String name, String status, long durationMs) {}
+
+List<TestResult> results = List.of(
+    new TestResult("loginTest", "PASS", 1200),
+    new TestResult("checkoutTest", "FAIL", 5000),
+    new TestResult("searchTest", "PASS", 800),
+    new TestResult("paymentTest", "FAIL", 3000),
+    new TestResult("profileTest", "PASS", 600)
+);
+
+// Filter: only failed tests
+List<TestResult> failures = results.stream()
+    .filter(r -> "FAIL".equals(r.status()))
+    .toList();
+
+// Map: extract test names
+List<String> testNames = results.stream()
+    .map(TestResult::name)
+    .toList();
+
+// Collect to Set: unique statuses
+Set<String> statuses = results.stream()
+    .map(TestResult::status)
+    .collect(Collectors.toSet());
+
+// Group by status
+Map<String, List<TestResult>> byStatus = results.stream()
+    .collect(Collectors.groupingBy(TestResult::status));
+
+// Partition: pass vs fail
+Map<Boolean, List<TestResult>> partitioned = results.stream()
+    .collect(Collectors.partitioningBy(r -> "PASS".equals(r.status())));
+
+// Summarize: total duration of failed tests
+long totalFailDuration = results.stream()
+    .filter(r -> "FAIL".equals(r.status()))
+    .mapToLong(TestResult::durationMs)
+    .sum();
+
+// Collect to Map: testName → status
+Map<String, String> statusMap = results.stream()
+    .collect(Collectors.toMap(TestResult::name, TestResult::status));
+
+// Find first slow test
+results.stream()
+    .filter(r -> r.durationMs() > 3000)
+    .findFirst()
+    .ifPresent(r -> System.out.println("Slow test: " + r.name()));
+```
+
+#### ConcurrentModificationException — Why and How to Avoid
+
+This happens when you modify a collection while iterating over it with a for-each loop or explicit iterator (and the modification is not through the iterator itself).
+
+
+```java
+// BROKEN — throws ConcurrentModificationException
+List<String> tests = new ArrayList<>(List.of("login", "checkout", "SKIP_search", "payment"));
+for (String test : tests) {
+    if (test.startsWith("SKIP_")) {
+        tests.remove(test);  // modifying the list during iteration!
+    }
+}
+```
+
+**How to avoid:**
+
+
+```java
+// Fix 1: Use Iterator.remove()
+Iterator<String> it = tests.iterator();
+while (it.hasNext()) {
+    if (it.next().startsWith("SKIP_")) {
+        it.remove();
+    }
+}
+
+// Fix 2: Use removeIf() (Java 8+) — cleanest approach
+tests.removeIf(test -> test.startsWith("SKIP_"));
+
+// Fix 3: Collect items to remove, then remove after iteration
+List<String> toRemove = new ArrayList<>();
+for (String test : tests) {
+    if (test.startsWith("SKIP_")) {
+        toRemove.add(test);
+    }
+}
+tests.removeAll(toRemove);
+
+// Fix 4: Use streams to create a new filtered list
+List<String> filtered = tests.stream()
+    .filter(test -> !test.startsWith("SKIP_"))
+    .collect(Collectors.toList());
+```
+
+---
+
+## Practical Implementation (Layer 3)
+
+### Example 1: Test Data Management with Collections
+
+A reusable test data store that manages named data sets — commonly used to load test data from CSV, JSON, or database and make it available to tests.
+
+
+```java
+import java.util.*;
+import java.util.stream.Collectors;
+
+/**
+ * Manages test data organized by scenario name.
+ * Each scenario has a map of field names to values.
+ *
+ * Example structure:
+ *   "validLogin"   -> {username: "admin", password: "secret123", expectedResult: "dashboard"}
+ *   "invalidLogin" -> {username: "admin", password: "wrong",     expectedResult: "error"}
+ */
+public class TestDataStore {
+
+    // LinkedHashMap preserves insertion order — scenarios run in the order they were added
+    private final Map<String, Map<String, String>> testData = new LinkedHashMap<>();
+
+    /**
+     * Add a test data scenario.
+     */
+    public void addScenario(String scenarioName, Map<String, String> fields) {
+        // Defensive copy — prevent external modification
+        testData.put(scenarioName, new LinkedHashMap<>(fields));
+    }
+
+    /**
+     * Get a field value for a scenario, with a default if missing.
+     */
+    public String getValue(String scenarioName, String fieldName, String defaultValue) {
+        return testData
+            .getOrDefault(scenarioName, Collections.emptyMap())
+            .getOrDefault(fieldName, defaultValue);
+    }
+
+    /**
+     * Get a field value, throwing if the scenario or field doesn't exist.
+     */
+    public String getRequiredValue(String scenarioName, String fieldName) {
+        Map<String, String> scenario = testData.get(scenarioName);
+        if (scenario == null) {
+            throw new IllegalArgumentException("Scenario not found: " + scenarioName);
+        }
+        String value = scenario.get(fieldName);
+        if (value == null) {
+            throw new IllegalArgumentException(
+                "Field '" + fieldName + "' not found in scenario: " + scenarioName
+            );
+        }
+        return value;
+    }
+
+    /**
+     * Get all scenario names.
+     */
+    public Set<String> getScenarioNames() {
+        // Return unmodifiable view — callers can't modify our internal data
+        return Collections.unmodifiableSet(testData.keySet());
+    }
+
+    /**
+     * Filter scenarios where a specific field matches a value.
+     * Example: getFilteredScenarios("expectedResult", "error") returns only error scenarios.
+     */
+    public Map<String, Map<String, String>> getFilteredScenarios(String fieldName, String fieldValue) {
+        return testData.entrySet().stream()
+            .filter(entry -> fieldValue.equals(entry.getValue().get(fieldName)))
+            .collect(Collectors.toMap(
+                Map.Entry::getKey,
+                Map.Entry::getValue,
+                (v1, v2) -> v1,          // merge function (not expected to collide)
+                LinkedHashMap::new        // preserve order
+            ));
+    }
+
+    /**
+     * Merge another data store into this one.
+     * Uses computeIfAbsent to avoid overwriting existing scenarios.
+     */
+    public void mergeFrom(TestDataStore other) {
+        other.testData.forEach((scenarioName, fields) -> {
+            testData.computeIfAbsent(scenarioName, k -> new LinkedHashMap<>())
+                    .putAll(fields);
+        });
+    }
+
+    /**
+     * Get all unique values for a specific field across all scenarios.
+     */
+    public Set<String> getUniqueFieldValues(String fieldName) {
+        return testData.values().stream()
+            .map(fields -> fields.get(fieldName))
+            .filter(Objects::nonNull)
+            .collect(Collectors.toCollection(LinkedHashSet::new));  // preserve order, no dupes
+    }
+
+    /**
+     * Return the total number of scenarios.
+     */
+    public int size() {
+        return testData.size();
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder("TestDataStore {\n");
+        testData.forEach((name, fields) -> {
+            sb.append("  ").append(name).append(": ").append(fields).append("\n");
+        });
+        sb.append("}");
+        return sb.toString();
+    }
+}
+```
+
+**Usage in a test:**
+
+
+```java
+TestDataStore store = new TestDataStore();
+store.addScenario("validLogin", Map.of(
+    "username", "admin",
+    "password", "secret123",
+    "expectedResult", "dashboard"
+));
+store.addScenario("invalidLogin", Map.of(
+    "username", "admin",
+    "password", "wrong",
+    "expectedResult", "error"
+));
+store.addScenario("lockedAccount", Map.of(
+    "username", "locked_user",
+    "password", "secret123",
+    "expectedResult", "error"
+));
+
+// Get a specific value
+String password = store.getRequiredValue("validLogin", "password"); // "secret123"
+
+// Get all error scenarios for data-driven negative testing
+Map<String, Map<String, String>> errorScenarios =
+    store.getFilteredScenarios("expectedResult", "error");
+// {invalidLogin: {...}, lockedAccount: {...}}
+
+// Get all unique expected results
+Set<String> outcomes = store.getUniqueFieldValues("expectedResult");
+// [dashboard, error] — LinkedHashSet preserves insertion order
+```
+
+---
+
+### Example 2: Test Result Aggregator
+
+Aggregates test results from parallel or sequential runs. Demonstrates grouping, deduplication, and stream-based analysis.
+
+
+```java
+import java.util.*;
+import java.util.stream.Collectors;
+
+public class TestResultAggregator {
+
+    public record TestResult(
+        String testName,
+        String status,       // "PASS", "FAIL", "SKIP"
+        long durationMs,
+        String errorMessage  // null if passed
+    ) {}
+
+    private final List<TestResult> allResults = new ArrayList<>();
+
+    public void addResult(TestResult result) {
+        allResults.add(result);
+    }
+
+    public void addAll(Collection<TestResult> results) {
+        allResults.addAll(results);
+    }
+
+    /**
+     * Group results by status.
+     * Returns: {"PASS": [result1, result3], "FAIL": [result2, result4], "SKIP": [result5]}
+     */
+    public Map<String, List<TestResult>> groupByStatus() {
+        return allResults.stream()
+            .collect(Collectors.groupingBy(TestResult::status));
+    }
+
+    /**
+     * Find flaky tests — tests that have both PASS and FAIL results.
+     * This indicates non-deterministic behavior.
+     */
+    public Set<String> findFlakyTests() {
+        // Step 1: Group results by test name
+        Map<String, Set<String>> statusesByTest = new HashMap<>();
+        for (TestResult result : allResults) {
+            statusesByTest
+                .computeIfAbsent(result.testName(), k -> new HashSet<>())
+                .add(result.status());
+        }
+
+        // Step 2: Find tests that have both PASS and FAIL
+        return statusesByTest.entrySet().stream()
+            .filter(entry -> entry.getValue().contains("PASS") && entry.getValue().contains("FAIL"))
+            .map(Map.Entry::getKey)
+            .collect(Collectors.toCollection(TreeSet::new));  // sorted for readable output
+    }
+
+    /**
+     * Get the slowest N tests.
+     */
+    public List<TestResult> getSlowestTests(int n) {
+        return allResults.stream()
+            .sorted(Comparator.comparingLong(TestResult::durationMs).reversed())
+            .limit(n)
+            .toList();
+    }
+
+    /**
+     * Get unique test names that failed, preserving the order they first failed.
+     */
+    public Set<String> getFailedTestNames() {
+        return allResults.stream()
+            .filter(r -> "FAIL".equals(r.status()))
+            .map(TestResult::testName)
+            .collect(Collectors.toCollection(LinkedHashSet::new));
+    }
+
+    /**
+     * Calculate pass rate as a percentage.
+     */
+    public double getPassRate() {
+        if (allResults.isEmpty()) return 0.0;
+
+        long passCount = allResults.stream()
+            .filter(r -> "PASS".equals(r.status()))
+            .count();
+
+        return (passCount * 100.0) / allResults.size();
+    }
+
+    /**
+     * Get a summary map: status → count.
+     */
+    public Map<String, Long> getSummary() {
+        return allResults.stream()
+            .collect(Collectors.groupingBy(TestResult::status, Collectors.counting()));
+    }
+
+    /**
+     * Get all unique error messages from failures.
+     */
+    public Set<String> getUniqueErrors() {
+        return allResults.stream()
+            .filter(r -> "FAIL".equals(r.status()))
+            .map(TestResult::errorMessage)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toCollection(LinkedHashSet::new));
+    }
+
+    /**
+     * Get average duration per status.
+     */
+    public Map<String, Double> getAverageDurationByStatus() {
+        return allResults.stream()
+            .collect(Collectors.groupingBy(
+                TestResult::status,
+                Collectors.averagingLong(TestResult::durationMs)
+            ));
+    }
+}
+```
+
+**Usage:**
+
+
+```java
+TestResultAggregator aggregator = new TestResultAggregator();
+
+// Simulate results from multiple runs (e.g., from a CI pipeline)
+aggregator.addAll(List.of(
+    new TestResultAggregator.TestResult("loginTest", "PASS", 1200, null),
+    new TestResultAggregator.TestResult("loginTest", "FAIL", 1500, "Element not found: #login-btn"),
+    new TestResultAggregator.TestResult("checkoutTest", "FAIL", 5000, "Timeout waiting for payment"),
+    new TestResultAggregator.TestResult("searchTest", "PASS", 800, null),
+    new TestResultAggregator.TestResult("loginTest", "PASS", 1100, null)
+));
+
+Set<String> flaky = aggregator.findFlakyTests();
+// [loginTest] — appeared in both PASS and FAIL
+
+Map<String, Long> summary = aggregator.getSummary();
+// {PASS=3, FAIL=2}
+
+double passRate = aggregator.getPassRate();
+// 60.0
+```
+
+---
+
+### Example 3: Generic Configuration Loader
+
+A type-safe configuration class demonstrating generics in a practical automation context.
+
+
+```java
+import java.util.*;
+import java.util.function.Function;
+
+/**
+ * A type-safe configuration manager.
+ * Each config property is registered with a parser, so getString(), getInt(), etc.
+ * are replaced by a single get() that returns the correct type.
+ *
+ * @param <T> The type of the configuration group (e.g., BrowserConfig, ApiConfig)
+ */
+public class TypedConfig<T> {
+
+    private final Map<String, String> rawProperties;
+    private final Function<Map<String, String>, T> parser;
+    private T cachedConfig;
+
+    private TypedConfig(Map<String, String> rawProperties, Function<Map<String, String>, T> parser) {
+        this.rawProperties = new LinkedHashMap<>(rawProperties);
+        this.parser = parser;
+    }
+
+    /**
+     * Create a TypedConfig from a map of raw string properties.
+     */
+    public static <T> TypedConfig<T> from(
+            Map<String, String> properties,
+            Function<Map<String, String>, T> parser) {
+        return new TypedConfig<>(properties, parser);
+    }
+
+    /**
+     * Get the typed configuration object.
+     * Parses on first call, caches thereafter.
+     */
+    public T get() {
+        if (cachedConfig == null) {
+            cachedConfig = parser.apply(Collections.unmodifiableMap(rawProperties));
+        }
+        return cachedConfig;
+    }
+
+    /**
+     * Get a raw property value.
+     */
+    public Optional<String> getRaw(String key) {
+        return Optional.ofNullable(rawProperties.get(key));
+    }
+
+    /**
+     * Check if a property exists.
+     */
+    public boolean hasProperty(String key) {
+        return rawProperties.containsKey(key);
+    }
+
+    /**
+     * Return all property keys.
+     */
+    public Set<String> getKeys() {
+        return Collections.unmodifiableSet(rawProperties.keySet());
+    }
+}
+
+// --- Typed configuration records ---
+record BrowserConfig(String browserName, boolean headless, int timeoutSeconds) {}
+record ApiConfig(String baseUrl, String apiKey, int retryCount) {}
+
+// --- Usage ---
+class ConfigExample {
+    public static void main(String[] args) {
+
+        // Browser configuration — parsed into BrowserConfig
+        TypedConfig<BrowserConfig> browserConfig = TypedConfig.from(
+            Map.of("browser", "chrome", "headless", "true", "timeout", "30"),
+            props -> new BrowserConfig(
+                props.getOrDefault("browser", "chrome"),
+                Boolean.parseBoolean(props.getOrDefault("headless", "false")),
+                Integer.parseInt(props.getOrDefault("timeout", "10"))
+            )
+        );
+
+        BrowserConfig browser = browserConfig.get();
+        System.out.println(browser.browserName());    // "chrome"
+        System.out.println(browser.headless());        // true
+        System.out.println(browser.timeoutSeconds());  // 30
+
+        // API configuration — same class, different type
+        TypedConfig<ApiConfig> apiConfig = TypedConfig.from(
+            Map.of("baseUrl", "https://api.staynest.com", "apiKey", "abc-123", "retries", "3"),
+            props -> new ApiConfig(
+                props.get("baseUrl"),
+                props.get("apiKey"),
+                Integer.parseInt(props.getOrDefault("retries", "1"))
+            )
+        );
+
+        ApiConfig api = apiConfig.get();
+        System.out.println(api.baseUrl());   // "https://api.staynest.com"
+        System.out.println(api.retryCount()); // 3
+    }
+}
+```
+
+**Key generics concepts demonstrated:**
+- `TypedConfig<T>` — generic class parameterized by the config type.
+- `Function<Map<String, String>, T>` — generic functional interface as a parser.
+- `static <T> TypedConfig<T> from(...)` — generic factory method (the `<T>` on the method is independent of any class-level type parameter).
+- Type safety — `browserConfig.get()` returns `BrowserConfig`, not `Object`. No casts needed.
+
+---
+
+## Failure and Debugging (Layer 4)
+
+### Mistake 1: ConcurrentModificationException — Modifying a List While Iterating
+
+**Broken code:**
+
+
+```java
+List<String> testSuite = new ArrayList<>(
+    List.of("loginTest", "DISABLED_checkoutTest", "searchTest", "DISABLED_paymentTest")
+);
+
+// Remove disabled tests during iteration
+for (String test : testSuite) {
+    if (test.startsWith("DISABLED_")) {
+        testSuite.remove(test);  // BUG: modifying collection during for-each
+    }
+}
+```
+
+**Expected:** List contains only `["loginTest", "searchTest"]`.
+
+**Actual:** Throws `java.util.ConcurrentModificationException` on the second iteration after the first removal. The for-each loop uses an `Iterator` internally, and the iterator's modification count (`modCount`) no longer matches the list's count after `remove()` is called directly on the list.
+
+**Diagnostic steps:**
+1. Read the stack trace — it points to the for-each line, not the `remove()` line. That's because the exception is thrown when `iterator.next()` detects the structural modification.
+2. Look for any modification to the collection (`add`, `remove`, `clear`) inside a for-each or explicit iterator loop.
+
+**Fix:**
+
+
+```java
+// Option A: removeIf — cleanest
+testSuite.removeIf(test -> test.startsWith("DISABLED_"));
+
+// Option B: Iterator.remove()
+Iterator<String> it = testSuite.iterator();
+while (it.hasNext()) {
+    if (it.next().startsWith("DISABLED_")) {
+        it.remove();  // safe — iterator knows about this removal
+    }
+}
+```
+
+**Prevention:**
+- **Default to `removeIf()`** for conditional removal — it handles the iteration safely.
+- Never call `collection.remove()` inside a for-each loop. If you see this pattern in a code review, flag it.
+- For more complex logic during iteration, use an explicit `Iterator` with `it.remove()`.
+
+---
+
+### Mistake 2: HashMap with Mutable Keys
+
+**Broken code:**
+
+
+```java
+public class TestEnvironment {
+    private String name;
+    private String url;
+
+    public TestEnvironment(String name, String url) {
+        this.name = name;
+        this.url = url;
+    }
+
+    public void setName(String name) { this.name = name; }
+    public String getName() { return name; }
+
+    @Override
+    public int hashCode() { return Objects.hash(name); }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof TestEnvironment te)) return false;
+        return Objects.equals(name, te.name);
+    }
+}
+
+// Usage
+Map<TestEnvironment, String> envTokens = new HashMap<>();
+TestEnvironment staging = new TestEnvironment("staging", "https://staging.example.com");
+
+envTokens.put(staging, "token-abc-123");
+
+// Later, someone mutates the key object
+staging.setName("production");  // BUG: changes the hashCode of the key!
+
+// Try to retrieve
+String token = envTokens.get(staging);  // null! The entry is LOST
+System.out.println(envTokens.containsKey(staging));  // false!
+System.out.println(envTokens.size());  // 1 — the entry still exists, but it's in the wrong bucket
+```
+
+**Expected:** `get(staging)` returns `"token-abc-123"`.
+
+**Actual:** Returns `null`. The entry was stored in the bucket for `hashCode("staging")`, but now the key's hash code corresponds to `hashCode("production")` — a different bucket. The `HashMap` looks in the wrong place and finds nothing.
+
+**Diagnostic steps:**
+1. If a map "loses" an entry you just put in, check if the key object was mutated after insertion.
+2. Add debug logging: print `key.hashCode()` at `put` time and at `get` time. If they differ, you found the bug.
+3. Check if the key class has setters. Mutable keys are almost always a bug.
+
+**Fix:**
+
+
+```java
+// Fix: Make the key class immutable
+public record TestEnvironment(String name, String url) {}
+// Records are immutable — no setters, hashCode/equals auto-generated from all fields
+
+// Or use String keys (always immutable)
+Map<String, String> envTokens = new HashMap<>();
+envTokens.put("staging", "token-abc-123");
+```
+
+**Prevention:**
+- **Use immutable objects as map keys.** Records, Strings, Integers, enums are all safe.
+- If you must use a custom class as a key, make it immutable (no setters, final fields).
+- As a rule: if `hashCode()` or `equals()` depends on a field, that field must not change after the object is used as a key.
+
+---
+
+### Mistake 3: Using `==` Instead of `.equals()` for Object Comparison in Collections
+
+**Broken code:**
+
+
+```java
+public class TestId {
+    private final String id;
+
+    public TestId(String id) { this.id = id; }
+    public String getId() { return id; }
+
+    // BUG: forgot to override equals() and hashCode()
+    // Default Object.equals() uses == (reference equality)
+}
+
+// Usage
+List<TestId> executedTests = new ArrayList<>();
+executedTests.add(new TestId("TC-001"));
+executedTests.add(new TestId("TC-002"));
+
+TestId lookingFor = new TestId("TC-001");  // new object, same id
+boolean found = executedTests.contains(lookingFor);  // false!
+
+Set<TestId> uniqueTests = new HashSet<>();
+uniqueTests.add(new TestId("TC-001"));
+uniqueTests.add(new TestId("TC-001"));  // duplicate, but HashSet doesn't know!
+System.out.println(uniqueTests.size());  // 2, not 1!
+```
+
+**Expected:** `contains` returns `true`; `HashSet` has 1 element.
+
+**Actual:** `contains` returns `false` because `ArrayList.contains()` uses `.equals()`, and the default `Object.equals()` checks reference identity (`==`). Two different `TestId` objects with the same `id` are considered different. Similarly, `HashSet` sees them as different because `hashCode()` defaults to memory address.
+
+**Diagnostic steps:**
+1. If `contains()` returns `false` for an element you're sure is in the collection, check whether the element's class overrides `equals()`.
+2. Quick test: `System.out.println(new TestId("TC-001").equals(new TestId("TC-001")))` — if this prints `false`, that's your problem.
+3. For `HashSet`/`HashMap` issues, also check `hashCode()`: two equal objects **must** have the same hash code.
+
+**Fix:**
+
+
+```java
+public class TestId {
+    private final String id;
+
+    public TestId(String id) { this.id = id; }
+    public String getId() { return id; }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof TestId testId)) return false;
+        return Objects.equals(id, testId.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id);
+    }
+}
+
+// Or, even better — use a record (auto-generates equals and hashCode)
+public record TestId(String id) {}
+```
+
+**Prevention:**
+- **Always override `equals()` and `hashCode()` together** on any class you put into collections and compare by value.
+- Use records for simple value types — they generate correct `equals()` and `hashCode()` automatically.
+- IDE support: IntelliJ can generate `equals()`/`hashCode()` for you (⌘N → equals and hashCode).
+- Add a unit test: verify that two objects with the same fields are `.equals()` and have the same `hashCode()`.
+
+---
+
+## Engineering Judgment (Layer 5)
+
+### Choosing the Right Collection — Decision Flowchart
+
+```
+Start: What do you need to store?
+│
+├── Key-value pairs?
+│   ├── YES → Need ordering?
+│   │   ├── Insertion order → LinkedHashMap
+│   │   ├── Sorted by key  → TreeMap
+│   │   └── No order needed → HashMap (default choice)
+│   │       └── Thread-safe? → ConcurrentHashMap
+│   │
+│   └── NO → Continue below
+│
+├── Unique elements only?
+│   ├── YES → Need ordering?
+│   │   ├── Insertion order → LinkedHashSet
+│   │   ├── Sorted          → TreeSet
+│   │   └── No order needed → HashSet (default choice)
+│   │
+│   └── NO → Continue below
+│
+├── Ordered sequence with duplicates allowed?
+│   ├── YES → Need FIFO/LIFO processing?
+│   │   ├── FIFO (Queue)    → ArrayDeque
+│   │   ├── LIFO (Stack)    → ArrayDeque
+│   │   ├── Priority order  → PriorityQueue
+│   │   └── No, just indexed access → ArrayList (default choice)
+│   │
+│   └── NO → ArrayList (default choice)
+```
+
+**Rule of thumb:** When in doubt, use `ArrayList`, `HashSet`, or `HashMap`. Switch to a more specific implementation only when you need ordering guarantees, thread safety, or sorted output.
+
+### Performance Table: Big-O for Common Operations
+
+| Operation | ArrayList | LinkedList | HashSet | TreeSet | HashMap | TreeMap |
+|-----------|-----------|------------|---------|---------|---------|---------|
+| `get(index)` / `get(key)` | O(1) | O(n) | — | — | O(1) | O(log n) |
+| `add` / `put` (end/any) | O(1)* | O(1) at ends | O(1)* | O(log n) | O(1)* | O(log n) |
+| `add(index)` (middle) | O(n) | O(n)** | — | — | — | — |
+| `remove` | O(n) | O(n)** | O(1)* | O(log n) | O(1)* | O(log n) |
+| `contains` / `containsKey` | O(n) | O(n) | O(1)* | O(log n) | O(1)* | O(log n) |
+| `size` | O(1) | O(1) | O(1) | O(1) | O(1) | O(1) |
+| Iteration (all) | O(n) | O(n) | O(n) | O(n) | O(n) | O(n) |
+
+*\* = amortized (occasional resizing makes a single operation O(n), but averaged over many operations it's O(1))*
+*\*\* = O(n) to find the position, O(1) for the actual link manipulation*
+
+### Immutable vs Mutable Collections in Test Frameworks
+
+| Use Case | Mutable or Immutable? | Why |
+|----------|----------------------|-----|
+| Expected values (status codes, valid browsers) | **Immutable** (`List.of()`, `Set.of()`, `Map.of()`) | Constants shouldn't change. Catches accidental mutation. |
+| Test data loaded from files | **Immutable** (after loading) | Prevents tests from corrupting shared data. Use `Collections.unmodifiableMap()` or `Map.copyOf()`. |
+| Results being collected during execution | **Mutable** (`ArrayList`, `HashMap`) | You're actively building the collection. |
+| Configuration properties | **Immutable** (after initialization) | Config should not change mid-run. |
+| Page element locators in POM | **Immutable** or static final | Locators don't change at runtime. |
+| Parallel test result aggregation | **Mutable + thread-safe** (`ConcurrentHashMap`, `Collections.synchronizedList()`) | Multiple threads writing simultaneously. |
+
+### When to Use Arrays vs Collections
+
+| Choose Arrays When | Choose Collections When |
+|-------------------|------------------------|
+| Fixed size known at compile time | Size is dynamic or unknown |
+| Primitive types matter for performance (`int[]`, `double[]`) | You need convenience methods (add, remove, contains, sort) |
+| Interacting with APIs that require arrays (e.g., `main(String[] args)`) | You need generics and type safety for complex types |
+| Performance-critical inner loops with millions of elements | Readability and maintainability matter more than micro-optimization |
+| Multi-dimensional data (`int[][]` for grids) | You need key-value mapping or set semantics |
+
+**Practical guidance:** In test automation, prefer collections. The performance difference is negligible for automation workloads (hundreds or thousands of elements, not millions), and collections are safer and more expressive.
+
+---
+
+## Interview and Revision (Layer 6)
+
+### Fundamental Questions
+
+**Q1: What is the difference between `ArrayList` and `LinkedList`? When would you choose each?**
+
+`ArrayList` is backed by a resizable array. Random access (`get(index)`) is O(1), but inserting or removing in the middle is O(n) because elements must be shifted. `LinkedList` is a doubly-linked list — adding/removing at the head or tail is O(1), but random access is O(n) because you must traverse from one end. In automation, `ArrayList` is almost always the right choice because: (1) random access is common, (2) appending at the end is O(1) amortized for both, and (3) `ArrayList` has better cache locality (contiguous memory). `LinkedList` is reasonable only when you specifically need it as a `Queue`/`Deque` and are only operating on the ends.
+
+---
+
+**Q2: How does a `HashMap` handle collisions? What changed in Java 8?**
+
+When two keys hash to the same bucket, that's a collision. Before Java 8, each bucket stored a linked list of entries — `get()` traversed the list using `equals()`, making worst-case lookup O(n) for a single bucket. Java 8 introduced **treeification**: when a bucket's linked list grows beyond 8 entries (and the total capacity is at least 64), it's converted to a balanced Red-Black tree, improving worst-case lookup from O(n) to O(log n) within that bucket. The tree is converted back to a list when the bucket shrinks below 6 entries.
+
+---
+
+**Q3: Why must you override `hashCode()` when you override `equals()`?**
+
+The contract between `equals()` and `hashCode()` states: if `a.equals(b)` is `true`, then `a.hashCode()` must equal `b.hashCode()`. Hash-based collections (`HashMap`, `HashSet`) first use `hashCode()` to find the bucket, then `equals()` to find the exact match within the bucket. If two logically equal objects have different hash codes, they'll be placed in different buckets — the collection will treat them as different objects. You'll get duplicates in a `HashSet`, and `HashMap.get()` won't find keys that are logically present.
+
+---
+
+**Q4: What is the PECS rule? Give a practical example.**
+
+PECS stands for "Producer Extends, Consumer Super." When a generic collection is used as a **producer** (you read from it), declare it with `? extends T` — this allows the collection to hold T or any subtype. When it's used as a **consumer** (you write to it), declare it with `? super T` — this allows the collection to accept T or any supertype. Example: `Collections.copy(List<? super T> dest, List<? extends T> src)` — `src` is a producer (we read elements from it), so it uses `extends`; `dest` is a consumer (we write elements to it), so it uses `super`.
+
+---
+
+**Q5: What is type erasure, and what limitations does it create?**
+
+Type erasure is the process by which the Java compiler removes generic type information after type checking. At runtime, `List<String>` and `List<Integer>` are both just `List`. Limitations: (1) You can't create instances of type parameters (`new T()` is illegal). (2) You can't use `instanceof` with parameterized types (`list instanceof List<String>` won't compile). (3) You can't create generic arrays (`new T[10]` is illegal). (4) Overloaded methods that differ only in generic parameters (`void process(List<String>)` and `void process(List<Integer>)`) cause a compile error because they erase to the same signature.
+
+---
+
+**Q6: What is `ConcurrentModificationException` and how do you avoid it?**
+
+`ConcurrentModificationException` is thrown when a collection is structurally modified (elements added or removed) during iteration, outside the iterator's own `remove()` method. The iterator maintains an expected modification count; if the actual count differs when `next()` is called, the exception is thrown (fail-fast behavior). Avoidance strategies: (1) Use `Iterator.remove()` for removal during iteration. (2) Use `removeIf()` for conditional removal. (3) Use a stream to produce a new filtered collection instead of modifying in place. (4) Use concurrent collections (`CopyOnWriteArrayList`, `ConcurrentHashMap`) if multiple threads are involved.
+
+---
+
+**Q7: What is the difference between `HashMap`, `LinkedHashMap`, and `TreeMap`?**
+
+All three implement the `Map` interface. `HashMap` is the fastest (O(1) average for get/put) but provides no ordering guarantee. `LinkedHashMap` maintains insertion order by running a doubly-linked list through all entries — iteration follows the order keys were put in, with the same O(1) performance for get/put. `TreeMap` maintains entries sorted by key using a Red-Black tree — all operations are O(log n), but you get sorted iteration for free. Choose `HashMap` by default, `LinkedHashMap` when insertion order matters (e.g., preserving test execution order), and `TreeMap` when you need sorted keys (e.g., displaying results alphabetically).
+
+---
+
+**Q8: What is `computeIfAbsent` and when is it useful?**
+
+`computeIfAbsent(key, mappingFunction)` checks if the key exists in the map. If it does, it returns the existing value. If it doesn't, it calls the `mappingFunction` to create a value, inserts it, and returns it. It's especially useful for building "group by" structures:
+
+
+```java
+Map<String, List<String>> testsByModule = new HashMap<>();
+// Without computeIfAbsent:
+if (!testsByModule.containsKey("auth")) {
+    testsByModule.put("auth", new ArrayList<>());
+}
+testsByModule.get("auth").add("loginTest");
+
+// With computeIfAbsent — one line, no boilerplate:
+testsByModule.computeIfAbsent("auth", k -> new ArrayList<>()).add("loginTest");
+```
+
+It eliminates the null-check-then-create pattern and is especially valuable in test data grouping, result aggregation, and building nested data structures.
+
+---
+
+### Coding Exercises
+
+**Exercise 1: Find the first duplicate in a list**
+
+
+```java
+/**
+ * Return the first element that appears more than once in the list.
+ * Return null if there are no duplicates.
+ *
+ * Example: ["login", "checkout", "search", "login", "payment"] → "login"
+ *
+ * Hint: Think about which collection gives you O(1) "have I seen this before?" checks.
+ */
+public static <T> T findFirstDuplicate(List<T> items) {
+    // your implementation here
+}
+```
+
+---
+
+**Exercise 2: Group test results by date**
+
+
+```java
+/**
+ * Given a list of test results with a date field, group them into a map
+ * where the key is the date string and the value is the list of results for that date.
+ * The map should maintain date order (earliest first).
+ *
+ * Example input:
+ *   [("loginTest", "2024-01-15", "PASS"), ("searchTest", "2024-01-15", "FAIL"),
+ *    ("checkoutTest", "2024-01-16", "PASS")]
+ *
+ * Example output:
+ *   {"2024-01-15": [loginTest, searchTest], "2024-01-16": [checkoutTest]}
+ */
+public record DatedResult(String testName, String date, String status) {}
+
+public static Map<String, List<DatedResult>> groupByDate(List<DatedResult> results) {
+    // your implementation here
+}
+```
+
+---
+
+**Exercise 3: Merge two sorted lists into one sorted list**
+
+
+```java
+/**
+ * Merge two pre-sorted lists into a single sorted list.
+ * Do NOT simply concatenate and re-sort — use the merge step of merge sort.
+ * Both input lists are sorted in ascending natural order.
+ *
+ * Example: [1, 3, 5] + [2, 4, 6] → [1, 2, 3, 4, 5, 6]
+ * Example: ["api", "login"] + ["checkout", "search"] → ["api", "checkout", "login", "search"]
+ */
+public static <T extends Comparable<T>> List<T> mergeSorted(List<T> list1, List<T> list2) {
+    // your implementation here
+}
+```
+
+---
+
+
+
+
+**Q:** What is the default initial capacity of an `ArrayList`, and what happens when it's exceeded?
+**A:** Default initial capacity is 10. When exceeded, the internal array is resized to approximately 1.5x the current capacity (specifically `oldCapacity + (oldCapacity >> 1)`). The existing elements are copied to the new array. This is why `add()` is "amortized O(1)" — the occasional resize is O(n), but it happens rarely enough that the average cost per operation is O(1).
+
+---
+
+**Q:** Can a `HashSet` contain `null`? Can a `TreeSet`?
+**A:** `HashSet` allows one `null` element (it hashes to bucket 0). `TreeSet` does NOT allow `null` because it needs to compare elements using `compareTo()` or a `Comparator`, and comparing with `null` throws `NullPointerException`.
+
+---
+
+**Q:** What's the difference between `Collections.unmodifiableList()` and `List.of()`?
+**A:** `Collections.unmodifiableList(original)` creates an unmodifiable **view** of the original list — if the original list is modified, the view reflects the change. `List.of()` creates a truly immutable list — there's no backing list that can be modified. For safety in test frameworks, prefer `List.of()` or `List.copyOf()` because they're immune to changes in the source data.
+
+---
+
+**Q:** Why is `ArrayDeque` preferred over `Stack` for stack operations?
+**A:** `Stack` extends `Vector`, which is synchronized (unnecessary overhead in single-threaded contexts) and allows indexed access (violating stack semantics). `ArrayDeque` is not synchronized (faster), is specifically designed for stack/queue operations, and is recommended by the Java documentation as the replacement for `Stack`.
+
+---
+
+**Q:** What does `Map.merge(key, value, remappingFunction)` do?
+**A:** If the key is absent (or mapped to `null`), it inserts the key-value pair. If the key is already present, it calls the `remappingFunction` with the existing value and the new value, then stores the result. If the function returns `null`, the key is removed. Common use: counting occurrences — `map.merge("key", 1, Integer::sum)` increments the count for "key" by 1 each call.
+
+---
+
+### Mastery Checklist
+
+- [ ] Can explain the Collections hierarchy (Iterable → Collection → List/Set/Queue, Map separate) from memory
+- [ ] Can choose the right collection for a given scenario and justify the choice
+- [ ] Can write code using `ArrayList`, `HashSet`, `HashMap`, `LinkedHashMap`, `TreeMap`, `ArrayDeque` without looking up the API
+- [ ] Can use `computeIfAbsent`, `getOrDefault`, `merge`, `putIfAbsent` fluently
+- [ ] Can explain how `HashMap` works internally (hashing, buckets, collisions, treeification)
+- [ ] Can explain `equals()`/`hashCode()` contract and why it matters for collections
+- [ ] Can write generic classes and methods with bounded type parameters
+- [ ] Can explain and apply the PECS rule for wildcards
+- [ ] Can explain type erasure and its practical limitations
+- [ ] Can identify and fix `ConcurrentModificationException` in code review
+- [ ] Can use streams with collections for filtering, grouping, and aggregating
+- [ ] Can use immutable collections (`List.of()`, `Map.of()`) and explain when to use them
+- [ ] Can state the Big-O complexity for common operations on each major collection
+- [ ] Can explain the difference between `Collections.unmodifiableList()` and `List.of()`
+- [ ] Can implement any of the 3 coding exercises from a blank file within 15 minutes
+
+---
+
+*Last updated: *

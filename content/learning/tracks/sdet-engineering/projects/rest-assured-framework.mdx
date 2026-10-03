@@ -1,0 +1,473 @@
+---
+title: "Project: REST Assured API Framework"
+description: "Build a production-grade REST Assured framework from scratch for testing the StayNest API. This is the first project in the portfolio and the foundation for all subsequent projects — the API client and test data helpers created here are reused by the Selenium, Playwright, and Appium projects for test data setup."
+summary: "SDET Engineering guide: Project: REST Assured API Framework"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "projects"
+lesson: "rest-assured-framework"
+difficulty: "intermediate"
+estimatedMinutes: 30
+prerequisites: []
+tags: ["SDET", "Projects", "Portfolio"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/projects/rest-assured-framework"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Project: REST Assured API Framework
+
+> **Module:** 12 — Projects
+> **Prerequisites:** Project Roadmap, Api Client Design, Test Data Builders
+> **Estimated Time:** 15-20 hours
+> **Difficulty:** Intermediate
+
+---
+
+## Project Description
+
+Build a production-grade REST Assured framework from scratch for testing the StayNest API. This is the first project in the portfolio and the foundation for all subsequent projects — the API client and test data helpers created here are reused by the Selenium, Playwright, and Appium projects for test data setup.
+
+**What you'll build:** A framework with typed request/response models, automatic token management, schema validation, optional database verification, and CI-ready reporting.
+
+**System under test:** StayNest Spring Boot API (`http://localhost:8080/api/v1`)
+
+---
+
+## Tech Stack
+
+| Component | Technology | Version | Purpose |
+| --- | --- | --- | --- |
+| Language | Java | 21 | Primary language |
+| HTTP Client | REST Assured | 5.4+ | Fluent API testing DSL |
+| Test Runner | TestNG | 7.9+ | Execution, grouping, parallel, data providers |
+| Serialization | Jackson | 2.17+ | POJO ↔ JSON conversion |
+| Schema Validation | JSON Schema Validator | (REST Assured module) | Response structure validation |
+| Build Tool | Maven | 3.9+ | Dependency management |
+| Reporting | Allure | 2.x | HTML reports |
+| Logging | Logback + SLF4J | 1.4+ | Structured logging |
+| DB Validation | JDBC + PostgreSQL Driver | (optional) | Direct database verification |
+
+---
+
+## Framework Architecture
+
+```
+┌───────────────────────────────────────────────┐
+│  Test Layer                                   │
+│  AuthTest, HotelTest, BookingTest, SearchTest │
+│  - Reads like specifications                  │
+│  - Uses API clients, not raw HTTP calls       │
+│  - Assertions on response DTOs                │
+├───────────────────────────────────────────────┤
+│  API Client Layer                             │
+│  AuthClient, HotelAdminClient,               │
+│  BookingClient, SearchClient                  │
+│  - One client per API domain                  │
+│  - Handles auth headers, serialization        │
+│  - Returns typed response objects             │
+├───────────────────────────────────────────────┤
+│  Model Layer (POJOs)                          │
+│  Request: SignUpRequest, BookingRequest, ...   │
+│  Response: UserDto, HotelDto, BookingDto, ... │
+│  - Jackson annotations for JSON mapping       │
+│  - Builder pattern for test data creation     │
+├───────────────────────────────────────────────┤
+│  Base Spec Layer                              │
+│  RequestSpecBuilder, ResponseSpecBuilder      │
+│  - Base URI, content type, logging            │
+│  - Auth spec (Bearer token injection)         │
+│  - Response validation (status, envelope)     │
+├───────────────────────────────────────────────┤
+│  Config Layer                                 │
+│  ConfigReader, Environment                    │
+│  - Reads config.properties                    │
+│  - System property overrides for CI           │
+├───────────────────────────────────────────────┤
+│  Utility Layer                                │
+│  TokenManager, TestDataGenerator,             │
+│  SchemaValidator, DbValidator (optional)      │
+└───────────────────────────────────────────────┘
+```
+
+---
+
+## Project Structure
+
+```
+staynest-api-framework/
+├── pom.xml
+├── testng.xml
+├── README.md
+├── src/
+│   └── test/
+│       ├── java/
+│       │   └── com/staynest/api/
+│       │       ├── base/
+│       │       │   ├── BaseApiTest.java
+│       │       │   └── SpecBuilder.java
+│       │       ├── clients/
+│       │       │   ├── AuthClient.java
+│       │       │   ├── HotelAdminClient.java
+│       │       │   ├── RoomAdminClient.java
+│       │       │   ├── BookingClient.java
+│       │       │   ├── SearchClient.java
+│       │       │   └── UserClient.java
+│       │       ├── models/
+│       │       │   ├── request/
+│       │       │   │   ├── SignUpRequest.java
+│       │       │   │   ├── LoginRequest.java
+│       │       │   │   ├── HotelRequest.java
+│       │       │   │   ├── RoomRequest.java
+│       │       │   │   ├── BookingRequest.java
+│       │       │   │   └── SearchRequest.java
+│       │       │   └── response/
+│       │       │       ├── ApiResponse.java
+│       │       │       ├── UserDto.java
+│       │       │       ├── HotelDto.java
+│       │       │       ├── RoomDto.java
+│       │       │       ├── BookingDto.java
+│       │       │       └── TokenResponse.java
+│       │       ├── config/
+│       │       │   └── ConfigReader.java
+│       │       ├── utils/
+│       │       │   ├── TokenManager.java
+│       │       │   ├── TestDataGenerator.java
+│       │       │   └── SchemaValidator.java
+│       │       ├── listeners/
+│       │       │   └── AllureListener.java
+│       │       └── tests/
+│       │           ├── auth/
+│       │           │   ├── SignupTest.java
+│       │           │   ├── LoginTest.java
+│       │           │   └── AuthorizationTest.java
+│       │           ├── hotel/
+│       │           │   ├── HotelCrudTest.java
+│       │           │   └── RoomCrudTest.java
+│       │           ├── booking/
+│       │           │   ├── BookingInitTest.java
+│       │           │   ├── BookingLifecycleTest.java
+│       │           │   └── BookingNegativeTest.java
+│       │           └── search/
+│       │               └── HotelSearchTest.java
+│       └── resources/
+│           ├── config.properties
+│           ├── config-ci.properties
+│           └── schemas/
+│               ├── user-response.json
+│               ├── hotel-response.json
+│               └── booking-response.json
+```
+
+---
+
+## Implementation Milestones
+
+### Milestone 1: Project Setup and Auth Tests (3 hours)
+
+**Objectives:** Maven project, REST Assured config, first passing tests.
+
+This milestone is covered in detail by First Lab. If you've completed that lab, you already have this milestone done.
+
+
+```java
+// BaseApiTest — foundation for all tests
+public class BaseApiTest {
+    protected static final String BASE_URL = ConfigReader.get("api.base.url");
+
+    @BeforeSuite
+    public void globalSetup() {
+        RestAssured.baseURI = BASE_URL;
+        RestAssured.filters(new RequestLoggingFilter(), new ResponseLoggingFilter());
+    }
+
+    protected String signupAndLogin(String role) {
+        String email = "test-" + UUID.randomUUID() + "@staynest.com";
+        String password = "password123";
+
+        // Signup
+        given()
+            .contentType(ContentType.JSON)
+            .body(new SignUpRequest(email, password, "Test User", List.of(role)))
+        .when()
+            .post("/auth/signup")
+        .then()
+            .statusCode(201);
+
+        // Login and return token
+        return given()
+            .contentType(ContentType.JSON)
+            .body(new LoginRequest(email, password))
+        .when()
+            .post("/auth/login")
+        .then()
+            .statusCode(200)
+            .extract().jsonPath().getString("data.accessToken");
+    }
+}
+```
+
+**Success criteria:**
+- [ ] 5 auth tests passing (signup, login, validation, duplicate email, wrong password)
+
+### Milestone 2: API Client Layer and CRUD Tests (4 hours)
+
+**Objectives:** Typed API clients, POJO models, hotel and room CRUD tests.
+
+
+```java
+// Typed API client — encapsulates HTTP details
+public class HotelAdminClient {
+    private final String token;
+
+    public HotelAdminClient(String token) {
+        this.token = token;
+    }
+
+    public HotelDto createHotel(HotelRequest request) {
+        return given()
+            .header("Authorization", "Bearer " + token)
+            .contentType(ContentType.JSON)
+            .body(request)
+        .when()
+            .post("/admin/hotels")
+        .then()
+            .statusCode(201)
+            .extract().jsonPath().getObject("data", HotelDto.class);
+    }
+
+    public void activateHotel(Long hotelId) {
+        given()
+            .header("Authorization", "Bearer " + token)
+        .when()
+            .patch("/admin/hotels/" + hotelId + "/activate")
+        .then()
+            .statusCode(204);
+    }
+
+    public HotelDto getHotel(Long hotelId) {
+        return given()
+            .header("Authorization", "Bearer " + token)
+        .when()
+            .get("/admin/hotels/" + hotelId)
+        .then()
+            .statusCode(200)
+            .extract().jsonPath().getObject("data", HotelDto.class);
+    }
+}
+
+// Test using the client — clean and readable
+@Test
+public void shouldCreateAndRetrieveHotel() {
+    HotelAdminClient client = new HotelAdminClient(managerToken);
+
+    HotelRequest request = HotelRequest.builder()
+        .name("Grand Hotel " + UUID.randomUUID())
+        .city("New York")
+        .build();
+
+    HotelDto created = client.createHotel(request);
+    assertThat(created.getId()).isNotNull();
+    assertThat(created.getName()).isEqualTo(request.getName());
+
+    HotelDto retrieved = client.getHotel(created.getId());
+    assertThat(retrieved.getName()).isEqualTo(created.getName());
+}
+```
+
+**Success criteria:**
+- [ ] API clients for auth, hotels, rooms, bookings, and search
+- [ ] POJO models for all request and response types
+- [ ] 10+ CRUD tests passing across hotel and room endpoints
+
+### Milestone 3: Booking Lifecycle and Integration Tests (4 hours)
+
+**Objectives:** Chained API flows, negative tests, lifecycle coverage.
+
+
+```java
+@Test(description = "Full booking lifecycle: RESERVED → GUESTS_ADDED → CONFIRMED → CANCELLED")
+public void shouldCompleteFullBookingLifecycle() {
+    // Setup
+    HotelAdminClient adminClient = new HotelAdminClient(managerToken);
+    BookingClient bookingClient = new BookingClient(guestToken);
+
+    HotelDto hotel = adminClient.createHotel(HotelRequest.builder()
+        .name("Lifecycle Hotel").city("Boston").build());
+    adminClient.activateHotel(hotel.getId());
+
+    RoomDto room = new RoomAdminClient(managerToken)
+        .createRoom(hotel.getId(), RoomRequest.builder()
+            .type("SUITE").basePrice(200.00).totalCount(10).capacity(2).build());
+
+    Long guestId = new UserClient(guestToken).createGuest("Jane Doe", "FEMALE", "1990-05-15");
+
+    // Lifecycle
+    BookingDto booking = bookingClient.initBooking(
+        hotel.getId(), room.getId(), checkIn, checkOut, 1);
+    assertThat(booking.getBookingStatus()).isEqualTo("RESERVED");
+
+    bookingClient.addGuests(booking.getId(), List.of(guestId));
+    assertThat(bookingClient.getStatus(booking.getId())).isEqualTo("GUESTS_ADDED");
+
+    bookingClient.initiatePayment(booking.getId());
+    assertThat(bookingClient.getStatus(booking.getId())).isEqualTo("CONFIRMED");
+
+    bookingClient.cancelBooking(booking.getId());
+    assertThat(bookingClient.getStatus(booking.getId())).isEqualTo("CANCELLED");
+}
+```
+
+**Success criteria:**
+- [ ] Full lifecycle test passes end-to-end
+- [ ] Negative tests for invalid status transitions (cancel RESERVED, add guests to CONFIRMED)
+- [ ] Cross-user authorization test (User A can't cancel User B's booking)
+
+### Milestone 4: Schema Validation (2 hours)
+
+**Objectives:** JSON schema files for key responses, integrated into tests.
+
+
+```java
+// Schema validation utility
+public class SchemaValidator {
+    public static void validateAgainstSchema(Response response, String schemaFile) {
+        response.then().body(
+            JsonSchemaValidator.matchesJsonSchemaInClasspath("schemas/" + schemaFile)
+        );
+    }
+}
+
+// Usage in test
+@Test
+public void shouldReturnValidBookingSchema() {
+    Response response = bookingClient.initBookingRaw(hotelId, roomId, checkIn, checkOut, 1);
+    SchemaValidator.validateAgainstSchema(response, "booking-response.json");
+}
+```
+
+
+```json
+// schemas/booking-response.json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["timeStamp", "data"],
+  "properties": {
+    "timeStamp": { "type": "string" },
+    "data": {
+      "type": "object",
+      "required": ["id", "bookingStatus", "amount", "checkInDate", "checkOutDate"],
+      "properties": {
+        "id": { "type": "integer" },
+        "bookingStatus": { "type": "string", "enum": ["RESERVED", "GUESTS_ADDED", "PAYMENTS_PENDING", "CONFIRMED", "CANCELLED", "EXPIRED"] },
+        "amount": { "type": "number" },
+        "checkInDate": { "type": "string", "format": "date" },
+        "checkOutDate": { "type": "string", "format": "date" },
+        "roomsCount": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "error": {}
+  }
+}
+```
+
+**Success criteria:**
+- [ ] JSON schemas defined for user, hotel, booking, and search responses
+- [ ] At least 4 tests include schema validation
+- [ ] Schema violations produce clear error messages
+
+### Milestone 5: Database Validation (3 hours, optional)
+
+**Objectives:** Connect to PostgreSQL, verify data that the API doesn't expose.
+
+
+```java
+// DB validation for data the API doesn't expose
+public class DbValidator {
+    private static final String JDBC_URL = ConfigReader.get("db.url");
+    private static final String DB_USER = ConfigReader.get("db.user");
+    private static final String DB_PASSWORD = ConfigReader.get("db.password");
+
+    public static boolean isPasswordHashed(String email) {
+        String sql = "SELECT password FROM app_user WHERE email = ?";
+        try (Connection conn = DriverManager.getConnection(JDBC_URL, DB_USER, DB_PASSWORD);
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, email);
+            ResultSet rs = stmt.executeQuery();
+            if (rs.next()) {
+                String password = rs.getString("password");
+                return password.startsWith("$2a$") || password.startsWith("$2b$"); // BCrypt prefix
+            }
+            return false;
+        } catch (SQLException e) {
+            throw new RuntimeException("DB query failed", e);
+        }
+    }
+
+    public static int getReservedCount(Long roomId, LocalDate date) {
+        String sql = "SELECT reserved_count FROM inventory WHERE room_id = ? AND date = ?";
+        try (Connection conn = DriverManager.getConnection(JDBC_URL, DB_USER, DB_PASSWORD);
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setLong(1, roomId);
+            stmt.setDate(2, java.sql.Date.valueOf(date));
+            ResultSet rs = stmt.executeQuery();
+            return rs.next() ? rs.getInt("reserved_count") : -1;
+        } catch (SQLException e) {
+            throw new RuntimeException("DB query failed", e);
+        }
+    }
+}
+
+// Usage in test
+@Test
+public void shouldHashPasswordOnSignup() {
+    String email = "dbtest-" + UUID.randomUUID() + "@test.com";
+    authClient.signup(email, "password123", "DB Test User");
+    assertThat(DbValidator.isPasswordHashed(email)).isTrue();
+}
+```
+
+**Success criteria:**
+- [ ] DB connection configured via properties file
+- [ ] At least 3 tests verify database state (password hashing, inventory counts, booking status)
+- [ ] DB validation is optional — tests still pass without DB access (skip with TestNG groups)
+
+### Milestone 6: CI Integration (2 hours)
+
+**Objectives:** Run the full suite in CI with Allure reporting.
+
+**Success criteria:**
+- [ ] GitHub Actions or Jenkinsfile runs all tests
+- [ ] Allure report published as artifact
+- [ ] Pipeline completes in under 2 minutes
+
+---
+
+## Tests Summary
+
+| Test Class | Count | Priority | Coverage |
+| --- | --- | --- | --- |
+| SignupTest | 5 | P0 | AUTH-01 through AUTH-04, VAL-01 through VAL-05 |
+| LoginTest | 4 | P0 | AUTH-05 through AUTH-08 |
+| AuthorizationTest | 4 | P0 | AUTHZ-01 through AUTHZ-05 |
+| HotelCrudTest | 6 | P1 | HOTEL-01 through HOTEL-06 |
+| RoomCrudTest | 3 | P1 | ROOM-01 through ROOM-03 |
+| BookingInitTest | 5 | P0 | BOOK-01 through BOOK-07 |
+| BookingLifecycleTest | 4 | P0 | Full lifecycle + negative paths |
+| BookingNegativeTest | 4 | P1 | BOOK-08 through BOOK-13 |
+| HotelSearchTest | 4 | P0 | SRCH-01 through SRCH-05 |
+| **Total** | **~39** | | |
+
+---
+
+**Related:** Project Roadmap

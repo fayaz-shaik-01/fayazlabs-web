@@ -1,0 +1,946 @@
+---
+title: "Java Syntax and Control Flow"
+description: "Syntax is Java's grammar — the rules that dictate how you write statements the compiler can understand. Control flow is the order in which those statements execute: sequentially, conditionally (branching), or repeatedly (looping)."
+summary: "SDET Engineering guide: Java Syntax and Control Flow"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "java"
+lesson: "syntax-and-control-flow"
+difficulty: "beginner"
+estimatedMinutes: 61
+prerequisites: []
+tags: ["SDET", "Java", "Programming"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/java/syntax-and-control-flow"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Java Syntax and Control Flow
+
+> **Module:** 01-Programming Foundations > Java > Syntax and Control Flow
+> **Audience:** SDET with ~3 years of experience looking to solidify fundamentals
+> **Estimated Time:** 3–4 hours (study + practice)
+
+---
+
+## Layer 1 — Quick Overview
+
+### What This Covers
+
+**Syntax** is Java's grammar — the rules that dictate how you write statements the compiler can understand. **Control flow** is the order in which those statements execute: sequentially, conditionally (branching), or repeatedly (looping).
+
+### Why It Matters for Automation Engineers
+
+Every test you write — whether it's a Selenium page object, a REST Assured assertion chain, or a TestNG data provider — is built from these primitives. Gaps here don't just cause bugs; they cause *silent* bugs: a `==` instead of `.equals()` that passes in CI because of the string pool but fails when data comes from an API. An integer overflow in a retry counter that turns your 3-retry loop into an infinite one. Mastery of fundamentals is what separates an engineer who *uses* a framework from one who can *debug and extend* it.
+
+<MentalModel>
+
+Think of a Java program as a recipe:
+
+</MentalModel>
+
+
+| Recipe Concept | Java Equivalent |
+|---|---|
+| Ingredients list | Variable declarations |
+| "Preheat oven to 200°C" | Assignment / initialization |
+| "If the dough is sticky, add flour" | `if` statement |
+| "Knead for 10 minutes" | `for` / `while` loop |
+| "Repeat until golden brown" | `do-while` loop |
+| "Serve on plate A or plate B" | `switch` statement |
+| The recipe card itself | The `.java` source file |
+| The chef reading the recipe | The JVM executing bytecode |
+
+Execution always flows **top-to-bottom, one statement at a time**, unless a control flow construct explicitly redirects it.
+
+<KeyTakeaways>
+
+1. **Java is statically typed** — every variable must have a declared type, and the compiler enforces type safety before your code ever runs.
+2. **Control flow is your logic skeleton** — `if/else`, `switch`, `for`, `while` are the constructs that encode *decisions* and *repetition* in every test.
+3. **Strings are immutable objects** — comparing them with `==` checks reference identity, not content. Always use `.equals()`.
+4. **Primitives vs. wrappers matter** — auto-boxing hides the difference until it doesn't (hello, `NullPointerException`).
+5. **Scope is block-based** — a variable declared inside `{}` does not exist outside those braces. This is your friend for test isolation.
+
+</KeyTakeaways>
+
+
+---
+
+## Layer 2 — First-Principles Explanation
+
+### Java Program Structure
+
+Every Java program lives inside a **class**. Execution begins at the **`main` method**.
+
+```
+┌─────────────────────────────────────┐
+│  File: MyTest.java                  │
+│                                     │
+│  public class MyTest {              │  ← class declaration (must match filename)
+│                                     │
+│      public static void main(       │  ← entry point
+│          String[] args) {           │
+│                                     │
+│          // statements go here      │  ← sequential execution
+│                                     │
+│      }                              │
+│  }                                  │
+└─────────────────────────────────────┘
+```
+
+**Key rules:**
+- One public class per file; filename must match the class name exactly.
+- `main` must be `public static void` with a `String[]` parameter.
+- Statements end with a semicolon `;`.
+- Blocks are delimited by curly braces `{}`.
+
+### Primitive Types
+
+Java has 8 primitive types. You will use 5 of them regularly in test automation:
+
+| Type | Size | Range | Default | Automation Use Case |
+|---|---|---|---|---|
+| `int` | 4 bytes | −2,147,483,648 to 2,147,483,647 | `0` | Loop counters, status codes, retry counts |
+| `long` | 8 bytes | −9.2 × 10¹⁸ to 9.2 × 10¹⁸ | `0L` | Timestamps, large IDs |
+| `double` | 8 bytes | ±1.7 × 10³⁰⁸ (IEEE 754) | `0.0` | Percentages, response times |
+| `boolean` | 1 bit* | `true` / `false` | `false` | Flags, assertion conditions |
+| `char` | 2 bytes | Unicode 0 to 65,535 | `'\u0000'` | Character-level string parsing |
+
+*\*JVM implementation-dependent; logically 1 bit, typically stored as 1 byte.*
+
+The other three — `byte` (1 byte), `short` (2 bytes), `float` (4 bytes) — are rarely used in test automation. Prefer `int` over `byte`/`short` and `double` over `float` unless you have a specific reason.
+
+### Variables: Declaration, Initialization, Scope
+
+```java
+// Declaration only (gets default value ONLY if it's a field; local vars are NOT initialized)
+int retryCount;
+
+// Declaration + initialization
+int maxRetries = 3;
+
+// Multiple declarations (legal but discouraged for readability)
+int x = 1, y = 2;
+```
+
+**Scope rules:**
+- A variable exists from its declaration to the end of the enclosing `{}` block.
+- Method parameters are scoped to the entire method body.
+- A local variable declared inside an `if` or `for` block is invisible outside it.
+
+```java
+public void example() {
+    int a = 10;              // visible from here to end of method
+    if (a > 5) {
+        int b = 20;          // visible only inside this if-block
+        System.out.println(b);
+    }
+    // System.out.println(b);  ← COMPILE ERROR: b is out of scope
+}
+```
+
+**Naming conventions:**
+- Variables and methods: `camelCase` → `retryCount`, `getStatusCode()`
+- Classes: `PascalCase` → `ConfigValidator`, `TestResult`
+- Constants: `UPPER_SNAKE_CASE` → `MAX_RETRIES`, `BASE_URL`
+
+### Operators
+
+**Arithmetic:** `+`, `-`, `*`, `/`, `%` (modulo)
+- Integer division truncates: `7 / 2` → `3`, not `3.5`. Use `7.0 / 2` to get `3.5`.
+
+**Comparison:** `==`, `!=`, `<`, `>`, `<=`, `>=`
+- For primitives, `==` compares values. For objects (including `String`), it compares *references*. This is the #1 source of subtle bugs.
+
+**Logical:** `&&` (short-circuit AND), `||` (short-circuit OR), `!` (NOT)
+- Short-circuit means Java stops evaluating as soon as the result is determined. This is *useful*: `if (str != null && str.length() > 0)` is safe because if `str` is null, `.length()` is never called.
+
+**Assignment:** `=`, `+=`, `-=`, `*=`, `/=`, `%=`
+
+**Ternary:** `condition ? valueIfTrue : valueIfFalse`
+```java
+String result = statusCode == 200 ? "PASS" : "FAIL";
+```
+Use ternary for simple, single-value decisions. If you're nesting ternaries, switch to `if/else`.
+
+### Control Flow
+
+#### if / else if / else
+
+```java
+if (statusCode >= 200 && statusCode < 300) {
+    log("Success");
+} else if (statusCode >= 400 && statusCode < 500) {
+    log("Client error");
+} else if (statusCode >= 500) {
+    log("Server error");
+} else {
+    log("Other: " + statusCode);
+}
+```
+
+**When to prefer `switch` over `if/else if`:**
+- You're comparing a single variable against many discrete, constant values.
+- You want the compiler to help you cover all cases (especially with enums and sealed classes).
+
+#### switch (Traditional and Enhanced)
+
+**Traditional switch** (pre-Java 14):
+```java
+switch (statusCode / 100) {
+    case 2:
+        result = "Success";
+        break;                   // forgetting break causes fall-through — a common bug
+    case 3:
+        result = "Redirect";
+        break;
+    default:
+        result = "Other";
+}
+```
+
+**Enhanced switch expression** (Java 14+):
+```java
+String result = switch (statusCode / 100) {
+    case 2 -> "Success";        // no break needed, no fall-through
+    case 3 -> "Redirect";
+    case 4 -> "Client Error";
+    case 5 -> "Server Error";
+    default -> "Unknown";
+};                              // note the semicolon — this is an expression
+```
+
+The enhanced form is preferred in modern Java: it's more concise, eliminates fall-through bugs, and can be used as an expression that returns a value.
+
+#### Loops
+
+**`for` loop** — use when you know the iteration count:
+```java
+for (int i = 0; i < testCases.size(); i++) {
+    run(testCases.get(i));
+}
+```
+
+**Enhanced `for-each`** — use when you don't need the index:
+```java
+for (TestResult result : results) {
+    if (result.isFailed()) {
+        reportFailure(result);
+    }
+}
+```
+
+**`while` loop** — use when the termination condition isn't count-based:
+```java
+int attempts = 0;
+while (!isElementVisible() && attempts < maxRetries) {
+    Thread.sleep(1000);
+    attempts++;
+}
+```
+
+**`do-while` loop** — guarantees at least one execution:
+```java
+String response;
+do {
+    response = pollJobStatus(jobId);
+} while (response.equals("PENDING"));
+```
+
+#### break, continue, and Labeled Break
+
+- `break` exits the innermost loop entirely.
+- `continue` skips to the next iteration of the innermost loop.
+- **Labeled break** exits a specific outer loop:
+
+```java
+outerLoop:
+for (String suite : suites) {
+    for (String test : suite.getTests()) {
+        if (test.equals("BLOCKER_FAILED")) {
+            break outerLoop;     // exits BOTH loops
+        }
+    }
+}
+```
+
+Use labeled breaks sparingly. If you need them often, consider refactoring the nested logic into a separate method.
+
+### String Basics
+
+Strings in Java are **immutable objects**. Once created, their content cannot change. Every "modification" creates a new String.
+
+**Comparison — the critical distinction:**
+```java
+String a = "hello";
+String b = "hello";
+String c = new String("hello");
+
+a == b        // true  — both point to the same string pool entry
+a == c        // false — c is a new object on the heap
+a.equals(c)   // true  — content comparison (ALWAYS USE THIS)
+```
+
+**Common methods every SDET should know:**
+
+| Method | Returns | Example |
+|---|---|---|
+| `length()` | `int` | `"hello".length()` → `5` |
+| `charAt(int)` | `char` | `"hello".charAt(1)` → `'e'` |
+| `substring(int, int)` | `String` | `"hello".substring(1, 3)` → `"el"` |
+| `indexOf(String)` | `int` | `"hello".indexOf("ll")` → `2` |
+| `contains(CharSequence)` | `boolean` | `"hello".contains("ell")` → `true` |
+| `trim()` | `String` | `"  hi  ".trim()` → `"hi"` |
+| `split(String)` | `String[]` | `"a,b,c".split(",")` → `["a","b","c"]` |
+| `toUpperCase()` | `String` | `"hello".toUpperCase()` → `"HELLO"` |
+| `isEmpty()` | `boolean` | `"".isEmpty()` → `true` |
+| `isBlank()` (Java 11+) | `boolean` | `"  ".isBlank()` → `true` |
+
+### Type Casting
+
+**Widening (implicit, safe):** smaller type → larger type
+```java
+int count = 42;
+long bigCount = count;       // automatic, no data loss
+double precise = count;      // 42 → 42.0
+```
+
+**Narrowing (explicit, lossy):** larger type → smaller type
+```java
+double price = 19.99;
+int rounded = (int) price;   // 19 — truncates, does NOT round
+```
+
+**Auto-boxing / unboxing:**
+```java
+Integer wrapped = 42;        // auto-boxing: int → Integer
+int unwrapped = wrapped;     // auto-unboxing: Integer → int
+
+Integer maybeNull = null;
+int danger = maybeNull;      // NullPointerException at runtime!
+```
+
+This is a frequent trap in automation code when reading values from maps (`Map<String, Integer>`), where `.get()` can return `null`.
+
+### The `var` Keyword (Java 10+)
+
+`var` lets the compiler infer the type from the right-hand side:
+
+```java
+var results = new ArrayList<TestResult>();   // inferred as ArrayList<TestResult>
+var count = 0;                               // inferred as int
+var name = config.get("name");               // inferred as String (or whatever the map returns)
+```
+
+**When to use `var`:**
+- The type is obvious from the right-hand side: `var list = new ArrayList<String>()`
+- The type name is long and adds noise: `var entry = someMap.entrySet().iterator().next()`
+
+**When NOT to use `var`:**
+- The type isn't obvious: `var result = process(data);` — what is `result`? Reader can't tell.
+- In public API / method signatures — `var` is only allowed for local variables.
+- When it reduces readability in test code that others will maintain.
+
+---
+
+## Layer 3 — Practical Implementation
+
+### Example 1: Test Configuration Validator
+
+A method that validates a test configuration map — checks that required keys exist, values are non-empty, and the port value is a valid number.
+
+
+```java
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+public class ConfigValidator {
+
+    // Required keys that every test config must contain
+    private static final String[] REQUIRED_KEYS = {"baseUrl", "port", "browser", "timeout"};
+
+    /**
+     * Validates a test configuration map.
+     * Returns a list of validation errors (empty list = valid config).
+     */
+    public static List<String> validateConfig(Map<String, String> config) {
+        List<String> errors = new ArrayList<>();
+
+        // Guard clause: handle null input early
+        if (config == null) {
+            errors.add("Config map is null");
+            return errors;                          // return early — no point checking further
+        }
+
+        // Check each required key exists and has a non-empty value
+        for (String key : REQUIRED_KEYS) {
+            if (!config.containsKey(key)) {
+                errors.add("Missing required key: " + key);
+            } else {
+                String value = config.get(key);
+                // trim() removes whitespace; a value of "   " should be treated as empty
+                if (value == null || value.trim().isEmpty()) {
+                    errors.add("Empty value for key: " + key);
+                }
+            }
+        }
+
+        // Validate port is a number in a valid range
+        // Only check if port key exists and is non-empty (otherwise we already logged an error)
+        if (config.containsKey("port") && config.get("port") != null) {
+            String portStr = config.get("port").trim();
+            if (!portStr.isEmpty()) {
+                try {
+                    int port = Integer.parseInt(portStr);   // may throw NumberFormatException
+                    if (port < 1 || port > 65535) {
+                        errors.add("Port out of range (1-65535): " + port);
+                    }
+                } catch (NumberFormatException e) {
+                    errors.add("Port is not a valid number: " + portStr);
+                }
+            }
+        }
+
+        // Validate timeout is a positive number
+        if (config.containsKey("timeout") && config.get("timeout") != null) {
+            String timeoutStr = config.get("timeout").trim();
+            if (!timeoutStr.isEmpty()) {
+                try {
+                    int timeout = Integer.parseInt(timeoutStr);
+                    if (timeout <= 0) {
+                        errors.add("Timeout must be positive: " + timeout);
+                    }
+                } catch (NumberFormatException e) {
+                    errors.add("Timeout is not a valid number: " + timeoutStr);
+                }
+            }
+        }
+
+        return errors;
+    }
+
+    public static void main(String[] args) {
+        // Test with a valid config
+        Map<String, String> validConfig = new HashMap<>();
+        validConfig.put("baseUrl", "https://api.example.com");
+        validConfig.put("port", "8080");
+        validConfig.put("browser", "chrome");
+        validConfig.put("timeout", "30");
+
+        List<String> result1 = validateConfig(validConfig);
+        System.out.println("Valid config errors: " + result1);    // expect: []
+
+        // Test with an invalid config
+        Map<String, String> invalidConfig = new HashMap<>();
+        invalidConfig.put("baseUrl", "");
+        invalidConfig.put("port", "99999");
+        // missing "browser" and "timeout"
+
+        List<String> result2 = validateConfig(invalidConfig);
+        System.out.println("Invalid config errors: " + result2);
+        // expect: [Empty value for key: baseUrl, Missing required key: browser,
+        //          Missing required key: timeout, Port out of range (1-65535): 99999]
+    }
+}
+```
+
+**Line-by-line notes:**
+- **Guard clause (line with `if (config == null)`):** Returning early avoids deeply nested `if/else` blocks. This is a pattern you'll use constantly in utility methods.
+- **`value.trim().isEmpty()`:** Handles whitespace-only values. In automation, config values often come from `.properties` files or environment variables where trailing spaces are invisible.
+- **`Integer.parseInt()` in a try-catch:** This is the standard pattern for safely converting user-provided strings to numbers. The exception message is part of the validation output, not a stack trace that kills the test.
+
+**To compile and run:**
+```bash
+javac ConfigValidator.java
+java ConfigValidator
+```
+
+---
+
+### Example 2: HTTP Status Code Classifier
+
+A method that classifies HTTP status codes into human-readable categories using a switch expression.
+
+
+```java
+public class HttpStatusClassifier {
+
+    /**
+     * Classifies an HTTP status code into a category string.
+     * Uses Java 14+ switch expression syntax.
+     */
+    public static String classifyStatusCode(int statusCode) {
+        // Validate the input range first
+        if (statusCode < 100 || statusCode > 599) {
+            return "Unknown (out of HTTP range)";
+        }
+
+        // Switch on the "class" of the status code (first digit)
+        return switch (statusCode / 100) {
+            case 1 -> "Informational";          // 100-199
+            case 2 -> "Success";                // 200-299
+            case 3 -> "Redirect";               // 300-399
+            case 4 -> "Client Error";           // 400-499
+            case 5 -> "Server Error";           // 500-599
+            default -> "Unknown";               // unreachable given the if-guard, but required by compiler
+        };
+    }
+
+    /**
+     * Returns a more detailed description for common status codes.
+     * Demonstrates multi-value case labels and block bodies.
+     */
+    public static String describeStatusCode(int statusCode) {
+        return switch (statusCode) {
+            case 200 -> "OK";
+            case 201 -> "Created";
+            case 204 -> "No Content";
+            case 301, 302 -> "Redirect";            // multi-value: both 301 and 302 map here
+            case 400 -> "Bad Request";
+            case 401 -> "Unauthorized";
+            case 403 -> "Forbidden";
+            case 404 -> "Not Found";
+            case 429 -> "Too Many Requests";
+            case 500 -> "Internal Server Error";
+            case 502 -> "Bad Gateway";
+            case 503 -> "Service Unavailable";
+            default -> {
+                // Block body for cases needing multiple statements
+                String category = classifyStatusCode(statusCode);
+                yield category + " (" + statusCode + ")";   // yield returns a value from a block
+            }
+        };
+    }
+
+    public static void main(String[] args) {
+        // Test common codes
+        int[] codes = {200, 301, 404, 500, 201, 429, 150, 999};
+        for (int code : codes) {
+            System.out.printf("HTTP %d → %s → %s%n",
+                code, classifyStatusCode(code), describeStatusCode(code));
+        }
+    }
+}
+```
+
+**Line-by-line notes:**
+- **`statusCode / 100`:** Integer division gives us the "class" — `200 / 100 = 2`, `404 / 100 = 4`. This is cleaner than chaining `if (code >= 200 && code < 300)`.
+- **`yield` keyword:** Inside a switch expression block (`{}`), `yield` acts like `return` for the switch — it provides the expression's value.
+- **`System.out.printf` with `%d`, `%s`, `%n`:** Format specifiers: `%d` for integers, `%s` for strings, `%n` for platform-independent newline.
+
+**To compile and run (requires Java 14+):**
+```bash
+javac HttpStatusClassifier.java
+java HttpStatusClassifier
+```
+
+---
+
+### Example 3: Test Summary Generator
+
+A method that processes a list of test results and generates a formatted summary report using loops and string building.
+
+
+```java
+import java.util.ArrayList;
+import java.util.List;
+
+public class TestSummaryGenerator {
+
+    // Simple record-like class to hold a test result
+    // (In Java 16+, you could use: record TestResult(String name, String status, long durationMs) {})
+    static class TestResult {
+        String name;
+        String status;       // "PASS", "FAIL", "SKIP"
+        long durationMs;
+
+        TestResult(String name, String status, long durationMs) {
+            this.name = name;
+            this.status = status;
+            this.durationMs = durationMs;
+        }
+    }
+
+    /**
+     * Generates a formatted test summary from a list of results.
+     */
+    public static String generateTestSummary(List<TestResult> results) {
+        if (results == null || results.isEmpty()) {
+            return "No test results to summarize.";
+        }
+
+        int totalTests = results.size();
+        int passCount = 0;
+        int failCount = 0;
+        int skipCount = 0;
+        long totalDurationMs = 0;
+        List<String> failedTestNames = new ArrayList<>();
+
+        // Single pass through results to gather all metrics
+        for (TestResult result : results) {
+            totalDurationMs += result.durationMs;
+
+            switch (result.status) {
+                case "PASS":
+                    passCount++;
+                    break;
+                case "FAIL":
+                    failCount++;
+                    failedTestNames.add(result.name);   // track failures for the report
+                    break;
+                case "SKIP":
+                    skipCount++;
+                    break;
+                default:
+                    // Unknown status — count as skip, but log a warning
+                    System.err.println("Warning: unknown status '" + result.status
+                        + "' for test: " + result.name);
+                    skipCount++;
+            }
+        }
+
+        // Calculate pass percentage — use double to avoid integer division truncation
+        double passPercentage = (passCount * 100.0) / totalTests;
+
+        // Build the summary using StringBuilder for efficiency
+        // (In a loop or multi-part concatenation, StringBuilder avoids creating
+        // intermediate String objects)
+        StringBuilder sb = new StringBuilder();
+        sb.append("═══════════════════════════════════════\n");
+        sb.append("           TEST EXECUTION SUMMARY       \n");
+        sb.append("═══════════════════════════════════════\n");
+        sb.append(String.format("  Total Tests : %d%n", totalTests));
+        sb.append(String.format("  Passed      : %d%n", passCount));
+        sb.append(String.format("  Failed      : %d%n", failCount));
+        sb.append(String.format("  Skipped     : %d%n", skipCount));
+        sb.append(String.format("  Pass Rate   : %.1f%%%n", passPercentage));
+        sb.append(String.format("  Duration    : %.2f seconds%n", totalDurationMs / 1000.0));
+        sb.append("───────────────────────────────────────\n");
+
+        // Append failed test details if any
+        if (!failedTestNames.isEmpty()) {
+            sb.append("  Failed Tests:\n");
+            for (int i = 0; i < failedTestNames.size(); i++) {
+                sb.append(String.format("    %d. %s%n", i + 1, failedTestNames.get(i)));
+            }
+            sb.append("───────────────────────────────────────\n");
+        }
+
+        // Overall verdict
+        String verdict = failCount == 0 ? "PASS" : "FAIL";
+        sb.append("  Verdict     : ").append(verdict).append("\n");
+        sb.append("═══════════════════════════════════════\n");
+
+        return sb.toString();
+    }
+
+    public static void main(String[] args) {
+        List<TestResult> results = new ArrayList<>();
+        results.add(new TestResult("testLogin", "PASS", 1200));
+        results.add(new TestResult("testSearch", "PASS", 3400));
+        results.add(new TestResult("testCheckout", "FAIL", 5600));
+        results.add(new TestResult("testProfile", "PASS", 800));
+        results.add(new TestResult("testLogout", "SKIP", 0));
+        results.add(new TestResult("testPayment", "FAIL", 4200));
+
+        System.out.println(generateTestSummary(results));
+    }
+}
+```
+
+**Line-by-line notes:**
+- **Single-pass loop:** We gather all metrics (counts, duration, failed names) in one iteration rather than looping multiple times. This is a habit worth building — test suites can have thousands of results.
+- **`passCount * 100.0`:** The `.0` forces double arithmetic. Without it, `passCount * 100 / totalTests` would use integer division and yield `66` instead of `66.7`.
+- **`StringBuilder` vs `+` concatenation:** Inside a loop, each `+` creates a new String object. `StringBuilder` mutates an internal buffer, which is far more efficient. Outside loops, the compiler optimizes `+` to use `StringBuilder` anyway, so it matters less.
+- **`String.format` with `%.1f%%`:** `%.1f` formats a double to one decimal place. `%%` produces a literal `%` character.
+
+**To compile and run:**
+```bash
+javac TestSummaryGenerator.java
+java TestSummaryGenerator
+```
+
+---
+
+## Layer 4 — Failure and Debugging
+
+### Mistake 1: String Comparison with `==`
+
+**Broken code:**
+
+```java
+public boolean isTestPassed(String status) {
+    return status == "PASS";     // BUG: compares references, not content
+}
+
+// Scenario that exposes the bug:
+String statusFromApi = new String("PASS");   // simulates reading from JSON/API response
+boolean result = isTestPassed(statusFromApi);
+System.out.println(result);                  // prints: false (expected: true)
+```
+
+**Why it sometimes works:**
+Java maintains a **string pool** — an area of memory where it caches string literals. When you write `"PASS"` in two places in your code, both reference the same pooled object, so `==` returns `true`. But strings created at runtime (from APIs, file reads, `new String()`, `StringBuilder.toString()`) create new objects on the heap that are **not** the same reference.
+
+**Diagnostic steps:**
+1. Add debug logging: `System.out.println("status ref: " + System.identityHashCode(status));`
+2. Compare with a known literal's identity hash — if they differ, you have a reference mismatch.
+
+**Fix:**
+
+```java
+public boolean isTestPassed(String status) {
+    return "PASS".equals(status);    // content comparison, AND null-safe
+}
+// Putting the literal first ("PASS".equals(...)) avoids NullPointerException
+// if status is null.
+```
+
+**Prevention:**
+- Configure your IDE's inspections / linter to flag `==` on Strings. IntelliJ IDEA does this by default.
+- Make it a team rule: **never use `==` for object comparison** unless you specifically intend reference equality.
+
+---
+
+### Mistake 2: Integer Overflow in Calculations
+
+**Broken code:**
+
+```java
+public long calculateTotalDurationMs(int testCount, int avgDurationMs) {
+    long total = testCount * avgDurationMs;   // BUG: multiplication happens in int space
+    return total;
+}
+
+// Scenario:
+long result = calculateTotalDurationMs(100_000, 30_000);
+System.out.println(result);
+// Expected: 3,000,000,000 (3 billion)
+// Actual:   -1,294,967,296 (wrapped around because int max is ~2.1 billion)
+```
+
+**What happens:**
+Java evaluates `testCount * avgDurationMs` as an `int * int = int` operation. The result (3 billion) exceeds `Integer.MAX_VALUE` (2,147,483,647), so it wraps around silently. Only *then* is the already-corrupted result widened to `long`.
+
+**Diagnostic steps:**
+1. Check if any intermediate arithmetic result exceeds `int` range.
+2. Print intermediate values: `System.out.println("product as int: " + (testCount * avgDurationMs));`
+
+**Fix:**
+
+```java
+public long calculateTotalDurationMs(int testCount, int avgDurationMs) {
+    long total = (long) testCount * avgDurationMs;   // cast BEFORE multiplication
+    return total;
+}
+```
+
+Casting `testCount` to `long` first causes the multiplication to happen in `long` arithmetic.
+
+**Prevention:**
+- When any calculation *could* exceed `int` range, cast one operand to `long` explicitly.
+- Use `Math.multiplyExact(a, b)` (Java 8+) — it throws `ArithmeticException` on overflow instead of silently wrapping.
+
+---
+
+### Mistake 3: NullPointerException from Null Map Values
+
+**Broken code:**
+
+```java
+public int getTimeoutSeconds(Map<String, String> config) {
+    int timeout = Integer.parseInt(config.get("timeout"));  // BUG: NPE if key doesn't exist
+    return timeout;
+}
+
+// Scenario:
+Map<String, String> config = new HashMap<>();
+// "timeout" key was never added
+int timeout = getTimeoutSeconds(config);   // NullPointerException!
+```
+
+**What happens:**
+`config.get("timeout")` returns `null` when the key is absent. `Integer.parseInt(null)` throws `NumberFormatException`, but more commonly, other operations on `null` (like calling `.trim()` on the result) cause `NullPointerException`.
+
+**Diagnostic steps:**
+1. Read the stack trace — it gives you the exact line number.
+2. Identify which reference on that line could be null.
+3. Add a null check or use `Map.getOrDefault()`.
+
+**Fix:**
+
+```java
+public int getTimeoutSeconds(Map<String, String> config) {
+    // Approach 1: getOrDefault with a sensible fallback
+    String timeoutStr = config.getOrDefault("timeout", "30");
+    return Integer.parseInt(timeoutStr);
+
+    // Approach 2: Explicit null check with clear error message
+    // String timeoutStr = config.get("timeout");
+    // if (timeoutStr == null) {
+    //     throw new IllegalArgumentException("Config missing required key: timeout");
+    // }
+    // return Integer.parseInt(timeoutStr);
+}
+```
+
+**Prevention:**
+- Always check `Map.get()` results for null, or use `getOrDefault()`.
+- Use `Objects.requireNonNull(value, "message")` for fail-fast validation.
+- In Java 8+, use `Optional`: `Optional.ofNullable(config.get("timeout")).orElse("30")`.
+
+---
+
+## Layer 5 — Engineering Judgment
+
+### When to Use if/else vs. switch vs. Polymorphism
+
+| Scenario | Best Choice | Why |
+|---|---|---|
+| 2–3 conditions based on ranges or complex boolean expressions | `if/else` | Switch can't express range logic or compound conditions cleanly |
+| Single variable compared against 4+ discrete constant values | `switch` | Cleaner, compiler warns about missing cases with enums |
+| Behavior that varies by "type" and will grow over time | Polymorphism | New types add behavior without modifying existing code (Open/Closed Principle) |
+| Quick one-off classification in a utility method | `switch` expression | Concise, returns a value directly |
+
+**Automation-specific example:** If you're dispatching behavior based on a browser type (`"chrome"`, `"firefox"`, `"safari"`), a `switch` is fine for 3 options in a helper method. But if each browser needs significantly different setup logic (installing drivers, setting capabilities, handling profiles), create a `BrowserFactory` with polymorphic classes — `ChromeSetup`, `FirefoxSetup`, etc.
+
+### When to Use StringBuilder vs. String Concatenation
+
+| Scenario | Use | Why |
+|---|---|---|
+| Concatenating 2–3 strings in a single expression | `+` operator | Compiler optimizes this; `StringBuilder` adds noise |
+| Building a string inside a loop | `StringBuilder` | Each `+` in a loop creates a new object; `StringBuilder` mutates in place |
+| Building a multi-part string in sequential statements | `StringBuilder` | Clear intent, better performance for 5+ parts |
+| Building a formatted string with mixed types | `String.format()` | Readability — template is separate from values |
+
+**Rule of thumb for test code:** If you're concatenating inside a `for` or `while` loop, *always* use `StringBuilder`. Outside loops, use whatever reads best.
+
+### `var`: Readability Trade-offs in Test Code
+
+Test code is read far more often than it's written — by teammates during code review, by yourself three months later debugging a failure, by the new hire trying to understand the framework. Prioritize clarity:
+
+```java
+// GOOD: type is obvious from the right side
+var results = new ArrayList<TestResult>();
+var config = new HashMap<String, String>();
+
+// BAD: what type is this? Reader must look up the method signature
+var result = testRunner.execute(suite);
+var data = parser.transform(input);
+
+// BETTER: explicit type makes intent clear
+TestExecutionResult result = testRunner.execute(suite);
+List<Map<String, Object>> data = parser.transform(input);
+```
+
+**Guideline:** Use `var` when the type is visible on the same line (constructor, literal). Avoid it when the type is determined by a method call that isn't self-documenting.
+
+### Primitive vs. Wrapper Types in Automation Contexts
+
+| Context | Use Primitive | Use Wrapper |
+|---|---|---|
+| Local loop counter | `int i = 0` | Never — no reason for the overhead |
+| Storing a count or duration | `int count` | Only if it can legitimately be `null` |
+| Map keys/values | N/A — generics require wrappers | `Map<String, Integer>` |
+| Method return type where "absent" is meaningful | N/A | `Integer` (returning `null` to mean "not found") |
+| TestNG / JUnit parameters | Depends on framework | `@DataProvider` returns `Object[][]`, so wrappers are needed |
+
+**Watch for auto-unboxing NPEs:** When you pull an `Integer` from a `Map` and assign it directly to an `int`, a null value will throw `NullPointerException`. Always null-check wrapper types before unboxing.
+
+---
+
+## Layer 6 — Interview and Revision
+
+### Fundamental Questions with Answers
+
+**Q1: What is the difference between `==` and `.equals()` in Java?**
+> `==` compares references (memory addresses) for objects and values for primitives. `.equals()` compares object content. For Strings, always use `.equals()` to compare text content. Two String objects can contain the same characters but reside at different memory addresses, making `==` return `false`.
+
+**Q2: What happens when an integer operation overflows in Java?**
+> Java does not throw an exception on integer overflow. The value silently wraps around using two's complement arithmetic. For example, `Integer.MAX_VALUE + 1` equals `Integer.MIN_VALUE`. Use `Math.addExact()` or `Math.multiplyExact()` (Java 8+) to get overflow detection via `ArithmeticException`.
+
+**Q3: Explain the difference between `while` and `do-while`.**
+> A `while` loop checks the condition *before* executing the body — it may execute zero times. A `do-while` loop checks the condition *after* executing the body — it always executes at least once. Use `do-while` when you need at least one iteration, such as polling for an async operation result.
+
+**Q4: What is auto-boxing? What risk does it introduce?**
+> Auto-boxing is the compiler automatically converting a primitive to its wrapper class (e.g., `int` → `Integer`). Auto-unboxing is the reverse. The risk: if a wrapper reference is `null`, unboxing it throws `NullPointerException`. This is common when retrieving values from collections like `Map<String, Integer>`.
+
+**Q5: Why are Java Strings immutable? How does this affect test code?**
+> Immutability means Strings can be safely shared across threads, used as HashMap keys, and cached in the string pool. For test code, it means every string "modification" (concatenation, `replace()`, `toUpperCase()`) creates a new object. In loops, this leads to excessive object creation — use `StringBuilder` instead.
+
+### Coding Questions
+
+*(Implement these in `coding-exercises.md` — only signatures shown here.)*
+
+**C1:** Write a method that takes a `String` sentence and returns the word count, ignoring extra whitespace.
+```java
+public static int countWords(String sentence)
+```
+
+**C2:** Write a method that takes an array of integers and returns a new array with duplicates removed, preserving order.
+```java
+public static int[] removeDuplicates(int[] numbers)
+```
+
+**C3:** Write a method that validates an email address string using basic rules (contains exactly one `@`, has a domain with a `.`, no spaces).
+```java
+public static boolean isValidEmail(String email)
+```
+
+### Scenario Questions
+
+**S1:** *"Your test reports show intermittent failures in a method that concatenates strings in a loop to build XML payloads. The failures are `OutOfMemoryError` on larger payloads. What's happening and how do you fix it?"*
+
+> Each `+` concatenation inside the loop creates a new String object. For large payloads, this produces thousands of intermediate objects that overwhelm the heap. **Fix:** Replace the loop's `String` concatenation with a `StringBuilder`. For XML specifically, consider using a proper XML builder library.
+
+**S2:** *"A colleague's test compares two `Integer` values using `==` and it works for values under 128 but fails for larger values. Why?"*
+
+> Java caches `Integer` objects for values −128 to 127 (the `Integer` cache). Within this range, `Integer.valueOf(100) == Integer.valueOf(100)` returns `true` because both references point to the same cached object. Above 127, new objects are created, so `==` compares different references and returns `false`. **Fix:** Use `.equals()` or unbox to `int` before comparing.
+
+**S3:** *"Your retry mechanism uses `int retryCount = 0` and increments it in a while loop, but in a specific edge case, the loop runs forever. The max retry is set to `Integer.MAX_VALUE`. What went wrong?"*
+
+> When `retryCount` reaches `Integer.MAX_VALUE` and is incremented, it overflows to `Integer.MIN_VALUE`, which is less than `Integer.MAX_VALUE`, so the condition `retryCount < maxRetries` is true again. The loop restarts from a negative number and will cycle through all int values endlessly. **Fix:** Use a `long` for the counter, or set a realistic max retry value (like 10), or use `Math.addExact()` to detect overflow.
+
+
+
+
+| # | Front (Question) | Back (Answer) |
+|---|---|---|
+| 1 | What are the 8 primitive types in Java? | `byte`, `short`, `int`, `long`, `float`, `double`, `boolean`, `char` |
+| 2 | What does `"hello" == "hello"` return and why? | `true` — both literals refer to the same string pool object. But this is *not* a reliable way to compare strings. |
+| 3 | What is the scope of a variable declared inside a `for` loop's init? | It exists only within the `for` loop's body (including the condition and update expressions). |
+| 4 | What does `break` do in a `switch` statement? | It exits the `switch` block. Without `break` (in traditional switch), execution "falls through" into the next case. |
+| 5 | When does auto-unboxing cause `NullPointerException`? | When the wrapper object reference is `null` and it's assigned to a primitive or used in a primitive operation. |
+
+### Mastery Checklist
+
+Use this to self-assess before moving to the next module:
+
+- [ ] I can write a complete Java class with a `main` method from memory
+- [ ] I know the sizes and ranges of `int`, `long`, `double`, `boolean`, and `char`
+- [ ] I always use `.equals()` for String comparison and can explain why
+- [ ] I understand variable scope and can predict compilation errors for out-of-scope access
+- [ ] I can write `if/else`, `switch` (both traditional and enhanced), `for`, `for-each`, `while`, and `do-while` without looking up syntax
+- [ ] I can explain short-circuit evaluation and use it to guard against `NullPointerException`
+- [ ] I know when to use `StringBuilder` vs. `+` concatenation
+- [ ] I can identify integer overflow risks and apply the fix (cast to `long` or use `Math.xxxExact()`)
+- [ ] I understand auto-boxing/unboxing and its `NullPointerException` trap
+- [ ] I can use `var` appropriately and explain when it hurts readability
+- [ ] I can classify HTTP status codes using a `switch` expression
+- [ ] I can validate input using guard clauses, null checks, and try-catch for parsing
+
+---
+
+> **Next Module:** [Collections and Data Structures →](./collections-and-generics.mdx)
+> **Practice:** [Coding Exercises →](./coding-exercises.mdx)

@@ -1,0 +1,568 @@
+---
+title: "Configuration and Environments"
+description: "What: Configuration management is how your framework loads, merges, and exposes environment-specific values — base URLs, timeouts, browser types, API keys, and feature flags — without hardcoding them in test code. Environment management is the ability to run the same compiled tests against dev, staging, or production by changing a single parameter."
+summary: "SDET Engineering guide: Configuration and Environments"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "framework-engineering"
+lesson: "configuration-and-environments"
+difficulty: "intermediate"
+estimatedMinutes: 36
+prerequisites: []
+tags: ["SDET", "Framework", "Architecture"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/framework-engineering/configuration-and-environments"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Configuration and Environments
+
+> **Module:** 03 — Framework Engineering > Configuration and Environments  
+> **Prerequisites:** Framework Architecture, Project Structure  
+> **Mastery Target:** L3 (Independent) → L4 (Engineering Judgment)
+
+---
+
+## Quick Overview (Layer 1)
+
+**What:** Configuration management is how your framework loads, merges, and exposes environment-specific values — base URLs, timeouts, browser types, API keys, and feature flags — without hardcoding them in test code. Environment management is the ability to run the same compiled tests against dev, staging, or production by changing a single parameter.
+
+**Why it matters:** Hardcoded values are the silent killer of test frameworks. The moment someone writes `driver.get("https://staging.myapp.com")`, the framework is welded to staging. Running against dev means editing source code, which means a different binary for each environment, which means "it passed in staging" tells you nothing about production. Configuration externalizes these values so the code stays constant and only the data changes.
+
+**Where you encounter it:** Every `base.url`, every timeout value, every browser choice, every credential reference. The first time you need to run tests against a second environment, configuration management becomes essential.
+
+<MentalModel>
+
+Think of configuration as **dials on a mixing board**. The song (your test code) stays the same — same notes, same arrangement. But the dials change the output: venue volume (timeout), speaker selection (browser), sound profile (environment URL). A sound engineer doesn't rewrite the song for each venue — they adjust the dials. Your framework shouldn't be rewritten for each environment — it should read different configuration.
+
+</MentalModel>
+
+
+```
+Same tests + staging config → runs against staging
+Same tests + prod config    → runs against production
+Same tests + local config   → runs against localhost
+```
+
+<KeyTakeaways>
+
+1. **Never hardcode environment-specific values** — URLs, credentials, timeouts, and browser types belong in external configuration, not in Java source files.
+2. **Configuration layers override in a predictable order** — defaults → environment file → system property → environment variable. Later sources win.
+3. **Secrets never go in config files** — passwords, API keys, and tokens come from environment variables or a secrets vault. If it's in Git, it's compromised.
+4. **ConfigManager is a singleton, immutable after load** — load once at suite startup, expose through typed getters, never modify at runtime. This makes it thread-safe for parallel execution.
+5. **Typed getters prevent bugs** — `getTimeout()` returns `int`, not `String`. Parse once in the getter, not in every test that reads it.
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation (Layer 2)
+
+### Why Hardcoded Values Kill Frameworks
+
+Consider this test:
+
+
+```java
+@Test
+public void shouldLoginSuccessfully() {
+    driver.get("https://staging.staynest.com/login");
+    driver.findElement(By.id("email")).sendKeys("admin@staynest.com");
+    driver.findElement(By.id("password")).sendKeys("Admin@123");
+    driver.findElement(By.id("login-btn")).click();
+    assertThat(driver.getTitle()).contains("Dashboard");
+}
+```
+
+Three values are hardcoded: the URL, the username, and the password. Each creates a separate problem:
+
+- **URL:** Running against dev requires editing the source file. If 50 tests hardcode the staging URL, switching environments means 50 edits — and someone will miss one.
+- **Credentials:** `Admin@123` is now in your Git history. Even if you delete it, `git log` shows it forever. Anyone with repo access has the admin password.
+- **Implicit coupling:** The test is *semantically* about "login works." But it's *physically* bound to staging. The test title lies — it's not "shouldLoginSuccessfully," it's "shouldLoginSuccessfullyOnStagingWithTheseSpecificCredentials."
+
+### Configuration Approaches
+
+**Properties files (Java standard):**
+
+```properties
+# config.properties
+base.url=http://localhost:8080
+browser=chrome
+timeout.seconds=10
+headless=false
+```
+
+Pros: Native Java support (`java.util.Properties`), simple key-value pairs, no extra dependencies. Cons: No nesting, no data types (everything is a string), no comments on the same line as a value.
+
+**YAML:**
+
+```yaml
+base:
+  url: http://localhost:8080
+browser: chrome
+timeout:
+  seconds: 10
+  polling-ms: 500
+headless: false
+```
+
+Pros: Hierarchical structure, readable, supports comments. Cons: Requires a library (SnakeYAML or Jackson YAML), indentation-sensitive (a misplaced space breaks parsing).
+
+**JSON:**
+
+```json
+{
+  "base": { "url": "http://localhost:8080" },
+  "browser": "chrome",
+  "timeout": { "seconds": 10 },
+  "headless": false
+}
+```
+
+Pros: Native type support (numbers, booleans, arrays), widely understood. Cons: No comments (major drawback for configuration), verbose braces and quotes.
+
+**Recommendation for Java test frameworks:** Start with `.properties` files. They're zero-dependency, every Java developer knows them, and they cover 90% of configuration needs. Move to YAML only when you need nesting (like per-browser capabilities maps).
+
+### Environment-Specific Configuration
+
+The goal is one set of tests, multiple environments. You achieve this with layered config files:
+
+```
+src/main/resources/config/
+├── config.properties       ← defaults (timeout=10, browser=chrome, headless=false)
+├── dev.properties           ← base.url=http://localhost:8080
+├── staging.properties       ← base.url=https://staging.staynest.com
+└── production.properties    ← base.url=https://staynest.com, timeout.seconds=15
+```
+
+Each environment file overrides only what differs. `staging.properties` doesn't repeat `browser=chrome` — it inherits that from the defaults. This eliminates duplication and ensures that adding a new default property (like `retry.count=2`) automatically applies to all environments.
+
+### Configuration Override Layers
+
+A well-designed config system has four layers, each overriding the previous:
+
+```
+Layer 1: Defaults (config.properties)
+  ↓ overridden by
+Layer 2: Environment file (staging.properties)
+  ↓ overridden by
+Layer 3: System properties (-Dbase.url=https://hotfix.app.com)
+  ↓ overridden by
+Layer 4: Environment variables (BASE_URL=https://hotfix.app.com)
+```
+
+**Why this order?** Defaults cover the common case. Environment files handle known environments. System properties handle one-off CI overrides (`mvn test -Dbase.url=...`). Environment variables handle secrets and CI-injected values that should never appear in command-line arguments (which are visible in `ps aux`).
+
+**Practical scenario:** A developer runs tests locally — Layer 1 gives `localhost`. CI runs against staging — Layer 2 gives the staging URL. A hotfix needs testing against a temporary environment — Layer 3 overrides with `-Dbase.url=https://hotfix-branch.app.com`. The database password comes from Layer 4 (an environment variable set by the CI secrets manager).
+
+### Secrets Handling
+
+**Rule: Never store secrets in configuration files that are committed to version control.**
+
+Secrets include: database passwords, API keys, OAuth client secrets, admin credentials, third-party service tokens.
+
+**Why not config files?** Once a secret is in a Git commit, it's in the reflog forever — even if you delete the file, rewrite history, and force-push. Anyone who cloned the repo has it.
+
+**Safe approaches:**
+
+1. **Environment variables** — `System.getenv("DB_PASSWORD")`. Set in CI via the platform's secret manager (GitHub Actions secrets, Jenkins credentials, GitLab CI variables).
+2. **`.env` file + `.gitignore`** — A local `.env` file for developer convenience, added to `.gitignore` so it never reaches Git. Load with a library or a shell script.
+3. **Secrets vault** — HashiCorp Vault, AWS Secrets Manager, Azure Key Vault. The framework authenticates to the vault at startup and retrieves secrets. Best for production environments.
+4. **CI-injected variables** — CI platforms inject secrets as environment variables into the build process. They're masked in logs and never stored on disk.
+
+### The ConfigManager Pattern
+
+The `ConfigManager` is the single access point for all configuration. It follows three design principles:
+
+1. **Singleton (or effectively singleton):** Created once at suite startup, reused everywhere. Not a GoF singleton with `getInstance()` — just one instance created in `@BeforeSuite` and passed or stored.
+2. **Immutable after construction:** No setters. Once loaded, the config never changes. This makes it inherently thread-safe — 50 parallel tests can read it without synchronization.
+3. **Typed getters:** `getTimeout()` returns `int`, `isHeadless()` returns `boolean`. Callers never parse strings. Parsing happens once, in the getter.
+
+---
+
+## Practical Implementation (Layer 3)
+
+### Example 1: Complete ConfigManager with Multi-Source Loading
+
+A production-ready `ConfigManager` that merges defaults, environment-specific overrides, system properties, and environment variables.
+
+
+```java
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.Properties;
+
+/**
+ * Loads and merges configuration from multiple sources.
+ *
+ * Override hierarchy (later wins):
+ * 1. config.properties          → base defaults
+ * 2. {env}.properties           → environment-specific overrides
+ * 3. System properties (-D)     → CLI overrides
+ * 4. Environment variables      → secrets and CI-injected values
+ *
+ * Thread safety: immutable after construction — safe for parallel tests.
+ *
+ * Usage:
+ *   ConfigManager config = ConfigManager.load("staging");
+ *   String url = config.getBaseUrl();
+ *   int timeout = config.getTimeout();
+ */
+public class ConfigManager {
+
+    private final Properties properties;
+
+    private ConfigManager(Properties properties) {
+        this.properties = properties;
+    }
+
+    public static ConfigManager load(String environment) {
+        Properties merged = new Properties();
+
+        // Layer 1: defaults
+        loadFromClasspath(merged, "config/config.properties");
+
+        // Layer 2: environment-specific overrides
+        if (environment != null && !environment.isBlank()) {
+            loadFromClasspath(merged, "config/" + environment + ".properties");
+        }
+
+        // Layer 3: system properties override file values
+        for (String key : merged.stringPropertyNames()) {
+            String sysValue = System.getProperty(key);
+            if (sysValue != null) {
+                merged.setProperty(key, sysValue);
+            }
+        }
+
+        // Layer 4: environment variables override everything
+        // Convention: property "base.url" maps to env var "BASE_URL"
+        for (String key : merged.stringPropertyNames()) {
+            String envKey = key.replace(".", "_").toUpperCase();
+            String envValue = System.getenv(envKey);
+            if (envValue != null) {
+                merged.setProperty(key, envValue);
+            }
+        }
+
+        return new ConfigManager(merged);
+    }
+
+    // --- Typed getters ---
+
+    public String getBaseUrl() {
+        return getRequired("base.url");
+    }
+
+    public int getTimeout() {
+        return Integer.parseInt(getOrDefault("timeout.seconds", "10"));
+    }
+
+    public String getBrowser() {
+        return getOrDefault("browser", "chrome");
+    }
+
+    public boolean isHeadless() {
+        return Boolean.parseBoolean(getOrDefault("headless", "false"));
+    }
+
+    public String getEnvironment() {
+        return getOrDefault("env", "local");
+    }
+
+    // Generic getter for non-standard properties
+    public String get(String key) {
+        return properties.getProperty(key);
+    }
+
+    public String get(String key, String defaultValue) {
+        return properties.getProperty(key, defaultValue);
+    }
+
+    // --- Internal helpers ---
+
+    private String getRequired(String key) {
+        String value = properties.getProperty(key);
+        if (value == null || value.isBlank()) {
+            throw new IllegalStateException(
+                "Required config '" + key + "' is missing. "
+                + "Set in config.properties, -D" + key + "=value, "
+                + "or env var " + key.replace(".", "_").toUpperCase()
+            );
+        }
+        return value;
+    }
+
+    private String getOrDefault(String key, String defaultValue) {
+        return properties.getProperty(key, defaultValue);
+    }
+
+    private static void loadFromClasspath(Properties target, String path) {
+        try (InputStream stream = ConfigManager.class.getClassLoader()
+                .getResourceAsStream(path)) {
+            if (stream != null) {
+                Properties source = new Properties();
+                source.load(stream);
+                target.putAll(source);
+            }
+            // Missing file = silent skip (env-specific files are optional)
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to load config: " + path, e);
+        }
+    }
+}
+```
+
+### Example 2: Environment-Specific Properties Files
+
+```properties
+# config/config.properties — defaults for all environments
+base.url=http://localhost:8080
+browser=chrome
+headless=false
+timeout.seconds=10
+retry.count=1
+api.base.url=http://localhost:8080/api
+```
+
+```properties
+# config/staging.properties — only overrides what's different
+base.url=https://staging.staynest.com
+api.base.url=https://staging.staynest.com/api
+timeout.seconds=15
+```
+
+```properties
+# config/production.properties — production specifics
+base.url=https://staynest.com
+api.base.url=https://staynest.com/api
+timeout.seconds=20
+headless=true
+```
+
+### Example 3: Using ConfigManager in BaseTest
+
+
+```java
+public class BaseTest {
+
+    protected static ConfigManager config;
+
+    @BeforeSuite
+    public void loadConfig() {
+        // Environment comes from: mvn test -Denv=staging  or  ENV=staging
+        String env = System.getProperty("env",
+                     System.getenv("ENV") != null ? System.getenv("ENV") : "local");
+        config = ConfigManager.load(env);
+    }
+
+    @BeforeMethod
+    @Parameters({"browser"})
+    public void setUp(@Optional String browser) {
+        // Browser from TestNG parameter overrides config; config overrides default
+        String resolvedBrowser = (browser != null) ? browser : config.getBrowser();
+        WebDriver driver = DriverFactory.createDriver(resolvedBrowser, config);
+        DriverManager.setDriver(driver);
+        driver.get(config.getBaseUrl());
+    }
+}
+```
+
+---
+
+## Failure and Debugging (Layer 4)
+
+### Failure 1: Hardcoded URL Breaks Environment Switching
+
+**The Problem:**
+
+
+```java
+@Test
+public void shouldSearchProperties() {
+    driver.get("https://staging.staynest.com/search");  // hardcoded
+    SearchPage searchPage = new SearchPage(driver);
+    searchPage.searchFor("Tokyo");
+    assertThat(searchPage.getResultCount()).isGreaterThan(0);
+}
+```
+
+**What happens:** Works on staging. Fails on dev (different URL). Fails on production (different data). Developer says "just change the URL" — but 80 tests hardcode it. Find-and-replace misses one. CI breaks on the next environment switch.
+
+**The fix:**
+
+
+```java
+@Test
+public void shouldSearchProperties() {
+    driver.get(config.getBaseUrl() + "/search");
+    SearchPage searchPage = new SearchPage(driver);
+    searchPage.searchFor("Tokyo");
+    assertThat(searchPage.getResultCount()).isGreaterThan(0);
+}
+```
+
+<BestPractice>
+
+**Prevention:** Search your codebase for `https://` and `http://` in test files. Every occurrence is a potential environment-coupling bug.
+
+</BestPractice>
+
+
+### Failure 2: Secrets Committed to Git
+
+**The Problem:**
+
+```properties
+# config/staging.properties
+base.url=https://staging.staynest.com
+db.password=Pr0duction$ecret!
+api.key=sk-abc123def456
+```
+
+**What happens:** A junior developer commits this file. The password is now in Git history forever. Even deleting the file and force-pushing doesn't remove it from clones that already fetched it. The secret must be rotated immediately.
+
+**The fix:**
+
+```properties
+# config/staging.properties — NO secrets here
+base.url=https://staging.staynest.com
+# db.password loaded from env var DB_PASSWORD
+# api.key loaded from env var API_KEY
+```
+
+
+```java
+// In ConfigManager or test setup
+String dbPassword = System.getenv("DB_PASSWORD");
+if (dbPassword == null) {
+    throw new IllegalStateException(
+        "DB_PASSWORD environment variable is not set. "
+        + "Set it in your shell or CI secrets."
+    );
+}
+```
+
+### Failure 3: Config Not Loaded Before Tests Access It
+
+**The Problem:**
+
+
+```java
+public class SearchTest extends BaseTest {
+
+    // This runs BEFORE @BeforeSuite — config is null
+    private String searchUrl = config.getBaseUrl() + "/search";
+
+    @Test
+    public void shouldSearchProperties() {
+        driver.get(searchUrl);  // NullPointerException
+    }
+}
+```
+
+**Root cause:** Java evaluates field initializers when the object is constructed, which happens before `@BeforeSuite` runs. `config` is still `null` at field initialization time.
+
+**The fix — use lazy initialization or move to setup:**
+
+
+```java
+public class SearchTest extends BaseTest {
+
+    @Test
+    public void shouldSearchProperties() {
+        // Access config at test runtime, not at class construction time
+        driver.get(config.getBaseUrl() + "/search");
+    }
+}
+```
+
+---
+
+## Engineering Judgment (Layer 5)
+
+### Properties vs YAML vs JSON — When to Choose What
+
+| Format | Use When | Avoid When |
+|--------|----------|------------|
+| `.properties` | Simple key-value config, Java-only project, no dependencies | You need nested structures (browser capabilities) |
+| YAML | Complex nested config, multi-language team, readability matters | You don't want to manage SnakeYAML dependency for 10 flat keys |
+| JSON | Config is consumed by non-Java tools too, API response schemas | You need inline comments (JSON doesn't support them) |
+
+**Recommendation:** Start with `.properties`. If you later need nested config (like per-browser capability maps), add a single YAML file for that purpose. Don't convert everything — mix formats where each makes sense.
+
+### How Many Environment Files?
+
+| Situation | Approach |
+|-----------|----------|
+| 1-2 environments | Defaults + one override file. Keep it simple. |
+| 3-5 environments | Defaults + per-env files. Each overrides only what differs. |
+| 10+ environments (microservices, per-branch) | Defaults + system properties/env vars only. File-per-environment doesn't scale — use CI to inject config dynamically. |
+
+### ConfigManager: Singleton vs Dependency Injection
+
+**Singleton (static access):** `ConfigManager.getInstance().getBaseUrl()`. Simple, accessible from anywhere. But hard to test — you can't swap in a test-specific config without modifying global state.
+
+**DI (passed through constructors):** `new LoginPage(driver, config)`. Explicit, testable, no hidden dependencies. But requires threading config through every constructor.
+
+**Practical recommendation for test frameworks:** Load config once in `@BeforeSuite`, store in a `protected static` field in `BaseTest`. Tests access it via `config.getBaseUrl()`. This is *effectively* a singleton but avoids the `getInstance()` pattern. For unit-testing the framework itself, you can construct `ConfigManager` directly with test-specific properties.
+
+---
+
+## Interview and Revision (Layer 6)
+
+### Fundamental Questions
+
+**Q1: How do you manage configuration across different environments in your framework?**
+
+**A:** I use a layered override approach. A `config.properties` file has sensible defaults — timeout, browser, headless mode. Environment-specific files like `staging.properties` override only what differs, typically the base URL and API endpoints. System properties (`-Dbase.url=...`) let CI override for one-off runs. Environment variables handle secrets — they're never in config files. The `ConfigManager` merges these layers at startup, exposes typed getters, and is immutable after construction, making it safe for parallel tests.
+
+**Q2: Why shouldn't you store secrets in configuration files?**
+
+**A:** Because config files are committed to version control. Once a secret is in a Git commit, it's in the reflog permanently — even if you delete the file, anyone who cloned the repo has it. Secrets should come from environment variables (set by CI secret managers), a secrets vault like HashiCorp Vault, or at minimum a `.env` file that's in `.gitignore`. The key principle is: if it's sensitive, it must not exist in any file that Git tracks.
+
+**Q3: What happens if a required configuration property is missing?**
+
+**A:** The framework should fail fast with a clear error message. My `ConfigManager` has a `getRequired()` method that throws an `IllegalStateException` with the property name and instructions on how to set it — via config file, system property, or environment variable. This is far better than a `NullPointerException` ten lines later in some test, where the developer has to trace back to figure out what's missing.
+
+**Q4: How do you handle the config override order in your framework?**
+
+**A:** Four layers, each overriding the previous: (1) defaults in `config.properties`, (2) environment-specific overrides in `staging.properties` or `production.properties`, (3) system properties via `-D` flags on the command line, (4) environment variables for secrets and CI-injected values. This lets a developer run locally with defaults, CI runs against staging with an env file, and a one-off hotfix test overrides the URL via a system property — all without changing any code.
+
+
+
+
+| # | Front (Question) | Back (Answer) |
+|---|---|---|
+| 1 | What is the config override order in a well-designed framework? | Defaults (config.properties) → Environment file (staging.properties) → System properties (-D) → Environment variables. Later sources override earlier ones. |
+| 2 | Why are typed getters important in ConfigManager? | They parse once (`getTimeout()` returns `int`) so callers don't repeat parsing logic. They also fail fast on invalid values at config load time rather than deep in a test. |
+| 3 | Why should secrets never be stored in config files? | Config files are committed to Git. Once in a commit, secrets are in the reflog forever. Use environment variables, CI secret managers, or a secrets vault instead. |
+| 4 | What is the "effectively singleton" pattern for ConfigManager? | Load config once in `@BeforeSuite`, store in a `protected static` field in `BaseTest`. Tests access via `config.getBaseUrl()`. Immutable after load → thread-safe for parallel execution. |
+| 5 | When should you use YAML over .properties files? | When you need nested/hierarchical config (browser capabilities, complex test data mappings). For simple flat key-value pairs, `.properties` is simpler and dependency-free. |
+
+### Mastery Checklist
+
+- [ ] Can explain why hardcoded values break environment portability
+- [ ] Can implement a ConfigManager with four-layer override precedence
+- [ ] Can set up environment-specific config files that inherit defaults
+- [ ] Can handle secrets safely using environment variables instead of config files
+- [ ] Can choose between .properties, YAML, and JSON with justification
+- [ ] Can diagnose config-related failures (null config, missing properties, committed secrets)
+- [ ] Can explain why ConfigManager should be immutable after construction
+- [ ] Can integrate ConfigManager into BaseTest with proper lifecycle scope (@BeforeSuite)
+
+---
+
+**Next:** Dependency Injection And Composition | **Related:** Framework Architecture
+
+*Last updated: *

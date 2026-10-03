@@ -1,0 +1,594 @@
+---
+title: "Test Lifecycle and Fixtures"
+description: "What: The test lifecycle is the sequence of phases every test goes through: setup → execute → verify → teardown. Fixtures are the code that runs in the setup and teardown phases — creating browsers, loading config, preparing data, and cleaning up after each test."
+summary: "SDET Engineering guide: Test Lifecycle and Fixtures"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "framework-engineering"
+lesson: "test-lifecycle-and-fixtures"
+difficulty: "intermediate"
+estimatedMinutes: 37
+prerequisites: []
+tags: ["SDET", "Framework", "Architecture"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/framework-engineering/test-lifecycle-and-fixtures"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Test Lifecycle and Fixtures
+
+> **Module:** 03 — Framework Engineering > Test Lifecycle and Fixtures  
+> **Prerequisites:** Framework Architecture, Project Structure  
+> **Mastery Target:** L3 (Independent) → L4 (Engineering Judgment)
+
+---
+
+## Quick Overview (Layer 1)
+
+**What:** The test lifecycle is the sequence of phases every test goes through: setup → execute → verify → teardown. Fixtures are the code that runs in the setup and teardown phases — creating browsers, loading config, preparing data, and cleaning up after each test.
+
+**Why it matters:** Incorrect lifecycle management is the #1 source of framework-level bugs. A leaked browser session consumes ~300MB. Fifty leaked sessions crash your CI agent. A missing teardown leaves dirty data that causes the next test to fail. A setup method that runs at the wrong scope wastes minutes initializing resources that could be shared. Getting the lifecycle right is the difference between a framework that runs reliably for 500 tests and one that crumbles at 50.
+
+**Where you encounter it:** Every `@BeforeMethod`, `@AfterMethod`, `@BeforeClass`, `@BeforeSuite` decision. Every time you ask "should I create the driver once per class or once per test?" Every time a CI build fails with zombie browser processes.
+
+<MentalModel>
+
+Think of the test lifecycle as a **restaurant shift**. Before the restaurant opens, you prepare the kitchen once (suite setup). Before each service (lunch, dinner), you set the tables (class setup). Before each customer, you take their order and prepare their plate (method setup). After each customer, you clear their table (method teardown). After service, you clean the dining room (class teardown). After the shift ends, you close the kitchen (suite teardown).
+
+</MentalModel>
+
+
+If you skip clearing a table (method teardown), the next customer gets yesterday's dirty dishes. If you skip closing the kitchen (suite teardown), the gas stays on overnight.
+
+<KeyTakeaways>
+
+1. **Setup and teardown are symmetric** — every resource created in setup must be cleaned in the corresponding teardown at the same scope level.
+2. **Method-level isolation is non-negotiable** — each test method must start with clean state and end with full cleanup. No test should depend on what the previous test left behind.
+3. **Teardown must be guaranteed** — use `alwaysRun = true` (TestNG) or `finally` blocks to ensure cleanup runs even when setup or the test itself fails.
+4. **Choose the right scope** — config loading belongs in `@BeforeSuite` (once), shared data in `@BeforeClass` (once per class), driver creation in `@BeforeMethod` (once per test).
+5. **Over-setup is waste, under-teardown is danger** — creating resources too eagerly costs time; failing to clean them costs stability.
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation (Layer 2)
+
+### Test Lifecycle Phases
+
+Every test, regardless of framework, follows four phases:
+
+```
+1. SETUP      → prepare the preconditions (create driver, load data, navigate)
+2. EXECUTE    → perform the action under test (click button, call API)
+3. VERIFY     → assert the expected outcome (check response, verify page state)
+4. TEARDOWN   → clean up resources (quit driver, delete data, close connections)
+```
+
+The framework's lifecycle annotations map to the Setup and Teardown phases. Execute and Verify happen inside the `@Test` method body. A well-designed framework makes Setup and Teardown automatic and invisible to the test author — they write only Execute and Verify.
+
+### TestNG Annotation Hierarchy
+
+TestNG provides annotations at five scope levels. They form a nesting hierarchy — outer scopes run first, inner scopes run per-iteration:
+
+```
+@BeforeSuite     → once before ALL tests in the entire suite
+  @BeforeTest    → once before each <test> tag in testng.xml
+    @BeforeClass → once before the first method in each test class
+      @BeforeMethod → before EACH @Test method
+        @Test        → the test itself
+      @AfterMethod  → after EACH @Test method
+    @AfterClass  → once after the last method in each test class
+  @AfterTest     → once after each <test> tag completes
+@AfterSuite      → once after ALL tests complete
+```
+
+**Execution order for a suite with 2 classes, each with 2 tests:**
+
+```
+@BeforeSuite
+  @BeforeTest
+    @BeforeClass (ClassA)
+      @BeforeMethod → @Test testA1 → @AfterMethod
+      @BeforeMethod → @Test testA2 → @AfterMethod
+    @AfterClass (ClassA)
+    @BeforeClass (ClassB)
+      @BeforeMethod → @Test testB1 → @AfterMethod
+      @BeforeMethod → @Test testB2 → @AfterMethod
+    @AfterClass (ClassB)
+  @AfterTest
+@AfterSuite
+```
+
+### JUnit 5 Equivalents
+
+| TestNG | JUnit 5 | Scope |
+|--------|---------|-------|
+| `@BeforeSuite` | No direct equivalent (use `@ExtendWith` + custom extension) | Suite |
+| `@BeforeTest` | No direct equivalent | Test tag |
+| `@BeforeClass` | `@BeforeAll` (must be `static`) | Class |
+| `@BeforeMethod` | `@BeforeEach` | Method |
+| `@Test` | `@Test` | Method |
+| `@AfterMethod` | `@AfterEach` | Method |
+| `@AfterClass` | `@AfterAll` (must be `static`) | Class |
+| `@AfterSuite` | No direct equivalent | Suite |
+
+**Key JUnit 5 difference:** `@BeforeAll` / `@AfterAll` must be `static` methods by default (unless you use `@TestInstance(Lifecycle.PER_CLASS)`). This affects how you access instance fields in class-level setup.
+
+### Fixture Design: What Belongs at Each Level
+
+Choosing the right scope for setup and teardown is a design decision with real performance and isolation trade-offs.
+
+**Suite level (`@BeforeSuite` / `@AfterSuite`):**
+- Load and parse configuration (immutable after load)
+- Start shared infrastructure (Selenium Grid, Docker containers, mock servers)
+- Initialize logging and reporting framework
+- *Why suite:* These are expensive operations that produce immutable resources. Loading config 500 times (once per test) wastes time. Loading it once and sharing the immutable result is safe.
+
+**Class level (`@BeforeClass` / `@AfterClass`):**
+- Set up test data shared across methods in the class (e.g., create a test user that multiple tests in the class will use)
+- Initialize API clients with authentication tokens
+- *Why class:* When multiple tests in a class share a prerequisite that's expensive to create but safe to share (read-only test data, authenticated sessions).
+
+**Method level (`@BeforeMethod` / `@AfterMethod`):**
+- Create a new browser driver instance
+- Navigate to the starting page
+- Create test-specific data (the data this particular test will modify)
+- *Why method:* Each test must start with clean state. A browser carries cookies, session storage, and navigation history from the previous test. A fresh driver per test prevents cross-contamination.
+
+### Teardown Guarantees
+
+Teardown must run even when things go wrong. Three mechanisms ensure this:
+
+**1. `alwaysRun = true` (TestNG):**
+
+
+```java
+@AfterMethod(alwaysRun = true)
+public void tearDown() {
+    // Runs even if @BeforeMethod or @Test threw an exception
+    WebDriver driver = driverThreadLocal.get();
+    if (driver != null) {
+        driver.quit();
+        driverThreadLocal.remove();
+    }
+}
+```
+
+Without `alwaysRun = true`, if `@BeforeMethod` fails, TestNG skips `@AfterMethod` — and the partially-created driver leaks.
+
+**2. try-finally blocks:**
+
+
+```java
+@AfterMethod(alwaysRun = true)
+public void tearDown(ITestResult result) {
+    WebDriver driver = driverThreadLocal.get();
+    if (driver != null) {
+        try {
+            if (result.getStatus() == ITestResult.FAILURE) {
+                ScreenshotUtils.capture(driver, result.getName());
+            }
+        } finally {
+            // quit() runs even if screenshot capture fails
+            driver.quit();
+            driverThreadLocal.remove();
+        }
+    }
+}
+```
+
+The `finally` block ensures `driver.quit()` runs even if `ScreenshotUtils.capture()` throws.
+
+**3. TestNG Listeners (`ITestListener`):**
+
+
+```java
+public class CleanupListener implements ITestListener {
+
+    @Override
+    public void onTestFailure(ITestResult result) {
+        // Capture artifacts before driver is quit
+        captureScreenshot(result);
+        capturePageSource(result);
+    }
+
+    @Override
+    public void onFinish(ITestContext context) {
+        // Final cleanup after all tests in the <test> tag complete
+        flushReports();
+    }
+}
+```
+
+Listeners are an independent cleanup mechanism — they run regardless of what happens in the test class itself.
+
+---
+
+## Practical Implementation (Layer 3)
+
+### Example: Complete BaseTest Class for Selenium Tests
+
+A production-ready `BaseTest` with proper lifecycle management, thread safety for parallel execution, and guaranteed cleanup.
+
+
+```java
+import org.openqa.selenium.WebDriver;
+import org.testng.ITestResult;
+import org.testng.annotations.*;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+/**
+ * Base class for all UI tests.
+ *
+ * Lifecycle:
+ *   @BeforeSuite  → load configuration (once for the entire run)
+ *   @BeforeMethod → create driver, navigate to base URL (fresh per test)
+ *   @AfterMethod  → screenshot on failure, quit driver (guaranteed cleanup)
+ *
+ * Thread safety:
+ *   Uses ThreadLocal<WebDriver> so parallel tests each get their own browser.
+ *
+ * Subclass contract:
+ *   - Call getDriver() to access the browser
+ *   - Call getConfig() to access configuration
+ *   - Do NOT override setUp/tearDown — use @BeforeMethod(dependsOnMethods="setUp") if needed
+ */
+public class BaseTest {
+
+    private static final Logger log = LoggerFactory.getLogger(BaseTest.class);
+    private static final ThreadLocal<WebDriver> driverThreadLocal = new ThreadLocal<>();
+    private static ConfigManager config;
+
+    // --- Suite level: runs ONCE ---
+
+    @BeforeSuite
+    public void suiteSetup() {
+        String env = System.getProperty("env", "local");
+        config = ConfigManager.load(env);
+        log.info("Suite setup complete. Environment: {}, Base URL: {}",
+                env, config.getBaseUrl());
+    }
+
+    // --- Method level: runs before EACH @Test ---
+
+    @BeforeMethod
+    @Parameters({"browser"})
+    public void setUp(@Optional("chrome") String browser) {
+        // 1. Create driver
+        WebDriver driver = DriverFactory.createDriver(browser, config);
+
+        // 2. Store IMMEDIATELY — before any operation that might fail
+        driverThreadLocal.set(driver);
+
+        // 3. Configure browser
+        driver.manage().window().maximize();
+
+        // 4. Navigate to base URL
+        driver.get(config.getBaseUrl());
+
+        log.info("Test setup complete. Browser: {}, Thread: {}",
+                browser, Thread.currentThread().getName());
+    }
+
+    // --- Method level: runs after EACH @Test ---
+
+    @AfterMethod(alwaysRun = true)
+    public void tearDown(ITestResult result) {
+        WebDriver driver = driverThreadLocal.get();
+        if (driver != null) {
+            try {
+                if (result.getStatus() == ITestResult.FAILURE) {
+                    log.error("Test FAILED: {}", result.getName());
+                    ScreenshotUtils.capture(driver, result.getName());
+                } else {
+                    log.info("Test PASSED: {}", result.getName());
+                }
+            } finally {
+                driver.quit();
+                driverThreadLocal.remove();
+                log.info("Driver quit. Thread: {}", Thread.currentThread().getName());
+            }
+        }
+    }
+
+    // --- Suite level: runs ONCE after all tests ---
+
+    @AfterSuite
+    public void suiteTeardown() {
+        log.info("Suite teardown complete. All tests finished.");
+    }
+
+    // --- Protected accessors ---
+
+    protected WebDriver getDriver() {
+        WebDriver driver = driverThreadLocal.get();
+        if (driver == null) {
+            throw new IllegalStateException(
+                "Driver is null. Did @BeforeMethod run? Are you calling from the right thread?");
+        }
+        return driver;
+    }
+
+    protected ConfigManager getConfig() {
+        return config;
+    }
+}
+```
+
+### Example: Test Class Using BaseTest
+
+
+```java
+public class LoginTest extends BaseTest {
+
+    @Test
+    public void shouldLoginWithValidCredentials() {
+        LoginPage loginPage = new LoginPage(getDriver());
+        DashboardPage dashboard = loginPage.loginAs("guest@staynest.com", "password123");
+
+        assertThat(dashboard.getWelcomeMessage()).contains("Welcome");
+    }
+
+    @Test
+    public void shouldShowErrorForInvalidPassword() {
+        LoginPage loginPage = new LoginPage(getDriver());
+        loginPage.loginAs("guest@staynest.com", "wrongpassword");
+
+        assertThat(loginPage.getErrorMessage()).isEqualTo("Invalid credentials");
+    }
+}
+```
+
+Notice: the test author never touches driver creation, navigation, or cleanup. They write only the business logic. The `BaseTest` lifecycle handles the rest.
+
+### Example: BaseApiTest with Different Lifecycle Needs
+
+API tests don't need a browser. A separate base class avoids wasting resources on driver creation.
+
+
+```java
+public class BaseApiTest {
+
+    private static ConfigManager config;
+    protected AuthClient authClient;
+    protected String authToken;
+
+    @BeforeSuite
+    public void suiteSetup() {
+        String env = System.getProperty("env", "local");
+        config = ConfigManager.load(env);
+    }
+
+    @BeforeClass
+    public void classSetup() {
+        // Auth token can be shared across methods in this class
+        // because authentication is read-only — it doesn't change state
+        authClient = new AuthClient(config.getBaseUrl());
+        authToken = authClient.login("testuser@staynest.com", "password123");
+    }
+
+    @AfterClass
+    public void classTeardown() {
+        // Token cleanup if needed (e.g., invalidate session)
+    }
+
+    protected ConfigManager getConfig() {
+        return config;
+    }
+}
+```
+
+**Key difference from BaseTest:** No `@BeforeMethod` driver creation. The auth token is created once per class (`@BeforeClass`) because it's read-only and safe to share across test methods. This makes API test suites significantly faster.
+
+---
+
+## Failure and Debugging (Layer 4)
+
+### Failure 1: Driver Created But Not Stored Before Navigation
+
+**The Problem:**
+
+
+```java
+@BeforeMethod
+public void setUp() {
+    WebDriver driver = new ChromeDriver();
+    driver.get(config.getBaseUrl());     // ← if this throws, driver is NOT stored
+    driverThreadLocal.set(driver);       // ← never reached
+}
+```
+
+**What happens:** `driver.get()` fails (DNS error, server down, invalid URL). The `ChromeDriver` process was created (a Chrome browser opened), but the reference was never stored in `ThreadLocal`. `@AfterMethod` calls `driverThreadLocal.get()` and gets `null`. The Chrome process is now a zombie — no code has a reference to it. After 50 such failures, CI has 50 zombie browsers consuming 15GB.
+
+**The fix — store immediately after creation:**
+
+
+```java
+@BeforeMethod
+public void setUp() {
+    WebDriver driver = new ChromeDriver();
+    driverThreadLocal.set(driver);       // ← store FIRST
+    driver.get(config.getBaseUrl());     // ← if this throws, tearDown can still quit the driver
+}
+```
+
+### Failure 2: Class-Level Setup with Mutable State
+
+**The Problem:**
+
+
+```java
+public class BookingTest extends BaseTest {
+    private Booking testBooking;
+
+    @BeforeClass
+    public void createSharedBooking() {
+        // Create one booking shared across all test methods
+        testBooking = api.createBooking(new BookingRequest("2025-08-01", "2025-08-05"));
+    }
+
+    @Test
+    public void shouldDisplayBookingDetails() {
+        // Reads testBooking — fine
+        assertThat(bookingPage.getBookingId()).isEqualTo(testBooking.getId());
+    }
+
+    @Test
+    public void shouldCancelBooking() {
+        // MUTATES testBooking — cancels it
+        api.cancelBooking(testBooking.getId());
+        assertThat(bookingPage.getStatus()).isEqualTo("CANCELLED");
+    }
+
+    @Test
+    public void shouldUpdateBookingDates() {
+        // Expects testBooking to be ACTIVE — but if shouldCancelBooking ran first,
+        // it's CANCELLED and this test fails
+        api.updateBooking(testBooking.getId(), newDates);
+    }
+}
+```
+
+**Root cause:** `testBooking` is created once in `@BeforeClass` and shared across methods. One method cancels it, making it unusable for other methods. Test execution order determines which tests pass — a classic order dependency.
+
+**The fix — create per-method when data is mutated:**
+
+
+```java
+@BeforeMethod
+public void createTestBooking() {
+    testBooking = api.createBooking(new BookingRequest("2025-08-01", "2025-08-05"));
+}
+
+@AfterMethod(alwaysRun = true)
+public void cleanupTestBooking() {
+    if (testBooking != null) {
+        api.deleteBooking(testBooking.getId());
+    }
+}
+```
+
+**Rule:** Share state at class level only when it's read-only. If any method modifies the data, create it per-method.
+
+### Failure 3: Forgetting alwaysRun on @AfterSuite
+
+**The Problem:**
+
+
+```java
+@AfterSuite  // ← missing alwaysRun = true
+public void suiteTeardown() {
+    DockerUtils.stopContainers();
+    ReportUtils.flushReports();
+}
+```
+
+**What happens:** A `@BeforeSuite` or `@BeforeTest` method throws an exception. TestNG marks tests as skipped. Without `alwaysRun = true`, TestNG may skip `@AfterSuite` because the suite didn't complete normally. Docker containers keep running. Reports are never flushed.
+
+**The fix:**
+
+
+```java
+@AfterSuite(alwaysRun = true)
+public void suiteTeardown() {
+    DockerUtils.stopContainers();
+    ReportUtils.flushReports();
+}
+```
+
+**Prevention rule:** Always add `alwaysRun = true` to every `@After*` annotation. There is no valid reason to skip cleanup.
+
+---
+
+## Engineering Judgment (Layer 5)
+
+### Driver Per Method vs Driver Per Class
+
+| Approach | Pros | Cons | Use When |
+|----------|------|------|----------|
+| **Per method** (recommended) | Complete isolation, no cross-test contamination, safe for parallel | Slower — browser creation adds ~2-3 seconds per test | Default choice. Tests modify state (login, navigate, create data). |
+| **Per class** | Faster — one browser for all methods in the class | Tests share cookies/session/history, order-dependent, can't parallelize methods | Tests are genuinely sequential (a wizard flow) and you accept the coupling. Rare. |
+
+**Default to per-method.** The 2-3 second overhead per test is worth the isolation guarantee. If your suite has 200 tests and per-method adds 10 minutes total, that's a worthwhile trade for reliability. If 10 minutes is genuinely unacceptable, optimize the driver creation (headless mode, reuse browser profiles) rather than sharing drivers.
+
+### What to Put in @BeforeSuite vs @BeforeClass vs @BeforeMethod
+
+| Setup Task | Recommended Scope | Reason |
+|------------|-------------------|--------|
+| Load configuration | `@BeforeSuite` | Config is immutable after load. Reading it 500 times wastes time. |
+| Start Docker containers | `@BeforeSuite` | Infrastructure is shared across all tests. |
+| Initialize logging | `@BeforeSuite` | Logging framework is global. |
+| Authenticate (get API token) | `@BeforeClass` | Token is read-only, safe to share within a class. Refresh if expired. |
+| Load shared test fixtures | `@BeforeClass` | Read-only reference data used by multiple methods. |
+| Create WebDriver | `@BeforeMethod` | Mutable — each test modifies browser state. Must be isolated. |
+| Create test-specific data | `@BeforeMethod` | Data will be modified or consumed by the test. |
+| Navigate to starting page | `@BeforeMethod` | Page state must be clean for each test. |
+
+### When to Use Listeners vs @After Annotations
+
+**Use `@After*` annotations when:** The cleanup is specific to one test class or one base class. It's the default mechanism — simple, visible, colocated with the setup.
+
+**Use listeners when:** The cleanup is cross-cutting — it applies to *all* tests, regardless of which class they belong to. Screenshot-on-failure, report flushing, and log enrichment are listener candidates because they shouldn't be duplicated in every base class.
+
+---
+
+## Interview and Revision (Layer 6)
+
+### Fundamental Questions
+
+**Q1: Explain the TestNG test lifecycle annotations in order.**
+
+**A:** From outermost to innermost: `@BeforeSuite` runs once before all tests in the suite. `@BeforeTest` runs before each `<test>` tag in testng.xml. `@BeforeClass` runs once before the first method in a test class. `@BeforeMethod` runs before each `@Test` method. After the test: `@AfterMethod`, `@AfterClass`, `@AfterTest`, `@AfterSuite` mirror in reverse. I use `@BeforeSuite` for config loading, `@BeforeClass` for shared read-only resources, and `@BeforeMethod` for driver creation and test-specific data.
+
+**Q2: Why do you create a new WebDriver in @BeforeMethod instead of @BeforeClass?**
+
+**A:** Because a browser carries mutable state — cookies, session storage, navigation history, logged-in user. If one test logs in as admin and the next test expects an anonymous user, they'll interfere. A fresh driver per test guarantees complete isolation. The ~2-3 second overhead is worth the elimination of cross-test contamination and order dependency bugs.
+
+**Q3: What happens if you forget `alwaysRun = true` on @AfterMethod?**
+
+**A:** If `@BeforeMethod` or the `@Test` itself throws an exception, TestNG may skip `@AfterMethod`. This means the driver is never quit — the browser process stays alive as a zombie, consuming memory. Over many failures, the CI agent accumulates hundreds of megabytes of orphaned Chrome processes and eventually crashes or slows to a halt.
+
+**Q4: How do you handle test data cleanup?**
+
+**A:** I follow the "create-use-delete" pattern. Each test creates its own data in `@BeforeMethod`, uses it in `@Test`, and deletes it in `@AfterMethod`. The deletion runs in a `finally` block to guarantee it happens. For API tests, I use API calls to delete resources. For UI tests that created data through the UI, I use API calls in teardown for faster cleanup. I never rely on "shared data that all tests use" because any test that modifies shared data breaks subsequent tests.
+
+
+
+
+| # | Front (Question) | Back (Answer) |
+|---|---|---|
+| 1 | What's the execution order: `@BeforeSuite`, `@BeforeClass`, `@BeforeMethod`? | `@BeforeSuite` → `@BeforeClass` → `@BeforeMethod` → `@Test` → `@AfterMethod` → `@AfterClass` → `@AfterSuite`. Suite wraps class, class wraps method. |
+| 2 | Why is `alwaysRun = true` critical on `@After*` methods? | Without it, if setup or test fails, the `@After*` method may be skipped, leaking resources (browsers, connections, data). `alwaysRun = true` guarantees cleanup regardless of test outcome. |
+| 3 | JUnit 5 equivalent of TestNG's `@BeforeMethod`? | `@BeforeEach`. And `@BeforeClass` maps to `@BeforeAll` (which must be `static` by default in JUnit 5). |
+| 4 | When should you use `@BeforeClass` vs `@BeforeMethod`? | `@BeforeClass` for read-only shared resources (config, reference data, auth tokens). `@BeforeMethod` for mutable resources (browser, test-specific data). Rule: if any test modifies it, create it per method. |
+| 5 | What is the "store immediately" rule for driver creation? | Store the driver reference in `ThreadLocal` immediately after creation, before any operation that might fail (like `driver.get()`). This ensures `@AfterMethod` can always find and quit the driver. |
+
+### Mastery Checklist
+
+- [ ] Can list all TestNG lifecycle annotations in execution order
+- [ ] Can map TestNG annotations to JUnit 5 equivalents
+- [ ] Can design a `BaseTest` class with proper `ThreadLocal` driver management
+- [ ] Can explain why `alwaysRun = true` is necessary on every `@After*` annotation
+- [ ] Can decide what belongs at suite, class, and method scope with justification
+- [ ] Can identify and fix the three common lifecycle failures (store-before-navigate, mutable shared state, missing alwaysRun)
+- [ ] Can write a `BaseApiTest` with class-level auth and no driver overhead
+- [ ] Can explain the trade-offs of driver-per-method vs driver-per-class
+
+---
+
+**Next:** Configuration And Environments | **Related:** Project Structure
+
+*Last updated: *

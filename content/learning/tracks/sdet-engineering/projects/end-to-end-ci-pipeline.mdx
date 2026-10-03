@@ -1,0 +1,540 @@
+---
+title: "Project: End-to-End CI Pipeline"
+description: "Build a complete CI/CD pipeline that orchestrates all your test automation projects: API tests, web UI tests, and mobile tests running automatically on every code change. This project ties everything together and is the single most impressive thing you can show in an SDET interview."
+summary: "SDET Engineering guide: Project: End-to-End CI Pipeline"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "projects"
+lesson: "end-to-end-ci-pipeline"
+difficulty: "intermediate"
+estimatedMinutes: 34
+prerequisites: []
+tags: ["SDET", "Projects", "Portfolio"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/projects/end-to-end-ci-pipeline"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Project: End-to-End CI Pipeline
+
+> **Module:** 12 — Projects
+> **Prerequisites:** Project Roadmap, Ci Cd Fundamentals, Rest Assured Framework, Selenium Java Framework
+> **Estimated Time:** 15-20 hours
+> **Difficulty:** Intermediate-Advanced
+
+---
+
+## Project Description
+
+Build a complete CI/CD pipeline that orchestrates all your test automation projects: API tests, web UI tests, and mobile tests running automatically on every code change. This project ties everything together and is the single most impressive thing you can show in an SDET interview.
+
+**What you'll build:** A Jenkins pipeline (or GitHub Actions workflow) that starts the StayNest backend in Docker, runs test suites in sequence with proper failure handling, generates consolidated Allure reports, and sends Slack or email notifications.
+
+**Why this matters:** An automation framework that only runs on your laptop has limited value. CI integration transforms it from a personal project into a production-quality engineering system.
+
+---
+
+## Pipeline Architecture
+
+```
+┌──────────────────────────────────────────────────────────┐
+│                    CI Pipeline                            │
+│                                                          │
+│  ┌─────────┐    ┌──────────┐    ┌──────────────────┐    │
+│  │ Checkout │───▶│  Build   │───▶│  Start Backend   │    │
+│  │   SCM    │    │ Projects │    │  (Docker Compose) │    │
+│  └─────────┘    └──────────┘    └────────┬─────────┘    │
+│                                          │               │
+│                                          ▼               │
+│                                 ┌────────────────┐       │
+│                                 │  Health Check  │       │
+│                                 │  (wait for API)│       │
+│                                 └────────┬───────┘       │
+│                                          │               │
+│                    ┌─────────────────────┼──────────┐    │
+│                    │                     │          │    │
+│                    ▼                     ▼          ▼    │
+│             ┌────────────┐     ┌──────────┐  ┌────────┐ │
+│             │ API Tests  │     │ Web Tests│  │ Mobile │ │
+│             │ REST Assured│     │ Selenium │  │ Tests  │ │
+│             └──────┬─────┘     └────┬─────┘  │Appium  │ │
+│                    │                │        └───┬────┘ │
+│                    └────────────────┼────────────┘      │
+│                                     │                    │
+│                                     ▼                    │
+│                           ┌──────────────────┐           │
+│                           │ Allure Report    │           │
+│                           │ (consolidated)   │           │
+│                           └────────┬─────────┘           │
+│                                    │                     │
+│                                    ▼                     │
+│                           ┌──────────────────┐           │
+│                           │  Notify          │           │
+│                           │  (Slack/Email)   │           │
+│                           └──────────────────┘           │
+│                                                          │
+│  ┌─────────────────────────────────────────────────────┐ │
+│  │ Always: Stop Backend (Docker Compose down)          │ │
+│  └─────────────────────────────────────────────────────┘ │
+└──────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Pipeline Stages Detail
+
+### Stage 1: Checkout
+
+Pull the latest code from all test repositories.
+
+
+```groovy
+stage('Checkout') {
+    steps {
+        checkout scm
+        // If tests are in separate repos:
+        dir('staynest-api-tests') {
+            git url: 'https://github.com/your-org/staynest-api-tests.git',
+                branch: 'main'
+        }
+        dir('staynest-web-tests') {
+            git url: 'https://github.com/your-org/staynest-web-tests.git',
+                branch: 'main'
+        }
+    }
+}
+```
+
+### Stage 2: Build Projects
+
+Compile test code and download dependencies (fail fast if code doesn't compile).
+
+
+```groovy
+stage('Build') {
+    parallel {
+        stage('Build API Tests') {
+            steps {
+                dir('staynest-api-tests') {
+                    sh 'mvn compile -DskipTests'
+                }
+            }
+        }
+        stage('Build Web Tests') {
+            steps {
+                dir('staynest-web-tests') {
+                    sh 'mvn compile -DskipTests'
+                }
+            }
+        }
+    }
+}
+```
+
+### Stage 3: Start Backend Infrastructure
+
+
+```groovy
+stage('Start Backend') {
+    steps {
+        dir('staynest-backend') {
+            sh 'docker compose up -d'
+        }
+        // Wait for the backend to be ready
+        script {
+            def maxRetries = 30
+            def retryInterval = 5
+            for (int i = 0; i < maxRetries; i++) {
+                def status = sh(
+                    script: 'curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/api/v1/auth/signup',
+                    returnStdout: true
+                ).trim()
+                if (status == '400' || status == '405') {
+                    echo "Backend is ready (HTTP ${status})"
+                    break
+                }
+                if (i == maxRetries - 1) {
+                    error "Backend failed to start after ${maxRetries * retryInterval} seconds"
+                }
+                sleep retryInterval
+            }
+        }
+    }
+}
+```
+
+### Stage 4: API Tests
+
+Run first because they're fastest and catch the most regressions. If API tests fail, skip UI tests (the backend is broken).
+
+
+```groovy
+stage('API Tests') {
+    steps {
+        dir('staynest-api-tests') {
+            sh '''
+                mvn test \
+                  -Dapi.base.url=http://localhost:8080/api/v1 \
+                  -Dallure.results.directory=target/allure-results
+            '''
+        }
+    }
+    post {
+        always {
+            junit 'staynest-api-tests/target/surefire-reports/*.xml'
+        }
+        failure {
+            echo 'API tests failed — skipping UI tests'
+        }
+    }
+}
+```
+
+### Stage 5: Web Tests
+
+Run in headless Chrome inside Docker. Only runs if API tests passed.
+
+
+```groovy
+stage('Web Tests') {
+    when {
+        expression { currentBuild.result == null } // only if no prior failure
+    }
+    steps {
+        dir('staynest-web-tests') {
+            sh '''
+                mvn test \
+                  -Dweb.base.url=http://localhost:5173 \
+                  -Dbrowser=chrome \
+                  -Dheadless=true \
+                  -Dallure.results.directory=target/allure-results
+            '''
+        }
+    }
+    post {
+        always {
+            junit 'staynest-web-tests/target/surefire-reports/*.xml'
+        }
+    }
+}
+```
+
+### Stage 6: Mobile Tests (Optional)
+
+Run against BrowserStack. Only runs if API and web tests passed.
+
+
+```groovy
+stage('Mobile Tests') {
+    when {
+        expression { currentBuild.result == null }
+        expression { params.RUN_MOBILE == true }
+    }
+    steps {
+        dir('staynest-mobile-tests') {
+            withCredentials([
+                usernamePassword(credentialsId: 'browserstack',
+                                 usernameVariable: 'BS_USER',
+                                 passwordVariable: 'BS_KEY')
+            ]) {
+                sh '''
+                    mvn test \
+                      -DsuiteXmlFile=testng-browserstack.xml \
+                      -Dbrowserstack.username=$BS_USER \
+                      -Dbrowserstack.access.key=$BS_KEY
+                '''
+            }
+        }
+    }
+    post {
+        always {
+            junit 'staynest-mobile-tests/target/surefire-reports/*.xml'
+        }
+    }
+}
+```
+
+### Stage 7: Consolidated Report
+
+
+```groovy
+stage('Report') {
+    steps {
+        allure includeProperties: false,
+               results: [
+                   [path: 'staynest-api-tests/target/allure-results'],
+                   [path: 'staynest-web-tests/target/allure-results'],
+                   [path: 'staynest-mobile-tests/target/allure-results']
+               ]
+    }
+}
+```
+
+### Stage 8: Notification
+
+
+```groovy
+post {
+    success {
+        slackSend(
+            channel: '#qa-results',
+            color: 'good',
+            message: ":white_check_mark: StayNest Tests PASSED\nBuild: ${env.BUILD_URL}\nDuration: ${currentBuild.durationString}"
+        )
+    }
+    failure {
+        slackSend(
+            channel: '#qa-results',
+            color: 'danger',
+            message: ":x: StayNest Tests FAILED\nBuild: ${env.BUILD_URL}\nFailed stage: ${env.STAGE_NAME}"
+        )
+    }
+    always {
+        dir('staynest-backend') {
+            sh 'docker compose down'
+        }
+    }
+}
+```
+
+---
+
+## Complete Jenkinsfile
+
+
+```groovy
+pipeline {
+    agent any
+
+    parameters {
+        booleanParam(name: 'RUN_MOBILE', defaultValue: false,
+                     description: 'Run mobile tests on BrowserStack')
+    }
+
+    environment {
+        JAVA_HOME = tool name: 'JDK21', type: 'jdk'
+        MAVEN_HOME = tool name: 'Maven3', type: 'maven'
+        PATH = "${JAVA_HOME}/bin:${MAVEN_HOME}/bin:${PATH}"
+    }
+
+    options {
+        timeout(time: 30, unit: 'MINUTES')
+        timestamps()
+        buildDiscarder(logRotator(numToKeepStr: '20'))
+    }
+
+    stages {
+        stage('Checkout')       { /* ... as above ... */ }
+        stage('Build')          { /* ... as above ... */ }
+        stage('Start Backend')  { /* ... as above ... */ }
+        stage('API Tests')      { /* ... as above ... */ }
+        stage('Web Tests')      { /* ... as above ... */ }
+        stage('Mobile Tests')   { /* ... as above ... */ }
+        stage('Report')         { /* ... as above ... */ }
+    }
+
+    post {
+        success { /* Slack success notification */ }
+        failure { /* Slack failure notification */ }
+        always {
+            dir('staynest-backend') {
+                sh 'docker compose down --remove-orphans'
+            }
+            cleanWs()
+        }
+    }
+}
+```
+
+---
+
+## Docker Integration
+
+### Dockerfile for Test Execution
+
+Run tests inside a Docker container for reproducible environments.
+
+
+```dockerfile
+# Dockerfile.test-runner
+FROM maven:3.9-eclipse-temurin-21
+
+# Install Chrome for headless web tests
+RUN apt-get update && apt-get install -y \
+    wget gnupg2 \
+    && wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | apt-key add - \
+    && echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" \
+       >> /etc/apt/sources.list.d/google-chrome.list \
+    && apt-get update \
+    && apt-get install -y google-chrome-stable \
+    && apt-get clean
+
+WORKDIR /tests
+COPY pom.xml .
+RUN mvn dependency:resolve
+
+COPY src/ src/
+COPY testng.xml .
+
+CMD ["mvn", "test", "-Dheadless=true"]
+```
+
+### Docker Compose for Full Stack
+
+
+```yaml
+# docker-compose.ci.yml
+version: '3.8'
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: staynest
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build: ./staynest-backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/staynest
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      STRIPE_SECRET_KEY: sk_test_placeholder
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/v1/auth/signup"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  web:
+    build: ./staynest-web
+    depends_on:
+      - backend
+    ports:
+      - "5173:5173"
+
+  test-runner:
+    build:
+      context: ./staynest-api-tests
+      dockerfile: Dockerfile.test-runner
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      API_BASE_URL: http://backend:8080/api/v1
+    volumes:
+      - ./test-results:/tests/target/allure-results
+```
+
+---
+
+## Implementation Milestones
+
+| Milestone | Objective | Time |
+| --- | --- | --- |
+| 1: Local Execution | Run all test suites locally via Maven commands | 2 hours |
+| 2: Basic Jenkinsfile | Checkout + API tests only | 3 hours |
+| 3: Docker Backend | Start/stop StayNest via Docker Compose in pipeline | 3 hours |
+| 4: Web Test Stage | Add headless Chrome web tests | 2 hours |
+| 5: Parallel Stages | Run API and web tests in parallel where safe | 2 hours |
+| 6: Allure Reports | Consolidated reporting across all test suites | 2 hours |
+| 7: Notifications | Slack or email alerts on success/failure | 2 hours |
+| 8: Mobile Integration | BrowserStack mobile tests as optional stage | 2 hours |
+
+### Milestone 1: Local Execution Script (2 hours)
+
+Create a shell script that runs everything locally — this becomes the basis for the Jenkinsfile.
+
+
+```bash
+#!/bin/bash
+# run-all-tests.sh — local execution script
+
+set -e
+
+echo "=== Starting StayNest Backend ==="
+cd staynest-backend && docker compose up -d && cd ..
+
+echo "=== Waiting for backend ==="
+for i in $(seq 1 30); do
+    curl -s http://localhost:8080/api/v1/auth/signup > /dev/null 2>&1 && break
+    echo "Waiting... ($i/30)"
+    sleep 2
+done
+
+echo "=== Running API Tests ==="
+cd staynest-api-tests && mvn test && cd ..
+
+echo "=== Running Web Tests ==="
+cd staynest-web-tests && mvn test -Dheadless=true && cd ..
+
+echo "=== Generating Report ==="
+allure generate \
+    staynest-api-tests/target/allure-results \
+    staynest-web-tests/target/allure-results \
+    -o allure-report --clean
+
+echo "=== Stopping Backend ==="
+cd staynest-backend && docker compose down && cd ..
+
+echo "=== Done! Open allure-report/index.html ==="
+```
+
+**Success criteria:**
+- [ ] Script runs all tests end-to-end on your machine
+- [ ] Allure report shows results from both test suites
+
+---
+
+## Success Criteria for Complete Pipeline
+
+| Criteria | Target |
+| --- | --- |
+| Pipeline triggers automatically | On push to main branch |
+| Backend starts reliably | Health check passes within 60 seconds |
+| API tests execute | All tests run, results in JUnit XML |
+| Web tests execute | Headless Chrome, screenshots on failure |
+| Pipeline fails fast | If API tests fail, web tests are skipped |
+| Report is accessible | Allure report published to Jenkins or as artifact |
+| Notification sent | Slack message on success and failure |
+| Total pipeline time | Under 15 minutes |
+| Cleanup always runs | Docker Compose down even on failure |
+
+---
+
+## Interview Talking Points
+
+When asked "Tell me about your CI pipeline":
+
+1. **Architecture:** "The pipeline has 7 stages: checkout, build, start backend, API tests, web tests, reporting, and notification. Each stage has clear entry criteria and failure handling."
+
+2. **Docker:** "The StayNest backend and database run in Docker containers. The pipeline starts them via Docker Compose and uses health checks to wait for readiness, not `sleep` commands."
+
+3. **Test Strategy:** "API tests run first because they're fastest and catch the most regressions. If they fail, we skip UI tests to save time — the backend is clearly broken."
+
+4. **Reporting:** "Allure consolidates results from all test suites into a single report. It shows pass rates, duration trends, and failure details with screenshots."
+
+5. **Trade-offs:** "I chose sequential API → Web over parallel because API failures usually indicate a broken backend, and running UI tests against a broken backend wastes time and produces misleading failures."
+
+---
+
+**Related:** Project Roadmap

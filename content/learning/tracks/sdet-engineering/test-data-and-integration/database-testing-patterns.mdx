@@ -1,0 +1,358 @@
+---
+title: "Database Testing Patterns"
+description: "What: Database testing for SDETs means verifying that the application correctly persists, retrieves, updates, and deletes data at the database level. This is not about testing the database engine itself — it's about validating that your application's business logic produces the correct database state."
+summary: "SDET Engineering guide: Database Testing Patterns"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "test-data-and-integration"
+lesson: "database-testing-patterns"
+difficulty: "intermediate"
+estimatedMinutes: 30
+prerequisites: []
+tags: ["SDET", "Test Data", "Integration"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/test-data-and-integration/database-testing-patterns"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Database Testing Patterns
+
+> **Module:** 07 — Test Data & Integration  
+> **Prerequisites:** Test Data Strategies, Http And Rest Fundamentals  
+> **Mastery Target:** L3 (Independent) — can write JDBC-based DB validations, manage test data lifecycle, and verify data integrity without guidance
+
+---
+
+## Quick Overview (Layer 1)
+
+**What:** Database testing for SDETs means verifying that the application correctly persists, retrieves, updates, and deletes data at the database level. This is *not* about testing the database engine itself — it's about validating that your application's business logic produces the correct database state.
+
+**Why:** API responses can lie. A `201 Created` response doesn't guarantee the booking was actually persisted. A `DELETE` returning `204` doesn't prove the record was removed and cascading deletes fired correctly. DB-level validation catches bugs that API-only tests miss: silent write failures, incorrect foreign key relationships, constraint violations that the API swallows, and data corruption from race conditions.
+
+**Where:** Integration and E2E tests where data correctness matters. In StayNest: verifying bookings are persisted with correct guest/room relationships, confirming cancellation updates status rather than deleting records, validating that hotel deletion cascades to rooms and bookings.
+
+<KeyTakeaways>
+
+1. DB testing complements API testing — verify at the API level *and* confirm at the DB level for critical flows.
+2. JDBC is the standard Java API for database access. Use parameterized queries (PreparedStatement) to avoid SQL injection even in test code.
+3. Setup/teardown discipline is essential: every test must leave the database in a known state. Strategies: truncate tables, transaction rollback, or migration-based reset.
+4. Connection management matters in test suites — opening a connection per test is slow; connection pooling or a shared connection with transaction isolation is faster.
+5. Test against real databases (H2 for speed, Docker-based PostgreSQL for accuracy) — never mock the database in integration tests.
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation (Layer 2)
+
+### When to Validate at the DB Level
+
+| Validate at DB Level | Trust the API Response |
+|---------------------|----------------------|
+| Data persistence after writes (POST/PUT) | Read-only GET responses (data already verified at write time) |
+| Cascading deletes and referential integrity | Response format and status codes |
+| Soft deletes (status change vs actual deletion) | Pagination and sorting (UI concern) |
+| Audit fields (created_at, updated_by) auto-populated | Search/filter results (test via API) |
+| Concurrent write correctness | Authentication/authorization (test via API) |
+
+### JDBC Fundamentals for Test Code
+
+```
+DriverManager.getConnection(url, user, pass)
+    └── Connection
+         └── PreparedStatement (parameterized SQL)
+              └── ResultSet (query results)
+```
+
+**Connection URL format:** `jdbc:postgresql://localhost:5432/staynest_test`
+
+**Critical rule:** Always use `PreparedStatement` with `?` placeholders — never concatenate values into SQL strings, even in test code. It prevents injection and handles type conversion.
+
+### Setup/Teardown Strategies
+
+| Strategy | How It Works | Speed | Isolation | Complexity |
+|----------|-------------|-------|-----------|------------|
+| **Truncate tables** | `TRUNCATE TABLE bookings CASCADE` before each test | Medium | High | Low |
+| **Transaction rollback** | Wrap each test in a transaction, rollback after | Fast | High | Medium |
+| **Flyway/Liquibase migrate** | Drop and recreate schema before suite | Slow | Perfect | High |
+| **Delete specific rows** | `DELETE WHERE created_by_test = true` | Fast | Moderate | Medium |
+
+---
+
+## Practical Implementation (Layer 3)
+
+### Database Connection Helper
+
+
+```java
+import java.sql.*;
+
+public class TestDbHelper {
+    private static final String DB_URL = System.getProperty("test.db.url",
+        "jdbc:postgresql://localhost:5432/staynest_test");
+    private static final String DB_USER = System.getProperty("test.db.user", "test_user");
+    private static final String DB_PASS = System.getProperty("test.db.pass", "test_pass");
+
+    private static Connection connection;
+
+    public static Connection getConnection() throws SQLException {
+        if (connection == null || connection.isClosed()) {
+            connection = DriverManager.getConnection(DB_URL, DB_USER, DB_PASS);
+        }
+        return connection;
+    }
+
+    public static void closeConnection() {
+        try {
+            if (connection != null && !connection.isClosed()) {
+                connection.close();
+            }
+        } catch (SQLException e) {
+            System.err.println("Failed to close DB connection: " + e.getMessage());
+        }
+    }
+}
+```
+
+### Parameterized Query Patterns
+
+
+```java
+public class BookingDbQueries {
+
+    /** Verify a booking exists with expected fields after API creation */
+    public static Map<String, Object> findBookingById(long bookingId) throws SQLException {
+        String sql = "SELECT b.id, b.status, b.check_in_date, b.check_out_date, " +
+                     "b.number_of_guests, b.room_id, b.user_id " +
+                     "FROM bookings b WHERE b.id = ?";
+
+        try (PreparedStatement stmt = TestDbHelper.getConnection().prepareStatement(sql)) {
+            stmt.setLong(1, bookingId);
+            ResultSet rs = stmt.executeQuery();
+
+            if (!rs.next()) return Collections.emptyMap();
+
+            return Map.of(
+                "id", rs.getLong("id"),
+                "status", rs.getString("status"),
+                "checkInDate", rs.getDate("check_in_date").toLocalDate(),
+                "checkOutDate", rs.getDate("check_out_date").toLocalDate(),
+                "numberOfGuests", rs.getInt("number_of_guests"),
+                "roomId", rs.getLong("room_id"),
+                "userId", rs.getLong("user_id")
+            );
+        }
+    }
+
+    /** Verify cascade: no orphan bookings after room deletion */
+    public static int countBookingsForRoom(long roomId) throws SQLException {
+        String sql = "SELECT COUNT(*) FROM bookings WHERE room_id = ?";
+        try (PreparedStatement stmt = TestDbHelper.getConnection().prepareStatement(sql)) {
+            stmt.setLong(1, roomId);
+            ResultSet rs = stmt.executeQuery();
+            rs.next();
+            return rs.getInt(1);
+        }
+    }
+
+    /** Verify soft delete: status changed, record not physically removed */
+    public static String getBookingStatus(long bookingId) throws SQLException {
+        String sql = "SELECT status FROM bookings WHERE id = ?";
+        try (PreparedStatement stmt = TestDbHelper.getConnection().prepareStatement(sql)) {
+            stmt.setLong(1, bookingId);
+            ResultSet rs = stmt.executeQuery();
+            return rs.next() ? rs.getString("status") : null;
+        }
+    }
+}
+```
+
+### StayNest Booking Lifecycle — DB Validation
+
+
+```java
+import org.testng.annotations.*;
+import static org.testng.Assert.*;
+
+public class BookingDbValidationTest {
+
+    private long createdBookingId;
+
+    @Test(priority = 1)
+    public void createBooking_persistsCorrectlyInDb() throws Exception {
+        // Step 1: Create booking via API
+        String body = BookingBuilder.aBooking()
+            .withRoomId(1L).withCheckIn("2025-08-01").withCheckOut("2025-08-05")
+            .withGuests(2).buildJson();
+
+        Response response = given()
+            .contentType("application/json")
+            .header("Authorization", AuthFactory.guest().getAuthHeader())
+            .body(body)
+        .when().post("/bookings")
+        .then().statusCode(201).extract().response();
+
+        createdBookingId = response.jsonPath().getLong("data.id");
+
+        // Step 2: Verify DB state matches API response
+        Map<String, Object> dbRecord = BookingDbQueries.findBookingById(createdBookingId);
+        assertFalse(dbRecord.isEmpty(), "Booking should exist in DB");
+        assertEquals(dbRecord.get("status"), "CONFIRMED");
+        assertEquals(dbRecord.get("numberOfGuests"), 2);
+        assertEquals(dbRecord.get("roomId"), 1L);
+    }
+
+    @Test(priority = 2, dependsOnMethods = "createBooking_persistsCorrectlyInDb")
+    public void cancelBooking_updatesStatusInDb() throws Exception {
+        // Cancel via API
+        given().header("Authorization", AuthFactory.guest().getAuthHeader())
+        .when().patch("/bookings/" + createdBookingId + "/cancel")
+        .then().statusCode(200);
+
+        // Verify soft delete in DB — record exists but status changed
+        String status = BookingDbQueries.getBookingStatus(createdBookingId);
+        assertEquals(status, "CANCELLED", "Booking should be soft-deleted, not removed");
+    }
+
+    @AfterClass
+    public void cleanup() throws Exception {
+        // Clean up test data
+        try (PreparedStatement stmt = TestDbHelper.getConnection()
+                .prepareStatement("DELETE FROM bookings WHERE id = ?")) {
+            stmt.setLong(1, createdBookingId);
+            stmt.executeUpdate();
+        }
+    }
+}
+```
+
+### Table Truncation Helper for Test Isolation
+
+
+```java
+public class DbCleanup {
+
+    /** Truncate tables in dependency order (child tables first) */
+    public static void truncateTestTables() throws SQLException {
+        Connection conn = TestDbHelper.getConnection();
+        try (Statement stmt = conn.createStatement()) {
+            stmt.execute("TRUNCATE TABLE bookings, rooms, hotels, users RESTART IDENTITY CASCADE");
+        }
+    }
+
+    /** Delete only rows created during this test run (tag-based cleanup) */
+    public static void deleteTestDataByTag(String testRunId) throws SQLException {
+        String[] tables = {"bookings", "rooms", "hotels", "users"};
+        Connection conn = TestDbHelper.getConnection();
+        for (String table : tables) {
+            try (PreparedStatement stmt = conn.prepareStatement(
+                    "DELETE FROM " + table + " WHERE test_run_id = ?")) {
+                stmt.setString(1, testRunId);
+                stmt.executeUpdate();
+            }
+        }
+    }
+}
+```
+
+---
+
+## Failure and Debugging (Layer 4)
+
+### Failure 1: Connection Refused in CI
+
+**The Problem:** Tests pass locally but fail in CI with `Connection refused: localhost:5432`.
+
+**Root cause:** CI environment doesn't have PostgreSQL running, or it's on a different host/port.
+
+**The fix:** Externalize DB config via system properties or environment variables. In CI, set `test.db.url` to the Docker-based PostgreSQL service:
+
+
+```java
+// Read from system property, fall back to localhost for local dev
+String dbUrl = System.getProperty("test.db.url", "jdbc:postgresql://localhost:5432/staynest_test");
+```
+
+### Failure 2: Foreign Key Constraint Violation During Cleanup
+
+**The Problem:** `DELETE FROM hotels` fails with `foreign key constraint: rooms references hotels`.
+
+**The fix:** Delete in dependency order (children first) or use `CASCADE`:
+
+
+```java
+// Wrong: parent first — FK violation
+stmt.execute("DELETE FROM hotels"); // FAILS: rooms still reference hotels
+
+// Right: children first
+stmt.execute("DELETE FROM bookings");
+stmt.execute("DELETE FROM rooms");
+stmt.execute("DELETE FROM hotels");
+
+// Or: cascade truncate
+stmt.execute("TRUNCATE TABLE hotels CASCADE");
+```
+
+---
+
+## Engineering Judgment (Layer 5)
+
+### When to Add DB Validation vs Trust the API
+
+| Add DB Validation | Trust API Response Alone |
+|------------------|------------------------|
+| Financial data (booking amounts, payments) | Display-only fields (formatted dates, labels) |
+| State transitions (CONFIRMED → CANCELLED) | Pagination metadata |
+| Cascade operations (delete hotel → rooms → bookings) | Search/filter result ordering |
+| Audit trails (who changed what, when) | Error message wording |
+| Concurrent operations (double-booking prevention) | Response time (test via performance tests) |
+
+**Rule of thumb:** If a bug at the DB level could cause data loss, financial error, or security breach — validate at DB level. If it would only cause a UI inconvenience — trust the API.
+
+### H2 vs Docker PostgreSQL for Test DB
+
+| Factor | H2 (In-Memory) | Docker PostgreSQL |
+|--------|----------------|-------------------|
+| Speed | Fastest (no I/O) | Slower (real I/O) |
+| Accuracy | SQL dialect differences can mask bugs | Exact production parity |
+| CI setup | Zero config | Needs Docker service |
+| Recommendation | Unit/fast integration tests | Critical E2E, pre-release |
+
+---
+
+## Interview and Revision (Layer 6)
+
+
+
+
+| # | Front | Back |
+|---|-------|------|
+| 1 | Why use PreparedStatement over Statement? | Prevents SQL injection, handles type conversion, and allows query plan caching. Never concatenate values into SQL strings |
+| 2 | What's the difference between TRUNCATE and DELETE? | TRUNCATE removes all rows instantly (DDL, can't rollback in some DBs, resets auto-increment). DELETE removes row-by-row (DML, can rollback, respects triggers) |
+| 3 | What is a soft delete and how do you test it? | Soft delete changes a status column (e.g., CANCELLED) instead of removing the row. Test by verifying the record still exists in DB with the expected status after the delete API call |
+| 4 | Why test at the DB level when the API already returns 201? | API responses can be fabricated or cached. DB validation confirms actual persistence, correct relationships (foreign keys), and side effects (audit fields, cascades) |
+| 5 | How do you handle DB connection management in test suites? | Use a shared connection (or connection pool) per suite, not per test. Close in @AfterSuite. Externalize connection config for environment portability |
+
+### Mastery Checklist
+
+- [ ] Can write JDBC queries with PreparedStatement for test validation
+- [ ] Can implement setup/teardown with truncation or transaction rollback
+- [ ] Can verify data integrity: foreign keys, cascading deletes, soft deletes
+- [ ] Can diagnose connection failures in CI environments
+- [ ] Can articulate when DB validation adds value vs when API-only testing suffices
+
+---
+
+**Next:** Api Database Integration | **Related:** Test Data Strategies
+
+*Last updated: *

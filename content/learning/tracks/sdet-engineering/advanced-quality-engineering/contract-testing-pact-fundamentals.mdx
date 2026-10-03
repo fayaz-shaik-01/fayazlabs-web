@@ -1,0 +1,511 @@
+---
+title: "Pact Fundamentals — Consumer-Driven Contract Testing"
+description: "What: Pact is a consumer-driven contract testing framework. The consumer (frontend or calling service) defines what it expects from the provider (backend API), and this expectation is captured as a pact file (a JSON contract). The provider then verifies that it satisfies this contract. If it does, the services are compatible. If not, the contract is broken and deployment is blocked before anything reaches production."
+summary: "SDET Engineering guide: Pact Fundamentals — Consumer-Driven Contract Testing"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "advanced-quality-engineering"
+lesson: "contract-testing-pact-fundamentals"
+difficulty: "advanced"
+estimatedMinutes: 32
+prerequisites: []
+tags: ["SDET", "Quality Engineering", "Advanced"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/advanced-quality-engineering/contract-testing-pact-fundamentals"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Pact Fundamentals — Consumer-Driven Contract Testing
+
+> **Module:** 09 — Advanced Quality Engineering / Contract Testing  
+> **Prerequisites:** Http And Rest Fundamentals, Schema Validation  
+> **Mastery Target:** L2 (Guided) → L3 (Independent) — can write Pact consumer tests, verify provider compliance, use Pact Broker, and understand can-I-deploy workflows
+
+---
+
+## Quick Overview (Layer 1)
+
+**What:** Pact is a consumer-driven contract testing framework. The **consumer** (frontend or calling service) defines what it expects from the **provider** (backend API), and this expectation is captured as a **pact file** (a JSON contract). The provider then **verifies** that it satisfies this contract. If it does, the services are compatible. If not, the contract is broken and deployment is blocked before anything reaches production.
+
+**Why:** Integration tests answer "do these services work together right now?" but they require both services running simultaneously and are slow, flaky, and expensive. Contract tests answer the same question without running both services: the consumer's expectations are tested against a mock, and the provider's real implementation is tested against those expectations. Each side tests independently, at unit-test speed, with the pact file as the intermediary. This is how microservice teams deploy independently without breaking each other.
+
+**Where:** Any service-to-service boundary. In StayNest: the web frontend consumes the booking API (does the API still return `bookingId`, `hotelName`, `checkIn`, `checkOut`?), the booking service consumes the payment service, the notification service consumes the booking service for confirmation events.
+
+<KeyTakeaways>
+
+1. **Consumer-driven** means the consumer defines the contract. The provider doesn't dictate what it returns — it promises to satisfy what consumers need.
+2. A **pact file** is a JSON document listing expected interactions: "when I send GET /bookings/1 with auth, I expect a 200 with these fields."
+3. Consumer tests generate the pact file. Provider verification tests replay those interactions against the real provider.
+4. **Pact Broker** is a shared repository for pact files and verification results. It decouples consumer and provider teams.
+5. **Can-I-Deploy** checks the Broker to verify that the version about to deploy is compatible with what's in production.
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation (Layer 2)
+
+### How Pact Works — The Two-Phase Process
+
+```
+Phase 1: Consumer Side (generates pact)
+────────────────────────────────────────
+  Consumer Test → Mock Provider (Pact) → Pact File (JSON)
+  ┌────────────────┐    ┌──────────────┐    ┌──────────────┐
+  │ StayNest Web   │───→│ Pact Mock    │───→│ pact file    │
+  │ (consumer test)│    │ Server       │    │ (contract)   │
+  │                │    │ Returns what │    │              │
+  │ "When I call   │    │ consumer     │    │ Records the  │
+  │  GET /bookings │    │ expects      │    │ interaction  │
+  │  I expect..."  │    │              │    │              │
+  └────────────────┘    └──────────────┘    └──────────────┘
+
+Phase 2: Provider Side (verifies pact)
+────────────────────────────────────────
+  Pact File → Provider Verification → Pass/Fail
+  ┌──────────────┐    ┌────────────────┐    ┌──────────────┐
+  │ pact file    │───→│ Booking API    │───→│ Verification │
+  │ (contract)   │    │ (real provider)│    │ Result       │
+  │              │    │                │    │              │
+  │ "Consumer    │    │ Replays each   │    │ ✓ All match  │
+  │  expects..." │    │ interaction    │    │ ✗ Field X    │
+  │              │    │ against real   │    │   missing    │
+  └──────────────┘    └────────────────┘    └──────────────┘
+```
+
+### Pact File Structure
+
+A pact file is a JSON document describing the agreed interactions:
+
+```json
+{
+  "consumer": { "name": "StayNestWeb" },
+  "provider": { "name": "BookingAPI" },
+  "interactions": [
+    {
+      "description": "a request for a booking",
+      "request": {
+        "method": "GET",
+        "path": "/api/bookings/1",
+        "headers": { "Authorization": "Bearer valid-token" }
+      },
+      "response": {
+        "status": 200,
+        "headers": { "Content-Type": "application/json" },
+        "body": {
+          "data": {
+            "bookingId": 1,
+            "hotelName": "Grand Hotel",
+            "checkIn": "2025-08-01",
+            "checkOut": "2025-08-05",
+            "status": "confirmed"
+          }
+        },
+        "matchingRules": {
+          "body": {
+            "$.data.bookingId": { "matchers": [{"match": "integer"}] },
+            "$.data.hotelName": { "matchers": [{"match": "type"}] },
+            "$.data.checkIn":   { "matchers": [{"match": "date", "format": "yyyy-MM-dd"}] }
+          }
+        }
+      }
+    }
+  ]
+}
+```
+
+### Contract Testing vs Integration Testing vs Schema Validation
+
+| Aspect | Schema Validation | Contract Testing (Pact) | Integration Testing |
+|--------|-------------------|------------------------|---------------------|
+| **What it checks** | Response structure matches a schema | Consumer's expectations match provider's behavior | Full end-to-end flow works |
+| **Services needed** | One (the provider) | One at a time (consumer OR provider) | All services running together |
+| **Speed** | Fast (single API call) | Fast (mock or single service) | Slow (full stack) |
+| **Coupling** | Provider-defined | Consumer-defined | Both must be available |
+| **Catches** | Structural drift | Contract breaks between specific pairs | Behavioral bugs |
+| **Best for** | "Does this API still have the right shape?" | "Will my change break the frontend?" | "Does the full booking flow work?" |
+
+---
+
+## Practical Implementation (Layer 3)
+
+### Consumer Test — StayNest Web Consuming Booking API
+
+
+```java
+import au.com.dius.pact.consumer.dsl.DslPart;
+import au.com.dius.pact.consumer.dsl.PactDslJsonBody;
+import au.com.dius.pact.consumer.dsl.PactDslWithProvider;
+import au.com.dius.pact.consumer.junit5.PactConsumerTestExt;
+import au.com.dius.pact.consumer.junit5.PactTestFor;
+import au.com.dius.pact.consumer.MockServer;
+import au.com.dius.pact.core.model.V4Pact;
+import au.com.dius.pact.core.model.annotations.Pact;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+
+import java.net.http.*;
+import java.net.URI;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+/**
+ * Consumer-side Pact test.
+ * Defines what StayNest Web expects from the Booking API.
+ * Generates a pact file at target/pacts/StayNestWeb-BookingAPI.json
+ */
+@ExtendWith(PactConsumerTestExt.class)
+@PactTestFor(providerName = "BookingAPI")
+public class BookingApiConsumerPactTest {
+
+    // ── Define the pact (expected interactions) ──
+
+    @Pact(consumer = "StayNestWeb")
+    public V4Pact getBookingPact(PactDslWithProvider builder) {
+        return builder
+            .given("booking 1 exists for current user")
+            .uponReceiving("a request to get booking details")
+                .path("/api/bookings/1")
+                .method("GET")
+                .headers("Authorization", "Bearer valid-token")
+            .willRespondWith()
+                .status(200)
+                .headers(java.util.Map.of("Content-Type", "application/json"))
+                .body(new PactDslJsonBody()
+                    .object("data")
+                        .integerType("bookingId", 1)
+                        .stringType("hotelName", "Grand Hotel")
+                        .date("checkIn", "yyyy-MM-dd", java.sql.Date.valueOf("2025-08-01"))
+                        .date("checkOut", "yyyy-MM-dd", java.sql.Date.valueOf("2025-08-05"))
+                        .stringMatcher("status", "confirmed|cancelled|pending", "confirmed")
+                        .integerType("guests", 2)
+                    .closeObject()
+                )
+            .toPact(V4Pact.class);
+    }
+
+    @Pact(consumer = "StayNestWeb")
+    public V4Pact createBookingPact(PactDslWithProvider builder) {
+        return builder
+            .given("hotel 1 exists and has availability")
+            .uponReceiving("a request to create a booking")
+                .path("/api/bookings")
+                .method("POST")
+                .headers("Authorization", "Bearer valid-token")
+                .headers("Content-Type", "application/json")
+                .body(new PactDslJsonBody()
+                    .integerType("hotelId", 1)
+                    .date("checkIn", "yyyy-MM-dd")
+                    .date("checkOut", "yyyy-MM-dd")
+                    .integerType("guests", 2)
+                )
+            .willRespondWith()
+                .status(201)
+                .body(new PactDslJsonBody()
+                    .object("data")
+                        .integerType("bookingId")
+                        .stringType("status", "confirmed")
+                        .stringType("confirmationCode")
+                    .closeObject()
+                )
+            .toPact(V4Pact.class);
+    }
+
+    // ── Consumer tests (run against Pact mock server) ──
+
+    @Test
+    @PactTestFor(pactMethod = "getBookingPact")
+    void getBooking_returnsExpectedFields(MockServer mockServer) throws Exception {
+        HttpClient client = HttpClient.newHttpClient();
+        HttpRequest request = HttpRequest.newBuilder()
+            .uri(URI.create(mockServer.getUrl() + "/api/bookings/1"))
+            .header("Authorization", "Bearer valid-token")
+            .GET().build();
+
+        HttpResponse<String> response = client.send(request,
+            HttpResponse.BodyHandlers.ofString());
+
+        assertEquals(200, response.statusCode());
+
+        // Parse and verify the fields the consumer actually uses
+        // In a real app, this would call the consumer's service layer
+        String body = response.body();
+        assertTrue(body.contains("bookingId"));
+        assertTrue(body.contains("hotelName"));
+        assertTrue(body.contains("checkIn"));
+        assertTrue(body.contains("checkOut"));
+        assertTrue(body.contains("status"));
+    }
+
+    @Test
+    @PactTestFor(pactMethod = "createBookingPact")
+    void createBooking_returnsConfirmation(MockServer mockServer) throws Exception {
+        HttpClient client = HttpClient.newHttpClient();
+        HttpRequest request = HttpRequest.newBuilder()
+            .uri(URI.create(mockServer.getUrl() + "/api/bookings"))
+            .header("Authorization", "Bearer valid-token")
+            .header("Content-Type", "application/json")
+            .POST(HttpRequest.BodyPublishers.ofString("""
+                {"hotelId": 1, "checkIn": "2025-08-01",
+                 "checkOut": "2025-08-05", "guests": 2}
+            """))
+            .build();
+
+        HttpResponse<String> response = client.send(request,
+            HttpResponse.BodyHandlers.ofString());
+
+        assertEquals(201, response.statusCode());
+        assertTrue(response.body().contains("bookingId"));
+        assertTrue(response.body().contains("confirmationCode"));
+    }
+}
+```
+
+### Provider Verification — Booking API Verifies the Pact
+
+
+```java
+import au.com.dius.pact.provider.junit5.PactVerificationContext;
+import au.com.dius.pact.provider.junit5.PactVerificationInvocationContextProvider;
+import au.com.dius.pact.provider.junitsupport.*;
+import au.com.dius.pact.provider.junitsupport.loader.PactBroker;
+import au.com.dius.pact.provider.junitsupport.loader.PactBrokerAuth;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.web.server.LocalServerPort;
+
+/**
+ * Provider-side Pact verification.
+ * Runs the real Booking API and replays consumer expectations against it.
+ * Pact files loaded from Pact Broker.
+ */
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@Provider("BookingAPI")
+@PactBroker(
+    url = "https://pact-broker.staynest.com",
+    authentication = @PactBrokerAuth(
+        username = "${PACT_BROKER_USERNAME}",
+        password = "${PACT_BROKER_PASSWORD}"
+    )
+)
+public class BookingApiProviderPactTest {
+
+    @LocalServerPort
+    private int port;
+
+    @BeforeEach
+    void setUp(PactVerificationContext context) {
+        context.setTarget(
+            new au.com.dius.pact.provider.junit5.HttpTestTarget("localhost", port));
+    }
+
+    // Provider states — set up the preconditions the consumer defined
+    @State("booking 1 exists for current user")
+    void bookingExists() {
+        // Insert test data so /api/bookings/1 returns data
+        // Use test database, in-memory DB, or repository.save()
+    }
+
+    @State("hotel 1 exists and has availability")
+    void hotelAvailable() {
+        // Ensure hotel 1 exists with available rooms
+    }
+
+    @TestTemplate
+    @ExtendWith(PactVerificationInvocationContextProvider.class)
+    void verifyPact(PactVerificationContext context) {
+        context.verifyInteraction();
+    }
+}
+```
+
+### Pact Broker and Can-I-Deploy
+
+
+```bash
+# Publish pact to Pact Broker (after consumer tests pass)
+pact-broker publish target/pacts \
+  --consumer-app-version $(git rev-parse --short HEAD) \
+  --branch $(git branch --show-current) \
+  --broker-base-url https://pact-broker.staynest.com \
+  --broker-username $PACT_BROKER_USERNAME \
+  --broker-password $PACT_BROKER_PASSWORD
+
+# Check if it's safe to deploy the consumer
+pact-broker can-i-deploy \
+  --pacticipant StayNestWeb \
+  --version $(git rev-parse --short HEAD) \
+  --to-environment production \
+  --broker-base-url https://pact-broker.staynest.com
+
+# Check if it's safe to deploy the provider
+pact-broker can-i-deploy \
+  --pacticipant BookingAPI \
+  --version $(git rev-parse --short HEAD) \
+  --to-environment production \
+  --broker-base-url https://pact-broker.staynest.com
+```
+
+### Maven Dependencies
+
+
+```xml
+<dependencies>
+    <!-- Consumer side -->
+    <dependency>
+        <groupId>au.com.dius.pact.consumer</groupId>
+        <artifactId>junit5</artifactId>
+        <version>4.6.7</version>
+        <scope>test</scope>
+    </dependency>
+
+    <!-- Provider side -->
+    <dependency>
+        <groupId>au.com.dius.pact.provider</groupId>
+        <artifactId>junit5</artifactId>
+        <version>4.6.7</version>
+        <scope>test</scope>
+    </dependency>
+
+    <!-- Provider Spring support -->
+    <dependency>
+        <groupId>au.com.dius.pact.provider</groupId>
+        <artifactId>junit5spring</artifactId>
+        <version>4.6.7</version>
+        <scope>test</scope>
+    </dependency>
+</dependencies>
+```
+
+---
+
+## Failure and Debugging (Layer 4)
+
+### Failure 1: Provider Verification Fails — "Missing Field"
+
+**The Problem:** Provider verification reports: `Expected field 'confirmationCode' in response body but was not found.` The consumer pact expects `confirmationCode`, but the provider's actual response uses `confirmation_code` (snake_case).
+
+**Root cause:** The consumer defined the expectation based on what the frontend assumes, not what the API actually returns. The naming convention mismatch is exactly the kind of bug Pact is designed to catch.
+
+**The fix:** Either the provider adds the expected field name (if the consumer is correct) or the consumer updates its pact (if the provider's naming is authoritative). The conversation between teams *is the value* — Pact forces this conversation before production.
+
+### Failure 2: Consumer Test Passes but Wrong Matchers Produce Weak Contract
+
+**The Problem:** Consumer test passes, but the pact uses `stringType()` for a date field (`checkIn`). The provider could return `"not-a-date"` and the contract would still pass.
+
+**Root cause:** Using overly loose matchers. `stringType()` matches any string. `date("yyyy-MM-dd")` matches only valid dates in the expected format.
+
+**The fix:** Use the most specific matcher available:
+
+
+```java
+// Too loose — any string passes
+.stringType("checkIn", "2025-08-01")
+
+// Correct — must be a date in yyyy-MM-dd format
+.date("checkIn", "yyyy-MM-dd", java.sql.Date.valueOf("2025-08-01"))
+
+// Matcher reference:
+// .integerType()     — must be an integer
+// .decimalType()     — must be a decimal
+// .booleanType()     — must be boolean
+// .date(format)      — must match date format
+// .stringMatcher(regex, example) — must match regex
+// .eachLike()        — array where each element matches
+```
+
+### Failure 3: Provider State Not Set Up — Tests Fail with 404
+
+**The Problem:** Provider verification fails because every request returns 404. The API works fine manually.
+
+**Root cause:** The `@State` methods are empty or don't set up the required test data. The provider starts with an empty database, so `/api/bookings/1` returns 404 because booking 1 doesn't exist.
+
+**The fix:** `@State` methods must actually create the test data:
+
+
+```java
+@State("booking 1 exists for current user")
+void bookingExists() {
+    // Must actually insert data
+    bookingRepository.save(new Booking(1L, 1L, "2025-08-01", "2025-08-05", "confirmed"));
+}
+```
+
+---
+
+## Engineering Judgment (Layer 5)
+
+### When Contract Testing Adds Value
+
+| Scenario | Contract Testing Value | Recommendation |
+|----------|----------------------|----------------|
+| Monolith with one frontend | Low — same team, same deploy | Skip Pact, use integration tests |
+| 2-3 services, same team | Medium — catches drift | Consider Pact for critical contracts |
+| Microservices, multiple teams | High — teams deploy independently | Pact is essential |
+| Public API with external consumers | Very High — can't coordinate releases | Pact + OpenAPI schema validation |
+| Event-driven (Kafka, RabbitMQ) | High — async contracts are hard to test otherwise | Pact message verification |
+
+<AntiPattern>
+
+1. **Testing implementation, not contract:** Don't put business logic assertions in Pact tests. Pact verifies "does this field exist with this type?" not "is the booking price calculated correctly?"
+2. **Testing every endpoint:** Only write pacts for the interactions the consumer actually uses. If the frontend never calls `/admin/metrics`, don't include it.
+3. **Tight matchers on volatile data:** Don't assert `"bookingId": 1` exactly. Use `integerType("bookingId")` — the consumer only cares that it's an integer, not which integer.
+4. **Skipping provider states:** Provider verification without proper `@State` setup produces false failures. Treat provider states as test fixtures.
+
+</AntiPattern>
+
+
+### CI Pipeline Integration
+
+```
+Consumer Pipeline:                Provider Pipeline:
+┌──────────────────┐             ┌──────────────────────┐
+│ 1. Unit Tests    │             │ 1. Unit Tests        │
+│ 2. Consumer Pact │──publish──→ │ 2. Provider Pact     │
+│    Tests         │  to broker  │    Verification      │
+│ 3. Can-I-Deploy? │←───check──→ │ 3. Can-I-Deploy?     │
+│ 4. Deploy        │             │ 4. Deploy            │
+└──────────────────┘             └──────────────────────┘
+```
+
+---
+
+## Interview and Revision (Layer 6)
+
+
+
+
+| # | Front | Back |
+|---|-------|------|
+| 1 | What does "consumer-driven" mean in Pact? | The consumer (API client) defines the contract — what it expects from the provider. The provider then verifies it meets those expectations. This ensures the provider doesn't break what consumers actually depend on |
+| 2 | What is a pact file? | A JSON document listing expected interactions between consumer and provider: for each request (method, path, headers, body), the expected response (status, headers, body with matchers). Generated by consumer tests, verified by provider tests |
+| 3 | What is Pact Broker's can-I-deploy? | A CLI command that checks the Pact Broker to verify that the version being deployed is compatible with the versions already deployed in the target environment. Blocks deployment if a contract is broken |
+| 4 | How does Pact differ from integration testing? | Integration tests run both services together (slow, flaky, requires both available). Pact tests each side independently: consumer tests against a mock, provider tests against pact expectations. Faster, more reliable, enables independent deployment |
+| 5 | What are provider states in Pact? | Preconditions (like `@State("booking 1 exists")`) that set up the provider's test data before verification. Without them, the provider returns 404 for resources that don't exist in the test database |
+
+### Mastery Checklist
+
+- [ ] Can explain consumer-driven contract testing and how it enables independent deployment
+- [ ] Can write a Pact consumer test that generates a pact file with appropriate matchers
+- [ ] Can write a Pact provider verification test with proper state setup
+- [ ] Can publish pacts to Pact Broker and run can-I-deploy checks
+- [ ] Can choose appropriate matchers (stringType, integerType, date, stringMatcher) for pact expectations
+- [ ] Can explain when contract testing adds value vs when it's overhead
+
+---
+
+**Related:** API Contract Testing, Schema Validation
+
+*Last updated: *

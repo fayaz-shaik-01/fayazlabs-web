@@ -1,0 +1,416 @@
+---
+title: "Agent Workflows and Subagents"
+description: "What: AI agents are systems that go beyond answering questions — they take actions. An agent can run code, call APIs, interact with the file system, create pull requests, and orchestrate multi-step workflows. Subagents are smaller, specialized agents coordinated by a parent agent to handle parallel or delegated tasks."
+summary: "SDET Engineering guide: Agent Workflows and Subagents"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "ai-assisted-testing"
+lesson: "agent-workflows-and-subagents"
+difficulty: "intermediate"
+estimatedMinutes: 30
+prerequisites: []
+tags: ["SDET", "AI", "Testing"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/ai-assisted-testing/agent-workflows-and-subagents"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Agent Workflows and Subagents
+
+> **Module:** 10 — AI-Assisted Testing  
+> **Prerequisites:** Ai Assisted Development, Flaky Test Analysis  
+> **Mastery Target:** L2 (guided) — can understand agent architectures, identify appropriate use cases for testing, and evaluate risks of autonomous AI actions
+
+---
+
+## Quick Overview (2-minute read)
+
+**What:** AI agents are systems that go beyond answering questions — they take actions. An agent can run code, call APIs, interact with the file system, create pull requests, and orchestrate multi-step workflows. Subagents are smaller, specialized agents coordinated by a parent agent to handle parallel or delegated tasks.
+
+**Why:** The shift from AI-as-assistant to AI-as-agent is the most significant change in how software teams work. An assistant tells you how to fix a bug. An agent fixes the bug, runs the tests, and opens a PR. For test automation, this means AI can potentially generate tests, execute them, analyze failures, and suggest fixes — all autonomously. But autonomy without guardrails is dangerous: agents can delete files, corrupt databases, and make irreversible changes if not properly constrained.
+
+**Where:** CI/CD pipeline automation, test generation pipelines, failure investigation workflows, test maintenance, report generation, and development environments like Cursor, Windsurf, and Devin.
+
+<MentalModel>
+
+Think of agents vs assistants like the difference between a **GPS navigator** and a **self-driving car**. A GPS (assistant) tells you where to turn — you still drive. A self-driving car (agent) actually steers, accelerates, and brakes. The self-driving car is faster and requires less effort from you, but when it makes a mistake, the consequences are real — it doesn't just suggest a wrong turn, it takes one. Subagents are like the self-driving car delegating specific tasks: one system handles lane keeping, another handles parking, a third handles highway merging. Each is specialized, and a coordinator ensures they work together.
+
+</MentalModel>
+
+
+<KeyTakeaways>
+
+1. Agents *act*; assistants *advise*. This distinction changes everything about risk management.
+2. Subagents enable parallelism — a parent agent can dispatch 5 subagents to investigate 5 flaky tests simultaneously.
+3. Every agent action should be auditable, reversible, and scope-limited. "The agent ran some commands" is unacceptable.
+4. The biggest risk isn't that agents are wrong — it's that they're wrong *and* autonomous. A wrong suggestion is harmless; a wrong action may not be.
+5. Current best practice: human-in-the-loop for any destructive or irreversible action. Agents should ask permission, not forgiveness.
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation
+
+### Agent vs Assistant: The Action Boundary
+
+| Characteristic | Assistant | Agent |
+|---|---|---|
+| **Output** | Text (code, explanations, suggestions) | Actions (file writes, API calls, command execution) |
+| **Execution** | Human copies and runs the code | Agent runs the code directly |
+| **Feedback loop** | Human reports results back to AI | Agent observes results and decides next step |
+| **Error impact** | Human catches errors before execution | Errors execute before human sees them |
+| **Examples** | ChatGPT, Claude (chat mode) | Devin, Windsurf Agent, Cursor Composer |
+
+### Anatomy of an Agent Workflow
+
+An agent workflow is a multi-step sequence where the output of one step determines the next step. The agent has a goal, a set of tools, and a reasoning loop.
+
+```
+┌──────────────────────────────────────────────┐
+│                 AGENT LOOP                    │
+│                                              │
+│  1. OBSERVE: Read current state              │
+│     ↓                                        │
+│  2. REASON: Decide what to do next           │
+│     ↓                                        │
+│  3. ACT: Execute a tool (run code, call API) │
+│     ↓                                        │
+│  4. OBSERVE: Read the result                 │
+│     ↓                                        │
+│  5. REASON: Is the goal achieved?            │
+│     → YES: Return result                     │
+│     → NO: Go to step 2                       │
+└──────────────────────────────────────────────┘
+```
+
+### Subagents: Delegation and Parallelism
+
+A parent agent can spawn subagents to handle specialized tasks:
+
+```
+┌─────────────────────────────────┐
+│         PARENT AGENT            │
+│  Goal: "Fix all flaky tests"   │
+│                                 │
+│  ┌──────────┐  ┌──────────┐   │
+│  │ Subagent │  │ Subagent │   │
+│  │    A     │  │    B     │   │
+│  │ Analyze  │  │ Analyze  │   │
+│  │ Test #1  │  │ Test #2  │   │
+│  └──────────┘  └──────────┘   │
+│  ┌──────────┐  ┌──────────┐   │
+│  │ Subagent │  │ Subagent │   │
+│  │    C     │  │    D     │   │
+│  │ Analyze  │  │ Generate │   │
+│  │ Test #3  │  │  Report  │   │
+│  └──────────┘  └──────────┘   │
+└─────────────────────────────────┘
+```
+
+Each subagent:
+- Has a scoped task (not the full goal)
+- Has limited permissions (can't do more than its task requires)
+- Reports results back to the parent
+- Runs independently (potentially in parallel)
+
+### Use Cases in Testing
+
+#### 1. Automated Test Generation Pipeline
+
+```
+Trigger: New API endpoint merged
+  → Agent reads the OpenAPI spec
+  → Agent generates test cases (happy path, validation, edge cases)
+  → Agent runs the tests
+  → Agent opens a PR with passing tests
+  → Human reviews the PR
+```
+
+#### 2. Failure Investigation Workflow
+
+```
+Trigger: CI build fails
+  → Agent collects failure logs, screenshots, stack traces
+  → Agent categorizes each failure (flaky vs real bug)
+  → Agent provides diagnosis with evidence for each failure
+  → Human reviews diagnosis and decides on action
+```
+
+#### 3. Test Maintenance Pipeline
+
+```
+Trigger: Application code changes
+  → Agent identifies affected tests (using code dependency analysis)
+  → Agent updates locators, selectors, or expected values
+  → Agent runs updated tests
+  → If tests pass: opens PR for review
+  → If tests fail: flags for human investigation
+```
+
+#### 4. Report Generation
+
+```
+Trigger: Nightly test run completes
+  → Agent reads test results
+  → Agent generates human-readable summary (pass/fail by module, trends)
+  → Agent posts summary to Slack/Teams
+```
+
+### Risks of Agent Autonomy
+
+| Risk | Example | Impact |
+|---|---|---|
+| **Uncontrolled execution** | Agent runs `DROP TABLE` in a SQL fix attempt | Data loss |
+| **Hallucinated actions** | Agent calls an API endpoint that doesn't exist | 404 errors logged, potential rate limiting |
+| **Cascading errors** | Agent misdiagnoses failure → applies wrong fix → breaks more tests | Widening blast radius |
+| **Permission escalation** | Agent accesses production database to "investigate" a test failure | Security violation |
+| **Infinite loops** | Agent fix fails → agent retries → fix fails again → infinite retry cycle | Resource exhaustion, CI costs |
+| **Silent mutations** | Agent changes test assertions to make tests pass (rather than fixing the SUT) | Tests pass but bugs are hidden |
+
+### Connection to Related Concepts
+- Mcp Fundamentals — the protocol that enables agents to interact with external tools
+- Tool Security And Permissions — how to constrain agent actions safely
+- Ai Assisted Development — the foundation for understanding AI capabilities and limitations
+
+---
+
+## Practical Implementation
+
+### Example: Agent Workflow for Test Generation
+
+
+```python
+# Conceptual agent workflow — not production-ready
+# Illustrates the observe-reason-act loop
+
+class TestGenerationAgent:
+    def __init__(self, tools, llm):
+        self.tools = tools  # file_read, file_write, run_tests, open_pr
+        self.llm = llm
+    
+    def run(self, api_spec_path: str):
+        # Step 1: OBSERVE — read the API specification
+        spec = self.tools.file_read(api_spec_path)
+        
+        # Step 2: REASON — decide what tests to generate
+        test_plan = self.llm.generate(
+            f"Given this API spec, list the test scenarios needed:\n{spec}"
+        )
+        
+        # Step 3: ACT — generate test code
+        test_code = self.llm.generate(
+            f"Generate JUnit 5 + RestAssured tests for these scenarios:\n{test_plan}\n"
+            f"Follow these conventions: [project conventions here]"
+        )
+        
+        # Step 4: ACT — write the test file
+        self.tools.file_write("src/test/java/GeneratedApiTest.java", test_code)
+        
+        # Step 5: OBSERVE — compile and run
+        compile_result = self.tools.run_command("mvn compile -pl test-module")
+        
+        if compile_result.failed:
+            # Step 6: REASON — fix compilation errors
+            fix = self.llm.generate(
+                f"Fix these compilation errors:\n{compile_result.output}\n"
+                f"Original code:\n{test_code}"
+            )
+            self.tools.file_write("src/test/java/GeneratedApiTest.java", fix)
+            compile_result = self.tools.run_command("mvn compile -pl test-module")
+        
+        # Step 7: ACT — run tests
+        test_result = self.tools.run_command("mvn test -Dtest=GeneratedApiTest")
+        
+        # Step 8: ACT — open PR for human review
+        if test_result.passed:
+            self.tools.open_pr(
+                title="[AI-Generated] API tests for new endpoint",
+                body=f"Auto-generated tests. Scenarios covered:\n{test_plan}\n\n"
+                     f"⚠️ AI-generated code — requires human review."
+            )
+        else:
+            self.tools.notify(
+                f"AI-generated tests failed. Manual intervention needed.\n"
+                f"Failures:\n{test_result.output}"
+            )
+```
+
+### Subagent Coordination Example
+
+
+```python
+# Parent agent coordinating subagents for batch flaky test analysis
+
+class FlakyTestTriageAgent:
+    def __init__(self, tools, llm):
+        self.tools = tools
+        self.llm = llm
+    
+    def triage(self, flaky_tests: list[str]):
+        # Dispatch subagents for parallel analysis
+        results = {}
+        subagent_tasks = []
+        
+        for test_name in flaky_tests:
+            task = SubagentTask(
+                goal=f"Analyze flaky test: {test_name}",
+                context={
+                    "test_code": self.tools.file_read(test_name),
+                    "recent_failures": self.tools.get_ci_failures(test_name, count=10),
+                    "environment": self.tools.get_ci_config()
+                },
+                permissions=["read_files", "read_ci_logs"],  # No write access
+                timeout_seconds=120
+            )
+            subagent_tasks.append(task)
+        
+        # Run subagents in parallel
+        subagent_results = self.tools.run_subagents(subagent_tasks)
+        
+        # Parent agent synthesizes results
+        summary = self.llm.generate(
+            f"Synthesize these individual analyses into a triage report.\n"
+            f"Group by root cause category. Identify shared causes.\n"
+            f"Results:\n{subagent_results}"
+        )
+        
+        return summary
+```
+
+### Real-World Agent Capabilities (Current Tools)
+
+| Tool | Agent Capabilities | Permission Model |
+|---|---|---|
+| **Devin** | Full coding agent — reads, writes, runs, deploys | Session-based, inherits user permissions |
+| **Cursor Composer** | Multi-file editing with terminal access | User approves each terminal command |
+| **Windsurf Cascade** | Agentic coding with terminal and browser | Approve/deny per action |
+| **GitHub Copilot Agent** | PR review, code generation, issue triage | Repository-scoped, read-heavy |
+| **Claude with MCP** | Tool calling via MCP servers | Per-tool approval |
+
+---
+
+## Failure and Debugging
+
+### The Cascading Error Problem
+
+**Scenario:** An agent is tasked with fixing a failing test. The test fails because a locator changed.
+
+```
+Agent thought: "The test fails because the element #old-button is not found.
+I'll update the locator to #new-button."
+
+Agent action: Updates the locator in the page object.
+Agent action: Runs the test. It passes!
+Agent action: Opens a PR with the fix.
+```
+
+**What actually happened:** The button was intentionally removed in the last release. The test should have been deleted, not fixed. The agent "fixed" the test by pointing it at a different element that happens to exist but performs a completely different action. The test now passes but tests nothing meaningful.
+
+**Why this is dangerous:** The agent achieved its goal (test passes) through a fix that makes the test worthless. No compilation error, no runtime error, no assertion failure — just a silently broken test.
+
+**Prevention:**
+- Agent should flag all locator changes for human review rather than auto-merging.
+- Require PR review for any AI agent changes to test code.
+- Include a "does this test still test what it claims to test?" check in the PR template.
+
+### Detecting Agent Errors
+
+1. **Audit trail:** Every agent action must be logged with timestamp, tool called, input, and output.
+2. **Diff review:** Review the exact changes the agent made, not just the final state.
+3. **Behavioral verification:** After an agent "fixes" a test, break the system intentionally and verify the test fails.
+4. **Scope checking:** Did the agent modify files outside its intended scope? This is a red flag.
+
+---
+
+## Engineering Judgment
+
+### When to Use Agents vs Assistants
+
+| Scenario | Use Agent | Use Assistant | Rationale |
+|---|---|---|---|
+| Generate boilerplate test code | ✓ | | Low risk, easily reviewed in PR |
+| Fix a production database issue | | ✓ | High risk, need human execution control |
+| Update 50 locators after a UI redesign | ✓ | | Repetitive, agent handles volume well |
+| Investigate a security vulnerability | | ✓ | High sensitivity, need human judgment |
+| Generate nightly test report | ✓ | | Read-only, no destructive actions |
+| Refactor test framework architecture | | ✓ | Strategic decisions need human ownership |
+| Create test data for staging | ✓ (sandboxed) | | Write action but in non-production scope |
+
+### Agent Readiness Checklist
+
+Before deploying an agent in your testing workflow:
+
+```
+[ ] Permissions are scoped — agent can only access what it needs
+[ ] Destructive actions require human approval
+[ ] Audit trail captures every action
+[ ] Agent has a timeout — infinite loops are impossible
+[ ] Agent can't access production systems
+[ ] Agent's output goes through the same review process as human code
+[ ] Rollback plan exists if agent makes harmful changes
+[ ] Team understands what the agent does and doesn't do
+```
+
+### Common Overengineering Mistakes
+
+- Building a multi-agent system for a task a single script could handle. Agents add complexity — use them only when the task requires reasoning and adaptation.
+- Giving agents write access to production infrastructure "just for monitoring." Read-only first, always.
+- Trusting agent-generated code more than human-generated code because "AI doesn't make typos." AI makes different, often subtler, mistakes.
+- Creating an agent pipeline that nobody on the team understands. If the agent breaks, someone needs to debug it.
+
+---
+
+## Interview and Revision
+
+### Questions and Answers
+
+**Q1: What's the difference between an AI assistant and an AI agent?**
+
+**A:** An assistant produces text — suggestions, code snippets, explanations. You read the output and decide what to do with it. An agent takes actions — it runs commands, writes files, calls APIs, and makes decisions based on results. The critical difference is the action boundary: an assistant's mistakes are harmless text; an agent's mistakes are executed actions that may be difficult to reverse.
+
+**Q2: How would you use AI agents in test automation?**
+
+**A:** I'd use agents for well-defined, reviewable workflows: generating tests from new API specs (agent generates, opens PR for review), updating locators after UI changes (agent updates, human verifies), and generating nightly test reports (read-only, no destructive actions). For each use case, I'd ensure the agent has scoped permissions, an audit trail, and human review before any changes reach the main branch. I would not use agents for security testing, production configuration, or architectural decisions.
+
+**Q3: What are the risks of AI agents in testing, and how do you mitigate them?**
+
+**A:** Four main risks. Uncontrolled execution — mitigate with scoped permissions and approval gates for destructive actions. Cascading errors — mitigate with timeouts and scope limits so one mistake doesn't propagate. Silent mutations — the agent changes test assertions to make tests pass instead of fixing real issues — mitigate with behavioral verification (break the system, verify the test fails). Permission escalation — mitigate by never giving agents production access and logging every action for audit.
+
+
+
+
+**Flashcard 1**
+**Q:** What is the observe-reason-act loop in AI agents?
+**A:** The agent loop: 1) Observe current state, 2) Reason about what to do next, 3) Act by executing a tool, 4) Observe the result, 5) Reason whether the goal is achieved — if yes, return; if no, loop back to step 2.
+
+**Flashcard 2**
+**Q:** What is the most dangerous agent failure mode?
+**A:** Silent mutations — when the agent achieves its goal (test passes) by making changes that undermine the test's purpose (changing assertions to match wrong behavior). The test passes, the PR looks clean, but the test no longer catches the bug it was designed to detect.
+
+**Flashcard 3**
+**Q:** What is a subagent?
+**A:** A specialized agent spawned by a parent agent to handle a scoped subtask. Subagents have limited permissions, a specific goal, and report results back to the parent. They enable parallelism (5 subagents analyzing 5 tests simultaneously) and separation of concerns.
+
+### Mastery Checklist
+
+- [ ] Can explain the difference between AI agents and assistants with concrete examples
+- [ ] Can describe the observe-reason-act agent loop
+- [ ] Can identify appropriate use cases for agents vs assistants in testing workflows
+- [ ] Can evaluate agent risks (cascading errors, silent mutations, permission escalation)
+- [ ] Can apply the agent readiness checklist before deploying an agent workflow
+- [ ] Can explain subagent coordination and its benefits for parallel testing tasks
+
+---
+
+**Next:** Mcp Fundamentals | **Related:** Ai Assisted Development

@@ -1,0 +1,1065 @@
+---
+title: "API Automation Interview Questions"
+description: "Each question includes: the question, a detailed answer, code examples where relevant, and common pitfalls. API automation is typically the strongest differentiator for SDET candidates — invest heavily here."
+summary: "SDET Engineering guide: API Automation Interview Questions"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "interview-preparation"
+lesson: "api-automation-questions"
+difficulty: "intermediate"
+estimatedMinutes: 69
+prerequisites: []
+tags: ["SDET", "Interview", "Preparation"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/interview-preparation/api-automation-questions"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# API Automation Interview Questions
+
+> **Module:** 13 — Interview Preparation
+> **Focus:** 15 API testing questions with detailed answers and code examples
+> **Audience:** SDET with ~3 years experience targeting senior roles
+> **Complements:** Fastenal-Prep covers REST fundamentals and basic API Q&A; this file provides deeper explanations of authentication, schema validation, contract testing, and advanced scenarios
+
+---
+
+## How to Use This File
+
+Each question includes: the question, a detailed answer, code examples where relevant, and common pitfalls. API automation is typically the strongest differentiator for SDET candidates — invest heavily here.
+
+---
+
+## Easy (5 Questions)
+
+### Q1: Explain REST principles. What makes an API RESTful?
+
+**Answer:**
+
+REST (Representational State Transfer) is an architectural style, not a protocol. A RESTful API follows these constraints:
+
+1. **Client-Server:** Client and server are independent — the client doesn't know the database, the server doesn't know the UI
+2. **Stateless:** Each request contains all information the server needs — no session stored server-side
+3. **Cacheable:** Responses should indicate whether they can be cached (via Cache-Control, ETag headers)
+4. **Uniform Interface:** Consistent patterns for resources:
+   - Resources identified by URIs: `/api/bookings/123`
+   - Manipulation through representations (JSON, XML)
+   - Self-descriptive messages (Content-Type, status codes)
+   - HATEOAS (Hypermedia As The Engine Of Application State) — responses include links to related resources
+5. **Layered System:** Client doesn't know if it's talking to the server or a load balancer/proxy
+6. **Code on Demand (optional):** Server can send executable code (JavaScript) to the client
+
+**What makes it practical for SDETs:**
+- Stateless means each test is independent — no server-side session to manage
+- Uniform interface means predictable patterns — once you know the convention, you can test any endpoint
+- Status codes give clear pass/fail signals
+
+**What most "REST" APIs actually are:** Most APIs are REST-ish — they use HTTP with JSON but don't implement HATEOAS or strict cacheability. That's fine for testing purposes.
+
+**Common Pitfalls:**
+- Listing only HTTP methods as REST principles (those are HTTP, not REST)
+- Not knowing HATEOAS (interviewers appreciate awareness even if you note most APIs skip it)
+- Confusing REST with HTTP
+
+---
+
+### Q2: When would you use PUT vs. PATCH? How do you test each?
+
+**Answer:**
+
+**PUT:** Replace the entire resource with the provided data. If a field is missing from the request, it should be cleared/reset to default.
+
+**PATCH:** Update only the specified fields. Fields not included in the request remain unchanged.
+
+```java
+<!-- unverified -->
+// Original resource: {"id": 1, "name": "John", "email": "john@test.com", "phone": "555-1234"}
+
+// PUT /users/1 — replaces the entire resource
+given()
+    .body("{\"name\": \"John Updated\", \"email\": \"john.updated@test.com\"}")
+    .put("/users/1")
+    .then().statusCode(200);
+// Result: {"id": 1, "name": "John Updated", "email": "john.updated@test.com", "phone": null}
+// phone is GONE because PUT replaces everything
+
+// PATCH /users/1 — updates only specified fields
+given()
+    .body("{\"name\": \"John Updated\"}")
+    .patch("/users/1")
+    .then().statusCode(200);
+// Result: {"id": 1, "name": "John Updated", "email": "john@test.com", "phone": "555-1234"}
+// email and phone are PRESERVED
+```
+
+**Test scenarios for PUT:**
+- Update with all fields → verify complete replacement
+- Update with missing fields → verify missing fields are cleared (not preserved)
+- Update non-existent resource → expect 404 (or 201 if PUT creates)
+- Update with invalid data → expect 400
+
+**Test scenarios for PATCH:**
+- Update single field → verify only that field changed
+- Update with empty body → verify nothing changed (or 400)
+- Update non-existent resource → expect 404
+- Update read-only field → expect 400 or field ignored
+
+**Common Pitfalls:**
+- Saying "PUT updates, PATCH partially updates" without explaining the replacement semantics
+- Not testing what happens to omitted fields in PUT (the key difference)
+- Not knowing that PUT is idempotent (calling it N times has the same effect as once) while PATCH may not be
+
+---
+
+### Q3: What HTTP status codes should you validate in API tests? Give the important ones.
+
+**Answer:**
+
+**Success codes (2xx):**
+
+| Code | Meaning | When to Expect |
+| --- | --- | --- |
+| 200 OK | Request succeeded, response has body | GET, PUT, PATCH with response body |
+| 201 Created | Resource created | POST that creates a resource |
+| 204 No Content | Success but no response body | DELETE, PUT that doesn't return the resource |
+
+**Client error codes (4xx):**
+
+| Code | Meaning | When to Expect |
+| --- | --- | --- |
+| 400 Bad Request | Invalid request data | Missing required fields, wrong data types |
+| 401 Unauthorized | Not authenticated | Missing or expired token |
+| 403 Forbidden | Authenticated but not authorized | Valid token but insufficient permissions |
+| 404 Not Found | Resource doesn't exist | GET/PUT/DELETE with non-existent ID |
+| 405 Method Not Allowed | HTTP method not supported | POST to a read-only endpoint |
+| 409 Conflict | Resource conflict | Duplicate email, concurrent update conflict |
+| 422 Unprocessable Entity | Semantic validation failure | Valid JSON but business rule violation |
+| 429 Too Many Requests | Rate limit exceeded | Exceeding API rate limits |
+
+**Server error codes (5xx):**
+
+| Code | Meaning | When to Expect |
+| --- | --- | --- |
+| 500 Internal Server Error | Unhandled server exception | Should be treated as a bug |
+| 502 Bad Gateway | Upstream service failure | Dependency unavailable |
+| 503 Service Unavailable | Server temporarily overloaded | During deployments or high load |
+
+**Key test patterns:**
+
+```java
+<!-- unverified -->
+// Happy path — verify correct success code
+given().body(validRequest).post("/bookings").then().statusCode(201);
+
+// Authentication — verify 401 without token
+given().post("/bookings").then().statusCode(401);
+
+// Authorization — verify 403 with wrong role
+given().header("Authorization", "Bearer " + userToken)
+    .delete("/admin/users/1").then().statusCode(403);
+
+// Validation — verify 400 with invalid data
+given().body("{\"name\": \"\"}").post("/bookings").then().statusCode(400);
+```
+
+**Common Pitfalls:**
+- Only checking 200 and 500 — missing the nuance of 201, 204, 401 vs. 403
+- Not understanding the difference between 401 and 403 (authentication vs. authorization)
+- Not testing for proper error codes on invalid input (many APIs incorrectly return 500 for validation errors)
+
+---
+
+### Q4: How do you validate API response structure and data types?
+
+**Answer:**
+
+**Level 1: Status code validation** (minimum)
+
+```java
+<!-- unverified -->
+given().get("/bookings/1").then().statusCode(200);
+```
+
+**Level 2: Field-level validation** (essential)
+
+```java
+<!-- unverified -->
+given()
+    .get("/bookings/1")
+.then()
+    .statusCode(200)
+    .body("id", equalTo(1))
+    .body("guestName", equalTo("John Doe"))
+    .body("status", equalTo("CONFIRMED"))
+    .body("checkIn", notNullValue())
+    .body("totalPrice", greaterThan(0.0f));
+```
+
+**Level 3: Schema validation** (professional)
+
+```java
+<!-- unverified -->
+// JSON Schema file: booking-schema.json
+// {
+//   "type": "object",
+//   "required": ["id", "guestName", "status", "checkIn", "checkOut"],
+//   "properties": {
+//     "id": {"type": "integer"},
+//     "guestName": {"type": "string", "minLength": 1},
+//     "status": {"type": "string", "enum": ["CONFIRMED", "CANCELLED", "PENDING"]},
+//     "totalPrice": {"type": "number", "minimum": 0}
+//   }
+// }
+
+given()
+    .get("/bookings/1")
+.then()
+    .statusCode(200)
+    .body(matchesJsonSchemaInClasspath("schemas/booking-schema.json"));
+```
+
+**Level 4: POJO deserialization + assertion** (strongest)
+
+```java
+<!-- unverified -->
+BookingResponse booking = given()
+    .get("/bookings/1")
+.then()
+    .statusCode(200)
+    .extract().as(BookingResponse.class);
+
+assertThat(booking.getId()).isPositive();
+assertThat(booking.getGuestName()).isNotBlank();
+assertThat(booking.getCheckIn()).isBefore(booking.getCheckOut());
+assertThat(booking.getTotalPrice()).isGreaterThan(BigDecimal.ZERO);
+```
+
+**Why all four levels matter:**
+- Status code alone doesn't verify the response body
+- Field validation doesn't catch missing fields or wrong types
+- Schema validation catches structural issues automatically
+- POJO deserialization tests that your models match the actual API
+
+**Common Pitfalls:**
+- Only validating status code — "200 OK" doesn't mean the response is correct
+- Not using schema validation — manual field checks miss new/removed fields
+- Hardcoding expected values that change between environments
+
+---
+
+### Q5: How do you handle authentication in API tests?
+
+**Answer:**
+
+**Common auth mechanisms:**
+
+| Type | How It Works | Test Approach |
+| --- | --- | --- |
+| API Key | Key in header or query param | Store in config, inject per request |
+| Basic Auth | Base64(username:password) in header | Pass credentials in `given().auth().basic()` |
+| Bearer Token (JWT) | Token in Authorization header | Generate token via auth endpoint, cache it |
+| OAuth 2.0 | Token exchange flow | Generate token via client credentials grant |
+| Session Cookie | Cookie after login | Login once, reuse cookies |
+
+**REST Assured auth examples:**
+
+```java
+<!-- unverified -->
+// Basic Auth
+given()
+    .auth().basic("admin", "password123")
+    .get("/api/users");
+
+// Bearer Token
+String token = AuthApi.getToken("admin", "password123");
+given()
+    .header("Authorization", "Bearer " + token)
+    .get("/api/bookings");
+
+// Reusable spec with auth
+RequestSpecification adminSpec = given()
+    .baseUri(Config.getBaseUrl())
+    .header("Authorization", "Bearer " + TokenManager.getToken("admin"))
+    .contentType(ContentType.JSON);
+
+// Use in tests
+adminSpec.get("/api/bookings").then().statusCode(200);
+adminSpec.post("/api/bookings").body(request).then().statusCode(201);
+```
+
+**Auth test scenarios to always include:**
+- Valid credentials → 200 + data
+- Missing token → 401
+- Expired token → 401
+- Invalid token → 401
+- Wrong role (user trying admin endpoint) → 403
+- Token after password change → should be invalidated
+
+**Common Pitfalls:**
+- Hardcoding tokens in test code (they expire, they're secrets)
+- Not testing negative auth scenarios (missing/expired/invalid tokens)
+- Generating a new token for every single test (slow — cache and reuse)
+
+---
+
+## Medium (5 Questions)
+
+### Q6: How do you implement schema validation in API tests? Why is it important?
+
+**Answer:**
+
+Schema validation automatically verifies that an API response matches the expected structure (fields, types, constraints) without manually checking each field.
+
+**Using JSON Schema with REST Assured:**
+
+```java
+<!-- unverified -->
+// Step 1: Define the schema (src/test/resources/schemas/user-schema.json)
+// {
+//   "$schema": "http://json-schema.org/draft-07/schema#",
+//   "type": "object",
+//   "required": ["id", "email", "name", "role"],
+//   "properties": {
+//     "id": {"type": "integer", "minimum": 1},
+//     "email": {"type": "string", "format": "email"},
+//     "name": {"type": "string", "minLength": 1, "maxLength": 100},
+//     "role": {"type": "string", "enum": ["ADMIN", "USER", "GUEST"]},
+//     "createdAt": {"type": "string", "format": "date-time"},
+//     "address": {
+//       "type": "object",
+//       "properties": {
+//         "street": {"type": "string"},
+//         "city": {"type": "string"},
+//         "zipCode": {"type": "string", "pattern": "^[0-9]{5}$"}
+//       }
+//     }
+//   },
+//   "additionalProperties": false
+// }
+
+// Step 2: Use in test
+import static io.restassured.module.jsv.JsonSchemaValidator.matchesJsonSchemaInClasspath;
+
+@Test
+public void getUserShouldMatchSchema() {
+    given()
+        .header("Authorization", "Bearer " + token)
+        .get("/api/users/1")
+    .then()
+        .statusCode(200)
+        .body(matchesJsonSchemaInClasspath("schemas/user-schema.json"));
+}
+```
+
+**Why schema validation catches bugs that field checks miss:**
+- New field added to response → `additionalProperties: false` flags it
+- Field type changed (string to number) → schema catches it
+- Required field removed → schema catches it
+- Enum value changed → schema catches it
+
+**When schema validation alone isn't enough:**
+- Business logic: schema says `totalPrice` is a number, but doesn't verify it equals `quantity * unitPrice`
+- Relationships: schema can't verify that `checkIn` is before `checkOut`
+- Computed fields: schema can't verify calculations
+
+**Best practice:** Schema validation for structural correctness + targeted assertions for business logic.
+
+**Common Pitfalls:**
+- Not versioning schemas alongside API specs — schemas drift from reality
+- Using overly loose schemas (no `required`, no `additionalProperties: false`) — validates nothing
+- Relying solely on schema validation without business assertions
+
+---
+
+### Q7: What is contract testing? How does it work with Pact?
+
+**Answer:**
+
+Contract testing verifies that a consumer (frontend, another service) and a provider (API) agree on the API interface — without needing both to run simultaneously.
+
+**How Pact works:**
+
+```
+Consumer Side (writes contract):
+  1. Consumer writes tests defining expected interactions
+  2. Pact generates a contract file (JSON) from these tests
+  3. Contract is published to a Pact Broker
+
+Provider Side (verifies contract):
+  1. Provider downloads contracts from the Broker
+  2. Provider replays each interaction against its actual API
+  3. If all interactions pass → contract is verified
+```
+
+**Consumer test example (Java + Pact):**
+
+```java
+<!-- unverified -->
+@ExtendWith(PactConsumerTestExt.class)
+@PactTestFor(providerName = "BookingService", port = "8080")
+public class BookingConsumerTest {
+    
+    @Pact(consumer = "WebApp")
+    public V4Pact getBookingPact(PactDslWithProvider builder) {
+        return builder
+            .given("booking with id 1 exists")
+            .uponReceiving("a request for booking 1")
+                .path("/api/bookings/1")
+                .method("GET")
+            .willRespondWith()
+                .status(200)
+                .body(new PactDslJsonBody()
+                    .integerType("id", 1)
+                    .stringType("guestName", "John Doe")
+                    .stringType("status", "CONFIRMED")
+                )
+            .toPact(V4Pact.class);
+    }
+    
+    @Test
+    @PactTestFor(pactMethod = "getBookingPact")
+    void shouldGetBooking(MockServer mockServer) {
+        BookingResponse booking = bookingClient.getBooking(
+            mockServer.getUrl(), 1
+        );
+        assertThat(booking.getGuestName()).isNotBlank();
+    }
+}
+```
+
+**Contract testing vs. integration testing:**
+
+| Aspect | Contract Testing | Integration Testing |
+| --- | --- | --- |
+| Services needed | One at a time | All involved services |
+| Speed | Fast (mocked) | Slow (real services) |
+| What it catches | Interface changes | Behavior + integration bugs |
+| Deployment coupling | Independent | Must deploy together |
+| Best for | Microservice boundaries | Critical cross-service flows |
+
+**When to use contract testing:**
+- Multiple teams own different services
+- Services deploy independently
+- API changes frequently break consumers
+- Integration tests are slow/flaky
+
+**Common Pitfalls:**
+- Confusing contract testing with schema validation (contracts include state + behavior, not just structure)
+- Writing consumer tests that are too specific (testing exact values instead of types)
+- Not using a Pact Broker for sharing contracts (file-based sharing doesn't scale)
+
+---
+
+### Q8: How do you test API performance and response times?
+
+**Answer:**
+
+**Level 1: Response time assertions in functional tests**
+
+```java
+<!-- unverified -->
+// Assert single endpoint response time
+given()
+    .get("/api/bookings/1")
+.then()
+    .statusCode(200)
+    .time(lessThan(2000L)); // Less than 2 seconds
+```
+
+**Level 2: Simple load testing with concurrent requests**
+
+```java
+<!-- unverified -->
+// Using Java's ExecutorService for basic concurrent testing
+ExecutorService executor = Executors.newFixedThreadPool(10);
+List<Future<Long>> futures = new ArrayList<>();
+
+for (int i = 0; i < 100; i++) {
+    futures.add(executor.submit(() -> {
+        long start = System.currentTimeMillis();
+        given().get("/api/bookings").then().statusCode(200);
+        return System.currentTimeMillis() - start;
+    }));
+}
+
+List<Long> responseTimes = futures.stream()
+    .map(f -> { try { return f.get(); } catch (Exception e) { return -1L; } })
+    .toList();
+
+double avg = responseTimes.stream().mapToLong(Long::longValue).average().orElse(0);
+long p95 = responseTimes.stream().sorted().toList().get((int)(responseTimes.size() * 0.95));
+
+assertThat(avg).isLessThan(500); // Average under 500ms
+assertThat(p95).isLessThan(1000); // 95th percentile under 1 second
+```
+
+**Level 3: Dedicated performance tools**
+
+| Tool | Use Case |
+| --- | --- |
+| JMeter | Load and stress testing with GUI or CLI |
+| Gatling | Code-based performance tests (Scala DSL) |
+| k6 | JavaScript-based, CI-friendly, modern |
+| Locust | Python-based distributed load testing |
+
+**Performance test types:**
+
+| Type | What It Tests | Example |
+| --- | --- | --- |
+| Load test | Expected concurrent users | 100 users, 5 min, avg &lt; 500ms |
+| Stress test | Beyond expected load | Increase users until failure |
+| Soak test | Extended duration | 50 users for 8 hours — memory leaks? |
+| Spike test | Sudden load increase | 10 → 500 users in 10 seconds |
+
+**What SDETs should know (not a performance engineer's depth):**
+- Add response time assertions to critical API tests
+- Know the difference between load, stress, and soak tests
+- Be able to run basic JMeter/k6 tests as part of CI
+- Understand that performance tests need dedicated environments (not shared QA)
+
+**Common Pitfalls:**
+- Testing performance in shared environments with other traffic — results are meaningless
+- Not establishing baselines before measuring changes
+- Only measuring average response time (P95/P99 are more important — averages hide outliers)
+
+---
+
+### Q9: How do you test APIs that depend on external services?
+
+**Answer:**
+
+External dependencies (payment gateways, email services, third-party APIs) make tests slow, unreliable, and expensive. Solution: **service virtualization** — mock the external service.
+
+**WireMock for mocking external services:**
+
+```java
+<!-- unverified -->
+// Start WireMock server
+WireMockServer wireMock = new WireMockServer(WireMockConfiguration.options().port(8089));
+wireMock.start();
+
+// Stub an external payment API
+wireMock.stubFor(
+    post(urlPathEqualTo("/api/payments"))
+        .withRequestBody(matchingJsonPath("$.amount"))
+        .willReturn(aResponse()
+            .withStatus(200)
+            .withHeader("Content-Type", "application/json")
+            .withBody("{\"transactionId\": \"TXN-123\", \"status\": \"APPROVED\"}")
+        )
+);
+
+// Configure your application to point to WireMock instead of real payment API
+// base_url for payment service = http://localhost:8089
+
+// Test — your API calls WireMock instead of the real service
+given()
+    .body(bookingRequest)
+    .post("/api/bookings")
+.then()
+    .statusCode(201)
+    .body("paymentStatus", equalTo("APPROVED"));
+
+// Verify the external call was made correctly
+wireMock.verify(
+    postRequestedFor(urlPathEqualTo("/api/payments"))
+        .withRequestBody(matchingJsonPath("$.amount", equalTo("150.00")))
+);
+
+wireMock.stop();
+```
+
+**Simulating failure scenarios:**
+
+```java
+<!-- unverified -->
+// Simulate external service timeout
+wireMock.stubFor(
+    post(urlPathEqualTo("/api/payments"))
+        .willReturn(aResponse()
+            .withStatus(200)
+            .withFixedDelay(30000)) // 30 second delay
+);
+// Test: Does your API handle the timeout gracefully?
+
+// Simulate external service error
+wireMock.stubFor(
+    post(urlPathEqualTo("/api/payments"))
+        .willReturn(aResponse().withStatus(500))
+);
+// Test: Does your API return a meaningful error to the client?
+
+// Simulate intermittent failures (fail first time, succeed on retry)
+wireMock.stubFor(
+    post(urlPathEqualTo("/api/payments"))
+        .inScenario("Retry")
+        .whenScenarioStateIs(Scenario.STARTED)
+        .willReturn(aResponse().withStatus(503))
+        .willSetStateTo("Recovered")
+);
+wireMock.stubFor(
+    post(urlPathEqualTo("/api/payments"))
+        .inScenario("Retry")
+        .whenScenarioStateIs("Recovered")
+        .willReturn(aResponse().withStatus(200).withBody("{\"status\": \"APPROVED\"}"))
+);
+```
+
+**Common Pitfalls:**
+- Mocking too much — you're testing your mocks, not the application
+- Not verifying the outgoing request to the mock — confirms your API sends correct data to the dependency
+- Using mocks in production-like environments — mocks should be for component/integration tests only
+
+---
+
+### Q10: How do you validate database state in API tests?
+
+**Answer:**
+
+Some bugs are only visible by checking the database: API returns 200 but data isn't actually persisted, or the wrong data is stored.
+
+**When to validate the database:**
+- Create operations → verify row exists with correct values
+- Update operations → verify fields changed correctly
+- Delete operations → verify row is removed (or soft-deleted)
+- Financial operations → verify amounts, calculations, audit trails
+
+**Implementation:**
+
+```java
+<!-- unverified -->
+// Database utility class
+public class DbHelper {
+    private static final String JDBC_URL = Config.get("db.url");
+    private static final String DB_USER = Config.get("db.username");
+    private static final String DB_PASSWORD = Config.get("db.password");
+    
+    public static Map<String, Object> getBooking(int bookingId) {
+        String query = "SELECT * FROM bookings WHERE id = ?";
+        try (Connection conn = DriverManager.getConnection(JDBC_URL, DB_USER, DB_PASSWORD);
+             PreparedStatement stmt = conn.prepareStatement(query)) {
+            stmt.setInt(1, bookingId);
+            ResultSet rs = stmt.executeQuery();
+            if (rs.next()) {
+                Map<String, Object> row = new HashMap<>();
+                row.put("id", rs.getInt("id"));
+                row.put("guest_name", rs.getString("guest_name"));
+                row.put("total_price", rs.getBigDecimal("total_price"));
+                row.put("status", rs.getString("status"));
+                return row;
+            }
+            return null;
+        } catch (SQLException e) {
+            throw new RuntimeException("DB query failed", e);
+        }
+    }
+}
+
+// Test with DB validation
+@Test
+public void createBookingShouldPersistCorrectly() {
+    BookingRequest request = BookingBuilder.aBooking()
+        .withGuestName("Jane Doe")
+        .withTotalPrice(new BigDecimal("250.00"))
+        .build();
+    
+    // API call
+    int bookingId = given()
+        .body(request)
+        .post("/api/bookings")
+    .then()
+        .statusCode(201)
+        .extract().path("id");
+    
+    // DB validation
+    Map<String, Object> dbRow = DbHelper.getBooking(bookingId);
+    assertThat(dbRow).isNotNull();
+    assertThat(dbRow.get("guest_name")).isEqualTo("Jane Doe");
+    assertThat(dbRow.get("total_price")).isEqualTo(new BigDecimal("250.00"));
+    assertThat(dbRow.get("status")).isEqualTo("CONFIRMED");
+}
+```
+
+**Trade-offs:**
+- **Pro:** Catches bugs where the API response is correct but the database is wrong (or vice versa)
+- **Con:** Creates coupling to the database schema — if columns are renamed, tests break
+- **Guideline:** Use DB validation for critical data integrity tests (payments, user data), not for every test
+
+**Common Pitfalls:**
+- Querying the DB immediately after the API call without accounting for async processing (eventual consistency)
+- Not closing database connections (connection pool exhaustion in parallel tests)
+- Over-relying on DB validation — if you check the DB for everything, your tests are integration tests disguised as API tests
+
+---
+
+## Hard (5 Questions)
+
+### Q11: How do you design API tests for a multi-step workflow (e.g., booking flow)?
+
+**Answer:**
+
+Multi-step workflows test end-to-end business processes through chained API calls.
+
+**Example: Hotel Booking Flow**
+
+```java
+<!-- unverified -->
+@Test
+public void completeBookingFlow() {
+    // Step 1: Authenticate
+    String token = AuthApi.getToken("guest", "password");
+    
+    // Step 2: Search for available rooms
+    SearchResponse search = given()
+        .header("Authorization", "Bearer " + token)
+        .queryParam("checkIn", "2025-08-01")
+        .queryParam("checkOut", "2025-08-03")
+        .queryParam("city", "Minneapolis")
+        .get("/api/rooms/search")
+    .then()
+        .statusCode(200)
+        .extract().as(SearchResponse.class);
+    
+    assertThat(search.getResults()).isNotEmpty();
+    int roomId = search.getResults().get(0).getId();
+    
+    // Step 3: Create booking
+    BookingRequest bookingRequest = new BookingRequest(roomId, "2025-08-01", "2025-08-03");
+    BookingResponse booking = given()
+        .header("Authorization", "Bearer " + token)
+        .body(bookingRequest)
+        .post("/api/bookings")
+    .then()
+        .statusCode(201)
+        .extract().as(BookingResponse.class);
+    
+    assertThat(booking.getStatus()).isEqualTo("PENDING");
+    
+    // Step 4: Process payment
+    PaymentRequest paymentRequest = new PaymentRequest(booking.getId(), "4111111111111111");
+    given()
+        .header("Authorization", "Bearer " + token)
+        .body(paymentRequest)
+        .post("/api/payments")
+    .then()
+        .statusCode(200)
+        .body("status", equalTo("APPROVED"));
+    
+    // Step 5: Verify booking status updated
+    given()
+        .header("Authorization", "Bearer " + token)
+        .get("/api/bookings/" + booking.getId())
+    .then()
+        .statusCode(200)
+        .body("status", equalTo("CONFIRMED"));
+    
+    // Step 6: Cleanup — cancel booking
+    given()
+        .header("Authorization", "Bearer " + token)
+        .delete("/api/bookings/" + booking.getId())
+    .then()
+        .statusCode(204);
+}
+```
+
+**Design principles for workflow tests:**
+- **Minimize workflow tests:** They're slow and brittle. Test individual endpoints thoroughly, then have a few workflow tests for critical flows.
+- **Each step validates before proceeding:** Don't assume Step 2 succeeded — assert it.
+- **Pass data between steps via response extraction:** Don't hardcode IDs.
+- **Cleanup always runs:** Use try/finally or @AfterMethod to cancel/delete created resources.
+
+**Common Pitfalls:**
+- Too many workflow tests — each one is expensive. 5-10 critical flows, not 50.
+- Not cleaning up after workflow tests — created bookings/users pollute the environment
+- Not handling partial failures (what if Step 3 succeeds but Step 4 fails? The booking exists without payment)
+
+---
+
+### Q12: How do you handle API versioning in your test framework?
+
+**Answer:**
+
+API versioning allows an API to evolve without breaking existing consumers. Your tests must handle multiple versions gracefully.
+
+**Common versioning strategies:**
+
+| Strategy | Example | Pros | Cons |
+| --- | --- | --- | --- |
+| URL path | `/api/v1/bookings` | Clear, cacheable | URL changes per version |
+| Header | `Accept: application/vnd.api.v2+json` | Clean URLs | Easy to miss |
+| Query param | `/api/bookings?version=2` | Easy to implement | Pollutes query string |
+
+**Framework design for multi-version testing:**
+
+```java
+<!-- unverified -->
+public class ApiConfig {
+    private final String version;
+    private final String basePath;
+    
+    public ApiConfig(String version) {
+        this.version = version;
+        this.basePath = "/api/" + version;
+    }
+    
+    public String bookingsPath() { return basePath + "/bookings"; }
+    public String usersPath() { return basePath + "/users"; }
+}
+
+// Tests for v1
+@Test
+public void v1_getBookingShouldReturnLegacyFormat() {
+    ApiConfig v1 = new ApiConfig("v1");
+    given().get(v1.bookingsPath() + "/1")
+        .then().statusCode(200)
+        .body("guest_name", notNullValue()); // v1 uses snake_case
+}
+
+// Tests for v2
+@Test
+public void v2_getBookingShouldReturnNewFormat() {
+    ApiConfig v2 = new ApiConfig("v2");
+    given().get(v2.bookingsPath() + "/1")
+        .then().statusCode(200)
+        .body("guestName", notNullValue()); // v2 uses camelCase
+}
+```
+
+**What to test when a new version is released:**
+- Old version still works (backward compatibility)
+- New version has the expected changes
+- Deprecated features show appropriate warnings
+- Migration path works (v1 data accessible via v2)
+
+**Common Pitfalls:**
+- Only testing the latest version — old versions must continue working
+- Hardcoding version numbers throughout the framework — centralize in config
+- Not testing the deprecation timeline (when does v1 stop working?)
+
+---
+
+### Q13: How do you test idempotency in APIs?
+
+**Answer:**
+
+An idempotent operation produces the same result regardless of how many times it's called. GET, PUT, and DELETE should be idempotent. POST typically is not.
+
+**Testing idempotency:**
+
+```java
+<!-- unverified -->
+// GET should always return the same result
+@Test
+public void getBookingShouldBeIdempotent() {
+    String response1 = given().get("/api/bookings/1").then().extract().asString();
+    String response2 = given().get("/api/bookings/1").then().extract().asString();
+    assertThat(response1).isEqualTo(response2);
+}
+
+// PUT should produce same state regardless of repetitions
+@Test
+public void putBookingShouldBeIdempotent() {
+    BookingRequest request = new BookingRequest("Updated Name", "2025-08-01");
+    
+    given().body(request).put("/api/bookings/1").then().statusCode(200);
+    given().body(request).put("/api/bookings/1").then().statusCode(200);
+    
+    // Verify final state is the same after both calls
+    BookingResponse booking = given().get("/api/bookings/1")
+        .then().extract().as(BookingResponse.class);
+    assertThat(booking.getGuestName()).isEqualTo("Updated Name");
+}
+
+// DELETE should handle "already deleted" gracefully
+@Test
+public void deleteBookingShouldBeIdempotent() {
+    int bookingId = createTestBooking();
+    
+    given().delete("/api/bookings/" + bookingId).then().statusCode(204);
+    // Second delete — should be 204 or 404, NOT 500
+    given().delete("/api/bookings/" + bookingId).then()
+        .statusCode(anyOf(equalTo(204), equalTo(404)));
+}
+
+// POST is NOT idempotent — calling twice creates two resources
+@Test
+public void postBookingShouldCreateDuplicateOnRepeat() {
+    BookingRequest request = BookingBuilder.aBooking().build();
+    
+    int id1 = given().body(request).post("/api/bookings").then().extract().path("id");
+    int id2 = given().body(request).post("/api/bookings").then().extract().path("id");
+    
+    assertThat(id1).isNotEqualTo(id2); // Two different bookings created
+}
+```
+
+**Why idempotency testing matters:**
+- Network retries: If a POST request times out and is retried, will it create a duplicate?
+- Client bugs: Double-clicking a "Submit" button sends the request twice
+- Distributed systems: Messages may be delivered more than once
+
+**Common Pitfalls:**
+- Not testing repeated operations — idempotency bugs are subtle and cause production issues
+- Assuming POST is idempotent (it's not by default — but some APIs add idempotency keys)
+- Not testing the second DELETE — 500 on "already deleted" is a common bug
+
+---
+
+### Q14: How do you test APIs with pagination, filtering, and sorting?
+
+**Answer:**
+
+```java
+<!-- unverified -->
+// Pagination tests
+@Test
+public void shouldReturnCorrectPageSize() {
+    given()
+        .queryParam("page", 1)
+        .queryParam("size", 5)
+        .get("/api/bookings")
+    .then()
+        .statusCode(200)
+        .body("content.size()", equalTo(5))
+        .body("totalElements", greaterThan(5))
+        .body("totalPages", greaterThan(1))
+        .body("number", equalTo(0)); // 0-indexed page number
+}
+
+@Test
+public void shouldReturnEmptyPageBeyondLastPage() {
+    int totalPages = given().get("/api/bookings?size=5")
+        .then().extract().path("totalPages");
+    
+    given()
+        .queryParam("page", totalPages + 1)
+        .queryParam("size", 5)
+        .get("/api/bookings")
+    .then()
+        .statusCode(200)
+        .body("content.size()", equalTo(0));
+}
+
+// Filtering tests
+@Test
+public void shouldFilterByStatus() {
+    given()
+        .queryParam("status", "CONFIRMED")
+        .get("/api/bookings")
+    .then()
+        .statusCode(200)
+        .body("content.findAll { it.status != 'CONFIRMED' }.size()", equalTo(0));
+}
+
+// Sorting tests
+@Test
+public void shouldSortByDateDescending() {
+    List<String> dates = given()
+        .queryParam("sort", "checkIn,desc")
+        .get("/api/bookings")
+    .then()
+        .statusCode(200)
+        .extract().path("content.checkIn");
+    
+    List<String> sorted = new ArrayList<>(dates);
+    sorted.sort(Comparator.reverseOrder());
+    assertThat(dates).isEqualTo(sorted);
+}
+```
+
+**Edge cases to test:**
+- Page 0 or negative page → 400 or default to first page?
+- Size 0 or very large size (10000) → how does the API handle it?
+- Invalid sort field → 400 or ignored?
+- Multiple filters combined → AND or OR logic?
+- Pagination consistency when data changes between page requests
+
+**Common Pitfalls:**
+- Not testing boundary pages (first page, last page, beyond last page)
+- Not verifying that filtered results *only* contain matching items
+- Not testing sort order with actual comparison (just trusting the first element)
+
+---
+
+### Q15: How do you handle rate limiting and throttling in API tests?
+
+**Answer:**
+
+Rate limiting restricts how many requests a client can make in a given time window. Your tests need to both respect rate limits and test the rate limiting behavior.
+
+**Testing rate limit behavior:**
+
+```java
+<!-- unverified -->
+@Test
+public void shouldReturn429WhenRateLimitExceeded() {
+    // Assume rate limit is 100 requests per minute
+    for (int i = 0; i < 101; i++) {
+        Response response = given().get("/api/bookings");
+        if (response.statusCode() == 429) {
+            // Verify rate limit response includes retry information
+            assertThat(response.header("Retry-After")).isNotNull();
+            assertThat(response.body().path("message").toString())
+                .contains("rate limit");
+            return; // Test passed — rate limit enforced
+        }
+    }
+    fail("Rate limit was not enforced after 101 requests");
+}
+```
+
+**Handling rate limits in your test framework:**
+
+```java
+<!-- unverified -->
+// Rate-limited API client with retry
+public class RateLimitedClient {
+    private static final int MAX_RETRIES = 3;
+    
+    public Response getWithRetry(String path) {
+        for (int attempt = 0; attempt < MAX_RETRIES; attempt++) {
+            Response response = given().get(path);
+            if (response.statusCode() != 429) {
+                return response;
+            }
+            
+            String retryAfter = response.header("Retry-After");
+            int waitSeconds = retryAfter != null ? Integer.parseInt(retryAfter) : 5;
+            
+            try {
+                Thread.sleep(waitSeconds * 1000L);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new RuntimeException("Interrupted while waiting for rate limit", e);
+            }
+        }
+        throw new RuntimeException("Rate limit not cleared after " + MAX_RETRIES + " retries");
+    }
+}
+```
+
+**What to verify:**
+- Rate limit is actually enforced (security requirement)
+- `429` status code with meaningful error message
+- `Retry-After` header is present and accurate
+- Rate limit resets after the window expires
+- Different endpoints may have different limits
+- Authenticated vs. anonymous users may have different limits
+
+**Common Pitfalls:**
+- Running all tests at full speed against a rate-limited API — tests fail sporadically
+- Not testing rate limit behavior at all — it's a security and reliability concern
+- Hardcoding sleep durations instead of reading the `Retry-After` header
+
+---
+
+**Related:** Http And Rest Fundamentals, Authentication And Authorization, Schema Validation

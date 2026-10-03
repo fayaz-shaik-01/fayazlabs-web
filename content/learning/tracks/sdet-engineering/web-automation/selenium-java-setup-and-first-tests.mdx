@@ -1,0 +1,536 @@
+---
+title: "Setup and First Tests — Selenium Java"
+description: "What: Selenium 4 is the standard browser automation library for Java-based SDET teams. Setting it up involves adding Maven dependencies, configuring a WebDriver instance (ChromeDriver, FirefoxDriver), and writing tests that navigate to pages, find elements, interact with them, and assert results. TestNG provides the test lifecycle (@BeforeMethod/@AfterMethod) that manages driver creation and teardown."
+summary: "SDET Engineering guide: Setup and First Tests — Selenium Java"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "web-automation"
+lesson: "selenium-java-setup-and-first-tests"
+difficulty: "intermediate"
+estimatedMinutes: 34
+prerequisites: []
+tags: ["SDET", "Web", "Selenium", "Playwright"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/web-automation/selenium-java-setup-and-first-tests"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Setup and First Tests — Selenium Java
+
+> **Module:** 05 — Web Automation > Selenium Java > Setup and First Tests  
+> **Prerequisites:** Syntax And Control Flow, Browser And Dom Fundamentals, Locator Strategy  
+> **Mastery Target:** L2 (Guided) → L3 (Independent)
+
+---
+
+## Quick Overview (Layer 1)
+
+**What:** Selenium 4 is the standard browser automation library for Java-based SDET teams. Setting it up involves adding Maven dependencies, configuring a WebDriver instance (ChromeDriver, FirefoxDriver), and writing tests that navigate to pages, find elements, interact with them, and assert results. TestNG provides the test lifecycle (@BeforeMethod/@AfterMethod) that manages driver creation and teardown.
+
+**Why:** You already use Selenium daily, but many SDETs skip the fundamentals — they copy-paste setup code without understanding WebDriverManager's role, use implicit waits out of habit, or mix driver lifecycle management into test methods. This file locks in the foundation: clean project setup, proper driver lifecycle with TestNG, and a complete first test class that demonstrates every core WebDriver interaction.
+
+**Where:** Every Selenium Java project starts here. The setup patterns feed directly into Page Object Model (next file), and the test structure carries through to advanced patterns like Grid execution and CDP integration.
+
+<MentalModel>
+
+Think of Selenium as a **puppet master controlling a browser marionette**. Your Java code (the puppet master) sends commands through strings (the WebDriver protocol) to the browser (the marionette). WebDriverManager is the stagehand who finds the right marionette for the show — matching Chrome version 120 with ChromeDriver 120. TestNG is the stage director, deciding when the puppet master sets up, performs, and tears down.
+
+</MentalModel>
+
+
+<KeyTakeaways>
+
+1. **WebDriverManager eliminates manual driver binary management** — it auto-detects your browser version and downloads the matching driver binary.
+2. **Each test method gets its own driver instance** — `@BeforeMethod` creates it, `@AfterMethod` destroys it. Never share a driver across tests.
+3. **`driver.get()` waits for `document.readyState === "complete"`** — but in SPAs, the DOM may still be empty. Always use explicit waits for element interaction.
+4. **`findElement` throws `NoSuchElementException` if the element doesn't exist** — use `WebDriverWait` instead of bare `findElement` after navigation.
+5. **Screenshots on failure are essential** — `TakesScreenshot` captures the browser state at the moment of failure, which is invaluable for debugging in CI.
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation (Layer 2)
+
+### Selenium 4 Maven Dependencies
+
+A Selenium Java project needs three dependencies: the Selenium library itself, WebDriverManager for automatic driver binary management, and TestNG for test execution.
+
+
+```xml
+<!-- pom.xml -->
+<project>
+    <properties>
+        <maven.compiler.source>17</maven.compiler.source>
+        <maven.compiler.target>17</maven.compiler.target>
+        <selenium.version>4.21.0</selenium.version>
+        <testng.version>7.10.2</testng.version>
+        <webdrivermanager.version>5.8.0</webdrivermanager.version>
+    </properties>
+
+    <dependencies>
+        <!-- Selenium 4 -->
+        <dependency>
+            <groupId>org.seleniumhq.selenium</groupId>
+            <artifactId>selenium-java</artifactId>
+            <version>${selenium.version}</version>
+        </dependency>
+
+        <!-- WebDriverManager — auto-downloads driver binaries -->
+        <dependency>
+            <groupId>io.github.bonigarcia</groupId>
+            <artifactId>webdrivermanager</artifactId>
+            <version>${webdrivermanager.version}</version>
+        </dependency>
+
+        <!-- TestNG -->
+        <dependency>
+            <groupId>org.testng</groupId>
+            <artifactId>testng</artifactId>
+            <version>${testng.version}</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+</project>
+```
+
+**Why WebDriverManager?** Before WebDriverManager, you manually downloaded `chromedriver.exe`, placed it in your PATH, and prayed it matched your Chrome version. Every Chrome update broke your tests. WebDriverManager resolves this by detecting your installed browser version and downloading the matching driver binary at runtime.
+
+### WebDriver Creation and Browser Configuration
+
+
+```java
+import org.openqa.selenium.WebDriver;
+import org.openqa.selenium.chrome.ChromeDriver;
+import org.openqa.selenium.chrome.ChromeOptions;
+import org.openqa.selenium.firefox.FirefoxDriver;
+import org.openqa.selenium.firefox.FirefoxOptions;
+import io.github.bonigarcia.wdm.WebDriverManager;
+
+// Chrome — standard
+WebDriverManager.chromedriver().setup();
+WebDriver driver = new ChromeDriver();
+
+// Chrome — headless (for CI pipelines)
+ChromeOptions chromeOptions = new ChromeOptions();
+chromeOptions.addArguments("--headless=new");       // Selenium 4 headless mode
+chromeOptions.addArguments("--no-sandbox");          // required in Docker/CI
+chromeOptions.addArguments("--disable-dev-shm-usage"); // prevents /dev/shm issues
+chromeOptions.addArguments("--window-size=1920,1080"); // consistent viewport
+WebDriver driver = new ChromeDriver(chromeOptions);
+
+// Firefox — standard
+WebDriverManager.firefoxdriver().setup();
+WebDriver driver = new FirefoxDriver();
+
+// Firefox — headless
+FirefoxOptions firefoxOptions = new FirefoxOptions();
+firefoxOptions.addArguments("--headless");
+WebDriver driver = new FirefoxDriver(firefoxOptions);
+```
+
+**`--headless=new` vs `--headless`:** Selenium 4 introduced the "new" headless mode for Chrome, which uses the same rendering engine as headed mode. The old `--headless` flag used a different engine that sometimes rendered pages differently — causing tests to pass headless but fail headed (or vice versa).
+
+### Core WebDriver Methods
+
+Every Selenium interaction flows through WebDriver and WebElement:
+
+
+```java
+// Navigation
+driver.get("https://staynest.com/login");      // navigate and wait for page load
+driver.navigate().to("https://staynest.com");   // same, but navigate() also has back/forward
+driver.navigate().back();                        // browser back button
+driver.navigate().refresh();                     // refresh current page
+driver.getCurrentUrl();                          // read the current URL
+driver.getTitle();                               // read the page title
+
+// Finding elements
+WebElement email = driver.findElement(By.id("email"));              // single element — throws if not found
+List<WebElement> inputs = driver.findElements(By.tagName("input")); // all matches — returns empty list if none
+
+// Element interactions
+email.sendKeys("test@staynest.com");   // type text into input
+email.clear();                          // clear existing text
+email.click();                          // click the element
+email.getText();                        // read visible text content
+email.getAttribute("placeholder");      // read any HTML attribute
+email.isDisplayed();                    // is it visible in the viewport?
+email.isEnabled();                      // is it interactable (not disabled)?
+email.isSelected();                     // for checkboxes/radio buttons
+```
+
+### Screenshots with TakesScreenshot
+
+
+```java
+import org.openqa.selenium.OutputType;
+import org.openqa.selenium.TakesScreenshot;
+import org.apache.commons.io.FileUtils;
+
+// Full page screenshot
+File screenshot = ((TakesScreenshot) driver).getScreenshotAs(OutputType.FILE);
+FileUtils.copyFile(screenshot, new File("screenshots/login-page.png"));
+
+// Single element screenshot (Selenium 4)
+WebElement loginForm = driver.findElement(By.id("login-form"));
+File elementShot = loginForm.getScreenshotAs(OutputType.FILE);
+FileUtils.copyFile(elementShot, new File("screenshots/login-form.png"));
+
+// Screenshot as Base64 (for embedding in reports)
+String base64 = ((TakesScreenshot) driver).getScreenshotAs(OutputType.BASE64);
+```
+
+### TestNG Integration for Driver Lifecycle
+
+The critical pattern: **each test method gets a fresh driver instance**. This ensures test isolation — one test's cookies, localStorage, or navigation state never leak into another test.
+
+
+```java
+import org.openqa.selenium.WebDriver;
+import org.openqa.selenium.chrome.ChromeDriver;
+import org.openqa.selenium.chrome.ChromeOptions;
+import org.openqa.selenium.support.ui.WebDriverWait;
+import io.github.bonigarcia.wdm.WebDriverManager;
+import org.testng.annotations.*;
+
+import java.time.Duration;
+
+public class BaseTest {
+
+    protected WebDriver driver;
+    protected WebDriverWait wait;
+
+    @BeforeMethod
+    public void setUp() {
+        WebDriverManager.chromedriver().setup();
+
+        ChromeOptions options = new ChromeOptions();
+        if (Boolean.parseBoolean(System.getProperty("headless", "false"))) {
+            options.addArguments("--headless=new");
+        }
+        options.addArguments("--window-size=1920,1080");
+
+        driver = new ChromeDriver(options);
+        driver.manage().timeouts().implicitlyWait(Duration.ZERO); // explicit > implicit
+        wait = new WebDriverWait(driver, Duration.ofSeconds(10));
+    }
+
+    @AfterMethod(alwaysRun = true)
+    public void tearDown() {
+        if (driver != null) {
+            driver.quit();  // quit() closes all windows AND ends the session
+        }
+    }
+}
+```
+
+**`alwaysRun = true`** on `@AfterMethod` ensures `tearDown` runs even if the test throws an exception. Without it, a failed test leaves the browser open, leaking resources in CI.
+
+**`quit()` vs `close()`:** `close()` closes the current window/tab. `quit()` closes all windows AND terminates the WebDriver session. Always use `quit()` in teardown — `close()` can leave zombie browser processes.
+
+---
+
+## Practical Implementation (Layer 3)
+
+### Complete Test Class: StayNest Login Page
+
+This test class demonstrates five real-world test scenarios against the StayNest login page. Each test is independent — it launches a fresh browser, navigates to the login page, and verifies one specific behavior.
+
+
+```java
+import org.openqa.selenium.*;
+import org.openqa.selenium.chrome.ChromeDriver;
+import org.openqa.selenium.chrome.ChromeOptions;
+import org.openqa.selenium.support.ui.ExpectedConditions;
+import org.openqa.selenium.support.ui.WebDriverWait;
+import io.github.bonigarcia.wdm.WebDriverManager;
+import org.testng.Assert;
+import org.testng.annotations.*;
+
+import java.io.File;
+import java.time.Duration;
+
+public class LoginPageTest {
+
+    private WebDriver driver;
+    private WebDriverWait wait;
+    private static final String BASE_URL = "http://localhost:5173";
+    private static final String LOGIN_URL = BASE_URL + "/login";
+
+    @BeforeMethod
+    public void setUp() {
+        WebDriverManager.chromedriver().setup();
+        ChromeOptions options = new ChromeOptions();
+        options.addArguments("--window-size=1920,1080");
+        driver = new ChromeDriver(options);
+        wait = new WebDriverWait(driver, Duration.ofSeconds(10));
+        driver.get(LOGIN_URL);
+        // Wait for the login form to be present — SPA needs time to render
+        wait.until(ExpectedConditions.visibilityOfElementLocated(
+            By.cssSelector("[data-testid='login-form']")
+        ));
+    }
+
+    @Test(description = "Successful login navigates to dashboard")
+    public void testSuccessfulLogin() {
+        driver.findElement(By.id("email")).sendKeys("user@staynest.com");
+        driver.findElement(By.id("password")).sendKeys("SecurePass123!");
+        driver.findElement(By.cssSelector("[data-testid='login-button']")).click();
+
+        // Wait for navigation to dashboard
+        wait.until(ExpectedConditions.urlContains("/dashboard"));
+        String currentUrl = driver.getCurrentUrl();
+        Assert.assertTrue(currentUrl.contains("/dashboard"),
+            "Expected URL to contain '/dashboard', got: " + currentUrl);
+    }
+
+    @Test(description = "Invalid credentials show error message")
+    public void testInvalidCredentialsShowError() {
+        driver.findElement(By.id("email")).sendKeys("wrong@email.com");
+        driver.findElement(By.id("password")).sendKeys("WrongPassword!");
+        driver.findElement(By.cssSelector("[data-testid='login-button']")).click();
+
+        WebElement errorMessage = wait.until(
+            ExpectedConditions.visibilityOfElementLocated(
+                By.cssSelector("[data-testid='error-message']")
+            )
+        );
+        Assert.assertEquals(errorMessage.getText(), "Invalid email or password");
+    }
+
+    @Test(description = "Empty email shows validation error")
+    public void testEmptyEmailValidation() {
+        // Leave email empty, fill password
+        driver.findElement(By.id("password")).sendKeys("SomePassword123!");
+        driver.findElement(By.cssSelector("[data-testid='login-button']")).click();
+
+        WebElement emailInput = driver.findElement(By.id("email"));
+        // HTML5 validation — check the validationMessage via JavaScript
+        String validationMsg = (String) ((JavascriptExecutor) driver)
+            .executeScript("return arguments[0].validationMessage;", emailInput);
+        Assert.assertFalse(validationMsg.isEmpty(),
+            "Expected HTML5 validation message for empty email");
+    }
+
+    @Test(description = "Password field masks input")
+    public void testPasswordFieldMasksInput() {
+        WebElement passwordField = driver.findElement(By.id("password"));
+        passwordField.sendKeys("SecretPassword");
+
+        String inputType = passwordField.getAttribute("type");
+        Assert.assertEquals(inputType, "password",
+            "Password field should have type='password' to mask input");
+    }
+
+    @Test(description = "Login page has correct title and elements")
+    public void testLoginPageStructure() {
+        // Verify page title
+        Assert.assertTrue(driver.getTitle().contains("StayNest"),
+            "Page title should contain 'StayNest'");
+
+        // Verify all expected elements are present
+        Assert.assertTrue(driver.findElement(By.id("email")).isDisplayed(),
+            "Email input should be visible");
+        Assert.assertTrue(driver.findElement(By.id("password")).isDisplayed(),
+            "Password input should be visible");
+        Assert.assertTrue(
+            driver.findElement(By.cssSelector("[data-testid='login-button']")).isEnabled(),
+            "Login button should be enabled");
+
+        // Verify placeholder text
+        String emailPlaceholder = driver.findElement(By.id("email"))
+            .getAttribute("placeholder");
+        Assert.assertEquals(emailPlaceholder, "Enter your email");
+    }
+
+    @AfterMethod(alwaysRun = true)
+    public void tearDown() {
+        if (driver != null) {
+            driver.quit();
+        }
+    }
+}
+```
+
+**What to notice in this test class:**
+- Each test is self-contained — no test depends on another test's state
+- Explicit waits after every action that triggers async behavior (login API call, page navigation)
+- Assertions include descriptive messages — when they fail in CI, you know exactly what went wrong
+- `@AfterMethod(alwaysRun = true)` ensures cleanup even when tests throw exceptions
+
+### Adding Screenshot on Failure
+
+Extend the base test to automatically capture screenshots when a test fails:
+
+
+```java
+import org.testng.ITestResult;
+
+public class BaseTest {
+
+    protected WebDriver driver;
+    protected WebDriverWait wait;
+
+    // ... setUp() as before ...
+
+    @AfterMethod(alwaysRun = true)
+    public void tearDown(ITestResult result) {
+        if (result.getStatus() == ITestResult.FAILURE && driver != null) {
+            captureScreenshot(result.getMethod().getMethodName());
+        }
+        if (driver != null) {
+            driver.quit();
+        }
+    }
+
+    private void captureScreenshot(String testName) {
+        try {
+            File screenshot = ((TakesScreenshot) driver)
+                .getScreenshotAs(OutputType.FILE);
+            String fileName = "screenshots/" + testName + "_"
+                + System.currentTimeMillis() + ".png";
+            FileUtils.copyFile(screenshot, new File(fileName));
+            System.out.println("Screenshot saved: " + fileName);
+        } catch (Exception e) {
+            System.err.println("Failed to capture screenshot: " + e.getMessage());
+        }
+    }
+}
+```
+
+---
+
+## Failure and Debugging (Layer 4)
+
+### Failure: WebDriverManager Can't Download Driver
+
+**Symptom:** `WebDriverException: unknown error: cannot find Chrome binary`
+
+**Root Cause:** WebDriverManager downloaded a driver binary, but Chrome isn't installed on the machine (common in Docker containers), or the Chrome version doesn't match the driver.
+
+**Diagnostic Steps:**
+1. Check Chrome version: `google-chrome --version`
+2. Check what WebDriverManager downloaded: look in `~/.cache/selenium/`
+3. Verify network access — WebDriverManager downloads from `googleapis.com` and `github.com`
+
+**Fix for Docker/CI:**
+
+
+```java
+// Force a specific Chrome version in CI
+WebDriverManager.chromedriver().browserVersion("120").setup();
+
+// Or use Selenium Manager (built into Selenium 4.11+) instead
+// Selenium Manager auto-downloads both browser AND driver
+// Just create ChromeDriver directly — no WebDriverManager needed
+WebDriver driver = new ChromeDriver(); // Selenium 4.11+ handles everything
+```
+
+### Failure: StaleElementReferenceException
+
+**Symptom:** Found the element successfully, but interaction throws `StaleElementReferenceException`.
+
+**Root Cause:** Between finding the element and interacting with it, the DOM was updated (React re-render, AJAX response). Your element reference now points to a node that's been removed from the DOM.
+
+
+```java
+// BROKEN: element goes stale between find and click
+WebElement button = driver.findElement(By.id("search-btn"));
+// ... some action triggers a React re-render ...
+button.click(); // StaleElementReferenceException!
+
+// FIXED: re-find the element or use wait
+wait.until(ExpectedConditions.elementToBeClickable(By.id("search-btn"))).click();
+```
+
+<BestPractice>
+
+**Prevention:** Avoid storing WebElement references across actions that trigger DOM changes. Use `WebDriverWait` with `ExpectedConditions` which re-finds the element on each poll.
+
+</BestPractice>
+
+
+---
+
+## Engineering Judgment (Layer 5)
+
+### Selenium Manager vs WebDriverManager
+
+Selenium 4.11+ includes **Selenium Manager**, which can auto-download both the browser and driver binary. This may eventually replace WebDriverManager.
+
+| Factor | WebDriverManager | Selenium Manager |
+|---|---|---|
+| Maturity | Years of production use | Newer, still evolving |
+| Browser download | Drivers only | Browsers AND drivers |
+| Configuration | Rich API (proxy, cache, version) | Limited configuration |
+| Community support | Large community, many blog posts | Official Selenium project |
+| Recommendation | Use for now, especially if you need proxy/cache control | Watch for maturity; may become default |
+
+### When to Use Headless Mode
+
+**Use headless when:** running in CI/CD pipelines, running large test suites where browser windows waste resources, running on servers without a display (Linux CI agents).
+
+**Avoid headless when:** debugging test failures (you need to see what's happening), writing new tests (visual feedback helps), testing visual rendering or CSS-dependent behavior (headless can have subtle rendering differences).
+
+---
+
+## Interview and Revision (Layer 6)
+
+### Fundamental Questions
+
+**Q1: Walk me through setting up a Selenium 4 Java project from scratch.**
+
+**A:** Start with a Maven project. Add three dependencies: `selenium-java` for the WebDriver API, `webdrivermanager` (or rely on Selenium Manager in 4.11+) for automatic driver binary resolution, and `testng` for test execution. Create a `BaseTest` class with `@BeforeMethod` that sets up ChromeDriver with options (headless flag for CI, window size for consistency) and a `WebDriverWait`. The `@AfterMethod` calls `driver.quit()` with `alwaysRun = true` to ensure cleanup. Tests extend this base class and get a fresh driver per method. Add screenshot capture on failure using TestNG's `ITestResult` in the teardown.
+
+**Q2: What's the difference between `driver.quit()` and `driver.close()`?**
+
+**A:** `close()` closes only the current window or tab. If there are multiple windows open, the driver session stays alive. `quit()` closes all windows and terminates the WebDriver session entirely, killing the browser process. In teardown, always use `quit()` — using `close()` can leave zombie browser processes that consume memory in CI.
+
+**Q3: Why should you avoid implicit waits and prefer explicit waits?**
+
+**A:** Implicit waits apply globally to every `findElement` call, even ones where you expect the element to be absent (like verifying an error message disappeared). They also can't wait for specific conditions — only element presence. Explicit waits (`WebDriverWait` with `ExpectedConditions`) let you wait for specific conditions: visibility, clickability, URL changes, text presence. They're more precise, more readable, and don't interfere with negative assertions.
+
+### Scenario-Based Questions
+
+**S1: "Your test passes locally but throws NoSuchElementException in CI. What do you check?"**
+
+**A:** First, I verify the CI browser is running — headless mode might be misconfigured. Then I check timing — CI machines are slower, so the SPA might not have rendered yet; I'd add explicit waits. I'd also check the CI window size — responsive layouts can hide elements at smaller viewports. Finally, I'd add screenshot-on-failure to capture what the browser actually shows when the test fails.
+
+
+
+
+| # | Front (Question) | Back (Answer) |
+|---|---|---|
+| 1 | What does WebDriverManager do? | Auto-detects the installed browser version and downloads the matching WebDriver binary (e.g., ChromeDriver for Chrome 120). Eliminates manual driver binary management. |
+| 2 | What's the purpose of `@AfterMethod(alwaysRun = true)`? | Ensures the teardown method runs even when a test throws an exception. Without it, failed tests leave browsers open, leaking resources. |
+| 3 | How do you take a screenshot in Selenium 4? | Cast driver to `TakesScreenshot`, call `getScreenshotAs(OutputType.FILE)` for a file or `OutputType.BASE64` for embedding. Selenium 4 also supports element-level screenshots via `element.getScreenshotAs()`. |
+| 4 | What does `--headless=new` do in ChromeOptions? | Runs Chrome without a visible window using the new headless mode (Selenium 4), which uses the same rendering engine as headed mode for consistent behavior. |
+| 5 | Why set `implicitlyWait(Duration.ZERO)`? | Disables implicit waits so they don't interfere with explicit waits. Mixing both causes unpredictable timeout behavior. |
+
+### Mastery Checklist
+
+- [ ] Can set up a Selenium 4 Maven project with all necessary dependencies
+- [ ] Can configure ChromeDriver and FirefoxDriver with headless and custom options
+- [ ] Can explain the WebDriver command flow from Java code to browser
+- [ ] Can write a complete test class with @BeforeMethod/@AfterMethod lifecycle
+- [ ] Can use findElement, sendKeys, click, getText, getAttribute in tests
+- [ ] Can capture screenshots on test failure using TakesScreenshot
+- [ ] Can articulate the difference between quit() and close()
+- [ ] Can explain why explicit waits are preferred over implicit waits
+
+---
+
+**Next:** Page Object Implementation | **Related:** Browser And Dom Fundamentals, Locator Strategy
+
+*Last updated: *

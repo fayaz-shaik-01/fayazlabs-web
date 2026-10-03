@@ -1,0 +1,551 @@
+---
+title: "Test Data Management"
+description: "What: Test data management is the discipline of creating, maintaining, and cleaning up the data your tests need to run. It covers how test data is generated (inline, builders, factories, APIs, database seeding), how it stays unique across parallel runs, how it's cleaned up after tests, and how it's parameterized for data-driven testing."
+summary: "SDET Engineering guide: Test Data Management"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "testing-foundations"
+lesson: "test-data-management"
+difficulty: "intermediate"
+estimatedMinutes: 35
+prerequisites: []
+tags: ["SDET", "Testing", "QA"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/testing-foundations/test-data-management"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Test Data Management
+
+> **Module:** 02 — Testing Foundations  
+> **Prerequisites:** Isolation And Determinism, Flaky Tests  
+> **Mastery Target:** L3 (independent) — can design a complete test data strategy for any test suite, including creation, uniqueness, cleanup, and parallel execution support
+
+---
+
+## Quick Overview (2-minute read)
+
+**What:** Test data management is the discipline of creating, maintaining, and cleaning up the data your tests need to run. It covers how test data is generated (inline, builders, factories, APIs, database seeding), how it stays unique across parallel runs, how it's cleaned up after tests, and how it's parameterized for data-driven testing.
+
+**Why:** Bad test data is the silent killer of automation. Tests that share data collide in parallel execution. Tests that depend on pre-existing data break when someone cleans the database. Tests with hardcoded values become unreadable. Tests that don't clean up leave a growing pile of stale data that slows down environments and causes mysterious failures months later.
+
+**Where:** Every test suite — unit, integration, E2E. Every CI pipeline that runs tests in parallel. Every shared test environment where multiple developers or pipelines run simultaneously. Every data-driven test that needs to cover many scenarios efficiently.
+
+<MentalModel>
+
+Think of test data as **ingredients for a recipe**. A good cook (test) brings their own ingredients (creates own data), uses fresh produce (unique data), cleans the kitchen after cooking (cleanup), and can scale to a dinner party (parallel execution) without running out of plates. A bad cook raids the shared fridge (shared data), uses whatever is already on the counter (pre-existing state), leaves dirty dishes (no cleanup), and causes chaos when two cooks try to use the same stove simultaneously (parallel collisions).
+
+</MentalModel>
+
+
+<KeyTakeaways>
+
+1. Each test should create the data it needs and not assume anything exists in the database.
+2. Unique data (UUID-based emails, timestamps in names) prevents collisions in parallel execution.
+3. Cleanup is not optional — every created resource must be deleted, rolled back, or scoped to a disposable context.
+4. Test data builders produce readable, maintainable test setups by defaulting most fields and overriding only what matters.
+5. Data-driven testing (parameterized tests) multiplies coverage without multiplying test code.
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation
+
+### Test Data Strategies
+
+#### Strategy 1: Inline Creation
+
+Define all test data directly in the test method. Simple, explicit, but verbose for complex objects.
+
+
+```java
+@Test
+void shouldRejectBookingWithZeroGuests() {
+    BookingRequest request = new BookingRequest();
+    request.setPropertyId(101);
+    request.setCheckIn("2025-08-01");
+    request.setCheckOut("2025-08-05");
+    request.setGuestCount(0);  // the value under test
+
+    Response response = bookingApi.initBooking(request, guestToken);
+
+    assertThat(response.statusCode()).isEqualTo(400);
+}
+```
+
+**When to use:** Simple tests with 1-2 fields that matter. The verbosity makes it clear what the test cares about.
+
+**When to avoid:** Complex objects with many required fields. The noise of setting 10 irrelevant fields buries the one field under test.
+
+---
+
+#### Strategy 2: Builder Pattern
+
+A fluent builder sets sensible defaults for all fields. Tests override only the field(s) they care about.
+
+
+```java
+// Builder with defaults
+public class BookingRequestBuilder {
+    private int propertyId = 101;
+    private String checkIn = "2025-08-01";
+    private String checkOut = "2025-08-05";
+    private int guestCount = 2;
+    private int roomsCount = 1;
+
+    public static BookingRequestBuilder aBooking() {
+        return new BookingRequestBuilder();
+    }
+
+    public BookingRequestBuilder withPropertyId(int id) { this.propertyId = id; return this; }
+    public BookingRequestBuilder withCheckIn(String date) { this.checkIn = date; return this; }
+    public BookingRequestBuilder withCheckOut(String date) { this.checkOut = date; return this; }
+    public BookingRequestBuilder withGuestCount(int count) { this.guestCount = count; return this; }
+    public BookingRequestBuilder withRoomsCount(int count) { this.roomsCount = count; return this; }
+
+    public BookingRequest build() {
+        return new BookingRequest(propertyId, checkIn, checkOut, guestCount, roomsCount);
+    }
+}
+```
+
+
+```java
+// Test overrides only what matters — guestCount
+@Test
+void shouldRejectBookingWithZeroGuests() {
+    BookingRequest request = aBooking().withGuestCount(0).build();
+    Response response = bookingApi.initBooking(request, guestToken);
+    assertThat(response.statusCode()).isEqualTo(400);
+}
+```
+
+**When to use:** Any domain object with 4+ fields. The builder makes tests concise and intention-revealing.
+
+---
+
+#### Strategy 3: Factory Methods
+
+Static methods that create pre-configured objects for common scenarios.
+
+
+```java
+public class TestBookings {
+    public static BookingRequest validBooking() {
+        return aBooking().build();
+    }
+
+    public static BookingRequest bookingWithPastCheckIn() {
+        return aBooking().withCheckIn("2020-01-01").build();
+    }
+
+    public static BookingRequest bookingExceedingCapacity(int capacity) {
+        return aBooking().withGuestCount(capacity + 1).build();
+    }
+}
+```
+
+**When to use:** When the same object configuration is used across multiple test classes. Factories centralize shared setup.
+
+---
+
+#### Strategy 4: API Seeding
+
+Create test data by calling the application's own APIs. The data follows all business rules and constraints.
+
+
+```java
+public class TestDataApi {
+    public int createAvailableProperty() {
+        String managerToken = authApi.registerAndLogin(
+            "manager-" + UUID.randomUUID() + "@test.com", "password123", "HOTEL_MANAGER");
+        Response hotel = hotelApi.createHotel(defaultHotel(), managerToken);
+        int hotelId = hotel.jsonPath().getInt("id");
+        roomApi.addRooms(hotelId, 5, managerToken);
+        hotelApi.activate(hotelId, managerToken);
+        return hotelId;
+    }
+
+    public int createBookingInState(String targetState, String guestToken) {
+        int propertyId = createAvailableProperty();
+        int bookingId = bookingApi.initBooking(
+            aBooking().withPropertyId(propertyId).build(), guestToken)
+            .jsonPath().getInt("id");
+        if ("GUESTS_ADDED".equals(targetState)) {
+            bookingApi.addGuests(bookingId, defaultGuestList(), guestToken);
+        }
+        return bookingId;
+    }
+}
+```
+
+**When to use:** Integration and E2E tests where data must pass validation rules.
+
+---
+
+#### Strategy 5: Database Seeding
+
+Insert data directly into the database, bypassing the application layer. Faster but couples tests to the schema.
+
+
+```java
+public class TestDataDb {
+    public int seedProperty(JdbcTemplate db) {
+        String sql = "INSERT INTO properties (name, city, capacity, status) " +
+                     "VALUES (?, ?, ?, 'ACTIVE') RETURNING id";
+        return db.queryForObject(sql, Integer.class,
+            "Test Property " + UUID.randomUUID(), "Tokyo", 4);
+    }
+}
+```
+
+**When to use:** Performance-critical test setup where API seeding is too slow. Unit and integration tests with direct DB access.
+
+**Trade-off:** Faster setup, but you must keep SQL in sync with schema changes. Bypasses business logic — data may be in a state the application would never produce.
+
+---
+
+#### Strategy 6: External Data Files
+
+Load test data from JSON, CSV, or YAML files. Useful for large data sets or when non-engineers need to author test data.
+
+
+```java
+@ParameterizedTest
+@JsonFileSource(resources = "/testdata/booking-scenarios.json")
+void shouldValidateBookingScenarios(BookingScenario scenario) {
+    Response response = bookingApi.initBooking(scenario.getRequest(), guestToken);
+    assertThat(response.statusCode()).isEqualTo(scenario.getExpectedStatus());
+}
+```
+
+**When to use:** Data-driven tests with 10+ scenarios. When test data is maintained by product or QA teams in spreadsheets.
+
+---
+
+### Unique Data Generation
+
+Every test that creates data in a shared environment must use unique identifiers to prevent collisions.
+
+| Technique | Example | Best For |
+|---|---|---|
+| **UUID suffix** | `"guest-a3f7c2e1@test.com"` | Emails, usernames, names |
+| **Timestamp suffix** | `"hotel-1721045612345"` | When readability matters more |
+| **Atomic counter** | `AtomicInteger.getAndIncrement()` | Sequential IDs within a JVM |
+| **Run-specific prefix** | `"run-4821-booking-1"` | Tracing data back to a specific CI run |
+
+
+```java
+public class UniqueData {
+    private static final AtomicInteger counter = new AtomicInteger(0);
+    private static final String RUN_ID = UUID.randomUUID().toString().substring(0, 8);
+
+    public static String uniqueEmail() {
+        return "test-" + RUN_ID + "-" + counter.getAndIncrement() + "@staynest.com";
+    }
+
+    public static String uniqueHotelName() {
+        return "Test Hotel " + RUN_ID + "-" + counter.getAndIncrement();
+    }
+}
+```
+
+---
+
+### Cleanup Strategies
+
+| Strategy | How It Works | Best For |
+|---|---|---|
+| **Delete after use** | `@AfterEach` calls DELETE API for each created resource | API integration tests |
+| **Transaction rollback** | Wrap test in a DB transaction, roll back in `@AfterEach` | Unit/integration with direct DB |
+| **Truncate tables** | `TRUNCATE TABLE bookings` between test classes | Dedicated test database |
+| **Ephemeral containers** | Testcontainers spins up a fresh DB per suite | Heavy integration tests |
+| **TTL-based expiry** | Test data has a short time-to-live; background job purges old data | Shared staging environments |
+
+
+```java
+// API cleanup in @AfterEach
+public class BookingTests {
+    private final List<Integer> createdBookingIds = new ArrayList<>();
+
+    @AfterEach
+    void cleanup() {
+        for (int id : createdBookingIds) {
+            bookingApi.deleteBooking(id, adminToken);
+        }
+        createdBookingIds.clear();
+    }
+
+    @Test
+    void shouldCreateBooking() {
+        Response response = bookingApi.initBooking(validRequest, guestToken);
+        createdBookingIds.add(response.jsonPath().getInt("id"));
+        assertThat(response.statusCode()).isEqualTo(201);
+    }
+}
+```
+
+---
+
+### Parallel Execution Data
+
+When tests run in parallel, every thread creates data simultaneously. Without uniqueness guarantees, they collide.
+
+**Rule:** Each parallel thread must produce data that cannot conflict with any other thread's data.
+
+
+```java
+// SAFE for parallel execution: each test uses a unique user and unique property
+@Test
+void shouldCreateBooking() {
+    // Unique user per test
+    String email = UniqueData.uniqueEmail();
+    String token = authApi.registerAndLogin(email, "password123");
+
+    // Unique property per test
+    int propertyId = testDataApi.createAvailableProperty();
+
+    BookingRequest request = aBooking().withPropertyId(propertyId).build();
+    Response response = bookingApi.initBooking(request, token);
+
+    assertThat(response.statusCode()).isEqualTo(201);
+}
+```
+
+---
+
+### Data-Driven Testing
+
+Parameterized tests let you run the same test logic with different data sets, multiplying coverage without duplicating code.
+
+**TestNG @DataProvider:**
+
+
+```java
+@DataProvider(name = "bookingValidation")
+public Object[][] bookingValidationData() {
+    return new Object[][] {
+        { 0,  400, "Guest count must be at least 1" },
+        { 1,  201, null },
+        { 4,  201, null },
+        { 5,  400, "Guest count exceeds property capacity" },
+        { -1, 400, "Guest count must be at least 1" },
+    };
+}
+
+@Test(dataProvider = "bookingValidation")
+void shouldValidateGuestCount(int guestCount, int expectedStatus, String expectedError) {
+    BookingRequest request = aBooking().withGuestCount(guestCount).build();
+    Response response = bookingApi.initBooking(request, guestToken);
+    assertThat(response.statusCode()).isEqualTo(expectedStatus);
+    if (expectedError != null) {
+        assertThat(response.jsonPath().getString("error.message")).contains(expectedError);
+    }
+}
+```
+
+**JUnit 5 @ParameterizedTest:**
+
+
+```java
+@ParameterizedTest(name = "guestCount={0} → status={1}")
+@CsvSource({
+    "0,  400",
+    "1,  201",
+    "4,  201",
+    "5,  400",
+    "-1, 400"
+})
+void shouldValidateGuestCount(int guestCount, int expectedStatus) {
+    BookingRequest request = aBooking().withGuestCount(guestCount).build();
+    Response response = bookingApi.initBooking(request, guestToken);
+    assertThat(response.statusCode()).isEqualTo(expectedStatus);
+}
+```
+
+---
+
+## Practical Implementation
+
+### Test Data Builders for StayNest
+
+#### User Builder
+
+
+```java
+public class TestUserBuilder {
+    private String email = "guest-" + UUID.randomUUID() + "@test.com";
+    private String password = "SecurePass123!";
+    private String firstName = "Test";
+    private String lastName = "Guest";
+    private String role = "GUEST";
+    private String phone = "+1-555-0100";
+
+    public static TestUserBuilder aUser() { return new TestUserBuilder(); }
+
+    public TestUserBuilder withEmail(String e) { this.email = e; return this; }
+    public TestUserBuilder withRole(String r) { this.role = r; return this; }
+    public TestUserBuilder asManager() { this.role = "HOTEL_MANAGER"; return this; }
+    public TestUserBuilder asAdmin() { this.role = "ADMIN"; return this; }
+
+    public SignupRequest buildSignupRequest() {
+        return new SignupRequest(email, password, firstName, lastName, role, phone);
+    }
+
+    // Convenience: register and return auth token
+    public String registerAndGetToken(AuthApi authApi) {
+        authApi.signup(buildSignupRequest());
+        return authApi.login(email, password).jsonPath().getString("token");
+    }
+}
+```
+
+#### Booking Builder
+
+
+```java
+public class TestBookingBuilder {
+    private int propertyId;
+    private String checkIn = LocalDate.now().plusDays(7).toString();
+    private String checkOut = LocalDate.now().plusDays(10).toString();
+    private int guestCount = 2;
+    private int roomsCount = 1;
+
+    public static TestBookingBuilder aBooking() { return new TestBookingBuilder(); }
+
+    public TestBookingBuilder forProperty(int id) { this.propertyId = id; return this; }
+    public TestBookingBuilder withCheckIn(String d) { this.checkIn = d; return this; }
+    public TestBookingBuilder withCheckOut(String d) { this.checkOut = d; return this; }
+    public TestBookingBuilder withGuestCount(int c) { this.guestCount = c; return this; }
+    public TestBookingBuilder withRoomsCount(int c) { this.roomsCount = c; return this; }
+    public TestBookingBuilder forNights(int n) {
+        this.checkOut = LocalDate.parse(checkIn).plusDays(n).toString();
+        return this;
+    }
+
+    public BookingRequest build() {
+        return new BookingRequest(propertyId, checkIn, checkOut, guestCount, roomsCount);
+    }
+}
+```
+
+**Usage in tests — concise and intention-revealing:**
+
+
+```java
+@Test
+void shouldRejectBookingExceeding30Nights() {
+    int propertyId = testDataApi.createAvailableProperty();
+    BookingRequest request = aBooking().forProperty(propertyId).forNights(31).build();
+
+    Response response = bookingApi.initBooking(request, guestToken);
+
+    assertThat(response.statusCode()).isEqualTo(400);
+    assertThat(response.jsonPath().getString("error.message"))
+        .contains("Booking cannot exceed 30 nights");
+}
+```
+
+---
+
+## Failure and Debugging
+
+### When Test Data Goes Wrong
+
+**Scenario:** Tests pass locally but fail in CI with "property not found" errors. Investigation reveals that the local database has 50 test properties seeded from a SQL script. The CI database starts empty.
+
+**Root cause:** Tests assume pre-existing data instead of creating their own. The SQL seed script was added to local setup but never to CI.
+
+<BestPractice>
+
+**Fix:** Tests must create all required data via API or DB seeding in `@BeforeEach`. Never assume anything exists in the database.
+
+</BestPractice>
+
+
+**Scenario:** Test suite runs take 20 minutes. Investigation reveals that each test creates a full hotel with rooms, activates it, creates a user, and registers payment — 15 API calls per test, with 200 tests.
+
+<BestPractice>
+
+**Fix:** Use `@BeforeAll` to create shared read-only fixtures (active hotels with rooms) that no test modifies. Individual tests create only the data they will mutate (bookings, payments). This balances isolation with performance.
+
+</BestPractice>
+
+
+---
+
+## Engineering Judgment
+
+### Choosing the Right Strategy
+
+| Situation | Strategy | Rationale |
+|---|---|---|
+| Simple unit test | Inline creation | No need for abstraction — direct and clear. |
+| Domain object with 8+ fields | Builder pattern | Defaults hide noise; overrides reveal intent. |
+| Same setup across 15 test classes | Factory methods | Centralize shared creation logic. |
+| Integration test needing valid data | API seeding | Data passes all validation rules. |
+| Performance-critical setup | DB seeding | Faster than API calls, at the cost of schema coupling. |
+| 20+ test scenarios for one feature | Data-driven (parameterized) | Multiplies coverage without duplicating test logic. |
+
+### How Much Cleanup Is Enough?
+
+- **Dedicated test database (CI):** Truncate tables between test suites. Don't clean up individual tests — it's slower than wiping everything.
+- **Shared staging environment:** Clean up every created resource in `@AfterEach`. Use unique identifiers for traceability.
+- **Ephemeral containers:** No cleanup needed — the container is destroyed after the suite.
+
+---
+
+## Interview and Revision
+
+### Questions and Answers
+
+**Q1: How do you manage test data for parallel test execution?**
+
+**A:** Every test creates its own data with unique identifiers — UUID-based emails, unique property names, per-test users. No test references a hardcoded shared resource. This way, even when 10 tests run simultaneously, each operates on its own data with no possibility of collision. I also use a run-specific prefix so I can trace any leftover data back to the CI run that created it.
+
+**Q2: What is the builder pattern in test data and why use it?**
+
+**A:** A test data builder is a fluent API that constructs domain objects with sensible defaults. Tests override only the field they're testing. This makes tests concise — `aBooking().withGuestCount(0).build()` clearly communicates that guest count is the variable under test. Without a builder, you'd set 8 fields inline where only 1 matters, burying the test's intent in noise.
+
+**Q3: How do you handle test data cleanup?**
+
+**A:** It depends on the environment. For a dedicated CI database, I truncate tables between suites — it's the fastest approach. For shared staging, I use `@AfterEach` to delete each created resource via API, tracked in a list populated during the test. For integration tests, I use transaction rollback — wrap the test in a transaction, roll back after, and the database is pristine. The key principle: no test should leave behind data that affects another test.
+
+
+
+
+**Flashcard 1**
+**Q:** Name 6 test data creation strategies.
+**A:** Inline creation, builder pattern, factory methods, API seeding, database seeding, external data files (JSON/CSV/YAML).
+
+**Flashcard 2**
+**Q:** How do you prevent data collisions in parallel test execution?
+**A:** Each test generates unique data — UUID-based emails, unique names, per-test users. No test depends on hardcoded shared resources. Use a run-specific prefix for traceability.
+
+**Flashcard 3**
+**Q:** When do you use API seeding vs. database seeding?
+**A:** API seeding when data must pass all business rules and validation (integration/E2E tests). DB seeding when speed matters and you accept the trade-off of coupling to the schema (performance-critical setup).
+
+### Mastery Checklist
+
+- [ ] Can implement a test data builder with sensible defaults for any domain object
+- [ ] Can design a unique data generation strategy for parallel execution
+- [ ] Can choose the appropriate cleanup strategy (delete, rollback, truncate, ephemeral) for each context
+- [ ] Can write parameterized tests using both JUnit 5 and TestNG syntax
+- [ ] Can explain the trade-offs between API seeding and database seeding
+- [ ] Can identify and fix test data problems (shared data, missing cleanup, hardcoded values)
+
+---
+
+**Next:** Exploratory Testing | **Related:** Isolation And Determinism, Flaky Tests

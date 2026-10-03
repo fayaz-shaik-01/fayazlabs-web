@@ -1,0 +1,360 @@
+---
+title: "Accessibility Testing"
+description: "What: Accessibility testing ensures software is usable by people with disabilities — visual impairments (blindness, low vision, color blindness), motor disabilities (inability to use a mouse), hearing impairments, and cognitive disabilities. It verifies that screen readers can navigate the page, keyboard-only users can reach all interactive elements, color contrast is sufficient, and content is semantically structured."
+summary: "SDET Engineering guide: Accessibility Testing"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "advanced-quality-engineering"
+lesson: "accessibility-testing"
+difficulty: "advanced"
+estimatedMinutes: 30
+prerequisites: []
+tags: ["SDET", "Quality Engineering", "Advanced"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/advanced-quality-engineering/accessibility-testing"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Accessibility Testing
+
+> **Module:** 09 — Advanced Quality Engineering  
+> **Prerequisites:** Web Automation Fundamentals, Performance Testing Overview  
+> **Mastery Target:** L2 (Guided) → L3 (Independent) — can implement automated accessibility checks, understand WCAG levels, and identify common accessibility issues
+
+---
+
+## Quick Overview (Layer 1)
+
+**What:** Accessibility testing ensures software is usable by people with disabilities — visual impairments (blindness, low vision, color blindness), motor disabilities (inability to use a mouse), hearing impairments, and cognitive disabilities. It verifies that screen readers can navigate the page, keyboard-only users can reach all interactive elements, color contrast is sufficient, and content is semantically structured.
+
+**Why:** Three reasons, all compelling. **Legal** — many countries mandate accessibility (ADA in the US, EAA in Europe). Non-compliance risks lawsuits. **Business** — 15% of the world's population has some form of disability. Inaccessible software excludes 1 billion potential users. **Quality** — accessibility improvements benefit everyone: captions help in noisy environments, keyboard navigation helps power users, good contrast helps in sunlight.
+
+**Where:** Every user-facing page. In StayNest: the booking flow (can a screen reader user complete a booking?), hotel search (can a keyboard-only user filter results?), login/signup forms (are error messages announced?), and the hotel management portal.
+
+<KeyTakeaways>
+
+1. **WCAG** (Web Content Accessibility Guidelines) is the standard. Level A = minimum, AA = target for most apps, AAA = highest (rarely required).
+2. Automated tools (axe-core) catch ~30-40% of accessibility issues. The rest requires manual testing with screen readers and keyboard navigation.
+3. Common automated catches: missing alt text, insufficient color contrast, missing form labels, empty headings, missing landmark regions.
+4. Accessibility is not a phase — it's a practice. Catch issues during development (shift-left), not after launch.
+5. SDETs automate the repeatable checks (axe-core in CI) and define the manual audit checklist for the rest.
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation (Layer 2)
+
+### WCAG Levels
+
+| Level | Description | Examples | Target Audience |
+|-------|-------------|----------|-----------------|
+| **A** | Bare minimum — site is not completely unusable | Images have alt text, pages have titles, no content flashes >3 times/sec | All web apps must meet this |
+| **AA** | Usable by most people with disabilities | 4.5:1 contrast ratio, text resizable to 200%, keyboard navigation | **Standard target for most apps** |
+| **AAA** | Highest accessibility — specialized needs | 7:1 contrast ratio, sign language for video, no timing limits | Government, healthcare, education |
+
+### The Four WCAG Principles (POUR)
+
+| Principle | What It Means | Test Focus |
+|-----------|--------------|------------|
+| **Perceivable** | Users can perceive the content | Alt text, contrast, captions, text alternatives |
+| **Operable** | Users can operate the interface | Keyboard navigation, no time traps, skip links |
+| **Understandable** | Users can understand content and UI | Clear labels, consistent navigation, error identification |
+| **Robust** | Content works with assistive technologies | Valid HTML, ARIA roles, semantic structure |
+
+### How Screen Readers Navigate
+
+```
+Visual Layout:                    Screen Reader Reads:
+┌─────────────────────┐          1. "StayNest, banner"
+│  🏨 StayNest Logo   │          2. "Main navigation: Home, Hotels, My Bookings"
+│  Home Hotels Bookings│          3. "Heading level 1: Find Your Perfect Stay"
+├─────────────────────┤          4. "Search hotels, edit text"
+│ Find Your Perfect   │          5. "Check-in date, edit text"
+│ Stay                │          6. "Search, button"
+│ [Search     ] [Date]│          7. "3 results found"
+│ [Search Button]     │          8. "Heading level 2: Grand Hotel, 4.5 stars..."
+│                     │
+│ Grand Hotel ⭐⭐⭐⭐½ │
+│ Ocean View  ⭐⭐⭐⭐   │
+└─────────────────────┘
+```
+
+If elements lack proper labels, ARIA roles, or semantic HTML, the screen reader reads: "edit text, edit text, button" — meaningless.
+
+---
+
+## Practical Implementation (Layer 3)
+
+### Axe-Core Integration with Playwright (Java)
+
+
+```java
+import com.microsoft.playwright.*;
+import com.deque.html.axecore.playwright.AxeBuilder;
+import com.deque.html.axecore.results.AxeResults;
+import com.deque.html.axecore.results.Rule;
+import org.testng.annotations.*;
+import static org.testng.Assert.*;
+
+/**
+ * Accessibility test suite for StayNest key pages.
+ * Uses axe-core via Playwright for automated WCAG checks.
+ */
+public class AccessibilityTests {
+
+    private Playwright playwright;
+    private Browser browser;
+    private BrowserContext context;
+    private Page page;
+
+    @BeforeClass
+    public void setup() {
+        playwright = Playwright.create();
+        browser = playwright.chromium().launch();
+        context = browser.newContext();
+        page = context.newPage();
+    }
+
+    @Test
+    public void homePage_meetsWcagAA() {
+        page.navigate("http://localhost:3000");
+        AxeResults results = new AxeBuilder(page)
+            .withTags(List.of("wcag2a", "wcag2aa"))
+            .analyze();
+
+        List<Rule> violations = results.getViolations();
+        if (!violations.isEmpty()) {
+            StringBuilder report = new StringBuilder("Accessibility violations:\n");
+            for (Rule violation : violations) {
+                report.append(String.format("  [%s] %s — %s (impact: %s)%n",
+                    violation.getId(), violation.getDescription(),
+                    violation.getHelpUrl(), violation.getImpact()));
+            }
+            fail(report.toString());
+        }
+    }
+
+    @Test
+    public void searchResultsPage_meetsWcagAA() {
+        page.navigate("http://localhost:3000/hotels?city=NYC");
+        AxeResults results = new AxeBuilder(page)
+            .withTags(List.of("wcag2a", "wcag2aa"))
+            .exclude(".third-party-widget") // Exclude elements we don't control
+            .analyze();
+
+        assertTrue(results.getViolations().isEmpty(),
+            "Search results page has " + results.getViolations().size() + " violations");
+    }
+
+    @Test
+    public void bookingForm_meetsWcagAA() {
+        // Login first
+        page.navigate("http://localhost:3000/login");
+        page.fill("[name=email]", "guest@staynest.com");
+        page.fill("[name=password]", "TestPass123!");
+        page.click("button[type=submit]");
+
+        // Navigate to booking form
+        page.navigate("http://localhost:3000/hotels/1/book");
+        AxeResults results = new AxeBuilder(page)
+            .withTags(List.of("wcag2a", "wcag2aa"))
+            .analyze();
+
+        assertTrue(results.getViolations().isEmpty(),
+            formatViolations(results.getViolations()));
+    }
+
+    private String formatViolations(List<Rule> violations) {
+        if (violations.isEmpty()) return "No violations";
+        return violations.stream()
+            .map(v -> String.format("[%s] %s (impact: %s)", v.getId(), v.getDescription(), v.getImpact()))
+            .reduce("Violations:\n", (a, b) -> a + "\n  " + b);
+    }
+
+    @AfterClass
+    public void teardown() {
+        if (browser != null) browser.close();
+        if (playwright != null) playwright.close();
+    }
+}
+```
+
+### Keyboard Navigation Test
+
+
+```java
+@Test
+public void bookingForm_navigableByKeyboardOnly() {
+    page.navigate("http://localhost:3000/hotels/1/book");
+
+    // Tab through all interactive elements
+    List<String> expectedTabOrder = List.of(
+        "input[name=checkIn]",
+        "input[name=checkOut]",
+        "input[name=guests]",
+        "button[type=submit]"
+    );
+
+    for (String expectedSelector : expectedTabOrder) {
+        page.keyboard().press("Tab");
+        String focusedSelector = (String) page.evaluate(
+            "() => document.activeElement.tagName.toLowerCase() + " +
+            "(document.activeElement.name ? '[name=' + document.activeElement.name + ']' : " +
+            "(document.activeElement.type ? '[type=' + document.activeElement.type + ']' : ''))");
+
+        assertTrue(page.locator(expectedSelector).evaluate("el => el === document.activeElement") != null,
+            "Expected focus on " + expectedSelector + " but focused: " + focusedSelector);
+    }
+
+    // Verify form can be submitted via Enter key
+    page.keyboard().press("Enter");
+    // Assert form submission occurred (URL change or confirmation message)
+}
+```
+
+### Common Accessibility Issues — Detection Patterns
+
+
+```java
+/**
+ * Manual accessibility checks that complement automated axe-core scans.
+ * Axe catches ~35% of issues; these patterns catch more.
+ */
+public class AccessibilityChecks {
+
+    public static void checkImagesHaveAltText(Page page) {
+        int missingAlt = (int) page.evaluate(
+            "() => document.querySelectorAll('img:not([alt])').length");
+        assertEquals(missingAlt, 0, "All images must have alt text");
+    }
+
+    public static void checkFormLabelsExist(Page page) {
+        int unlabeledInputs = (int) page.evaluate("""
+            () => {
+                const inputs = document.querySelectorAll('input, select, textarea');
+                let unlabeled = 0;
+                inputs.forEach(input => {
+                    const hasLabel = input.labels?.length > 0;
+                    const hasAriaLabel = input.getAttribute('aria-label');
+                    const hasAriaLabelledBy = input.getAttribute('aria-labelledby');
+                    if (!hasLabel && !hasAriaLabel && !hasAriaLabelledBy) unlabeled++;
+                });
+                return unlabeled;
+            }""");
+        assertEquals(unlabeledInputs, 0, "All form inputs must have labels");
+    }
+
+    public static void checkHeadingHierarchy(Page page) {
+        // Headings should not skip levels (h1 → h3 is invalid, h1 → h2 is valid)
+        List<Integer> headingLevels = (List<Integer>) page.evaluate("""
+            () => Array.from(document.querySelectorAll('h1,h2,h3,h4,h5,h6'))
+                .map(h => parseInt(h.tagName.substring(1)))""");
+
+        for (int i = 1; i < headingLevels.size(); i++) {
+            int current = headingLevels.get(i);
+            int previous = headingLevels.get(i - 1);
+            assertTrue(current <= previous + 1,
+                "Heading hierarchy skip: h" + previous + " → h" + current);
+        }
+    }
+}
+```
+
+---
+
+## Failure and Debugging (Layer 4)
+
+### Failure 1: Axe Reports False Positives on Dynamic Content
+
+**The Problem:** Axe reports "color contrast insufficient" on elements that are hidden or have not fully loaded when the scan runs.
+
+**The fix:** Wait for the page to fully load before scanning. Exclude hidden/decorative elements:
+
+
+```java
+page.waitForLoadState(LoadState.NETWORKIDLE);
+AxeResults results = new AxeBuilder(page)
+    .exclude("[aria-hidden=true]")     // Skip hidden elements
+    .exclude(".loading-skeleton")       // Skip placeholder content
+    .analyze();
+```
+
+### Failure 2: Screen Reader Works Differently Than Expected
+
+**The Problem:** Automated tests pass, but a real screen reader user reports the booking form is unusable. Axe didn't catch the issue because ARIA roles were technically correct but semantically wrong.
+
+**Root cause:** Automated tools check syntax (is `aria-label` present?), not semantics (does the label make sense?). A button labeled `aria-label="btn-1"` passes automated checks but is meaningless to users.
+
+**The fix:** Supplement automated tests with manual screen reader testing (VoiceOver, NVDA) for critical flows. Define a manual audit checklist:
+
+| Check | Tool | Frequency |
+|-------|------|-----------|
+| Axe-core automated scan | CI pipeline | Every PR |
+| Keyboard navigation test | Automated (Playwright) | Every PR |
+| Screen reader walkthrough | Manual (VoiceOver/NVDA) | Monthly |
+| Color contrast spot-check | Manual (browser DevTools) | Per design change |
+
+---
+
+## Engineering Judgment (Layer 5)
+
+### What to Automate vs Manually Audit
+
+| Automate (axe-core in CI) | Manual Audit (quarterly) |
+|---------------------------|--------------------------|
+| Missing alt text, labels, ARIA roles | Meaningful alt text content quality |
+| Color contrast ratios | Overall navigation flow logic |
+| Heading hierarchy | Screen reader experience end-to-end |
+| Keyboard focusability | Cognitive load and content clarity |
+| Duplicate IDs | Touch target size on mobile |
+
+### Prioritizing Fixes
+
+Not all violations are equal. Prioritize by impact and frequency:
+
+| Priority | Criteria | Example |
+|----------|----------|---------|
+| **Critical** | Blocks core functionality for disabled users | Booking form can't be submitted via keyboard |
+| **High** | Significant barrier on frequently used pages | Search results lack heading structure |
+| **Medium** | Inconvenience but workaround exists | Decorative image has generic alt text |
+| **Low** | Minor, affects few users | Contrast ratio is 4.4:1 instead of 4.5:1 |
+
+---
+
+## Interview and Revision (Layer 6)
+
+
+
+
+| # | Front | Back |
+|---|-------|------|
+| 1 | What are the WCAG levels and which should most apps target? | A (minimum), AA (standard target), AAA (highest). Most apps target AA — it covers contrast, keyboard navigation, screen reader support, and text resizing |
+| 2 | What percentage of accessibility issues can automated tools catch? | ~30-40%. Automated tools check syntax (is alt text present?) not semantics (is the alt text meaningful?). Manual testing with screen readers catches the rest |
+| 3 | What does POUR stand for in WCAG? | Perceivable (content can be sensed), Operable (UI can be operated), Understandable (content is clear), Robust (works with assistive tech) |
+| 4 | Name three common accessibility issues axe-core detects | Missing alt text on images, insufficient color contrast (&lt;4.5:1), form inputs without labels, missing landmark regions, empty headings |
+| 5 | Why is keyboard navigation testing important? | Motor-impaired users can't use a mouse. If Tab/Enter can't reach and activate every interactive element, the site is unusable for them |
+
+### Mastery Checklist
+
+- [ ] Can explain WCAG levels A, AA, AAA and their practical differences
+- [ ] Can integrate axe-core with Playwright for automated accessibility scanning
+- [ ] Can write keyboard navigation tests verifying Tab order and Enter activation
+- [ ] Can distinguish issues automated tools catch vs those requiring manual audit
+- [ ] Can prioritize accessibility fixes by impact on disabled users
+
+---
+
+**Next:** Chaos And Resilience Testing | **Related:** Performance Testing Overview
+
+*Last updated: *

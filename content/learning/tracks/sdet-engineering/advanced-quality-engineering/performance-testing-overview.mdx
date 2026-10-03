@@ -1,0 +1,304 @@
+---
+title: "Performance Testing Overview"
+description: "What: Performance testing verifies that an application meets speed, scalability, and stability requirements under expected and extreme conditions. It goes beyond \"does it work?\" to ask \"does it work fast enough when 1,000 users are booking rooms simultaneously?\" The five types — load, stress, spike, soak, and scalability testing — each answer a different performance question."
+summary: "SDET Engineering guide: Performance Testing Overview"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "advanced-quality-engineering"
+lesson: "performance-testing-overview"
+difficulty: "advanced"
+estimatedMinutes: 30
+prerequisites: []
+tags: ["SDET", "Quality Engineering", "Advanced"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/advanced-quality-engineering/performance-testing-overview"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Performance Testing Overview
+
+> **Module:** 09 — Advanced Quality Engineering  
+> **Prerequisites:** Continuous Testing, Http And Rest Fundamentals  
+> **Mastery Target:** L2 (Guided) → L3 (Independent) — understands performance test types, key metrics, and can design load profiles for common scenarios
+
+---
+
+## Quick Overview (Layer 1)
+
+**What:** Performance testing verifies that an application meets speed, scalability, and stability requirements under expected and extreme conditions. It goes beyond "does it work?" to ask "does it work *fast enough* when 1,000 users are booking rooms simultaneously?" The five types — load, stress, spike, soak, and scalability testing — each answer a different performance question.
+
+**Why:** Functional tests pass with one user. Production has thousands. A booking API that responds in 200ms for one user might take 15 seconds under load, timeout under stress, and crash during a spike. Performance bugs are among the most expensive to fix in production because they require architectural changes, not code patches. Finding them early saves weeks of emergency firefighting.
+
+**Where:** Critical paths with high traffic or strict SLAs. In StayNest: hotel search (highest traffic), booking creation (most critical), payment processing (most sensitive to latency), and login (burst traffic at morning check-in times).
+
+<KeyTakeaways>
+
+1. **Load testing** verifies behavior under expected traffic. **Stress testing** finds the breaking point. **Spike testing** checks sudden bursts. **Soak testing** checks stability over hours. **Scalability testing** verifies horizontal/vertical scaling.
+2. The four key metrics: response time (p50, p95, p99), throughput (requests/sec), error rate (% of failed requests), resource utilization (CPU, memory, connections).
+3. Performance test design starts with identifying scenarios, defining load profiles (concurrent users, ramp-up time, duration), and setting acceptance criteria.
+4. Always test against production-like infrastructure. Performance results on a laptop are meaningless.
+5. Percentiles (p95, p99) matter more than averages. An average of 200ms hides the fact that 1% of users wait 5 seconds.
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation (Layer 2)
+
+### The Five Performance Test Types
+
+| Type | Question It Answers | Load Pattern | Example |
+|------|-------------------|--------------|---------|
+| **Load** | Can the system handle expected traffic? | Normal expected users | 500 concurrent users for 30 min |
+| **Stress** | Where does the system break? | Beyond expected, increasing | Ramp from 500 to 5,000 users until errors spike |
+| **Spike** | Can it handle sudden bursts? | Sudden jump then drop | Jump from 100 to 2,000 users in 10 seconds |
+| **Soak** | Is it stable over long periods? | Normal load, long duration | 500 users for 8 hours (detect memory leaks) |
+| **Scalability** | Does adding resources help proportionally? | Increasing load + resources | Double the servers, does throughput double? |
+
+### Key Metrics Deep Dive
+
+```
+Response Time Distribution:
+─────────────────────────────────────────────────
+   ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░░░░▒▒▒▒░░█
+   ├── p50: 150ms ──┤         ├── p95 ──┤  ├ p99
+       (median)           (800ms)    (2.5s)
+
+p50 = 50% of requests complete within 150ms
+p95 = 95% of requests complete within 800ms
+p99 = 99% of requests complete within 2.5s
+       (1 in 100 users waits 2.5+ seconds)
+```
+
+| Metric | What It Measures | Healthy Target | Alarm Threshold |
+|--------|-----------------|----------------|-----------------|
+| **Response Time (p95)** | User-perceived latency | `&lt;500ms for API, &lt;2s for pages | >`2s for API, >5s for pages |
+| **Throughput** | System capacity | Depends on load profile | Drops >10% from baseline |
+| **Error Rate** | Reliability under load | `&lt;0.1% at expected load | >`1% at any load |
+| **CPU Utilization** | Server resource pressure | `&lt;70% at expected load | >`90% sustained |
+| **Memory Utilization** | Memory leak indicator | Stable over time | Continuously growing |
+
+### Load Profile Design
+
+A load profile defines *who* does *what* at *what rate*:
+
+```
+StayNest Peak Hour Load Profile:
+─────────────────────────────────
+Scenario               Percentage   Virtual Users
+Hotel Search            50%          250 users
+View Hotel Details      20%          100 users
+Create Booking          15%           75 users
+Login/Signup            10%           50 users
+Cancel Booking           5%           25 users
+─────────────────────────────────
+Total                  100%          500 concurrent users
+```
+
+---
+
+## Practical Implementation (Layer 3)
+
+### Performance Test Scenario Definition (Java)
+
+
+```java
+/**
+ * Performance test scenarios for StayNest.
+ * Defines load profiles, thresholds, and acceptance criteria.
+ */
+public class PerformanceScenarios {
+
+    public record Scenario(
+        String name,
+        String endpoint,
+        String method,
+        int targetRps,         // Requests per second
+        int p95ThresholdMs,    // p95 response time threshold
+        double maxErrorRate    // Maximum acceptable error rate
+    ) {}
+
+    public static final List<Scenario> STAYNEST_SCENARIOS = List.of(
+        new Scenario("Hotel Search",    "/hotels/search?city=NYC", "GET",
+            100, 500, 0.01),
+        new Scenario("Hotel Details",   "/hotels/1",               "GET",
+            50,  300, 0.01),
+        new Scenario("Create Booking",  "/bookings",               "POST",
+            30,  800, 0.005),
+        new Scenario("Login",           "/auth/login",             "POST",
+            20,  400, 0.01),
+        new Scenario("Cancel Booking",  "/bookings/1/cancel",      "PATCH",
+            10,  600, 0.005)
+    );
+}
+```
+
+### Simple Load Test Runner (Conceptual — Java Threads)
+
+
+```java
+import java.net.http.*;
+import java.time.*;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.*;
+
+/**
+ * Minimal load test using Java's HttpClient.
+ * For real load testing, use JMeter, Gatling, or k6.
+ * This demonstrates the concepts.
+ */
+public class SimpleLoadTest {
+
+    private final AtomicInteger successCount = new AtomicInteger(0);
+    private final AtomicInteger errorCount = new AtomicInteger(0);
+    private final ConcurrentLinkedQueue<Long> responseTimes = new ConcurrentLinkedQueue<>();
+
+    public void runLoadTest(String url, int concurrentUsers, Duration duration) throws Exception {
+        HttpClient client = HttpClient.newBuilder()
+            .connectTimeout(Duration.ofSeconds(5))
+            .build();
+
+        ExecutorService executor = Executors.newFixedThreadPool(concurrentUsers);
+        Instant endTime = Instant.now().plus(duration);
+
+        for (int i = 0; i < concurrentUsers; i++) {
+            executor.submit(() -> {
+                while (Instant.now().isBefore(endTime)) {
+                    long start = System.currentTimeMillis();
+                    try {
+                        HttpRequest request = HttpRequest.newBuilder()
+                            .uri(java.net.URI.create(url))
+                            .timeout(Duration.ofSeconds(10))
+                            .GET().build();
+                        HttpResponse<String> response = client.send(request,
+                            HttpResponse.BodyHandlers.ofString());
+
+                        long elapsed = System.currentTimeMillis() - start;
+                        responseTimes.add(elapsed);
+
+                        if (response.statusCode() < 400) {
+                            successCount.incrementAndGet();
+                        } else {
+                            errorCount.incrementAndGet();
+                        }
+                    } catch (Exception e) {
+                        errorCount.incrementAndGet();
+                    }
+                }
+            });
+        }
+
+        executor.shutdown();
+        executor.awaitTermination(duration.toSeconds() + 30, TimeUnit.SECONDS);
+        printResults(duration);
+    }
+
+    private void printResults(Duration duration) {
+        List<Long> sorted = responseTimes.stream().sorted().toList();
+        int total = successCount.get() + errorCount.get();
+
+        System.out.println("══════════════════════════════════════");
+        System.out.println("  LOAD TEST RESULTS");
+        System.out.println("══════════════════════════════════════");
+        System.out.printf("  Total Requests:   %d%n", total);
+        System.out.printf("  Successful:       %d%n", successCount.get());
+        System.out.printf("  Errors:           %d (%.2f%%)%n", errorCount.get(),
+            total > 0 ? errorCount.get() * 100.0 / total : 0);
+        System.out.printf("  Throughput:       %.1f req/sec%n",
+            total / (double) duration.toSeconds());
+        if (!sorted.isEmpty()) {
+            System.out.printf("  p50 Response:     %d ms%n", sorted.get(sorted.size() / 2));
+            System.out.printf("  p95 Response:     %d ms%n", sorted.get((int)(sorted.size() * 0.95)));
+            System.out.printf("  p99 Response:     %d ms%n", sorted.get((int)(sorted.size() * 0.99)));
+        }
+        System.out.println("══════════════════════════════════════");
+    }
+}
+```
+
+### Tools Landscape — Conceptual Comparison
+
+| Tool | Language | Strengths | Weaknesses | Best For |
+|------|----------|-----------|------------|----------|
+| **JMeter** | GUI + XML | Visual test design, rich plugins | Heavy GUI, verbose XML, harder to version control | Teams with non-coders, protocol variety |
+| **Gatling** | Scala DSL | Excellent reports, code-as-test, CI-friendly | Scala learning curve | Java/Scala teams, CI-integrated perf tests |
+| **k6** | JavaScript | Developer-friendly, lightweight, modern | Newer ecosystem, fewer protocols | DevOps teams, API load testing |
+| **Locust** | Python | Simple, distributed, real Python code | Less built-in reporting | Python teams, custom scenarios |
+
+---
+
+## Failure and Debugging (Layer 4)
+
+### Failure 1: Test Results Not Reproducible
+
+**The Problem:** Load test shows p95 = 300ms on Monday, p95 = 1200ms on Tuesday. No code changes.
+
+**Root cause:** Shared test environment — other teams' tests running simultaneously consume resources. Or: the test machine's network latency varied.
+
+**The fix:** Dedicated performance test environment with no shared workloads. Run at consistent times. Baseline against the same infrastructure every time.
+
+### Failure 2: Load Test Passes but Production Is Slow
+
+**The Problem:** 500 virtual users in the load test. Production gets 5,000 real users. The test didn't match reality.
+
+**The fix:** Base load profiles on real production metrics (access logs, APM data). Use production traffic patterns, not arbitrary numbers. Include think time (real users pause between actions — 5-30 seconds).
+
+---
+
+## Engineering Judgment (Layer 5)
+
+### When to Run Performance Tests
+
+| Trigger | What to Run | Why |
+|---------|-------------|-----|
+| New feature with DB queries | Load test on affected endpoints | New queries may not scale |
+| Database schema migration | Soak test (4+ hours) | Index changes affect query plans |
+| Infrastructure change (new server, scaled down) | Full load + stress test | Capacity may have changed |
+| Pre-release (quarterly) | Complete performance suite | Baseline for the release |
+| After performance fix | Targeted re-test | Verify the fix actually improved things |
+
+### Performance Testing Anti-Patterns
+
+1. **Testing on localhost** — Your laptop doesn't represent production. Results are meaningless.
+2. **No think time** — Real users wait between clicks. Without pauses, you test unrealistic burst traffic.
+3. **Ignoring p99** — "Average is 200ms" hides that 1% of users wait 10 seconds.
+4. **One-time testing** — Performance degrades gradually. Test regularly, not just before launch.
+
+---
+
+## Interview and Revision (Layer 6)
+
+
+
+
+| # | Front | Back |
+|---|-------|------|
+| 1 | Name the five types of performance testing | Load (expected traffic), Stress (find breaking point), Spike (sudden burst), Soak (long duration stability), Scalability (does adding resources help?) |
+| 2 | Why are percentiles (p95, p99) better than averages? | Averages hide outliers. p95=500ms with average=200ms means 5% of users wait 500ms+. That's thousands of unhappy users at scale |
+| 3 | What four metrics should every load test report? | Response time (p50/p95/p99), throughput (req/sec), error rate (%), resource utilization (CPU/memory) |
+| 4 | What is "think time" in load testing? | The pause between user actions (5-30 seconds) that simulates real user behavior. Without it, load tests generate unrealistically concentrated traffic |
+| 5 | Compare JMeter and k6 in one sentence each | JMeter: GUI-based, rich plugins, great for non-coders but verbose XML is hard to version control. k6: JavaScript-based, developer-friendly, lightweight, ideal for CI-integrated API load testing |
+
+### Mastery Checklist
+
+- [ ] Can define the five performance test types and when to use each
+- [ ] Can design a load profile based on production traffic patterns
+- [ ] Can set acceptance criteria using percentile-based response time thresholds
+- [ ] Can explain why p99 matters more than average for user experience
+- [ ] Can compare performance testing tools and recommend one for a given context
+
+---
+
+**Next:** Accessibility Testing | **Related:** Continuous Testing
+
+*Last updated: *

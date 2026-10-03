@@ -1,0 +1,349 @@
+---
+title: "Message Queues and Events"
+description: "What: Event-driven architectures communicate through messages (events) sent to queues or topics instead of direct API calls. When a StayNest booking is confirmed, the service doesn't directly call the email service — it publishes a BookingConfirmed event to a message queue. A separate email service consumes that event and sends the confirmation email. Testing this requires producing test events, consuming events to verify them, and handling the inherent asynchrony."
+summary: "SDET Engineering guide: Message Queues and Events"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "test-data-and-integration"
+lesson: "message-queues-and-events"
+difficulty: "intermediate"
+estimatedMinutes: 30
+prerequisites: []
+tags: ["SDET", "Test Data", "Integration"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/test-data-and-integration/message-queues-and-events"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Message Queues and Events
+
+> **Module:** 07 — Test Data & Integration  
+> **Prerequisites:** External Service Mocking, Api Database Integration  
+> **Mastery Target:** L2 (Guided) → L3 (Independent) — understands event-driven testing patterns and can implement basic event verification with polling
+
+---
+
+## Quick Overview (Layer 1)
+
+**What:** Event-driven architectures communicate through messages (events) sent to queues or topics instead of direct API calls. When a StayNest booking is confirmed, the service doesn't directly call the email service — it publishes a `BookingConfirmed` event to a message queue. A separate email service consumes that event and sends the confirmation email. Testing this requires producing test events, consuming events to verify them, and handling the inherent asynchrony.
+
+**Why:** Modern microservice systems are increasingly event-driven. As an SDET, you'll encounter Kafka topics, RabbitMQ queues, or AWS SQS in the systems you test. If you only test synchronous API calls, you miss half the application's behavior — email delivery, notification triggers, inventory updates, analytics events, and audit logging all happen asynchronously through events.
+
+**Where:** Any workflow with side effects beyond the HTTP response. In StayNest: booking confirmation emails, payment receipt generation, hotel availability updates, manager notifications for new bookings, and audit event logging.
+
+<KeyTakeaways>
+
+1. Messages are fire-and-forget from the producer's perspective. The producer publishes and moves on — it doesn't wait for the consumer to process.
+2. Queues (RabbitMQ) deliver each message to one consumer. Topics (Kafka) deliver each message to all subscribed consumer groups.
+3. Testing async events requires polling: "check every N milliseconds until the event appears or timeout."
+4. Test events need correlation IDs — a unique identifier linking the API action to the resulting event so you can verify the right event was produced.
+5. Testcontainers can spin up real Kafka/RabbitMQ instances in Docker for integration tests — more reliable than mocking the queue.
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation (Layer 2)
+
+### Synchronous vs Asynchronous Communication
+
+```
+Synchronous (REST):
+┌─────────┐  POST /bookings  ┌─────────────┐
+│  Client  │────────────────→│  Booking     │──→ returns 201
+└─────────┘                  │  Service     │
+                             └─────────────┘
+
+Asynchronous (Events):
+┌─────────────┐  BookingConfirmed  ┌─────────────┐  ┌──────────────┐
+│  Booking     │──────────────────→│  Message     │──→│  Email       │
+│  Service     │                   │  Queue       │  │  Service     │
+└─────────────┘                   └─────────────┘  └──────────────┘
+                                        │
+                                        └──────────→┌──────────────┐
+                                                    │  Analytics   │
+                                                    │  Service     │
+                                                    └──────────────┘
+```
+
+### Kafka vs RabbitMQ — Conceptual Comparison
+
+| Aspect | Kafka | RabbitMQ |
+|--------|-------|----------|
+| **Model** | Distributed log (topics with partitions) | Traditional message broker (queues) |
+| **Delivery** | Consumers pull messages from topics | Broker pushes messages to consumers |
+| **Retention** | Messages persist (configurable days/weeks) | Messages deleted after acknowledgment |
+| **Ordering** | Guaranteed within a partition | Guaranteed within a queue |
+| **Use case** | High-throughput event streaming, audit logs | Task queues, request-reply patterns |
+| **Testing ease** | Harder (partitions, offsets, consumer groups) | Easier (simple publish/consume) |
+
+### The Async Testing Challenge
+
+```
+Timeline:
+───────┬───────────┬────────────┬──────────────────────┬──────────
+       │           │            │                      │
+  POST /bookings   │      Event published         Email consumer
+  API returns 201  │      to queue (50ms later)    processes event
+                   │                               (200ms later)
+             Test asserts                     ← How long to wait?
+             event exists?
+```
+
+The fundamental problem: **you don't know when the event will arrive.** Too short a wait causes false failures. Too long a wait makes tests slow. The solution is polling with a reasonable timeout.
+
+---
+
+## Practical Implementation (Layer 3)
+
+### Kafka Test Producer — Publishing Test Events
+
+
+```java
+import org.apache.kafka.clients.producer.*;
+import org.apache.kafka.common.serialization.StringSerializer;
+import java.util.Properties;
+
+public class TestEventProducer {
+
+    private final KafkaProducer<String, String> producer;
+
+    public TestEventProducer(String bootstrapServers) {
+        Properties props = new Properties();
+        props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
+        props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName());
+        props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName());
+        this.producer = new KafkaProducer<>(props);
+    }
+
+    public void publishBookingEvent(String bookingId, String eventType) {
+        String eventJson = String.format("""
+            {
+                "eventId": "%s",
+                "eventType": "%s",
+                "bookingId": "%s",
+                "timestamp": "%s",
+                "data": {
+                    "guestEmail": "guest@staynest.com",
+                    "hotelName": "Test Hotel",
+                    "checkIn": "2025-09-01",
+                    "checkOut": "2025-09-05"
+                }
+            }""", java.util.UUID.randomUUID(), eventType, bookingId,
+            java.time.Instant.now().toString());
+
+        producer.send(new ProducerRecord<>("booking-events", bookingId, eventJson));
+        producer.flush();
+    }
+
+    public void close() { producer.close(); }
+}
+```
+
+### Kafka Test Consumer — Verifying Events Were Published
+
+
+```java
+import org.apache.kafka.clients.consumer.*;
+import org.apache.kafka.common.serialization.StringDeserializer;
+import java.time.Duration;
+import java.util.*;
+
+public class TestEventConsumer {
+
+    private final KafkaConsumer<String, String> consumer;
+
+    public TestEventConsumer(String bootstrapServers, String topic) {
+        Properties props = new Properties();
+        props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
+        props.put(ConsumerConfig.GROUP_ID_CONFIG, "test-consumer-" + UUID.randomUUID());
+        props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
+        props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
+        props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "latest");
+        this.consumer = new KafkaConsumer<>(props);
+        consumer.subscribe(Collections.singletonList(topic));
+    }
+
+    /** Poll for an event matching the given booking ID, with timeout */
+    public Optional<String> waitForEvent(String bookingId, Duration timeout) {
+        long deadline = System.currentTimeMillis() + timeout.toMillis();
+
+        while (System.currentTimeMillis() < deadline) {
+            ConsumerRecords<String, String> records = consumer.poll(Duration.ofMillis(500));
+            for (ConsumerRecord<String, String> record : records) {
+                if (record.key().equals(bookingId)) {
+                    return Optional.of(record.value());
+                }
+            }
+        }
+        return Optional.empty(); // Timed out — event never arrived
+    }
+
+    public void close() { consumer.close(); }
+}
+```
+
+### Polling Pattern with Awaitility
+
+
+```java
+import org.awaitility.Awaitility;
+import java.util.concurrent.TimeUnit;
+import com.google.gson.JsonParser;
+
+@Test
+public void bookingCreation_publishesConfirmationEvent() {
+    // Step 1: Start consumer BEFORE creating the booking
+    TestEventConsumer eventConsumer = new TestEventConsumer(
+        "localhost:9092", "booking-events");
+
+    // Step 2: Create booking via API
+    Response response = given()
+        .contentType("application/json")
+        .header("Authorization", AuthFactory.guest().getAuthHeader())
+        .body(BookingBuilder.aBooking().withRoomId(1L).buildJson())
+    .when().post("/bookings")
+    .then().statusCode(201).extract().response();
+
+    String bookingId = response.jsonPath().getString("data.id");
+
+    // Step 3: Poll for the event with timeout
+    Optional<String> event = eventConsumer.waitForEvent(bookingId, Duration.ofSeconds(10));
+
+    // Step 4: Verify event content
+    assertTrue(event.isPresent(), "BookingConfirmed event should be published within 10s");
+
+    var eventJson = JsonParser.parseString(event.get()).getAsJsonObject();
+    assertEquals(eventJson.get("eventType").getAsString(), "BookingConfirmed");
+    assertEquals(eventJson.get("bookingId").getAsString(), bookingId);
+    assertNotNull(eventJson.getAsJsonObject("data").get("guestEmail"));
+
+    eventConsumer.close();
+}
+```
+
+### Testcontainers — Real Kafka in Docker for Tests
+
+
+```java
+import org.testcontainers.containers.KafkaContainer;
+import org.testcontainers.utility.DockerImageName;
+
+public class KafkaTestSetup {
+
+    private static KafkaContainer kafka;
+
+    @BeforeSuite
+    public void startKafka() {
+        kafka = new KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:7.5.0"));
+        kafka.start();
+        // Configure your application to use this bootstrap server
+        System.setProperty("kafka.bootstrap.servers", kafka.getBootstrapServers());
+    }
+
+    @AfterSuite
+    public void stopKafka() {
+        if (kafka != null) kafka.stop();
+    }
+}
+```
+
+---
+
+## Failure and Debugging (Layer 4)
+
+### Failure 1: Event Never Arrives — Test Times Out
+
+**The Problem:** `waitForEvent` returns empty. The booking was created successfully (201), but no event appears on the topic.
+
+**Possible causes and diagnostics:**
+
+
+```java
+// 1. Consumer started AFTER event was published (race condition)
+// Fix: start consumer before the API call, use auto.offset.reset=latest
+
+// 2. Wrong topic name
+// Debug: list all topics
+AdminClient admin = AdminClient.create(Map.of("bootstrap.servers", "localhost:9092"));
+admin.listTopics().names().get().forEach(System.out::println);
+
+// 3. Event published to different partition, consumer not reading it
+// Fix: ensure consumer subscribes to all partitions (default behavior)
+
+// 4. Application didn't publish the event (bug in app code)
+// Debug: use kafka-console-consumer to check if events exist on the topic
+```
+
+### Failure 2: Consumer Gets Events from Previous Test Runs
+
+**The Problem:** The consumer reads stale events from a previous test, causing false assertions.
+
+**The fix:** Use a unique consumer group per test run and `auto.offset.reset=latest`:
+
+
+```java
+props.put(ConsumerConfig.GROUP_ID_CONFIG, "test-" + UUID.randomUUID()); // unique per run
+props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "latest");          // skip old messages
+```
+
+---
+
+## Engineering Judgment (Layer 5)
+
+### When to Test Events vs Trust the Application
+
+| Test the Event | Trust It |
+|---------------|----------|
+| Critical business events (payment, booking confirmation) | Internal logging/metrics events |
+| Events that trigger user-facing actions (emails, notifications) | Analytics tracking events |
+| Events consumed by other teams' services (contract matters) | Debug-level events |
+
+### Mock Queue vs Real Queue in Tests
+
+| Approach | When to Use |
+|----------|-------------|
+| **In-memory mock** (e.g., mock Kafka producer) | Unit tests for event publishing logic |
+| **Embedded/Testcontainers** (real Kafka in Docker) | Integration tests verifying full event flow |
+| **Shared dev Kafka** | E2E tests in staging environments |
+
+**Recommendation:** Use Testcontainers for integration tests. It provides a real Kafka instance that starts in ~10 seconds and guarantees behavior parity with production.
+
+---
+
+## Interview and Revision (Layer 6)
+
+
+
+
+| # | Front | Back |
+|---|-------|------|
+| 1 | What's the key difference between a queue and a topic? | Queue: each message consumed by one consumer (work distribution). Topic: each message consumed by all subscriber groups (event broadcasting) |
+| 2 | Why is polling necessary for async event testing? | Events arrive at unpredictable times. Polling checks repeatedly until the event appears or timeout, avoiding both false failures (too early) and slow tests (fixed sleep) |
+| 3 | Why start the consumer BEFORE the API call in event tests? | If you start after, the event may have already been published and the consumer (with auto.offset.reset=latest) will miss it — a race condition |
+| 4 | What is a correlation ID in event testing? | A unique identifier (like booking ID) linking an API action to its resulting event, so you can verify the correct event was produced for your specific test action |
+| 5 | When would you use Testcontainers for Kafka vs mocking? | Testcontainers for integration tests needing real broker behavior (serialization, partitioning, offsets). Mocking for unit tests of event publishing logic only |
+
+### Mastery Checklist
+
+- [ ] Can explain event-driven architecture and why SDETs need to test events
+- [ ] Can implement a test producer to publish events to Kafka/RabbitMQ
+- [ ] Can implement a test consumer with polling and timeout for event verification
+- [ ] Can use Testcontainers to spin up a real Kafka instance for integration tests
+- [ ] Can diagnose common async event failures: race conditions, stale events, wrong topics
+
+---
+
+**Next:** Test Environment Seeding | **Related:** External Service Mocking
+
+*Last updated: *

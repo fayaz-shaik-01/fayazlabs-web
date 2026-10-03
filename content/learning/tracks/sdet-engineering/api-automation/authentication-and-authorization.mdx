@@ -1,0 +1,861 @@
+---
+title: "Authentication and Authorization"
+description: "What: Authentication (authn) verifies who you are. Authorization (authz) determines what you can do. In API testing, this means: (1) obtaining credentials (tokens, keys, cookies), (2) sending them with every request, (3) verifying the server correctly grants or denies access based on identity and permissions."
+summary: "SDET Engineering guide: Authentication and Authorization"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "api-automation"
+lesson: "authentication-and-authorization"
+difficulty: "intermediate"
+estimatedMinutes: 55
+prerequisites: []
+tags: ["SDET", "API", "REST", "Testing"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/api-automation/authentication-and-authorization"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Authentication and Authorization
+
+> **Module:** 04 — API Automation  
+> **Prerequisites:** Http And Rest Fundamentals, Status Codes Headers And Json  
+> **Mastery Target:** L3 (Independent) — can implement token management, test auth flows end-to-end, and diagnose token-related failures without guidance
+
+---
+
+## Quick Overview (Layer 1)
+
+**What:** Authentication (authn) verifies *who you are*. Authorization (authz) determines *what you can do*. In API testing, this means: (1) obtaining credentials (tokens, keys, cookies), (2) sending them with every request, (3) verifying the server correctly grants or denies access based on identity and permissions.
+
+**Why:** Auth is the most common source of flaky API tests. Tokens expire mid-suite. Hardcoded credentials break when passwords rotate. Tests that skip auth validation leave security holes untested. And the difference between a well-designed `TokenManager` and ad-hoc token handling is the difference between a test suite that runs reliably in CI and one that fails every 10 minutes with "401 Unauthorized."
+
+**Where:** Every authenticated API endpoint — which, in StayNest, is everything except signup, login, refresh, and hotel search. Auth also appears in test setup (logging in to get tokens), test teardown (cleaning up with admin credentials), and cross-service testing (service-to-service auth).
+
+<MentalModel>
+
+Think of authentication and authorization as a **building security system**. Authentication is the front desk checking your ID badge — "Are you who you claim to be?" If your badge is expired (expired token) or fake (invalid credentials), you're turned away (401). Authorization is the access control on each floor — your badge gets you through the front door, but only certain badges open the server room (403). A GUEST badge gets you into the lobby (public endpoints) and your own room (own profile/bookings), but not the management office (admin endpoints).
+
+</MentalModel>
+
+
+<KeyTakeaways>
+
+1. Authentication answers "who are you?" (401 if it fails). Authorization answers "are you allowed?" (403 if it fails). They are separate concerns.
+2. JWT (JSON Web Token) is stateless — the server doesn't store sessions. The token itself contains the user's identity and roles, signed to prevent tampering.
+3. Access tokens are short-lived (StayNest: 10 minutes). Refresh tokens are long-lived and used to get new access tokens without re-authenticating.
+4. A `TokenManager` class is essential infrastructure — it handles login, token storage, expiry detection, and refresh so tests never deal with raw auth logic.
+5. Auth testing is inherently negative-test-heavy: valid credentials are one test; invalid credentials, expired tokens, wrong roles, missing tokens, and tampered tokens are many tests.
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation (Layer 2)
+
+### Authentication Mechanisms
+
+#### Basic Auth
+
+The simplest form: username and password encoded in Base64, sent with every request.
+
+```
+Authorization: Basic dXNlckBzdGF5bmVzdC5jb206cGFzczEyMw==
+              └── Base64("user@staynest.com:pass123")
+```
+
+| Aspect | Detail |
+|--------|--------|
+| **How it works** | Client sends `username:password` Base64-encoded in every request |
+| **Security** | Weak — Base64 is encoding, not encryption. Anyone can decode it. Must use HTTPS |
+| **Where used** | Simple internal APIs, CI/CD webhooks, basic tooling |
+| **Testing note** | Easy to automate. REST Assured has `.auth().basic(user, pass)` |
+
+**StayNest does not use Basic Auth** — it's mentioned here because you'll encounter it in other systems and interviews.
+
+#### API Keys
+
+A static token (string) that identifies the calling application (not the user).
+
+```
+Authorization: ApiKey sk-abc123def456
+   — or —
+X-API-Key: sk-abc123def456
+   — or —
+?api_key=sk-abc123def456  (query parameter — less secure)
+```
+
+| Aspect | Detail |
+|--------|--------|
+| **How it works** | Server generates a key; client includes it in header or query param |
+| **Security** | Better than Basic Auth (no password in transit), but keys don't expire unless rotated |
+| **Where used** | Third-party APIs (Stripe, Google Maps), internal service-to-service calls |
+| **Testing note** | Store keys in config/environment variables, never in test code |
+
+#### Bearer Tokens (JWT)
+
+The most common mechanism for modern APIs. The client authenticates once (login) and receives a token. The token is sent in the `Authorization` header with every subsequent request.
+
+```
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c
+```
+
+This is what StayNest uses. We'll deep-dive into JWT below.
+
+#### OAuth 2.0
+
+A delegation protocol — "let this app access my data without giving it my password."
+
+| Flow | Use Case | Example |
+|------|----------|---------|
+| **Authorization Code** | Web apps where server handles the callback | "Login with Google" on a website |
+| **Client Credentials** | Service-to-service (no user involved) | Backend service calling another backend service |
+| **PKCE** | Mobile/SPA apps (public clients that can't store secrets) | React app authenticating with identity provider |
+
+OAuth 2.0 is a framework, not a single flow. For SDET work, know that it produces a Bearer token — the testing approach is the same as JWT once you have the token. The complexity is in *obtaining* the token.
+
+### JWT Deep Dive
+
+A JWT is three Base64-encoded JSON objects separated by dots:
+
+```
+eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIiwiZW1haWwiOiJndWVzdEBzdGF5bmVzdC5jb20iLCJyb2xlcyI6IlJPTEVfR1VFU1QiLCJpYXQiOjE3MDUzMDAwMDAsImV4cCI6MTcwNTMwMDYwMH0.signature
+|_________________________|__|______________________________________________________________|__|_________|
+        Header                                   Payload                                      Signature
+```
+
+#### Header
+
+```json
+{
+  "alg": "HS256",   // Signing algorithm
+  "typ": "JWT"      // Token type
+}
+```
+
+#### Payload (Claims)
+
+StayNest JWT claims:
+
+```json
+{
+  "sub": "1",                           // Subject — user ID
+  "email": "guest@staynest.com",        // User email
+  "roles": "ROLE_GUEST",               // User role(s)
+  "iat": 1705300000,                    // Issued At — Unix timestamp
+  "exp": 1705300600                     // Expires At — iat + 600 seconds (10 min)
+}
+```
+
+| Claim | Purpose | Testing Relevance |
+|-------|---------|-------------------|
+| `sub` | Identifies the user | Used for resource ownership checks |
+| `email` | User's email | Displayed in profile responses |
+| `roles` | Authorization roles | Determines endpoint access (GUEST vs HOTEL_MANAGER) |
+| `iat` | When the token was issued | Calculate expected expiry from this |
+| `exp` | When the token expires | After this timestamp, server returns 401 |
+
+#### Signature
+
+The server signs `Base64(header) + "." + Base64(payload)` with a secret key. This prevents tampering — if you change the payload (e.g., change `roles` from GUEST to ADMIN), the signature won't match and the server rejects the token.
+
+**You cannot forge a valid JWT without the server's secret key.** This is what makes JWT secure for stateless authentication.
+
+### StayNest Auth Flow
+
+```
+1. Signup:    POST /auth/signup    →  201  (creates user account)
+2. Login:     POST /auth/login     →  200  (returns accessToken + sets refreshToken cookie)
+3. Use token: GET  /users/profile  →  200  (sends Authorization: Bearer <accessToken>)
+4. Token expires after 10 minutes
+5. Refresh:   POST /auth/refresh   →  200  (uses refreshToken cookie → new accessToken)
+6. Continue using new accessToken
+```
+
+```
+   Client                          StayNest Server
+     |                                    |
+     |-- POST /auth/login ------------->  |
+     |   {email, password}                |  [validate credentials]
+     |                                    |  [generate JWT + refresh token]
+     |  <-- 200 {accessToken: "eyJ..."} --|
+     |  <-- Set-Cookie: refreshToken=...  |
+     |                                    |
+     |-- GET /users/profile ----------->  |
+     |   Authorization: Bearer eyJ...     |  [verify JWT signature]
+     |                                    |  [check exp claim]
+     |  <-- 200 {data: {id, name, ...}} --|  [extract sub claim → find user]
+     |                                    |
+     |  ... 10 minutes pass ...           |
+     |                                    |
+     |-- GET /users/profile ----------->  |
+     |   Authorization: Bearer eyJ...     |  [JWT expired!]
+     |  <-- 401 Unauthorized ------------|
+     |                                    |
+     |-- POST /auth/refresh ----------->  |
+     |   Cookie: refreshToken=...         |  [validate refresh token]
+     |  <-- 200 {accessToken: "eyJ..."} --|  [issue new access token]
+     |                                    |
+```
+
+---
+
+## Practical Implementation (Layer 3)
+
+### TokenManager — Reusable Auth Infrastructure
+
+
+```java
+import io.restassured.RestAssured;
+import io.restassured.response.Response;
+import static io.restassured.RestAssured.given;
+
+import java.time.Instant;
+import java.util.Base64;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+
+/**
+ * Manages authentication tokens for API tests.
+ * Handles login, token storage, expiry detection, and auto-refresh.
+ * 
+ * Usage:
+ *   TokenManager tokenManager = new TokenManager("guest@staynest.com", "pass123");
+ *   String token = tokenManager.getAccessToken();  // Logs in if needed, refreshes if expired
+ */
+public class TokenManager {
+
+    private final String email;
+    private final String password;
+    private String accessToken;
+    private String refreshTokenCookie;
+    private Instant tokenExpiry;
+
+    // Buffer before actual expiry to prevent race conditions
+    private static final int EXPIRY_BUFFER_SECONDS = 30;
+
+    public TokenManager(String email, String password) {
+        this.email = email;
+        this.password = password;
+    }
+
+    /**
+     * Returns a valid access token. Handles three scenarios:
+     * 1. No token yet → login
+     * 2. Token expired → refresh (or re-login if refresh fails)
+     * 3. Token valid → return cached token
+     */
+    public String getAccessToken() {
+        if (accessToken == null) {
+            login();
+        } else if (isTokenExpired()) {
+            try {
+                refresh();
+            } catch (Exception e) {
+                // Refresh failed — re-login from scratch
+                login();
+            }
+        }
+        return accessToken;
+    }
+
+    /**
+     * Authenticates with email/password and stores both tokens.
+     */
+    private void login() {
+        String loginBody = String.format(
+            "{\"email\":\"%s\",\"password\":\"%s\"}", email, password
+        );
+
+        Response response = given()
+            .contentType("application/json")
+            .body(loginBody)
+        .when()
+            .post("/auth/login")
+        .then()
+            .statusCode(200)
+            .extract().response();
+
+        this.accessToken = response.jsonPath().getString("data.accessToken");
+        this.refreshTokenCookie = response.getCookie("refreshToken");
+        this.tokenExpiry = extractExpiry(accessToken);
+    }
+
+    /**
+     * Uses the refresh token cookie to get a new access token.
+     */
+    private void refresh() {
+        Response response = given()
+            .cookie("refreshToken", refreshTokenCookie)
+        .when()
+            .post("/auth/refresh")
+        .then()
+            .statusCode(200)
+            .extract().response();
+
+        this.accessToken = response.jsonPath().getString("data.accessToken");
+        this.tokenExpiry = extractExpiry(accessToken);
+    }
+
+    /**
+     * Checks if the token is expired (or will expire within the buffer period).
+     */
+    private boolean isTokenExpired() {
+        if (tokenExpiry == null) return true;
+        return Instant.now().isAfter(tokenExpiry.minusSeconds(EXPIRY_BUFFER_SECONDS));
+    }
+
+    /**
+     * Extracts the expiry timestamp from a JWT's payload.
+     * JWT structure: header.payload.signature (all Base64-encoded)
+     */
+    private Instant extractExpiry(String jwt) {
+        String[] parts = jwt.split("\\.");
+        if (parts.length != 3) {
+            throw new IllegalArgumentException("Invalid JWT format");
+        }
+
+        String payload = new String(Base64.getUrlDecoder().decode(parts[1]));
+        JsonObject claims = JsonParser.parseString(payload).getAsJsonObject();
+        long exp = claims.get("exp").getAsLong();
+        return Instant.ofEpochSecond(exp);
+    }
+
+    /**
+     * Returns the Authorization header value (for use in RequestSpecification).
+     */
+    public String getAuthHeader() {
+        return "Bearer " + getAccessToken();
+    }
+}
+```
+
+### Pre-configured Token Instances for Different Roles
+
+
+```java
+/**
+ * Factory that provides TokenManagers for each role.
+ * Tests request the role they need; the factory handles credentials.
+ */
+public class AuthFactory {
+
+    private static final Map<String, TokenManager> tokenManagers = new HashMap<>();
+
+    // Credentials loaded from config — never hardcoded in production code
+    private static final String GUEST_EMAIL = "guest@staynest.com";
+    private static final String GUEST_PASSWORD = "pass123";
+    private static final String MANAGER_EMAIL = "manager@staynest.com";
+    private static final String MANAGER_PASSWORD = "pass123";
+
+    public static TokenManager guest() {
+        return tokenManagers.computeIfAbsent("GUEST",
+            k -> new TokenManager(GUEST_EMAIL, GUEST_PASSWORD));
+    }
+
+    public static TokenManager manager() {
+        return tokenManagers.computeIfAbsent("MANAGER",
+            k -> new TokenManager(MANAGER_EMAIL, MANAGER_PASSWORD));
+    }
+
+    /**
+     * Create a token manager for a dynamically created user.
+     * Used when tests need a fresh user (e.g., testing signup flow).
+     */
+    public static TokenManager forUser(String email, String password) {
+        return new TokenManager(email, password);
+    }
+
+    /**
+     * Clear all cached tokens — call in @AfterSuite if needed.
+     */
+    public static void clearAll() {
+        tokenManagers.clear();
+    }
+}
+```
+
+### Authentication Test Suite
+
+
+```java
+import org.testng.annotations.Test;
+import static io.restassured.RestAssured.*;
+import static org.hamcrest.Matchers.*;
+
+/**
+ * Tests for StayNest authentication and authorization.
+ * Covers: valid login, invalid credentials, expired tokens,
+ * wrong roles, missing tokens, and token refresh.
+ */
+public class AuthTests {
+
+    // ======== AUTHENTICATION (401) TESTS ========
+
+    @Test
+    public void loginWithValidCredentials_returns200WithToken() {
+        given()
+            .contentType("application/json")
+            .body("{\"email\":\"guest@staynest.com\",\"password\":\"pass123\"}")
+        .when()
+            .post("/auth/login")
+        .then()
+            .statusCode(200)
+            .body("data.accessToken", notNullValue())
+            .body("data.accessToken", matchesPattern("^eyJ[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$"))
+            .cookie("refreshToken", notNullValue());
+    }
+
+    @Test
+    public void loginWithWrongPassword_returns401() {
+        given()
+            .contentType("application/json")
+            .body("{\"email\":\"guest@staynest.com\",\"password\":\"wrongpassword\"}")
+        .when()
+            .post("/auth/login")
+        .then()
+            .statusCode(401)
+            .body("error", notNullValue());
+    }
+
+    @Test
+    public void loginWithNonexistentEmail_returns401() {
+        given()
+            .contentType("application/json")
+            .body("{\"email\":\"nobody@staynest.com\",\"password\":\"pass123\"}")
+        .when()
+            .post("/auth/login")
+        .then()
+            .statusCode(401);
+    }
+
+    @Test
+    public void accessProtectedEndpointWithoutToken_returns401() {
+        given()
+            // No Authorization header
+        .when()
+            .get("/users/profile")
+        .then()
+            .statusCode(401);
+    }
+
+    @Test
+    public void accessProtectedEndpointWithMalformedToken_returns401() {
+        given()
+            .header("Authorization", "Bearer not.a.valid.jwt.token")
+        .when()
+            .get("/users/profile")
+        .then()
+            .statusCode(401);
+    }
+
+    @Test
+    public void accessProtectedEndpointWithTamperedToken_returns401() {
+        // Get a valid token, then tamper with the payload
+        String validToken = AuthFactory.guest().getAccessToken();
+
+        // Change one character in the payload section (between the dots)
+        String[] parts = validToken.split("\\.");
+        String tamperedPayload = parts[1].substring(0, parts[1].length() - 1) + "X";
+        String tamperedToken = parts[0] + "." + tamperedPayload + "." + parts[2];
+
+        given()
+            .header("Authorization", "Bearer " + tamperedToken)
+        .when()
+            .get("/users/profile")
+        .then()
+            .statusCode(401);
+    }
+
+    // ======== AUTHORIZATION (403) TESTS ========
+
+    @Test
+    public void guestAccessingAdminEndpoint_returns403() {
+        String guestToken = AuthFactory.guest().getAccessToken();
+
+        given()
+            .header("Authorization", "Bearer " + guestToken)
+        .when()
+            .get("/admin/hotels")
+        .then()
+            .statusCode(403);  // Authenticated but wrong role
+    }
+
+    @Test
+    public void guestCreatingHotel_returns403() {
+        String guestToken = AuthFactory.guest().getAccessToken();
+        String hotelBody = """
+            {
+                "name": "Unauthorized Hotel",
+                "city": "Test City",
+                "photos": [],
+                "amenities": [],
+                "contactInfo": {
+                    "address": "123 St",
+                    "phoneNumber": "555-0000",
+                    "email": "test@test.com",
+                    "location": "Test"
+                }
+            }
+            """;
+
+        given()
+            .contentType("application/json")
+            .header("Authorization", "Bearer " + guestToken)
+            .body(hotelBody)
+        .when()
+            .post("/admin/hotels")
+        .then()
+            .statusCode(403);
+    }
+
+    @Test
+    public void managerAccessingOwnHotels_returns200() {
+        String managerToken = AuthFactory.manager().getAccessToken();
+
+        given()
+            .header("Authorization", "Bearer " + managerToken)
+        .when()
+            .get("/admin/hotels")
+        .then()
+            .statusCode(200);
+    }
+
+    // ======== TOKEN REFRESH TESTS ========
+
+    @Test
+    public void refreshWithValidCookie_returnsNewAccessToken() {
+        // First, login to get the refresh token cookie
+        Response loginResponse = given()
+            .contentType("application/json")
+            .body("{\"email\":\"guest@staynest.com\",\"password\":\"pass123\"}")
+        .when()
+            .post("/auth/login")
+        .then()
+            .statusCode(200)
+            .extract().response();
+
+        String refreshCookie = loginResponse.getCookie("refreshToken");
+        String originalToken = loginResponse.jsonPath().getString("data.accessToken");
+
+        // Use the refresh token to get a new access token
+        String newToken = given()
+            .cookie("refreshToken", refreshCookie)
+        .when()
+            .post("/auth/refresh")
+        .then()
+            .statusCode(200)
+            .body("data.accessToken", notNullValue())
+            .extract().jsonPath().getString("data.accessToken");
+
+        // New token should be different from the original
+        assert !newToken.equals(originalToken)
+            : "Refreshed token should be different from original";
+    }
+
+    @Test
+    public void refreshWithoutCookie_returns401() {
+        given()
+            // No refresh token cookie
+        .when()
+            .post("/auth/refresh")
+        .then()
+            .statusCode(401);
+    }
+
+    @Test
+    public void refreshWithInvalidCookie_returns401() {
+        given()
+            .cookie("refreshToken", "invalid-refresh-token")
+        .when()
+            .post("/auth/refresh")
+        .then()
+            .statusCode(401);
+    }
+}
+```
+
+### Using TokenManager in Other Test Classes
+
+
+```java
+import org.testng.annotations.BeforeClass;
+import org.testng.annotations.Test;
+import static io.restassured.RestAssured.*;
+import static org.hamcrest.Matchers.*;
+
+/**
+ * Demonstrates how other test classes consume the TokenManager.
+ * Tests never deal with login mechanics — they just request a token.
+ */
+public class HotelAdminTests {
+
+    private String managerToken;
+
+    @BeforeClass
+    public void setup() {
+        // TokenManager handles login, caching, and refresh automatically
+        managerToken = AuthFactory.manager().getAccessToken();
+    }
+
+    @Test
+    public void createHotel_withManagerToken_returns201() {
+        String hotelBody = """
+            {
+                "name": "Test Hotel",
+                "city": "Chicago",
+                "photos": [],
+                "amenities": ["WIFI"],
+                "contactInfo": {
+                    "address": "456 Oak Ave",
+                    "phoneNumber": "555-0200",
+                    "email": "test@staynest.com",
+                    "location": "Suburbs"
+                }
+            }
+            """;
+
+        given()
+            .contentType("application/json")
+            .header("Authorization", "Bearer " + managerToken)
+            .body(hotelBody)
+        .when()
+            .post("/admin/hotels")
+        .then()
+            .statusCode(201)
+            .body("data.name", equalTo("Test Hotel"));
+    }
+}
+```
+
+---
+
+## Failure and Debugging (Layer 4)
+
+### Failure 1: Token Expired Mid-Test Suite
+
+**The Problem:**
+
+
+```java
+// Token obtained in @BeforeClass, used 15 minutes later
+@BeforeClass
+public void setup() {
+    this.token = AuthFactory.guest().getAccessToken();
+    // Token is valid for 10 minutes
+}
+
+@Test(priority = 50)  // Runs 15 minutes into the suite
+public void laterTest() {
+    given()
+        .header("Authorization", "Bearer " + token)
+    .when()
+        .get("/users/profile")
+    .then()
+        .statusCode(200);  // FAILS — 401 Unauthorized!
+}
+```
+
+**Root cause:** StayNest access tokens expire after 10 minutes. If the test suite takes longer, early-obtained tokens become invalid. This is the #1 cause of "tests pass locally but fail in CI" for auth-related tests.
+
+**The fix:** Don't cache the raw token string. Use `TokenManager.getAccessToken()` which checks expiry and auto-refreshes:
+
+
+```java
+@Test
+public void laterTest() {
+    // getAccessToken() checks expiry every time and refreshes if needed
+    String freshToken = AuthFactory.guest().getAccessToken();
+
+    given()
+        .header("Authorization", "Bearer " + freshToken)
+    .when()
+        .get("/users/profile")
+    .then()
+        .statusCode(200);
+}
+```
+
+### Failure 2: "Bearer" Prefix Missing or Duplicated
+
+**The Problem:**
+
+
+```java
+// Missing the "Bearer " prefix
+given()
+    .header("Authorization", token)  // Wrong! Server expects "Bearer <token>"
+.when()
+    .get("/users/profile")
+.then()
+    .statusCode(200);  // FAILS — 401
+
+// Duplicating the prefix
+given()
+    .header("Authorization", "Bearer Bearer " + token)  // Double "Bearer"
+.when()
+    .get("/users/profile")
+.then()
+    .statusCode(200);  // FAILS — 401
+```
+
+**Root cause:** The `Authorization` header must contain exactly `"Bearer "` (with a space) followed by the token. Common mistakes: forgetting the prefix, double-prefixing when the token variable already includes "Bearer ", or missing the space.
+
+**The fix:** Centralize the header construction in the `TokenManager`:
+
+
+```java
+// In TokenManager
+public String getAuthHeader() {
+    return "Bearer " + getAccessToken();  // Always adds prefix correctly
+}
+
+// In tests — no room for error
+given()
+    .header("Authorization", AuthFactory.guest().getAuthHeader())
+```
+
+### Failure 3: Testing Wrong Role Combination
+
+**The Problem:**
+
+
+```java
+// Using a manager token when the test intends to verify guest behavior
+@Test
+public void guestCannotDeleteHotel() {
+    // BUG: accidentally using manager token!
+    String token = AuthFactory.manager().getAccessToken();
+
+    given()
+        .header("Authorization", "Bearer " + token)
+    .when()
+        .delete("/admin/hotels/1")
+    .then()
+        .statusCode(403);  // FAILS — 204! Manager CAN delete hotels.
+}
+```
+
+**Root cause:** The test uses the wrong role's token. The test name says "guest" but the code authenticates as a manager. This is a test bug, not an API bug.
+
+**The fix:** Name the token variable explicitly and review auth setup carefully:
+
+
+```java
+@Test
+public void guestCannotDeleteHotel() {
+    String guestToken = AuthFactory.guest().getAccessToken();  // Explicit role in name
+
+    given()
+        .header("Authorization", "Bearer " + guestToken)
+    .when()
+        .delete("/admin/hotels/1")
+    .then()
+        .statusCode(403);  // Correct — guests can't delete
+}
+```
+
+---
+
+## Engineering Judgment (Layer 5)
+
+### When to Test Auth at the API Level vs Trust It
+
+| Test This | Trust This (Don't Test) |
+|-----------|------------------------|
+| Correct role gets correct access (MANAGER → admin endpoints) | The JWT signing algorithm is cryptographically secure |
+| Wrong role is denied (GUEST → admin endpoints → 403) | The token generation logic produces valid Base64 |
+| Missing token is rejected (no header → 401) | Session cleanup timing in the auth server |
+| Expired tokens are rejected (wait for expiry → 401) | Password hashing implementation |
+| Refresh flow produces a new valid token | Database-level user lookup performance |
+
+**Principle:** Test the *behavior boundaries* (access granted/denied), not the *mechanism internals* (how the JWT is signed). Auth tests verify that the security gates work, not how the locks are manufactured.
+
+### Token Management Architecture Decisions
+
+| Decision | Option A | Option B | Recommendation |
+|----------|----------|----------|----------------|
+| Token storage | Per-test login (fresh token each time) | Shared `TokenManager` with caching | **Shared** — per-test login adds 200ms+ per test and hammers the auth endpoint |
+| Token refresh | Manual refresh when 401 detected | Auto-refresh before expiry (proactive) | **Proactive** — reactive refresh means the first request after expiry always fails |
+| Credentials source | Hardcoded in test code | Config file / environment variables | **Config** — hardcoded credentials are a security risk and break environment portability |
+| Thread safety | Single-threaded token manager | Thread-safe `TokenManager` with `synchronized` | **Thread-safe** if running tests in parallel. Use `synchronized` on `getAccessToken()` |
+
+### How Many Auth Tests Are Enough?
+
+A complete auth test matrix for one endpoint:
+
+| Scenario | Expected | Priority |
+|----------|----------|----------|
+| Valid token, correct role | 200/201/204 | **Must have** |
+| No token | 401 | **Must have** |
+| Expired token | 401 | **Must have** |
+| Valid token, wrong role | 403 | **Must have** |
+| Malformed token | 401 | Should have |
+| Tampered token | 401 | Should have |
+| Valid token, not resource owner | 403 | Should have (for owner-scoped endpoints) |
+
+**Don't repeat this for every endpoint.** Test auth comprehensively on 2-3 representative endpoints, then spot-check on others. The auth middleware is shared — if it works on `/admin/hotels`, it works on `/admin/hotels/{id}/rooms`.
+
+---
+
+## Interview and Revision (Layer 6)
+
+### Fundamental Questions
+
+**Q1: What is the difference between authentication and authorization?**
+
+**A:** Authentication verifies identity — "who are you?" It checks credentials (password, token) and either accepts or rejects them. A failure results in 401 Unauthorized. Authorization determines permissions — "what are you allowed to do?" It checks the authenticated user's roles/permissions against the requested action. A failure results in 403 Forbidden. In StayNest, sending a login request with the wrong password is an authentication failure (401). Sending a valid GUEST token to `POST /admin/hotels` is an authorization failure (403) — the server knows who you are but denies the action.
+
+**Q2: How does JWT work? Why is it considered stateless?**
+
+**A:** A JWT is three Base64-encoded parts: header (algorithm), payload (claims like user ID, roles, expiry), and signature (cryptographic proof of integrity). It's stateless because the server doesn't store session data — everything it needs to verify the user is inside the token itself. The server validates the signature using its secret key, checks the `exp` claim for expiry, and reads the `sub` and `roles` claims for identity and permissions. No database lookup is needed for authentication. This makes JWTs fast and scalable but means you can't revoke an individual token before expiry — you'd need a blacklist, which reintroduces state.
+
+**Q3: How do you handle token expiry in your test framework?**
+
+**A:** I use a `TokenManager` class that wraps the login/refresh logic. When a test calls `getAccessToken()`, the TokenManager checks if the cached token will expire within a 30-second buffer. If it's still valid, it returns the cached token. If it's about to expire, it calls the refresh endpoint using the stored refresh token cookie. If refresh fails (e.g., refresh token also expired), it re-authenticates with stored credentials. This means tests never deal with raw auth logic and never fail due to token expiry — the TokenManager handles it transparently.
+
+### Scenario-Based Questions
+
+**S1: "Your test logs in, gets a token, then immediately gets 401 on the next request. The same flow works in Postman. What's wrong?"**
+
+**A:** Several possibilities: (1) The `Authorization` header format is wrong — maybe missing `Bearer ` prefix or extra whitespace. I'd log the exact header being sent. (2) The base URL is different — the login hits server A, but the next request hits server B (different config). (3) Clock skew — the test machine's clock is ahead of the server, so the token's `iat` is in the "future" from the server's perspective and rejected. (4) REST Assured is URL-encoding the token — unlikely but I'd check. I'd use `.log().all()` in REST Assured to see the exact request being sent and compare it byte-for-byte with the Postman request.
+
+**S2: "Should you test auth on every endpoint, or is that redundant?"**
+
+**A:** Testing auth on every endpoint is overkill if the API uses centralized auth middleware (which most do, including StayNest's Spring Security). I'd test auth comprehensively — all scenarios (no token, expired, wrong role, not owner) — on 2-3 representative endpoints covering different access patterns: one public endpoint (should work without auth), one role-restricted endpoint (HOTEL_MANAGER only), and one owner-restricted endpoint (e.g., cancel own booking). For all other endpoints, I'd include a single "requires authentication" test (no token → 401) as a smoke check. If the middleware is misconfigured for a specific endpoint, the smoke check catches it.
+
+
+
+
+| # | Front (Question) | Back (Answer) |
+|---|---|---|
+| 1 | What are the three parts of a JWT? | Header (algorithm + type), Payload (claims: sub, email, roles, exp), Signature (cryptographic proof that the token hasn't been tampered with). |
+| 2 | Why use a 30-second buffer before token expiry? | To prevent race conditions where the token is valid when checked but expires between the check and the actual API call. The buffer ensures tokens are refreshed proactively. |
+| 3 | When do you get 401 vs 403 in StayNest? | 401: no token, expired token, invalid token (authentication failed). 403: valid token but wrong role (GUEST on admin endpoint) or not the resource owner (authorization failed). |
+| 4 | Why cache tokens in tests instead of logging in per-test? | Performance: each login call takes 200ms+. A 100-test suite with per-test login adds 20+ seconds of pure auth overhead. Caching tokens and refreshing proactively is both faster and more realistic. |
+| 5 | What makes OAuth 2.0 different from simple Bearer token auth? | OAuth 2.0 is a delegation framework — it lets a user grant limited access to an app without sharing credentials. The result is still a Bearer token, but the *flow* to obtain it involves authorization servers, scopes, and grants. |
+
+### Mastery Checklist
+
+- [ ] Can explain authentication vs authorization with a concrete 401 vs 403 example
+- [ ] Can decode a JWT payload manually (Base64) and identify each claim
+- [ ] Can implement a `TokenManager` that handles login, caching, expiry, and refresh
+- [ ] Can write comprehensive auth tests: valid, invalid, expired, wrong role, missing token
+- [ ] Can articulate why tokens should be cached in test suites (performance) but refreshed proactively (reliability)
+- [ ] Can explain OAuth 2.0 at a high level and name at least two grant types
+- [ ] Can diagnose common auth test failures: missing Bearer prefix, expired tokens, wrong role
+
+---
+
+**Next:** Schema Validation | **Related:** Status Codes Headers And Json
+
+*Last updated: *

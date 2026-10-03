@@ -1,0 +1,457 @@
+---
+title: "Test Design Techniques"
+description: "What: Test design techniques are systematic methods for deriving test cases from requirements. Instead of asking \"what should I test?\" and guessing, you apply a structured technique that tells you exactly which inputs, boundaries, states, and combinations to cover."
+summary: "SDET Engineering guide: Test Design Techniques"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "testing-foundations"
+lesson: "test-design-techniques"
+difficulty: "intermediate"
+estimatedMinutes: 30
+prerequisites: []
+tags: ["SDET", "Testing", "QA"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/testing-foundations/test-design-techniques"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Test Design Techniques
+
+> **Module:** 02 — Testing Foundations  
+> **Prerequisites:** Testing Principles, Test Levels And Pyramid  
+> **Mastery Target:** L3 (independent) — can apply any technique to a new feature and derive a complete test set without guidance
+
+---
+
+## Quick Overview (2-minute read)
+
+**What:** Test design techniques are systematic methods for deriving test cases from requirements. Instead of asking "what should I test?" and guessing, you apply a structured technique that tells you exactly which inputs, boundaries, states, and combinations to cover.
+
+**Why:** Intuition-based test design has two failure modes: you over-test obvious paths (20 tests for valid login) and under-test subtle ones (zero tests for leap year dates). Techniques replace guesswork with engineering. An SDET who can name and apply these techniques transforms from "I think we've tested enough" to "here's the mathematical proof that we've covered all equivalence classes and boundaries."
+
+**Where:** Every feature you test. Every test plan you write. Every code review where you evaluate test coverage. Every interview where you're asked "how would you test this?"
+
+<MentalModel>
+
+Think of test design techniques as different lenses for looking at the same feature. **Equivalence partitioning** is a wide-angle lens — it divides the world into groups and samples one from each. **Boundary value analysis** is a magnifying glass — it zooms in on the edges where bugs hide. **Decision tables** are a truth table — they map every combination of conditions to outcomes. **State transition testing** is a map — it traces every path an object can travel through its lifecycle. No single lens shows you everything. Use all four, and you have near-complete coverage.
+
+</MentalModel>
+
+
+<KeyTakeaways>
+
+1. Equivalence partitioning reduces infinite inputs to a manageable set of representative values.
+2. Boundary value analysis catches the off-by-one errors that equivalence partitioning misses.
+3. Decision tables ensure you don't miss condition combinations in complex business rules.
+4. State transition testing covers both valid paths and invalid transitions in lifecycle-based entities.
+5. Pairwise testing reduces combinatorial explosion when you have many independent parameters.
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation
+
+### Technique 1: Equivalence Partitioning (EP)
+
+**Definition:** Divide the input domain into classes (partitions) where all values within a class are expected to produce the same behavior. Test one representative value from each partition.
+
+**The logic:** If `guestCount = 2` and `guestCount = 3` are both valid for a property with capacity 4, then testing both is redundant — they exercise the same code path. Pick one. But `guestCount = 0` (below minimum) and `guestCount = 5` (above capacity) exercise *different* paths — you need a representative from each.
+
+**When to use:** Any input that has a range, a set of valid values, or categories of invalid values.
+
+**StayNest example — Password validation (minimum 6 characters):**
+
+| Partition | Values | Representative | Expected |
+|---|---|---|---|
+| Empty/null | `""`, `null` | `""` | 400 — "Password is required" |
+| Too short (1-5 chars) | `"a"`, `"ab"`, `"abc"`, `"abcd"`, `"abcde"` | `"abc"` | 400 — "Password must be at least 6 characters" |
+| Valid (6+ chars) | `"abcdef"`, `"password123"`, `"a very long password..."` | `"securePass1"` | 201 — success |
+
+**Result:** 3 tests cover the entire input space instead of testing every possible string.
+
+**Common mistakes:**
+- **Not identifying all partitions:** Forgetting the null/empty partition, or the "special characters" partition.
+- **Testing multiple values from the same partition:** Writing 5 tests with different valid passwords provides no additional coverage.
+- **Confusing EP with random sampling:** EP is systematic — every partition must have at least one test.
+
+---
+
+### Technique 2: Boundary Value Analysis (BVA)
+
+**Definition:** Bugs cluster at the edges of valid ranges. Test the boundary values: the exact minimum, the exact maximum, and the values immediately inside and outside the boundaries.
+
+**The classic 6-value boundary set:**
+
+For a range `[min, max]`:
+| Point | Value | Expected |
+|---|---|---|
+| Below minimum | `min - 1` | Invalid |
+| At minimum | `min` | Valid |
+| Just above minimum | `min + 1` | Valid |
+| Just below maximum | `max - 1` | Valid |
+| At maximum | `max` | Valid |
+| Above maximum | `max + 1` | Invalid |
+
+**When to use:** Whenever EP identifies a range. BVA complements EP by focusing specifically on the edges where off-by-one errors live.
+
+**StayNest example — Rooms count (min: 1, max: based on availability, let's say 5 available):**
+
+| Point | Value | Expected |
+|---|---|---|
+| Below minimum | `0` | 400 — "At least 1 room must be booked" |
+| At minimum | `1` | 201 — success |
+| Just above minimum | `2` | 201 — success |
+| Just below maximum | `4` | 201 — success |
+| At maximum | `5` | 201 — success |
+| Above maximum | `6` | 409 — "Room is not available anymore" |
+
+
+```java
+@ParameterizedTest
+@CsvSource({
+    "0, 400",   // below minimum
+    "1, 201",   // at minimum (boundary)
+    "2, 201",   // just above minimum
+    "4, 201",   // just below maximum
+    "5, 201",   // at maximum (boundary)
+    "6, 409"    // above maximum
+})
+void shouldEnforceRoomCountBoundaries(int roomsCount, int expectedStatus) {
+    // Setup: property with 5 available rooms
+    BookingRequest request = defaultBooking().withRoomsCount(roomsCount);
+    
+    Response response = bookingApi.initBooking(request, guestToken);
+    
+    assertThat(response.statusCode()).isEqualTo(expectedStatus);
+}
+```
+
+**Common mistakes:**
+- **Testing only the happy middle:** Testing `roomsCount = 3` but not `0`, `1`, `5`, or `6`.
+- **Forgetting the off-by-one points:** Testing `min` and `max` but not `min - 1` and `max + 1`.
+- **Not applying BVA to dates:** Date boundaries are the most common source of off-by-one bugs — check-in today vs. yesterday, 30-night stay vs. 31-night stay.
+
+---
+
+### Technique 3: Decision Tables
+
+**Definition:** For features with multiple interacting conditions, a decision table maps every meaningful combination of conditions to the expected outcome. Each column is a test case.
+
+**When to use:** Business rules with 2-4 interacting boolean conditions. If a booking depends on "is user authenticated?", "is room available?", "are dates valid?", and "is within capacity?", you need a decision table — not intuition.
+
+**StayNest example — "Can this booking be initialized?"**
+
+Conditions:
+1. User authenticated? (Y/N)
+2. User has GUEST role? (Y/N)
+3. Room available for all dates? (Y/N)
+4. Check-in date valid (today or future)? (Y/N)
+
+| Rule | Auth? | GUEST? | Available? | Valid dates? | Expected |
+|---|---|---|---|---|---|
+| R1 | Y | Y | Y | Y | 201 — booking created |
+| R2 | Y | Y | Y | N | 400 — invalid dates |
+| R3 | Y | Y | N | Y | 409 — room not available |
+| R4 | Y | Y | N | N | 400 — invalid dates (validated first) |
+| R5 | Y | N | Y | Y | 403 — forbidden (HOTEL_MANAGER can't book) |
+| R6 | N | — | — | — | 401 — unauthorized |
+
+**Key insight:** Rule R4 shows that when multiple conditions fail, validation order matters. The system checks dates before availability, so the first validation failure is returned.
+
+
+```java
+@ParameterizedTest
+@MethodSource("bookingDecisionData")
+void shouldEnforceBookingRulesCombinations(
+        String token, boolean roomAvailable, boolean validDates, int expectedStatus) {
+    
+    // Setup: configure room availability and date validity
+    int propertyId = roomAvailable 
+        ? testData.createAvailableProperty() 
+        : testData.createFullyBookedProperty();
+    
+    String checkIn = validDates ? tomorrow() : yesterday();
+    String checkOut = validDates ? dayAfterTomorrow() : today();
+    
+    BookingRequest request = BookingRequest.builder()
+        .propertyId(propertyId)
+        .checkIn(checkIn)
+        .checkOut(checkOut)
+        .roomsCount(1)
+        .build();
+    
+    Response response = bookingApi.initBooking(request, token);
+    
+    assertThat(response.statusCode()).isEqualTo(expectedStatus);
+}
+```
+
+**Common mistakes:**
+- **Not simplifying:** 4 boolean conditions = 16 combinations. Many are equivalent or impossible. Simplify by collapsing rules where conditions don't matter (e.g., if not authenticated, other conditions are irrelevant).
+- **Ignoring validation order:** When multiple conditions fail, which error is returned? The decision table should reflect priority.
+- **Over-applying:** Decision tables are for interacting conditions. If conditions are independent (validated separately), test them separately.
+
+---
+
+### Technique 4: State Transition Testing
+
+**Definition:** For entities that move through defined lifecycle states, map all valid transitions and test both valid transitions (should succeed) and invalid transitions (should be rejected).
+
+**When to use:** Any entity with a lifecycle — bookings, orders, user accounts, payment transactions, workflows.
+
+**StayNest example — Booking status lifecycle:**
+
+```
+  RESERVED ──(addGuests)──→ GUESTS_ADDED ──(initPayment)──→ PAYMENTS_PENDING
+     │                           │                                │
+     │                           │                                │
+     └───────(expire 10m)────────┴──────────(expire 10m)──────────┘
+                                                                  │
+                                                          (payment confirmed)
+                                                                  │
+                                                                  v
+                                                             CONFIRMED
+                                                                  │
+                                                            (cancel)
+                                                                  v
+                                                             CANCELLED
+```
+
+**Test derivation — Valid transitions:**
+
+| # | From State | Action | To State |
+|---|---|---|---|
+| 1 | (new) | `POST /bookings/init` | RESERVED |
+| 2 | RESERVED | `POST /bookings/{id}/addGuests` | GUESTS_ADDED |
+| 3 | GUESTS_ADDED | `POST /bookings/{id}/payments` | PAYMENTS_PENDING |
+| 4 | PAYMENTS_PENDING | Stripe webhook / auto-confirm | CONFIRMED |
+| 5 | CONFIRMED | `POST /bookings/{id}/cancel` | CANCELLED |
+| 6 | RESERVED | (10 min timeout) | EXPIRED |
+
+**Test derivation — Invalid transitions (must be rejected):**
+
+| # | From State | Action Attempted | Expected |
+|---|---|---|---|
+| 7 | CANCELLED | Cancel again | 409 — already cancelled |
+| 8 | EXPIRED | Add guests | 409 — booking has expired |
+| 9 | CONFIRMED | Add guests | 409 — not in RESERVED state |
+| 10 | RESERVED | Cancel | 409 — only confirmed bookings can be cancelled |
+| 11 | CANCELLED | Confirm | 409 — cannot transition |
+
+
+```java
+// Valid transition: RESERVED → GUESTS_ADDED
+@Test
+void shouldTransitionFromReservedToGuestsAdded() {
+    int bookingId = bookingApi.initBooking(validRequest, guestToken)
+        .jsonPath().getInt("id");
+    
+    Response response = bookingApi.addGuests(bookingId, guestList, guestToken);
+    
+    assertThat(response.statusCode()).isEqualTo(200);
+    assertThat(bookingApi.getStatus(bookingId, guestToken)).isEqualTo("GUESTS_ADDED");
+}
+
+// Invalid transition: RESERVED → CANCELLED (only CONFIRMED can be cancelled)
+@Test
+void shouldRejectCancellingReservedBooking() {
+    int bookingId = bookingApi.initBooking(validRequest, guestToken)
+        .jsonPath().getInt("id");
+    
+    Response response = bookingApi.cancelBooking(bookingId, guestToken);
+    
+    assertThat(response.statusCode()).isEqualTo(409);
+    assertThat(response.jsonPath().getString("error.message"))
+        .contains("Only confirmed bookings can be cancelled");
+}
+```
+
+**Common mistakes:**
+- **Testing only the happy path:** Testing RESERVED → ... → CONFIRMED and ignoring all the invalid transitions.
+- **Not testing terminal states:** Verifying that CANCELLED and EXPIRED are truly terminal — no action can move them to another state.
+- **Forgetting timeout transitions:** Expiry is a valid transition that happens without user action — it needs explicit testing.
+
+---
+
+### Technique 5: Pairwise / Combinatorial Testing
+
+**Definition:** When multiple independent parameters each have several values, testing all combinations is impractical. Pairwise testing ensures every pair of parameter values appears in at least one test case, dramatically reducing the number of tests.
+
+**When to use:** Search forms, filters, configuration options — any feature with 3+ parameters each having 3+ values.
+
+**StayNest example — Hotel search has these parameters:**
+
+| Parameter | Values |
+|---|---|
+| City | Tokyo, Paris, New York |
+| Room type | Standard, Deluxe, Suite |
+| Guest count | 1, 2, 4 |
+
+Full combinatorial: 3 × 3 × 3 = 27 test cases.
+
+Pairwise: every (city, room type), (city, guest count), and (room type, guest count) pair appears at least once:
+
+| # | City | Room Type | Guest Count |
+|---|---|---|---|
+| 1 | Tokyo | Standard | 1 |
+| 2 | Tokyo | Deluxe | 2 |
+| 3 | Tokyo | Suite | 4 |
+| 4 | Paris | Standard | 2 |
+| 5 | Paris | Deluxe | 4 |
+| 6 | Paris | Suite | 1 |
+| 7 | New York | Standard | 4 |
+| 8 | New York | Deluxe | 1 |
+| 9 | New York | Suite | 2 |
+
+**Result:** 9 tests instead of 27, while covering every pair of parameter values. Research shows pairwise testing catches 70-90% of combinatorial bugs.
+
+**Common mistakes:**
+- **Using pairwise when you need full coverage:** Payment flows and security-critical features may need all combinations, not just pairs.
+- **Manually generating pairwise sets:** Use tools like PICT (Microsoft), AllPairs, or online pairwise generators.
+
+---
+
+## Practical Implementation
+
+### Applying All Techniques to StayNest Booking Creation
+
+**Feature:** `POST /bookings/init` — initializes a new booking.
+
+#### Step 1: Equivalence Partitioning
+
+| Input | Partition | Representative | Expected |
+|---|---|---|---|
+| roomsCount | Below minimum (0 or negative) | `0` | 400 |
+| roomsCount | Valid (1 to available) | `2` | 201 |
+| roomsCount | Above available | `99` | 409 |
+| checkIn | Past date | `2024-01-01` | 400 |
+| checkIn | Today or future | `tomorrow` | 201 |
+| checkOut | Same as checkIn | `same as checkIn` | 400 |
+| checkOut | After checkIn | `checkIn + 3` | 201 |
+| hotelId | Non-existent | `99999` | 404 |
+| hotelId | Valid, existing | `seeded hotel` | 201 |
+
+#### Step 2: Boundary Value Analysis
+
+| Input | Boundary | Value | Expected |
+|---|---|---|---|
+| checkIn | Yesterday (just outside) | `today - 1` | 400 |
+| checkIn | Today (at boundary) | `today` | 201 |
+| checkIn | Tomorrow (just inside) | `today + 1` | 201 |
+| roomsCount | Zero (below min) | `0` | 400 |
+| roomsCount | One (at min) | `1` | 201 |
+| roomsCount | At max available | `totalCount` | 201 |
+| roomsCount | One above max | `totalCount + 1` | 409 |
+
+#### Step 3: Decision Table
+
+| Auth? | Room exists? | Dates valid? | Rooms available? | Expected |
+|---|---|---|---|---|
+| N | — | — | — | 401 |
+| Y | N | — | — | 404 |
+| Y | Y | N | — | 400 |
+| Y | Y | Y | N | 409 |
+| Y | Y | Y | Y | 201 |
+
+#### Step 4: State Transition
+
+After successful creation (201), verify:
+- Status is `RESERVED`
+- Can transition to `GUESTS_ADDED` via addGuests
+- Cannot be cancelled (must be `CONFIRMED` first)
+- Expires after 10 minutes of inactivity
+
+**Total unique test cases derived:** ~25-30 meaningful tests covering the full input space, boundary conditions, condition combinations, and state behavior — all from one endpoint.
+
+---
+
+## Failure and Debugging
+
+### When Techniques Reveal Gaps
+
+**Scenario:** You applied EP to guest count and tested `0`, `2`, and `6` for a capacity-4 property. All pass. Production bug: `guestCount = -1` crashes the system with an unhandled exception.
+
+**Root cause:** Your EP identified "below minimum" as a partition but chose `0` as representative. The code handles `0` (returns 400) but doesn't handle negative numbers (throws unhandled `NumberFormatException`).
+
+**Lesson:** When partitioning, consider whether the "invalid" partition has sub-partitions with different behavior. Negative numbers, zero, and very large numbers may each trigger different code paths.
+
+<BestPractice>
+
+**Prevention:** For numeric inputs, always test: negative, zero, minimum, valid middle, maximum, above maximum, and extremely large values.
+
+</BestPractice>
+
+
+---
+
+## Engineering Judgment
+
+### Which Technique When?
+
+| Situation | Primary Technique | Why |
+|---|---|---|
+| Single input with a range | EP + BVA | Covers the range and its edges |
+| Multiple interacting conditions | Decision Table | Catches missed combinations |
+| Entity with lifecycle states | State Transition | Covers valid and invalid transitions |
+| Many independent parameters | Pairwise | Reduces combinatorial explosion |
+| Complex input validation | EP + BVA first, then Decision Table | Layer techniques for depth |
+
+### When NOT to Over-Apply
+
+- **Don't build a decision table for a single condition.** If there's only one condition (authenticated or not), just write two tests.
+- **Don't use pairwise for 2 parameters.** With only 2 parameters, test all combinations — it's small enough.
+- **Don't treat these as checklists.** The techniques are thinking tools, not bureaucratic templates. Apply them to generate insight, not paperwork.
+
+---
+
+## Interview and Revision
+
+### Questions and Answers
+
+**Q1: You're given a date range picker with check-in and check-out dates. How do you design test cases?**
+
+**A:** I'd apply EP first: past dates, today, future dates for check-in; check-out before/same/after check-in. Then BVA on the boundaries: yesterday vs. today for check-in, same-day vs. next-day for minimum duration, 30 days vs. 31 days for maximum duration. I'd also consider special dates: leap year (Feb 29), month boundaries (Jan 31 to Feb 1), year boundaries (Dec 31 to Jan 1), and DST transitions.
+
+**Q2: When would you use a decision table instead of just testing each condition independently?**
+
+**A:** When conditions interact — when the expected outcome depends on the *combination* of conditions, not just individual ones. For example, a booking requires authentication AND a GUEST role AND valid dates AND available rooms. If I test each independently, I might miss that the system doesn't check availability when dates are invalid (which could be correct or a bug). The decision table forces me to think about every combination.
+
+
+
+
+**Flashcard 1**
+**Q:** What is equivalence partitioning and how many tests does it produce?
+**A:** Divide inputs into classes where all values behave the same. Test one representative per partition. For N partitions, you get N tests — one per partition.
+
+**Flashcard 2**
+**Q:** What are the 6 boundary values to test for a range [min, max]?
+**A:** min-1 (invalid), min (valid), min+1 (valid), max-1 (valid), max (valid), max+1 (invalid).
+
+**Flashcard 3**
+**Q:** When do you use state transition testing?
+**A:** When an entity has a lifecycle with defined states and transitions — bookings, orders, payments, accounts. Test all valid transitions AND all invalid transitions (attempts that should be rejected).
+
+### Mastery Checklist
+
+- [ ] Can apply equivalence partitioning to any input and identify all partitions including edge partitions
+- [ ] Can derive the 6-point boundary value set for any numeric or date range
+- [ ] Can build a decision table for a feature with 3-4 interacting conditions
+- [ ] Can draw a state transition diagram and derive both valid and invalid transition tests
+- [ ] Can explain when pairwise testing is appropriate and when full combinatorial is needed
+- [ ] Can combine all techniques to produce a comprehensive test set for a single feature
+- [ ] Can explain each technique in an interview with a StayNest example
+
+---
+
+**Next:** Risk Based Testing | **Related:** Test Levels And Pyramid

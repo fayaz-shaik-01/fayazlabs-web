@@ -1,0 +1,395 @@
+---
+title: "Linked Lists"
+description: "What: A linked list is a linear data structure where each element (node) contains data and a pointer to the next node. Unlike arrays, elements are not stored contiguously in memory."
+summary: "SDET Engineering guide: Linked Lists"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "dsa"
+lesson: "linked-lists"
+difficulty: "intermediate"
+estimatedMinutes: 30
+prerequisites: []
+tags: ["SDET", "DSA", "Algorithms"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/dsa/linked-lists"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Linked Lists
+
+> **Module:** 01-programming-foundations / dsa
+> **Prerequisites:** Complexity Analysis, Stacks And Queues
+> **Mastery Target:** L3
+
+---
+
+## Quick Overview (2-minute read)
+
+**What:** A linked list is a linear data structure where each element (node) contains data and a pointer to the next node. Unlike arrays, elements are not stored contiguously in memory.
+
+**Why:** Linked list problems test your ability to manipulate pointers — a skill that transfers to understanding references, object graphs, and iterator patterns. They appear frequently in interviews and teach careful edge-case thinking.
+
+**Where:** Interview problems, understanding Java's `LinkedList` internals, iterator patterns, undo/redo chains, middleware chains in test frameworks.
+
+<MentalModel>
+
+Think of a **treasure hunt** — each clue (node) tells you where the next clue is. You can only follow the chain forward (singly linked) or both directions (doubly linked). There's no "jump to clue #5" — you must follow the links.
+
+</MentalModel>
+
+
+<KeyTakeaways>
+
+1. **Singly linked:** Each node has `val` and `next`. Traversal is one-direction only.
+2. **Doubly linked:** Each node has `val`, `next`, and `prev`. Allows backward traversal.
+3. **Dummy head (sentinel node):** A fake node before the real head simplifies edge cases — you never need special logic for "what if the head changes."
+4. **No random access:** Getting element at index i is O(n), not O(1) like arrays.
+5. **Pointer manipulation is the core skill:** Drawing diagrams before coding is essential.
+
+</KeyTakeaways>
+
+
+---
+
+## Key Patterns and Techniques
+
+### Node Definition
+
+
+```java
+public class ListNode {
+    int val;
+    ListNode next;
+
+    ListNode(int val) {
+        this.val = val;
+        this.next = null;
+    }
+}
+```
+
+### Pattern 1: Dummy Head (Sentinel)
+
+
+```java
+// Without dummy head — need special case for head
+public ListNode removeElements(ListNode head, int val) {
+    while (head != null && head.val == val) {
+        head = head.next; // special case: head itself needs removal
+    }
+    ListNode curr = head;
+    while (curr != null && curr.next != null) {
+        if (curr.next.val == val) {
+            curr.next = curr.next.next;
+        } else {
+            curr = curr.next;
+        }
+    }
+    return head;
+}
+
+// With dummy head — uniform logic, no special case
+public ListNode removeElementsClean(ListNode head, int val) {
+    ListNode dummy = new ListNode(0);
+    dummy.next = head;
+    ListNode curr = dummy;
+    while (curr.next != null) {
+        if (curr.next.val == val) {
+            curr.next = curr.next.next;
+        } else {
+            curr = curr.next;
+        }
+    }
+    return dummy.next;
+}
+```
+
+### Pattern 2: Fast/Slow Pointers (Floyd's Algorithm)
+
+
+```java
+// Detect cycle: slow moves 1 step, fast moves 2 steps
+// If they meet, there's a cycle
+public boolean hasCycle(ListNode head) {
+    ListNode slow = head, fast = head;
+    while (fast != null && fast.next != null) {
+        slow = slow.next;
+        fast = fast.next.next;
+        if (slow == fast) return true;
+    }
+    return false;
+}
+
+// Find middle: when fast reaches end, slow is at middle
+public ListNode findMiddle(ListNode head) {
+    ListNode slow = head, fast = head;
+    while (fast != null && fast.next != null) {
+        slow = slow.next;
+        fast = fast.next.next;
+    }
+    return slow; // middle node
+}
+```
+
+### Pattern 3: Reverse a Linked List
+
+
+```java
+// Iterative reversal — the most important linked list operation
+public ListNode reverse(ListNode head) {
+    ListNode prev = null, curr = head;
+    while (curr != null) {
+        ListNode next = curr.next;  // save next
+        curr.next = prev;           // reverse pointer
+        prev = curr;                // advance prev
+        curr = next;                // advance curr
+    }
+    return prev; // new head
+}
+```
+
+**Draw this out:** Always trace through 3-4 nodes on paper before coding.
+
+---
+
+## Problems with Solutions
+
+### Problem 1: Reverse Linked List (LeetCode 206)
+
+**Task:** Reverse a singly linked list.
+
+**Hint:** Use three pointers: `prev`, `curr`, `next`. At each step, point curr.next backward to prev, then advance all three.
+
+
+
+
+```java
+public ListNode reverseList(ListNode head) {
+    ListNode prev = null, curr = head;
+    while (curr != null) {
+        ListNode next = curr.next;
+        curr.next = prev;
+        prev = curr;
+        curr = next;
+    }
+    return prev;
+}
+// Time: O(n) | Space: O(1)
+```
+
+
+
+### Problem 2: Linked List Cycle (LeetCode 141)
+
+**Task:** Determine if a linked list has a cycle.
+
+**Hint:** Floyd's fast/slow pointer. If fast catches slow, there's a cycle. If fast reaches null, no cycle.
+
+
+
+
+```java
+public boolean hasCycle(ListNode head) {
+    ListNode slow = head, fast = head;
+    while (fast != null && fast.next != null) {
+        slow = slow.next;
+        fast = fast.next.next;
+        if (slow == fast) return true;
+    }
+    return false;
+}
+// Time: O(n) | Space: O(1)
+```
+
+
+
+### Problem 3: Merge Two Sorted Lists (LeetCode 21)
+
+**Task:** Merge two sorted linked lists into one sorted list.
+
+**Hint:** Use a dummy head. Compare the fronts of both lists, attach the smaller one. Advance the pointer of the list you took from.
+
+
+
+
+```java
+public ListNode mergeTwoLists(ListNode l1, ListNode l2) {
+    ListNode dummy = new ListNode(0);
+    ListNode curr = dummy;
+
+    while (l1 != null && l2 != null) {
+        if (l1.val <= l2.val) {
+            curr.next = l1;
+            l1 = l1.next;
+        } else {
+            curr.next = l2;
+            l2 = l2.next;
+        }
+        curr = curr.next;
+    }
+    curr.next = (l1 != null) ? l1 : l2;
+    return dummy.next;
+}
+// Time: O(n + m) | Space: O(1)
+```
+
+
+
+### Problem 4: Remove Nth Node From End of List (LeetCode 19)
+
+**Task:** Remove the nth node from the end of the list in one pass.
+
+**Hint:** Use two pointers with a gap of n between them. When the fast pointer reaches the end, the slow pointer is right before the node to remove. Use a dummy head to handle removing the first node.
+
+
+
+
+```java
+public ListNode removeNthFromEnd(ListNode head, int n) {
+    ListNode dummy = new ListNode(0);
+    dummy.next = head;
+    ListNode fast = dummy, slow = dummy;
+
+    // Advance fast by n+1 steps to create gap
+    for (int i = 0; i <= n; i++) {
+        fast = fast.next;
+    }
+
+    // Move both until fast reaches end
+    while (fast != null) {
+        fast = fast.next;
+        slow = slow.next;
+    }
+
+    // slow.next is the node to remove
+    slow.next = slow.next.next;
+    return dummy.next;
+}
+// Time: O(n) — single pass | Space: O(1)
+```
+
+
+
+---
+
+## Common Mistakes
+
+### Mistake 1: NullPointerException from Not Checking `fast.next`
+
+
+```java
+// WRONG: if fast is null, fast.next throws NPE
+while (fast.next != null) {
+    fast = fast.next.next; // fast could become null, then .next crashes
+}
+
+// RIGHT: check both fast AND fast.next
+while (fast != null && fast.next != null) {
+    fast = fast.next.next;
+}
+```
+
+### Mistake 2: Losing the Reference to the Rest of the List
+
+
+```java
+// WRONG: overwrites curr.next before saving it
+curr.next = prev;
+curr = curr.next; // curr is now prev — you lost the original next!
+
+// RIGHT: save next BEFORE modifying the pointer
+ListNode next = curr.next;  // save reference first
+curr.next = prev;            // now safe to modify
+curr = next;                 // advance using saved reference
+```
+
+### Mistake 3: Not Using Dummy Head for Edge Cases
+
+
+```java
+// Without dummy, you need special handling when head itself is removed
+// This is error-prone. Always use dummy head for merge/remove problems.
+ListNode dummy = new ListNode(0);
+dummy.next = head;
+// ... work with dummy ...
+return dummy.next; // the real head (which may have changed)
+```
+
+---
+
+## Automation Connections
+
+| Concept | Automation Use Case |
+|---|---|
+| Linked list traversal | Middleware/filter chains in test frameworks (each filter points to next) |
+| Reverse | Reversing execution order for teardown steps |
+| Cycle detection | Detecting circular dependencies in test fixtures |
+| Merge sorted lists | Merging sorted test results from parallel execution |
+| Dummy head | Sentinel patterns in Page Object chains |
+
+
+```java
+// Example: Middleware chain for API test requests
+public class TestMiddleware {
+    private String name;
+    private TestMiddleware next;
+
+    public TestMiddleware(String name) {
+        this.name = name;
+    }
+
+    public TestMiddleware then(TestMiddleware next) {
+        this.next = next;
+        return next; // for chaining: auth.then(logging).then(retry)
+    }
+
+    public Response process(Request request) {
+        request = applyMiddleware(request);
+        if (next != null) {
+            return next.process(request);
+        }
+        return execute(request);
+    }
+}
+```
+
+---
+
+## Interview and Revision
+
+
+
+
+**Q:** What is the time complexity of accessing the nth element in a linked list vs an array?
+**A:** Linked list: O(n) — must traverse from head. Array: O(1) — direct index access.
+
+**Q:** What is a dummy head and why use it?
+**A:** A sentinel node placed before the real head. It eliminates special-case logic when the head might change (e.g., removing the first node or merging lists).
+
+**Q:** How does Floyd's cycle detection work?
+**A:** Slow pointer moves 1 step, fast pointer moves 2 steps. If there's a cycle, fast will eventually catch slow (they'll meet inside the cycle). If no cycle, fast reaches null.
+
+**Q:** What are the three variables you need to reverse a linked list iteratively?
+**A:** `prev` (starts null), `curr` (starts at head), `next` (saved before modifying `curr.next`). At each step: save next, reverse pointer, advance prev and curr.
+
+### Mastery Checklist
+
+- [ ] Can reverse a linked list iteratively without looking at reference
+- [ ] Can detect a cycle using Floyd's algorithm
+- [ ] Can merge two sorted lists with dummy head
+- [ ] Can use two-pointer gap technique (remove nth from end)
+- [ ] Can draw pointer diagrams before writing linked list code
+- [ ] Can explain linked list vs array trade-offs
+
+---
+
+**Next:** Recursion And Backtracking | **Related:** Stacks And Queues

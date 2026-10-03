@@ -1,0 +1,535 @@
+---
+title: "Flaky Tests"
+description: "What: A flaky test is a test that sometimes passes and sometimes fails without any change to the code under test. Same code, same test, different results. It is the single most corrosive problem in test automation."
+summary: "SDET Engineering guide: Flaky Tests"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "testing-foundations"
+lesson: "flaky-tests"
+difficulty: "intermediate"
+estimatedMinutes: 34
+prerequisites: []
+tags: ["SDET", "Testing", "QA"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/testing-foundations/flaky-tests"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Flaky Tests
+
+> **Module:** 02 — Testing Foundations  
+> **Prerequisites:** Isolation And Determinism, Assertions And Test Oracles  
+> **Mastery Target:** L3 (independent) — can diagnose, fix, and prevent flaky tests using a systematic framework
+
+---
+
+## Quick Overview (2-minute read)
+
+**What:** A flaky test is a test that sometimes passes and sometimes fails without any change to the code under test. Same code, same test, different results. It is the single most corrosive problem in test automation.
+
+**Why:** Flaky tests destroy trust. When a team learns that "that test is just flaky, re-run it," they stop investigating failures. Real bugs hide behind the noise. Engineers begin ignoring red builds, and the CI pipeline becomes a suggestion rather than a gate. Studies at Google found that flaky tests cost their engineering teams hundreds of thousands of hours per year in wasted investigation and re-runs.
+
+**Where:** CI pipelines, nightly regression suites, parallel test execution, E2E test suites, and any environment where tests run on infrastructure different from the developer's laptop.
+
+<MentalModel>
+
+Think of flaky tests as **car alarms in a parking lot**. The first time one goes off, everyone looks. The tenth time, everyone ignores it. The hundredth time, nobody notices when a real theft occurs. A flaky test is a car alarm that triggers randomly — it trains the team to ignore all alarms, including real ones.
+
+</MentalModel>
+
+
+<KeyTakeaways>
+
+1. A flaky test is not "just intermittent" — it has a root cause, and that root cause is always one of a known set of categories.
+2. The cost of a flaky test is not the re-run time — it's the erosion of trust in the entire test suite.
+3. Diagnosis follows a systematic framework: categorize, collect evidence, reproduce, fix, verify.
+4. If you can't fix a flaky test within a reasonable timebox, quarantine it — never leave it in the main suite.
+5. Prevention is cheaper than cure: isolation, explicit waits, unique data, and mocked externals prevent most flakiness.
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation
+
+### Root Cause Taxonomy
+
+Every flaky test has a root cause. The root causes fall into seven categories:
+
+---
+
+#### Category 1: Timing and Synchronization
+
+**Symptoms:** Test fails in CI but passes locally. Fails more often on slower machines. Fails intermittently on the same machine.
+
+**Root cause:** The test assumes an action completes within an implicit time window. A page renders, an API responds, a database writes — the test reads before the operation finishes.
+
+
+```java
+// FLAKY: assumes the confirmation message renders instantly
+@Test
+void shouldShowConfirmation() {
+    bookingPage.clickConfirm();
+    String message = driver.findElement(By.id("confirmation")).getText();
+    assertThat(message).isEqualTo("Booking confirmed!");
+    // Fails when rendering takes > 0ms (which is always, but sometimes fast enough)
+}
+```
+
+<BestPractice>
+
+**Fix:** Replace implicit timing assumptions with explicit waits for specific conditions.
+
+</BestPractice>
+
+
+
+```java
+// STABLE: waits for the specific element to contain expected text
+@Test
+void shouldShowConfirmation() {
+    bookingPage.clickConfirm();
+    WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
+    wait.until(ExpectedConditions.textToBePresentInElementLocated(
+        By.id("confirmation"), "Booking confirmed!"));
+    String message = driver.findElement(By.id("confirmation")).getText();
+    assertThat(message).isEqualTo("Booking confirmed!");
+}
+```
+
+<BestPractice>
+
+**Prevention:** Never use `Thread.sleep()`. Always wait for a condition, not a duration.
+
+</BestPractice>
+
+
+---
+
+#### Category 2: Shared Mutable State
+
+**Symptoms:** Test fails when run in parallel. Fails when test order changes. Passes in isolation.
+
+**Root cause:** Two tests read/write the same data — a database row, a file, a static variable, a browser session.
+
+<BestPractice>
+
+**Fix:** Each test creates and owns its data. Use unique identifiers (UUIDs, atomic counters) to prevent collisions.
+
+</BestPractice>
+
+
+<BestPractice>
+
+**Prevention:** Randomize test order in CI. Run tests in parallel early to catch shared state violations.
+
+</BestPractice>
+
+
+---
+
+#### Category 3: Environment Differences
+
+**Symptoms:** Passes on macOS, fails on Linux. Passes locally, fails in CI Docker container.
+
+**Root cause:** Differences in OS, timezone, locale, screen resolution, browser version, file system (case sensitivity), or available memory between the test-writing environment and the execution environment.
+
+<BestPractice>
+
+**Fix:** Pin the execution environment — use Docker containers with fixed timezone, locale, and browser version.
+
+</BestPractice>
+
+
+<BestPractice>
+
+**Prevention:** Run CI with the same container image developers use locally. Avoid system-dependent paths and encodings.
+
+</BestPractice>
+
+
+---
+
+#### Category 4: Test Order Dependency
+
+**Symptoms:** Passes when run after Test A. Fails when run first or in a different order.
+
+**Root cause:** Test relies on side effects from a previous test — data created, state set, cookies established.
+
+<BestPractice>
+
+**Fix:** Make each test self-contained. Use `@BeforeEach` to set up preconditions, not other tests.
+
+</BestPractice>
+
+
+<BestPractice>
+
+**Prevention:** Enable random test ordering (`@TestMethodOrder(MethodOrderer.Random.class)` in JUnit 5). If any test fails under random ordering, it has a hidden dependency.
+
+</BestPractice>
+
+
+---
+
+#### Category 5: External Service Dependency
+
+**Symptoms:** Fails during external service outages, high-latency periods, or rate-limiting windows.
+
+**Root cause:** Test calls a real external service (payment gateway, email API, geocoding service) that is not under your control.
+
+
+```java
+// FLAKY: depends on real Stripe sandbox availability
+@Test
+void shouldProcessPayment() {
+    Response response = paymentApi.charge(bookingId, realStripeToken);
+    assertThat(response.statusCode()).isEqualTo(200);
+    // Fails when Stripe sandbox is slow, down, or rate-limiting
+}
+```
+
+<BestPractice>
+
+**Fix:** Mock or stub external services for functional tests. Test real integrations in a separate, dedicated integration suite with higher tolerance for intermittent failures.
+
+</BestPractice>
+
+
+<BestPractice>
+
+**Prevention:** Default to mocked externals. Use contract tests to verify external service compatibility separately.
+
+</BestPractice>
+
+
+---
+
+#### Category 6: Resource Leaks
+
+**Symptoms:** First 50 tests pass, then tests start failing. Restarting the suite fixes it.
+
+**Root cause:** Tests leak resources — browser windows not closed, database connections not returned to pool, file handles not released. Eventually the system runs out.
+
+<BestPractice>
+
+**Fix:** Ensure cleanup in `@AfterEach` or `try-finally` blocks. Monitor resource usage during test runs.
+
+</BestPractice>
+
+
+<BestPractice>
+
+**Prevention:** Use framework-managed resource lifecycle (test containers that auto-close, browser contexts with auto-cleanup).
+
+</BestPractice>
+
+
+---
+
+#### Category 7: Date and Time Sensitivity
+
+**Symptoms:** Test fails on the 1st of the month, on New Year's Day, near midnight, or during DST transitions.
+
+**Root cause:** Test uses `LocalDate.now()` or `Instant.now()` and the result changes based on when the test runs.
+
+
+```java
+// FLAKY: fails on the last day of the month
+@Test
+void shouldAllowBookingForTomorrow() {
+    String tomorrow = LocalDate.now().plusDays(1).toString();
+    // On Jan 31: tomorrow is Feb 1, which may trigger month-boundary bugs
+    // On Dec 31: tomorrow is Jan 1 of next year — year boundary
+    BookingRequest request = defaultBooking().withCheckIn(tomorrow);
+    Response response = bookingApi.initBooking(request, guestToken);
+    assertThat(response.statusCode()).isEqualTo(201);
+}
+```
+
+<BestPractice>
+
+**Fix:** Use fixed dates that are unambiguously valid (e.g., a date 30 days in the future) or inject a controlled clock.
+
+</BestPractice>
+
+
+<BestPractice>
+
+**Prevention:** Never rely on `now()` for test inputs. Use dates far enough from boundaries that calendar math doesn't matter.
+
+</BestPractice>
+
+
+---
+
+### The Cost of Flaky Tests
+
+| Cost | Description |
+|---|---|
+| **Eroded trust** | Team stops believing failures are real. "Just re-run it" becomes the default. |
+| **Hidden bugs** | Real failures are dismissed as flakiness. Bugs ship to production. |
+| **Wasted time** | Engineers spend 15-30 minutes investigating each flaky failure before concluding "it's flaky." |
+| **Slower CI** | Re-running failed tests adds minutes to every build. Some teams auto-retry 3x. |
+| **Pipeline paralysis** | Teams disable failing tests rather than fixing them. Test coverage silently decreases. |
+| **Morale** | Nothing demoralizes an SDET faster than spending a week fixing flaky tests that someone else introduced. |
+
+---
+
+### Diagnosis Framework
+
+For any flaky test, follow these steps:
+
+```
+1. CATEGORIZE: Which of the 7 categories does the symptom suggest?
+   → Timing? Shared state? Environment? Order? External? Resource? Date?
+
+2. COLLECT EVIDENCE:
+   → Run the test 50 times in CI. Record pass/fail ratio.
+   → Check CI logs for timestamps, error messages, stack traces.
+   → Compare passing and failing runs — what differs?
+
+3. REPRODUCE:
+   → Run locally with CI-equivalent settings (timezone, parallelism).
+   → If timing-related, add artificial latency to simulate slow conditions.
+   → If order-related, run the specific test pair that reveals the dependency.
+
+4. FIX:
+   → Apply the category-specific fix (see table above).
+   → Fix the root cause, not the symptom. Never add Thread.sleep() as a fix.
+
+5. VERIFY:
+   → Run the test 100 times after the fix. Zero failures = fixed.
+   → Monitor the test in CI for 1-2 weeks to confirm stability.
+```
+
+---
+
+### Quarantine Strategy
+
+When a flaky test can't be fixed immediately:
+
+1. **Move it out of the main suite** into a `@Tag("quarantine")` group that doesn't block CI.
+2. **Create a ticket** with the diagnosis so far, the category, and evidence collected.
+3. **Set a deadline:** fix within 2 sprints or delete the test.
+4. **Track metrics:** number of quarantined tests, age of quarantined tests, fix rate.
+5. **Never leave quarantined tests indefinitely.** A quarantine that grows without shrinking is a test suite that's slowly dying.
+
+---
+
+## Practical Implementation
+
+### Diagnosing 3 Flaky Test Scenarios
+
+#### Scenario 1: "Search results count assertion fails intermittently"
+
+
+```java
+@Test
+void shouldReturnSearchResults() {
+    searchApi.indexProperty(newProperty);  // Index a new property
+    Response response = searchApi.search("Tokyo");
+    assertThat(response.jsonPath().getList("results").size()).isGreaterThan(0);
+    // Fails ~20% of the time
+}
+```
+
+**Diagnosis:** Category 1 (Timing). The search index is eventually consistent — the property is indexed asynchronously. The search may execute before indexing completes.
+
+**Evidence:** Passing runs have a slightly longer gap between indexing and searching. Failing runs execute the search within milliseconds of indexing.
+
+<BestPractice>
+
+**Fix:** Poll the search endpoint until the indexed property appears, with a timeout.
+
+</BestPractice>
+
+
+
+```java
+@Test
+void shouldReturnSearchResultsAfterIndexing() {
+    Property property = searchApi.indexProperty(newProperty);
+
+    // Poll until indexed (max 10 seconds)
+    await().atMost(Duration.ofSeconds(10))
+        .pollInterval(Duration.ofMillis(500))
+        .untilAsserted(() -> {
+            Response response = searchApi.search("Tokyo");
+            assertThat(response.jsonPath().getList("results"))
+                .extracting("id")
+                .contains(property.getId());
+        });
+}
+```
+
+---
+
+#### Scenario 2: "Booking creation test fails when run in parallel"
+
+
+```java
+@Test
+void shouldCreateBookingForPropertyAlpha() {
+    BookingRequest request = defaultBooking().withPropertyId(101);
+    Response response = bookingApi.initBooking(request, guestToken);
+    assertThat(response.statusCode()).isEqualTo(201);
+    // Fails with 409 "Room not available" when run in parallel
+}
+```
+
+**Diagnosis:** Category 2 (Shared state). Multiple parallel tests book the same property (ID 101). When one test books the last room, the other gets a 409.
+
+**Evidence:** Passes in sequential execution. Fails in parallel. Error message references availability.
+
+<BestPractice>
+
+**Fix:** Each test creates its own property with guaranteed availability.
+
+</BestPractice>
+
+
+
+```java
+@Test
+void shouldCreateBookingForDedicatedProperty() {
+    int propertyId = testDataApi.createPropertyWithRooms(5);
+    BookingRequest request = defaultBooking().withPropertyId(propertyId);
+    Response response = bookingApi.initBooking(request, guestToken);
+    assertThat(response.statusCode()).isEqualTo(201);
+}
+```
+
+---
+
+#### Scenario 3: "Login test fails on the first of each month"
+
+
+```java
+@Test
+void shouldLoginAndDisplayWelcomeMessage() {
+    loginPage.login("guest@staynest.com", "password123");
+    String welcome = dashboardPage.getWelcomeMessage();
+    assertThat(welcome).isEqualTo("Welcome back! You have 3 upcoming bookings.");
+    // Fails on the 1st of each month
+}
+```
+
+**Diagnosis:** Category 7 (Date/time). The booking count changes monthly — expired bookings from the previous month reduce the "upcoming" count. The hardcoded expected value `3` is only correct during the month the test was written.
+
+**Evidence:** Fails consistently on the 1st. The actual count is `2` after one booking expired.
+
+<BestPractice>
+
+**Fix:** Assert the structure and positivity of the message, not the exact count. Or create test-specific bookings with far-future dates.
+
+</BestPractice>
+
+
+
+```java
+@Test
+void shouldLoginAndDisplayWelcomeMessage() {
+    // Create bookings with dates guaranteed to be in the future
+    String token = createUserWithFutureBookings(3);
+    loginPage.loginWithToken(token);
+    String welcome = dashboardPage.getWelcomeMessage();
+    assertThat(welcome).matches("Welcome back! You have \\d+ upcoming bookings?\\.");
+    assertThat(dashboardPage.getUpcomingBookingCount()).isEqualTo(3);
+}
+```
+
+---
+
+## Failure and Debugging
+
+### The Re-Run Trap
+
+**Scenario:** Your CI pipeline has a "retry failed tests" feature. A flaky test fails, gets retried, passes on the second try, and the build goes green. Everyone is happy.
+
+**Why this is dangerous:** The flaky test is still flaky. The retry just masks it. The root cause persists. One day, the retry itself will fail (the flakiness rate increases as the system grows), and now you have a test that "just started failing" even though it's been broken for months. Meanwhile, any real bug that this test could catch is hidden behind the retry noise.
+
+**Rule:** Retries are an emergency band-aid, never a permanent fix. Every retried test should generate a ticket for root cause investigation.
+
+---
+
+## Engineering Judgment
+
+### Fix, Quarantine, or Delete?
+
+| Situation | Action | Rationale |
+|---|---|---|
+| Root cause is clear, fix is &lt; 1 hour | **Fix** | Cheap to fix, high value in keeping the test. |
+| Root cause requires infrastructure change | **Quarantine + ticket** | Fix needs more time; don't block CI. |
+| Test covers a low-risk feature | **Delete** | Maintenance cost exceeds the test's value. |
+| Test has been quarantined for 3+ sprints | **Delete** | If nobody has fixed it in 6 weeks, nobody will. |
+| Same test has been fixed 3 times and reflakes | **Redesign** | The test approach is fundamentally wrong. Rewrite from scratch at a different level. |
+
+### Prevention Checklist
+
+Before merging any new test, review it for flakiness risk:
+
+- [ ] No `Thread.sleep()` or implicit timing assumptions
+- [ ] No shared mutable state (static variables, shared DB rows, shared files)
+- [ ] No dependency on external services without mocking
+- [ ] No use of `LocalDate.now()` or `Instant.now()` for test inputs
+- [ ] No dependency on test execution order
+- [ ] Proper cleanup in `@AfterEach` for any resources created
+- [ ] Explicit waits for all asynchronous operations
+
+---
+
+## Interview and Revision
+
+### Questions and Answers
+
+**Q1: What is a flaky test and how do you handle it?**
+
+**A:** A flaky test passes and fails intermittently with no code change. I handle it with a systematic framework: categorize the root cause (timing, shared state, environment, order, external service, resource leak, or date/time), collect evidence (run 50 times, compare passing vs. failing logs), reproduce the failure locally, fix the root cause, then verify by running 100 times with zero failures. If I can't fix it quickly, I quarantine it out of the main suite with a ticket and a 2-sprint deadline to fix or delete.
+
+**Q2: What's wrong with adding `Thread.sleep(5000)` to fix a flaky test?**
+
+**A:** `Thread.sleep()` doesn't fix flakiness — it reduces the probability of failure. If the operation takes 6 seconds on a slow day, the test flakes again. It also unconditionally wastes 5 seconds even when the operation completes in 100ms. The correct fix is an explicit wait that polls for a specific condition — it returns as soon as the condition is met, and fails with a clear timeout message if it's not met within the limit.
+
+**Q3: Your CI has 15 quarantined tests. What do you do?**
+
+**A:** I'd audit the quarantine: sort by age, categorize root causes, and prioritize. Tests quarantined for more than 3 sprints get a hard decision — fix this sprint or delete. For remaining tests, I'd batch them by root cause category (e.g., 5 are timing issues, 4 are shared state) and fix them as a group since the fix pattern is similar. I'd set a target: quarantine should never exceed 5 tests, and the average age should be under 2 sprints.
+
+
+
+
+**Flashcard 1**
+**Q:** Name the 7 root cause categories for flaky tests.
+**A:** Timing/synchronization, shared mutable state, environment differences, test order dependency, external service dependency, resource leaks, date/time sensitivity.
+
+**Flashcard 2**
+**Q:** What is the flaky test diagnosis framework?
+**A:** Categorize (which of the 7 categories?) → Collect evidence (run 50 times, compare logs) → Reproduce (simulate CI conditions locally) → Fix (address root cause, not symptom) → Verify (run 100 times, zero failures).
+
+**Flashcard 3**
+**Q:** When should you delete a flaky test instead of fixing it?
+**A:** When the test covers low-risk functionality and the fix cost exceeds the test's value, or when the test has been quarantined for 3+ sprints without a fix, or when the same test has reflaked after being fixed multiple times (indicating the approach is fundamentally wrong).
+
+### Mastery Checklist
+
+- [ ] Can classify any flaky test into one of the 7 root cause categories based on symptoms
+- [ ] Can apply the 5-step diagnosis framework to investigate a flaky failure
+- [ ] Can fix timing-related flakiness using explicit waits instead of sleeps
+- [ ] Can fix shared-state flakiness using unique test data and isolation strategies
+- [ ] Can implement a quarantine strategy with tracking and deadlines
+- [ ] Can review a new test for flakiness risk before it's merged
+- [ ] Can explain the cost of flaky tests and the diagnosis approach in an interview
+
+---
+
+**Next:** Test Data Management | **Related:** Isolation And Determinism

@@ -1,0 +1,730 @@
+---
+title: "Framework Extensibility"
+description: "What: Framework extensibility is the ability to add new capabilities — new tools, new behaviors, new integrations — without modifying existing code. It means the framework has well-defined extension points (listeners, hooks, interceptors, plugins) that new functionality plugs into, rather than a monolithic codebase that must be edited for every new requirement."
+summary: "SDET Engineering guide: Framework Extensibility"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "framework-engineering"
+lesson: "framework-extensibility"
+difficulty: "intermediate"
+estimatedMinutes: 47
+prerequisites: []
+tags: ["SDET", "Framework", "Architecture"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/framework-engineering/framework-extensibility"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Framework Extensibility
+
+> **Module:** 03 — Framework Engineering > Framework Extensibility  
+> **Prerequisites:** Framework Architecture, Interfaces And Composition, Design Patterns  
+> **Mastery Target:** L3 (Independent) → L4 (Engineering Judgment)
+
+---
+
+## Quick Overview (Layer 1)
+
+**What:** Framework extensibility is the ability to add new capabilities — new tools, new behaviors, new integrations — without modifying existing code. It means the framework has well-defined extension points (listeners, hooks, interceptors, plugins) that new functionality plugs into, rather than a monolithic codebase that must be edited for every new requirement.
+
+**Why it matters:** A framework that can't be extended becomes a bottleneck. When the team needs to add Playwright alongside Selenium, integrate a new reporting tool, add custom test categorization, or support a new environment — an extensible framework handles these through new classes that implement existing interfaces. An inextensible framework requires modifying core classes, risking regression in every existing test.
+
+**Where you encounter it:** TestNG listeners (`ITestListener`, `ISuiteListener`, `IMethodInterceptor`), JUnit 5 extensions (`BeforeEachCallback`, `TestWatcher`), custom annotations (`@Smoke`, `@Regression`, `@Environment`), plugin architectures for adding tool support, and any framework decision about "how do we add X without breaking Y."
+
+<MentalModel>
+
+Think of extensibility like **electrical outlets in a house**. A well-designed house has outlets in every room (extension points). When you buy a new appliance (new capability), you plug it in. You don't rewire the house. A house without outlets forces you to splice into existing wiring every time you need something new — dangerous, error-prone, and it affects every other appliance on the circuit. Framework extension points are the outlets.
+
+</MentalModel>
+
+
+<KeyTakeaways>
+
+1. **The open/closed principle drives extensible design** — framework classes should be open for extension (via interfaces, listeners, hooks) but closed for modification (existing code doesn't change when new features are added).
+2. **Listeners are the primary extension mechanism in TestNG/JUnit** — they let you add behavior at any point in the test lifecycle without touching test classes.
+3. **Custom annotations create a domain-specific vocabulary** — `@Smoke`, `@Regression`, `@Environment("staging")` make tests self-documenting and filterable.
+4. **Plugin architecture separates tool support from framework core** — adding Playwright doesn't require modifying the Selenium integration.
+5. **Extensibility has a cost** — every extension point is an abstraction that increases complexity. Add them when you have a real need, not speculatively.
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation (Layer 2)
+
+### The Open/Closed Principle in Test Frameworks
+
+The open/closed principle (OCP) states: software entities should be open for extension but closed for modification. In a test framework, this means:
+
+**Open for extension:** Adding a new reporting tool, a new browser, a new test category, or a new failure handling strategy should be possible by writing new code — a new class that implements an existing interface.
+
+**Closed for modification:** Existing framework classes (`BaseTest`, `DriverFactory`, `ConfigManager`) should not need editing when new capabilities are added.
+
+**Example of violation:**
+
+
+```java
+// Every time we add a new browser, we modify this class
+public class DriverFactory {
+    public static WebDriver createDriver(String browser) {
+        switch (browser) {
+            case "chrome": return new ChromeDriver();
+            case "firefox": return new FirefoxDriver();
+            // Adding Safari means modifying this class — OCP violation
+            case "safari": return new SafariDriver();
+            default: throw new IllegalArgumentException("Unknown browser: " + browser);
+        }
+    }
+}
+```
+
+**Example of compliance (strategy pattern):**
+
+
+```java
+// Define the contract
+public interface BrowserProvider {
+    WebDriver createDriver(ConfigManager config);
+    String getBrowserName();
+}
+
+// Each browser is a separate class — adding a new one doesn't touch existing code
+public class ChromeProvider implements BrowserProvider {
+    @Override
+    public String getBrowserName() { return "chrome"; }
+
+    @Override
+    public WebDriver createDriver(ConfigManager config) {
+        ChromeOptions options = new ChromeOptions();
+        if (config.isHeadless()) options.addArguments("--headless");
+        return new ChromeDriver(options);
+    }
+}
+
+public class FirefoxProvider implements BrowserProvider {
+    @Override
+    public String getBrowserName() { return "firefox"; }
+
+    @Override
+    public WebDriver createDriver(ConfigManager config) {
+        FirefoxOptions options = new FirefoxOptions();
+        if (config.isHeadless()) options.addArguments("-headless");
+        return new FirefoxDriver(options);
+    }
+}
+
+// Factory discovers providers — no modification when adding SafariProvider
+public class DriverFactory {
+    private static final Map<String, BrowserProvider> providers = new HashMap<>();
+
+    public static void register(BrowserProvider provider) {
+        providers.put(provider.getBrowserName(), provider);
+    }
+
+    public static WebDriver createDriver(String browser, ConfigManager config) {
+        BrowserProvider provider = providers.get(browser);
+        if (provider == null) {
+            throw new IllegalArgumentException(
+                "No provider registered for browser: " + browser
+                + ". Available: " + providers.keySet()
+            );
+        }
+        return provider.createDriver(config);
+    }
+}
+```
+
+Adding Safari now means creating `SafariProvider implements BrowserProvider` and calling `DriverFactory.register(new SafariProvider())`. No existing class changes.
+
+### TestNG Listeners — The Extension Backbone
+
+TestNG provides listener interfaces for every phase of the test lifecycle. Listeners are the primary way to add cross-cutting behavior without modifying test classes.
+
+| Listener Interface | Fires When | Use Cases |
+|-------------------|-----------|-----------|
+| `ITestListener` | Before/after each test method, on pass/fail/skip | Screenshot on failure, diagnostic collection, custom logging |
+| `ISuiteListener` | Before/after the entire suite | Global setup (start Grid), final reporting, resource cleanup |
+| `IMethodInterceptor` | Before test methods are scheduled | Reorder tests, filter by annotation, prioritize smoke tests |
+| `IAnnotationTransformer` | When annotations are read | Dynamically set retry analyzer, modify test groups at runtime |
+| `IInvokedMethodListener` | Before/after each invocation (including config methods) | Timing, audit logging for setup/teardown methods |
+| `IReporter` | After all tests complete | Custom report generation (HTML, JSON, Slack notification) |
+
+**Registering listeners:**
+
+```xml
+<!-- testng.xml — declarative registration -->
+<suite name="Suite">
+    <listeners>
+        <listener class-name="com.company.listeners.FailureDiagnosticsListener"/>
+        <listener class-name="com.company.listeners.RetryTransformer"/>
+        <listener class-name="com.company.listeners.ExecutionTimingListener"/>
+    </listeners>
+</suite>
+```
+
+### JUnit 5 Extensions
+
+JUnit 5 uses a different extension model — composable, annotation-driven extensions:
+
+| Extension Interface | Purpose | TestNG Equivalent |
+|-------------------|---------|------------------|
+| `BeforeEachCallback` | Run logic before each test method | `IInvokedMethodListener` / `@BeforeMethod` |
+| `AfterEachCallback` | Run logic after each test method | `IInvokedMethodListener` / `@AfterMethod` |
+| `TestWatcher` | React to test outcomes (pass/fail/skip) | `ITestListener` |
+| `ParameterResolver` | Inject parameters into test methods | `@DataProvider` / `IAnnotationTransformer` |
+| `ExecutionCondition` | Conditionally skip tests | `IMethodInterceptor` |
+
+**Example — JUnit 5 TestWatcher for failure diagnostics:**
+
+
+```java
+import org.junit.jupiter.api.extension.ExtensionContext;
+import org.junit.jupiter.api.extension.TestWatcher;
+
+public class DiagnosticsExtension implements TestWatcher {
+
+    @Override
+    public void testFailed(ExtensionContext context, Throwable cause) {
+        // Capture screenshot, page source, console logs
+        WebDriver driver = DriverManager.getDriver();
+        if (driver != null) {
+            ScreenshotUtils.capture(driver, context.getDisplayName());
+            PageSourceUtils.capture(driver, context.getDisplayName());
+        }
+    }
+
+    @Override
+    public void testSuccessful(ExtensionContext context) {
+        // Optional: log execution time for performance tracking
+    }
+}
+```
+
+```java
+// Apply to a test class
+@ExtendWith(DiagnosticsExtension.class)
+public class LoginTest extends BaseTest {
+    // diagnostics captured automatically on failure
+}
+```
+
+### Custom Annotations
+
+Custom annotations create a domain-specific vocabulary for your test suite. Instead of using generic TestNG groups (`groups = {"smoke"}`), you create purpose-built annotations that are type-safe, self-documenting, and enforceable by tooling.
+
+**Why custom annotations over groups:**
+
+| Approach | Pros | Cons |
+|---------|------|------|
+| `@Test(groups = {"smoke"})` | Built-in, no setup | String-based (typos compile), no IDE support |
+| `@Smoke` (custom annotation) | Type-safe, IDE autocomplete, composable | Requires annotation + listener implementation |
+
+### Plugin Architecture
+
+When a framework needs to support multiple tools (Selenium + Playwright, REST Assured + HttpClient), a plugin architecture prevents tool-specific code from polluting the core:
+
+```
+Framework Core (interfaces, lifecycle, config)
+  ├── selenium-plugin (SeleniumDriverProvider, SeleniumPageBase)
+  ├── playwright-plugin (PlaywrightBrowserProvider, PlaywrightPageBase)
+  ├── restassured-plugin (RestAssuredApiClient)
+  └── reporting-plugin (AllureReporter, ExtentReporter)
+```
+
+Each plugin implements core interfaces. The framework core doesn't import any tool-specific classes. Adding a new tool means creating a new plugin module — zero changes to core or other plugins.
+
+---
+
+## Practical Implementation (Layer 3)
+
+### Example 1: Three Custom Annotations with Corresponding Listeners
+
+**Step 1 — Define the annotations:**
+
+
+```java
+import java.lang.annotation.*;
+
+/** Marks a test as part of the smoke test suite. */
+@Retention(RetentionPolicy.RUNTIME)
+@Target(ElementType.METHOD)
+public @interface Smoke {}
+
+/** Marks a test as part of the regression suite. */
+@Retention(RetentionPolicy.RUNTIME)
+@Target(ElementType.METHOD)
+public @interface Regression {}
+
+/** Restricts a test to specific environments. */
+@Retention(RetentionPolicy.RUNTIME)
+@Target(ElementType.METHOD)
+public @interface Environment {
+    String[] value();  // e.g., @Environment({"staging", "production"})
+}
+```
+
+**Step 2 — Create a method interceptor that filters tests based on annotations:**
+
+
+```java
+import org.testng.IMethodInstance;
+import org.testng.IMethodInterceptor;
+import org.testng.ITestContext;
+
+import java.lang.reflect.Method;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+
+/**
+ * Filters test methods based on custom annotations and system properties.
+ *
+ * Usage:
+ *   mvn test -Dsuite.type=smoke          → runs only @Smoke tests
+ *   mvn test -Dsuite.type=regression     → runs only @Regression tests
+ *   mvn test -Dtarget.env=staging        → runs tests compatible with staging
+ *
+ * Register in testng.xml as a listener.
+ */
+public class AnnotationMethodInterceptor implements IMethodInterceptor {
+
+    @Override
+    public List<IMethodInstance> intercept(List<IMethodInstance> methods,
+                                           ITestContext context) {
+        String suiteType = System.getProperty("suite.type", "all");
+        String targetEnv = System.getProperty("target.env", "");
+
+        List<IMethodInstance> filtered = new ArrayList<>();
+
+        for (IMethodInstance methodInstance : methods) {
+            Method method = methodInstance.getMethod().getConstructorOrMethod().getMethod();
+
+            // Filter by suite type
+            if (!matchesSuiteType(method, suiteType)) continue;
+
+            // Filter by environment
+            if (!matchesEnvironment(method, targetEnv)) continue;
+
+            filtered.add(methodInstance);
+        }
+
+        return filtered;
+    }
+
+    private boolean matchesSuiteType(Method method, String suiteType) {
+        if ("all".equalsIgnoreCase(suiteType)) return true;
+        if ("smoke".equalsIgnoreCase(suiteType)) return method.isAnnotationPresent(Smoke.class);
+        if ("regression".equalsIgnoreCase(suiteType)) return method.isAnnotationPresent(Regression.class);
+        return true;  // unknown suite type → include everything
+    }
+
+    private boolean matchesEnvironment(Method method, String targetEnv) {
+        if (targetEnv == null || targetEnv.isBlank()) return true;  // no env filter → include all
+
+        Environment envAnnotation = method.getAnnotation(Environment.class);
+        if (envAnnotation == null) return true;  // no @Environment → runs everywhere
+
+        return Arrays.asList(envAnnotation.value()).contains(targetEnv);
+    }
+}
+```
+
+**Step 3 — Use in tests:**
+
+
+```java
+public class LoginTest extends BaseTest {
+
+    @Test
+    @Smoke
+    @Environment({"staging", "production"})
+    public void shouldLoginWithValidCredentials() {
+        // Runs in smoke suite, on staging and production
+        LoginPage loginPage = new LoginPage(getDriver());
+        loginPage.loginAs(config.getTestUser(), config.getTestPassword());
+        assertThat(loginPage.isLoggedIn()).isTrue();
+    }
+
+    @Test
+    @Regression
+    @Environment({"staging"})
+    public void shouldShowErrorForExpiredPassword() {
+        // Runs in regression suite, only on staging (needs test data not in production)
+        LoginPage loginPage = new LoginPage(getDriver());
+        loginPage.loginAs("expired-user@test.com", "OldPassword123!");
+        assertThat(loginPage.getErrorMessage()).contains("password has expired");
+    }
+
+    @Test
+    @Smoke
+    @Regression
+    public void shouldDisplayLoginPageElements() {
+        // Runs in both smoke and regression, on all environments
+        LoginPage loginPage = new LoginPage(getDriver());
+        assertThat(loginPage.isUsernameFieldVisible()).isTrue();
+        assertThat(loginPage.isPasswordFieldVisible()).isTrue();
+        assertThat(loginPage.isLoginButtonVisible()).isTrue();
+    }
+}
+```
+
+### Example 2: Execution Timing Listener
+
+
+```java
+import org.testng.IInvokedMethod;
+import org.testng.IInvokedMethodListener;
+import org.testng.ITestResult;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
+/**
+ * Tracks execution time of every test method.
+ * Logs a warning for slow tests (>30 seconds) to catch performance regressions.
+ *
+ * Demonstrates IInvokedMethodListener — fires for both test and config methods.
+ */
+public class ExecutionTimingListener implements IInvokedMethodListener {
+
+    private static final Logger log = LoggerFactory.getLogger(ExecutionTimingListener.class);
+    private static final long SLOW_THRESHOLD_MS = 30_000;
+    private static final Map<String, Long> startTimes = new ConcurrentHashMap<>();
+
+    @Override
+    public void beforeInvocation(IInvokedMethod method, ITestResult result) {
+        if (method.isTestMethod()) {
+            String testId = result.getTestClass().getName() + "#" + result.getMethod().getMethodName();
+            startTimes.put(testId, System.currentTimeMillis());
+        }
+    }
+
+    @Override
+    public void afterInvocation(IInvokedMethod method, ITestResult result) {
+        if (method.isTestMethod()) {
+            String testId = result.getTestClass().getName() + "#" + result.getMethod().getMethodName();
+            Long startTime = startTimes.remove(testId);
+            if (startTime != null) {
+                long durationMs = System.currentTimeMillis() - startTime;
+                if (durationMs > SLOW_THRESHOLD_MS) {
+                    log.warn("SLOW TEST [{}ms]: {}", durationMs, testId);
+                } else {
+                    log.debug("Test completed in {}ms: {}", durationMs, testId);
+                }
+            }
+        }
+    }
+}
+```
+
+### Example 3: Adding Playwright Alongside Selenium — Plugin Approach
+
+**Core interface (framework-core module):**
+
+
+```java
+/**
+ * Abstraction over browser automation tools.
+ * Implemented by Selenium plugin, Playwright plugin, etc.
+ */
+public interface BrowserAutomation {
+
+    void navigateTo(String url);
+
+    void click(String locator);
+
+    void type(String locator, String text);
+
+    String getText(String locator);
+
+    boolean isVisible(String locator);
+
+    byte[] captureScreenshot();
+
+    void close();
+}
+```
+
+**Selenium plugin implementation:**
+
+
+```java
+public class SeleniumBrowserAutomation implements BrowserAutomation {
+
+    private final WebDriver driver;
+
+    public SeleniumBrowserAutomation(WebDriver driver) {
+        this.driver = driver;
+    }
+
+    @Override
+    public void navigateTo(String url) {
+        driver.get(url);
+    }
+
+    @Override
+    public void click(String locator) {
+        driver.findElement(By.cssSelector(locator)).click();
+    }
+
+    @Override
+    public void type(String locator, String text) {
+        driver.findElement(By.cssSelector(locator)).sendKeys(text);
+    }
+
+    @Override
+    public String getText(String locator) {
+        return driver.findElement(By.cssSelector(locator)).getText();
+    }
+
+    @Override
+    public boolean isVisible(String locator) {
+        return driver.findElement(By.cssSelector(locator)).isDisplayed();
+    }
+
+    @Override
+    public byte[] captureScreenshot() {
+        return ((TakesScreenshot) driver).getScreenshotAs(OutputType.BYTES);
+    }
+
+    @Override
+    public void close() {
+        driver.quit();
+    }
+}
+```
+
+**Adding Playwright means creating a new class — zero changes to existing code:**
+
+
+```java
+public class PlaywrightBrowserAutomation implements BrowserAutomation {
+
+    private final Page page;
+    private final Browser browser;
+
+    public PlaywrightBrowserAutomation(Browser browser, Page page) {
+        this.browser = browser;
+        this.page = page;
+    }
+
+    @Override
+    public void navigateTo(String url) {
+        page.navigate(url);
+    }
+
+    @Override
+    public void click(String locator) {
+        page.locator(locator).click();
+    }
+
+    @Override
+    public void type(String locator, String text) {
+        page.locator(locator).fill(text);
+    }
+
+    @Override
+    public String getText(String locator) {
+        return page.locator(locator).textContent();
+    }
+
+    @Override
+    public boolean isVisible(String locator) {
+        return page.locator(locator).isVisible();
+    }
+
+    @Override
+    public byte[] captureScreenshot() {
+        return page.screenshot();
+    }
+
+    @Override
+    public void close() {
+        browser.close();
+    }
+}
+```
+
+Tests use `BrowserAutomation` — they don't know or care whether Selenium or Playwright is running underneath. Switching tools is a config change: `automation.tool=playwright` → factory creates `PlaywrightBrowserAutomation` instead of `SeleniumBrowserAutomation`.
+
+---
+
+## Failure and Debugging (Layer 4)
+
+### Failure 1: Listener Order Causes Unexpected Behavior
+
+**The Problem:**
+
+```xml
+<listeners>
+    <listener class-name="FailureDiagnosticsListener"/>   <!-- captures screenshot on failure -->
+    <listener class-name="DriverCleanupListener"/>         <!-- quits driver on test completion -->
+</listeners>
+```
+
+If `DriverCleanupListener` fires before `FailureDiagnosticsListener`, the driver is quit before the screenshot is captured. Listener execution order in TestNG is not guaranteed to match declaration order in XML.
+
+**The fix:** Combine related behavior into one listener, or use `@Listeners` annotation ordering:
+
+
+```java
+// Single listener handles both diagnostics and cleanup — order is explicit
+public class TestLifecycleListener implements ITestListener {
+
+    @Override
+    public void onTestFailure(ITestResult result) {
+        // Step 1: Capture diagnostics while driver is alive
+        captureDiagnostics(result);
+        // Step 2: Cleanup (or let @AfterMethod handle it)
+    }
+}
+```
+
+### Failure 2: Over-Abstraction — Interface No One Implements Twice
+
+**The Problem:** A developer creates `IPageFactory`, `IDriverProvider`, `IConfigSource`, `IDataGenerator`, `IReportFormatter` — five interfaces, each with exactly one implementation. The framework has 15 interfaces and 15 implementation classes, doubling the file count and making navigation confusing.
+
+**Symptom:** New developers ask "which class do I actually use?" Interface exists, but it's never swapped, never mocked, never extended.
+
+**The fix — YAGNI:** Remove interfaces that have only one implementation and no foreseeable second one. An interface earns its existence when:
+- You have 2+ implementations today (`ChromeProvider`, `FirefoxProvider` → `BrowserProvider` is justified)
+- You need to mock it in unit tests (`ConfigLoader` is worth the interface if you test config-dependent code)
+- An external consumer needs to extend it (public framework APIs)
+
+If none of these apply, use the concrete class directly. You can always extract an interface later — it's a safe, mechanical refactoring.
+
+### Failure 3: Custom Annotation Not Picked Up at Runtime
+
+**The Problem:**
+
+
+```java
+// Missing @Retention — defaults to RetentionPolicy.CLASS
+@Target(ElementType.METHOD)
+public @interface Smoke {}
+
+// Listener tries to read the annotation at runtime
+Method method = ...;
+if (method.isAnnotationPresent(Smoke.class)) {  // always false!
+    // never reached
+}
+```
+
+**Root cause:** Without `@Retention(RetentionPolicy.RUNTIME)`, the annotation is present in the `.class` file but not available via reflection at runtime. The default retention is `CLASS`, which the JVM discards during class loading.
+
+**The fix:** Always set `@Retention(RetentionPolicy.RUNTIME)` on custom annotations:
+
+```java
+@Retention(RetentionPolicy.RUNTIME)
+@Target(ElementType.METHOD)
+public @interface Smoke {}
+```
+
+---
+
+## Engineering Judgment (Layer 5)
+
+### When to Add Extension Points
+
+| Situation | Add Extension Point? | Why |
+|-----------|---------------------|-----|
+| Need to support Chrome and Firefox | Yes — `BrowserProvider` interface | Two implementations today, likely more |
+| Need to add Allure reporting | Yes — `IReporter` listener | Adding a reporter shouldn't modify test code |
+| One config loader, no plans for another | No | YAGNI — extract the interface when the second loader appears |
+| Team wants `@Smoke`, `@Regression` | Yes — custom annotations + interceptor | Clear, growing need for test categorization |
+| "We might need Playwright someday" | No (yet) | Wait until the need is real; the interface can be extracted when needed |
+
+### Extension Mechanisms: Choosing the Right One
+
+| Need | TestNG Mechanism | JUnit 5 Mechanism | When to Use |
+|------|-----------------|-------------------|-------------|
+| React to test pass/fail | `ITestListener` | `TestWatcher` | Diagnostics, reporting, cleanup |
+| Filter/reorder tests | `IMethodInterceptor` | `ExecutionCondition` | Custom annotations, smart scheduling |
+| Modify annotations at runtime | `IAnnotationTransformer` | — | Apply retry globally, change groups |
+| Add setup/teardown behavior | `IInvokedMethodListener` | `BeforeEachCallback` / `AfterEachCallback` | Timing, auditing, data injection |
+| Generate test report | `IReporter` | — (use `TestExecutionListener`) | Custom HTML/JSON/Slack reports |
+
+### Signs Your Framework Needs More Extensibility
+
+| Symptom | Diagnosis | Extension Point to Add |
+|---------|-----------|----------------------|
+| Adding a new browser requires editing `DriverFactory` | `DriverFactory` violates OCP | `BrowserProvider` interface + registration |
+| Adding a new reporter requires editing `BaseTest` | Reporting is coupled to test lifecycle | `IReporter` listener or reporter interface |
+| Running smoke tests requires commenting out classes in testng.xml | No categorization mechanism | Custom annotations + `IMethodInterceptor` |
+| Every new test type (API, mobile, web) needs a different `BaseTest` | Test infrastructure is monolithic | Composable `TestContext` with pluggable components |
+
+### Signs Your Framework Has Too Much Extensibility
+
+| Symptom | Diagnosis | Fix |
+|---------|-----------|-----|
+| 15 interfaces, each with 1 implementation | Over-abstraction, YAGNI | Remove interfaces without multiple implementations |
+| Plugin registration requires 30 lines of boilerplate | Extension mechanism is too complex | Simplify registration (convention over configuration) |
+| New developer can't trace code flow due to indirection | Too many layers of abstraction | Reduce indirection; inline where there's only one path |
+
+---
+
+## Interview and Revision (Layer 6)
+
+### Fundamental Questions
+
+**Q1: How do you design a test framework for extensibility?**
+
+**A:** I follow the open/closed principle: identify the things that are likely to change and create interfaces for them. In our framework, the three main extension points are: (1) Browser providers — a `BrowserProvider` interface that Chrome, Firefox, and future browsers implement, registered with a `DriverFactory`. (2) Lifecycle listeners — TestNG `ITestListener` for diagnostic collection, `IMethodInterceptor` for test filtering by custom annotations. (3) Reporting plugins — an `IReporter` implementation for custom report formats. The key discipline is YAGNI: I only create an interface when I have two implementations or a clear upcoming need. A premature abstraction with one implementation adds complexity without value.
+
+**Q2: What are the key TestNG listener interfaces and when do you use each?**
+
+**A:** `ITestListener` for reacting to test outcomes — I use it for failure diagnostics (screenshot, page source). `IMethodInterceptor` for filtering and reordering test methods before execution — I use it with custom annotations like `@Smoke` and `@Environment` to control which tests run based on system properties. `IAnnotationTransformer` for modifying annotations at runtime — I use it to apply a retry analyzer globally without annotating every test. `IReporter` for generating custom reports after the suite completes. `IInvokedMethodListener` for cross-cutting concerns around every method invocation — timing, audit logging.
+
+**Q3: How would you add support for a new automation tool (e.g., Playwright) alongside an existing one (Selenium)?**
+
+**A:** I'd define a `BrowserAutomation` interface with the operations tests actually use: `navigateTo()`, `click()`, `type()`, `getText()`, `captureScreenshot()`. The Selenium plugin implements this by delegating to `WebDriver`. The Playwright plugin implements the same interface by delegating to Playwright's `Page`. A factory reads a config property (`automation.tool=selenium` or `automation.tool=playwright`) and creates the right implementation. Tests depend on `BrowserAutomation`, not on any tool-specific class. Switching tools is a config change, and page objects work with either tool.
+
+### Scenario-Based Questions
+
+**S1: "Your team wants to add a Slack notification when the test suite fails. Currently, all reporting happens in BaseTest's @AfterSuite. How do you add this without modifying BaseTest?"**
+
+**A:** I'd implement a TestNG `ISuiteListener`. In `onFinish(ISuite suite)`, I'd check the suite results — if any test failed, I'd send a Slack notification via webhook with the failure count, top failure reasons, and a link to the CI report. Register it in testng.xml as a listener. This adds the Slack integration without touching `BaseTest`, without touching any test class, and it can be removed or replaced by simply changing the listener registration. If the team later wants email notifications too, that's another `ISuiteListener` — still zero changes to existing code.
+
+
+
+
+| # | Front (Question) | Back (Answer) |
+|---|---|---|
+| 1 | What is the open/closed principle in test framework design? | Framework classes should be open for extension (via interfaces, listeners, hooks) but closed for modification (existing code doesn't change when new features are added). Adding a new browser should mean creating a new class, not editing `DriverFactory`. |
+| 2 | What's the difference between `ITestListener` and `IMethodInterceptor` in TestNG? | `ITestListener` reacts to outcomes (pass/fail/skip) — used for diagnostics and reporting. `IMethodInterceptor` filters and reorders methods *before* execution — used for custom annotations and test selection. |
+| 3 | Why must custom annotations have `@Retention(RetentionPolicy.RUNTIME)`? | Without it, the default retention is `CLASS` — the annotation is in bytecode but invisible to reflection at runtime. Listeners that check `isAnnotationPresent()` will never find it. |
+| 4 | When should you extract an interface vs use a concrete class directly? | Extract when you have 2+ implementations, need to mock for testing, or external consumers need to extend. If there's only one implementation and no foreseeable second, use the concrete class (YAGNI) and extract later when needed. |
+| 5 | How do you add a new tool (e.g., Playwright) to a framework that uses Selenium? | Define a `BrowserAutomation` interface with common operations. Selenium and Playwright each implement it. A factory reads config to create the right implementation. Tests depend on the interface, not the tool. Adding a new tool is a new implementation class — zero changes to existing code. |
+
+### Mastery Checklist
+
+- [ ] Can explain the open/closed principle with a test framework example (DriverFactory before/after)
+- [ ] Can implement custom annotations (`@Smoke`, `@Regression`, `@Environment`) with runtime retention
+- [ ] Can build an `IMethodInterceptor` that filters tests by custom annotation and system property
+- [ ] Can implement `ITestListener` for cross-cutting failure diagnostics
+- [ ] Can implement `IInvokedMethodListener` for execution timing
+- [ ] Can design a `BrowserProvider` interface and registration-based `DriverFactory`
+- [ ] Can compare TestNG listeners vs JUnit 5 extensions for equivalent use cases
+- [ ] Can identify over-abstraction (interfaces with one implementation) and apply YAGNI
+- [ ] Can design a plugin architecture that separates tool-specific code from framework core
+- [ ] Can answer "How would you add X to your framework?" with an extension-based approach
+
+---
+
+**Next:** Architecture Decision Records | **Related:** Framework Architecture
+
+---
+
+*Last updated: *

@@ -1,0 +1,303 @@
+---
+title: "Project: MobileWright Evaluation"
+description: "SDETs are frequently asked to evaluate new tools: \"Should we switch from Appium to MobileWright?\" or \"Is Playwright better than Selenium for our use case?\" Answering this requires a structured methodology, not gut feeling."
+summary: "SDET Engineering guide: Project: MobileWright Evaluation"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "projects"
+lesson: "mobilewright-evaluation"
+difficulty: "intermediate"
+estimatedMinutes: 30
+prerequisites: []
+tags: ["SDET", "Projects", "Portfolio"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/projects/mobilewright-evaluation"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Project: MobileWright Evaluation
+
+> **Module:** 12 — Projects
+> **Prerequisites:** Project Roadmap, Appium Java Framework
+> **Estimated Time:** 8-10 hours
+> **Difficulty:** Intermediate
+> **Purpose:** Learn how to evaluate new testing tools systematically — a critical SDET skill
+
+---
+
+## Why Evaluate Tools?
+
+SDETs are frequently asked to evaluate new tools: "Should we switch from Appium to MobileWright?" or "Is Playwright better than Selenium for our use case?" Answering this requires a structured methodology, not gut feeling.
+
+This project teaches you to:
+1. Define evaluation criteria before testing any tool
+2. Run identical scenarios with both tools for fair comparison
+3. Score objectively using a rubric
+4. Present findings with data, not opinions
+5. Make a recommendation that considers trade-offs
+
+The skill transfers to any tool evaluation — it's not just about MobileWright vs Appium.
+
+---
+
+## What Is MobileWright?
+
+MobileWright is a newer mobile testing tool that aims to simplify mobile test automation compared to Appium. Before evaluating it, research the current state:
+
+**Research checklist:**
+- [ ] Visit the official MobileWright documentation
+- [ ] Check GitHub stars, commit frequency, and issue resolution rate
+- [ ] Read comparison articles by practitioners (not vendor marketing)
+- [ ] Check if it supports your target platforms (Android, iOS)
+- [ ] Verify language support (Java, TypeScript, etc.)
+- [ ] Look for community size (Stack Overflow questions, Discord/Slack channels)
+
+> **Note:** MobileWright is an emerging tool. If documentation or features have changed since this was written, adapt the evaluation criteria accordingly. The methodology is the important part, not the specific tool.
+
+---
+
+## Evaluation Criteria
+
+### Criteria Definition Table
+
+Each criterion is scored 1-5 with clear definitions to reduce subjectivity.
+
+| # | Criterion | Weight | What It Measures |
+| --- | --- | --- | --- |
+| 1 | Setup Complexity | 15% | Time from zero to first passing test on a clean machine |
+| 2 | Locator Strategies | 15% | Richness and reliability of element identification |
+| 3 | Gesture Support | 10% | Swipe, scroll, pinch, long-press capabilities |
+| 4 | Test Reliability | 20% | Consistency of results across 10 identical runs |
+| 5 | Execution Speed | 10% | Time to complete the standard test suite |
+| 6 | Debugging Experience | 10% | Quality of error messages, logs, and diagnostic tools |
+| 7 | Maintenance Burden | 10% | Effort to keep tests working after app updates |
+| 8 | Documentation & Community | 10% | Quality of docs, community support, and learning resources |
+
+### Scoring Rubric
+
+| Score | Meaning | Description |
+| --- | --- | --- |
+| 1 | Poor | Barely functional, significant workarounds required |
+| 2 | Below Average | Works but with notable friction or gaps |
+| 3 | Adequate | Meets basic needs, some rough edges |
+| 4 | Good | Works well with minor limitations |
+| 5 | Excellent | Best-in-class, smooth experience |
+
+---
+
+## Comparison Methodology
+
+### Standard Test Scenarios
+
+Run these exact scenarios with both Appium and MobileWright. Use the StayNest mobile app for both.
+
+| Scenario | Actions | What It Tests |
+| --- | --- | --- |
+| S1: App Launch | Launch app, verify home screen loads | Setup, basic interaction |
+| S2: Login | Enter email, enter password, tap login, verify home | Text input, button tap, navigation |
+| S3: Search | Enter city, select dates, tap search, verify results | Complex input, date picker interaction |
+| S4: Scroll Results | Search → scroll through 10+ results | Gesture: scroll/swipe |
+| S5: Hotel Detail | Search → tap hotel card → verify detail page | Navigation, element identification |
+| S6: Full Booking | Login → search → book → confirm | End-to-end flow, multiple screens |
+| S7: Error Handling | Login with wrong password, verify error message | Error state verification |
+| S8: Back Navigation | Navigate forward 3 screens, back 3 screens | Navigation stack handling |
+
+### Measurement Protocol
+
+For each scenario with each tool, record:
+
+| Metric | How to Measure |
+| --- | --- |
+| Lines of code | Count non-blank, non-comment lines for the test + page/screen objects |
+| Setup time | Time from `git clone` to first passing test (minutes) |
+| Execution time | Average of 3 runs (seconds) |
+| Pass rate | Pass count out of 10 identical runs |
+| Error clarity | On intentional failure, rate error message usefulness (1-5) |
+| Locator complexity | Number of platform-specific workarounds needed |
+
+---
+
+## Evaluation Template
+
+### Setup Complexity (Criterion 1)
+
+**Appium:**
+- Installation steps: ___
+- Dependencies required: ___
+- Time to first test: ___ minutes
+- Blockers encountered: ___
+
+**MobileWright:**
+- Installation steps: ___
+- Dependencies required: ___
+- Time to first test: ___ minutes
+- Blockers encountered: ___
+
+**Score:** Appium ___/5, MobileWright ___/5
+
+### Locator Strategies (Criterion 2)
+
+| Strategy | Appium Support | MobileWright Support |
+| --- | --- | --- |
+| Accessibility ID | Yes / No | Yes / No |
+| XPath | Yes / No | Yes / No |
+| CSS Selector | Yes / No | Yes / No |
+| Resource ID (Android) | Yes / No | Yes / No |
+| Predicate String (iOS) | Yes / No | Yes / No |
+| Image Recognition | Yes / No | Yes / No |
+| AI-based Locators | Yes / No | Yes / No |
+
+**Score:** Appium ___/5, MobileWright ___/5
+
+### Gesture Support (Criterion 3)
+
+| Gesture | Appium | MobileWright |
+| --- | --- | --- |
+| Swipe (up/down/left/right) | Works / Workaround / Missing | Works / Workaround / Missing |
+| Scroll to element | Works / Workaround / Missing | Works / Workaround / Missing |
+| Long press | Works / Workaround / Missing | Works / Workaround / Missing |
+| Pinch zoom | Works / Workaround / Missing | Works / Workaround / Missing |
+| Double tap | Works / Workaround / Missing | Works / Workaround / Missing |
+| Drag and drop | Works / Workaround / Missing | Works / Workaround / Missing |
+
+**Score:** Appium ___/5, MobileWright ___/5
+
+### Test Reliability (Criterion 4)
+
+Run each scenario 10 times. Record pass/fail:
+
+| Scenario | Appium (pass/10) | MobileWright (pass/10) |
+| --- | --- | --- |
+| S1: App Launch | /10 | /10 |
+| S2: Login | /10 | /10 |
+| S3: Search | /10 | /10 |
+| S4: Scroll Results | /10 | /10 |
+| S5: Hotel Detail | /10 | /10 |
+| S6: Full Booking | /10 | /10 |
+| S7: Error Handling | /10 | /10 |
+| S8: Back Navigation | /10 | /10 |
+| **Total** | **/80** | **/80** |
+
+**Score:** Appium ___/5, MobileWright ___/5
+
+### Execution Speed (Criterion 5)
+
+| Scenario | Appium (avg 3 runs) | MobileWright (avg 3 runs) |
+| --- | --- | --- |
+| S1: App Launch | ___s | ___s |
+| S2: Login | ___s | ___s |
+| S6: Full Booking | ___s | ___s |
+| Full suite (S1-S8) | ___s | ___s |
+
+**Score:** Appium ___/5, MobileWright ___/5
+
+### Debugging Experience (Criterion 6)
+
+Introduce these intentional failures and evaluate the error output:
+
+| Failure Type | What to Do | Appium Error Quality (1-5) | MobileWright Error Quality (1-5) |
+| --- | --- | --- | --- |
+| Element not found | Use wrong locator | | |
+| Timeout | Set 1s timeout on slow element | | |
+| App crash | Trigger an OOM or unhandled error | | |
+| Stale element | Interact with element after navigation | | |
+
+**Score:** Appium ___/5, MobileWright ___/5
+
+### Maintenance Burden (Criterion 7)
+
+Simulate an app update by changing one screen's layout. Measure:
+
+| Metric | Appium | MobileWright |
+| --- | --- | --- |
+| Files to change | ___ | ___ |
+| Lines to change | ___ | ___ |
+| Time to fix | ___ min | ___ min |
+
+**Score:** Appium ___/5, MobileWright ___/5
+
+### Documentation & Community (Criterion 8)
+
+| Metric | Appium | MobileWright |
+| --- | --- | --- |
+| Official docs quality | 1-5 | 1-5 |
+| Getting started guide | Exists / Missing | Exists / Missing |
+| API reference completeness | 1-5 | 1-5 |
+| Stack Overflow questions | ___ | ___ |
+| GitHub stars | ___ | ___ |
+| Last commit date | ___ | ___ |
+| Community chat/forum | Yes / No | Yes / No |
+
+**Score:** Appium ___/5, MobileWright ___/5
+
+---
+
+## Final Scorecard
+
+| # | Criterion | Weight | Appium Score | MobileWright Score | Appium Weighted | MobileWright Weighted |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | Setup Complexity | 15% | /5 | /5 | | |
+| 2 | Locator Strategies | 15% | /5 | /5 | | |
+| 3 | Gesture Support | 10% | /5 | /5 | | |
+| 4 | Test Reliability | 20% | /5 | /5 | | |
+| 5 | Execution Speed | 10% | /5 | /5 | | |
+| 6 | Debugging Experience | 10% | /5 | /5 | | |
+| 7 | Maintenance Burden | 10% | /5 | /5 | | |
+| 8 | Documentation & Community | 10% | /5 | /5 | | |
+| | **Total** | **100%** | | | **___** | **___** |
+
+---
+
+## Recommendation Template
+
+### Summary
+
+> Based on evaluating [X scenarios] across [Y criteria], **[Tool A / Tool B]** scored higher overall (**X.X** vs **Y.Y** out of 5.0). However, the decision depends on team context.
+
+### When to Choose Appium
+
+- Team has existing Appium expertise
+- Need iOS + Android cross-platform support (proven)
+- Need extensive gesture support (mature W3C Actions API)
+- Large community for troubleshooting edge cases
+- Integration with BrowserStack/Sauce Labs is critical
+
+### When to Choose MobileWright
+
+- Starting a new project with no existing framework
+- [Fill in based on evaluation findings]
+- [Simpler setup is prioritized over feature completeness]
+- [Team is willing to adopt a newer tool with less community support]
+
+### Risks
+
+| Risk | Tool | Mitigation |
+| --- | --- | --- |
+| Community size too small | MobileWright | Monitor monthly — if growth stalls, switch back |
+| Missing gesture support | MobileWright | File issues, contribute fixes, or supplement with Appium |
+| Appium 2.x driver instability | Appium | Pin driver versions, test upgrades in CI before rollout |
+
+---
+
+## What This Project Demonstrates in Interviews
+
+When asked "How do you evaluate a new tool?", reference this project:
+
+1. **Define criteria with weights before testing** — prevents bias toward the "shiny new thing"
+2. **Run identical scenarios** — ensures fair comparison, not cherry-picked demos
+3. **Measure quantitatively** — pass rates, execution times, lines of code — not just feelings
+4. **Consider team context** — the best tool objectively might not be the best tool for your team
+5. **Document trade-offs** — every tool has strengths and weaknesses; present both honestly
+
+---
+
+**Related:** Project Roadmap, Appium Java Framework

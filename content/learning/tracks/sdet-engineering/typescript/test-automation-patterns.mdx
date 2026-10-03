@@ -1,0 +1,592 @@
+---
+title: "Test Automation Patterns"
+description: "What: Test automation patterns in TypeScript/Playwright — Page Object Model (POM), custom fixtures, type-safe test data, and environment configuration. These are the same patterns you use in Java/Selenium, but TypeScript's type system and Playwright's fixture model offer cleaner implementations."
+summary: "SDET Engineering guide: Test Automation Patterns"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "typescript"
+lesson: "test-automation-patterns"
+difficulty: "intermediate"
+estimatedMinutes: 37
+prerequisites: []
+tags: ["SDET", "TypeScript", "Programming"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/typescript/test-automation-patterns"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Test Automation Patterns
+
+> **Module:** 01 — Programming Foundations / TypeScript  
+> **Prerequisites:** Types And Interfaces, Promises And Async Await, Modules And Error Handling  
+> **Mastery Target:** L3 (independent — implement POM, custom fixtures, typed test data, and config in a Playwright project without guidance)
+
+---
+
+## Quick Overview (Layer 1)
+
+**What:** Test automation patterns in TypeScript/Playwright — Page Object Model (POM), custom fixtures, type-safe test data, and environment configuration. These are the same patterns you use in Java/Selenium, but TypeScript's type system and Playwright's fixture model offer cleaner implementations.
+
+**Why:** Java SDETs already know *why* POM, data-driven testing, and configuration management matter. This module shows *how* to implement them in TypeScript, highlighting where the patterns translate directly and where TypeScript offers fundamentally different (often better) approaches. The biggest shift: Playwright's fixture system replaces Java's `@BeforeMethod`/`@AfterMethod` inheritance chains with composition-based dependency injection.
+
+**Where:** Every Playwright test project — page objects for UI abstraction, fixtures for test setup/teardown, interfaces for test data, and `playwright.config.ts` for environment-specific configuration.
+
+<MentalModel>
+
+In Java test frameworks, you typically build an inheritance chain: `BaseTest` → `AuthenticatedTest` → `BookingTest`. Each level adds setup/teardown via `@Before`/`@After`. In Playwright, you compose **fixtures** — independent units of setup/teardown that tests declare as dependencies. Think of Java's pattern as a **stack of building blocks** (rigid order) and Playwright's fixtures as **LEGO bricks** (snap together in any combination).
+
+</MentalModel>
+
+
+<KeyTakeaways>
+
+1. **POM in TypeScript uses classes with typed Locators** — the Playwright `Locator` type replaces Selenium's `By` + `WebElement` pair, and `readonly` prevents accidental locator mutation.
+2. **Fixtures replace inheritance for test setup** — instead of `extends BaseTest`, you declare `{ page, loginPage, apiClient }` as fixture parameters. No deep inheritance trees.
+3. **Interfaces define test data shapes** — `interface BookingData { ... }` enforces that every test scenario provides required fields. TypeScript catches missing fields at compile time.
+4. **`playwright.config.ts` is fully typed** — unlike Java property files, the config is TypeScript code with autocomplete, type checking, and conditional logic.
+5. **Anti-patterns from Java carry over AND new ones appear** — `any` everywhere, missing `await`, and implicit returns are TypeScript-specific traps.
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation (Layer 2)
+
+### Page Object Model in TypeScript/Playwright
+
+
+```typescript
+import { Page, Locator, expect } from "@playwright/test";
+
+// Interface defines what the page can do — useful for mocking or alternate implementations
+export interface ILoginPage {
+    goto(): Promise<void>;
+    login(email: string, password: string): Promise<void>;
+    getErrorMessage(): Promise<string | null>;
+}
+
+export class LoginPage implements ILoginPage {
+    // Locators as readonly class properties — defined once, reused everywhere
+    private readonly emailInput: Locator;
+    private readonly passwordInput: Locator;
+    private readonly loginButton: Locator;
+    private readonly errorMessage: Locator;
+
+    constructor(private readonly page: Page) {
+        this.emailInput = page.getByLabel("Email");
+        this.passwordInput = page.getByLabel("Password");
+        this.loginButton = page.getByRole("button", { name: "Sign In" });
+        this.errorMessage = page.getByTestId("login-error");
+    }
+
+    async goto(): Promise<void> {
+        await this.page.goto("/login");
+    }
+
+    async login(email: string, password: string): Promise<void> {
+        await this.emailInput.fill(email);
+        await this.passwordInput.fill(password);
+        await this.loginButton.click();
+    }
+
+    async getErrorMessage(): Promise<string | null> {
+        if (await this.errorMessage.isVisible()) {
+            return this.errorMessage.textContent();
+        }
+        return null;
+    }
+}
+```
+
+**Java comparison:**
+| Java/Selenium POM | TypeScript/Playwright POM |
+|---|---|
+| `@FindBy(id = "email")` + `PageFactory.initElements()` | `page.getByLabel("Email")` in constructor |
+| `WebElement` field type | `Locator` field type (auto-waits, no StaleElementReference) |
+| `driver.findElement()` at call time | `Locator` finds element when action is performed |
+| `WebDriverWait` explicit waits | Built into every Locator action |
+| `extends BasePage` for shared utilities | Composition — inject `Page` directly |
+
+### Custom Fixtures: Extending the Base Test
+
+Playwright fixtures are dependency-injected setup/teardown units. They replace Java's `@BeforeMethod`/`@AfterMethod` inheritance.
+
+
+```typescript
+import { test as base, expect, Page } from "@playwright/test";
+import { LoginPage } from "../pages/login-page";
+import { DashboardPage } from "../pages/dashboard-page";
+
+// Define the types for your custom fixtures
+interface TestFixtures {
+    loginPage: LoginPage;
+    dashboardPage: DashboardPage;
+    authenticatedPage: Page;
+}
+
+// Extend the base test with custom fixtures
+export const test = base.extend<TestFixtures>({
+    // Simple fixture: create a page object
+    loginPage: async ({ page }, use) => {
+        const loginPage = new LoginPage(page);
+        await use(loginPage);               // provide the fixture to the test
+        // After use() returns = teardown (like @AfterMethod)
+    },
+
+    dashboardPage: async ({ page }, use) => {
+        const dashboardPage = new DashboardPage(page);
+        await use(dashboardPage);
+    },
+
+    // Composed fixture: depends on loginPage, provides an authenticated page
+    authenticatedPage: async ({ page, loginPage }, use) => {
+        // Setup: navigate and log in
+        await loginPage.goto();
+        await loginPage.login("testuser@example.com", "SecurePass123!");
+        await expect(page).toHaveURL(/.*dashboard/);
+
+        await use(page);    // test gets a page that's already logged in
+
+        // Teardown: log out (optional)
+        // await page.goto("/logout");
+    },
+});
+
+// Re-export expect for convenience
+export { expect } from "@playwright/test";
+```
+
+
+```typescript
+// ─── tests/dashboard.spec.ts ───
+import { test, expect } from "../fixtures";
+
+// Test declares which fixtures it needs — no inheritance required
+test("should display user bookings", async ({ authenticatedPage, dashboardPage }) => {
+    // authenticatedPage is already logged in — fixture handled it
+    await dashboardPage.navigateToBookings();
+    await expect(dashboardPage.bookingList).toBeVisible();
+});
+
+// This test only needs loginPage — doesn't trigger authenticatedPage setup
+test("should show error for invalid login", async ({ loginPage, page }) => {
+    await loginPage.goto();
+    await loginPage.login("wrong@example.com", "badpassword");
+    const error = await loginPage.getErrorMessage();
+    expect(error).toContain("Invalid credentials");
+});
+```
+
+**Why fixtures are better than inheritance:**
+1. **Tests declare exactly what they need** — no unnecessary setup running for every test.
+2. **No diamond inheritance problems** — fixtures compose independently.
+3. **Teardown is guaranteed** — code after `use()` runs even if the test fails.
+4. **Lazy initialization** — fixtures only set up if the test actually uses them.
+
+### Type-Safe Test Data
+
+
+```typescript
+// ─── models/booking.ts ───
+
+// Interface defines the shape of booking test data
+export interface BookingData {
+    guestName: string;
+    roomType: "Standard" | "Deluxe" | "Suite";
+    checkIn: string;          // ISO date string: "2024-07-01"
+    checkOut: string;
+    guests: number;
+    specialRequests?: string;  // optional
+}
+
+// Factory function with sensible defaults — like Java's Builder pattern
+export function createBookingData(overrides: Partial<BookingData> = {}): BookingData {
+    return {
+        guestName: "Test Guest",
+        roomType: "Standard",
+        checkIn: "2024-07-01",
+        checkOut: "2024-07-05",
+        guests: 1,
+        ...overrides,           // spread: override only what you specify
+    };
+}
+
+// Type-safe test scenarios — each variation is checked at compile time
+export const bookingScenarios: Record<string, Partial<BookingData>> = {
+    minimal: {},                                              // all defaults
+    luxury: { roomType: "Suite", guests: 2, specialRequests: "Late checkout" },
+    longStay: { checkIn: "2024-07-01", checkOut: "2024-07-31", guests: 1 },
+    // invalid: { roomType: "Penthouse" },                   // COMPILE ERROR: not assignable
+};
+```
+
+
+```typescript
+// ─── tests/booking.spec.ts ───
+import { test, expect } from "../fixtures";
+import { createBookingData, bookingScenarios } from "../models/booking";
+
+// Data-driven test — iterate over typed scenarios
+for (const [scenario, overrides] of Object.entries(bookingScenarios)) {
+    test(`should create booking — ${scenario}`, async ({ authenticatedPage, page }) => {
+        const bookingData = createBookingData(overrides);
+
+        // TypeScript ensures bookingData has ALL required fields
+        await page.getByLabel("Guest Name").fill(bookingData.guestName);
+        await page.getByLabel("Room Type").selectOption(bookingData.roomType);
+        await page.getByLabel("Check In").fill(bookingData.checkIn);
+        await page.getByLabel("Check Out").fill(bookingData.checkOut);
+
+        if (bookingData.specialRequests) {
+            await page.getByLabel("Special Requests").fill(bookingData.specialRequests);
+        }
+
+        await page.getByRole("button", { name: "Book Now" }).click();
+        await expect(page.getByText("Booking confirmed")).toBeVisible();
+    });
+}
+```
+
+### playwright.config.ts Structure
+
+
+```typescript
+import { defineConfig, devices } from "@playwright/test";
+
+export default defineConfig({
+    testDir: "./tests",
+    fullyParallel: true,
+    forbidOnly: !!process.env.CI,       // fail CI if test.only is left in code
+    retries: process.env.CI ? 2 : 0,    // retry in CI, not locally
+    workers: process.env.CI ? 1 : undefined,
+    reporter: process.env.CI
+        ? [["html"], ["junit", { outputFile: "results.xml" }]]
+        : "Html", { Open: "Never" },
+
+    use: {
+        baseURL: process.env.BASE_URL ?? "http://localhost:3000",
+        trace: "on-first-retry",        // capture trace on first retry only
+        screenshot: "only-on-failure",
+        video: "retain-on-failure",
+    },
+
+    projects: [
+        {
+            name: "chromium",
+            use: { ...devices["Desktop Chrome"] },
+        },
+        {
+            name: "firefox",
+            use: { ...devices["Desktop Firefox"] },
+        },
+        {
+            name: "api",
+            testDir: "./tests/api",
+            use: { baseURL: process.env.API_URL ?? "http://localhost:3001" },
+        },
+    ],
+
+    webServer: {
+        command: "npm run dev",
+        url: "http://localhost:3000",
+        reuseExistingServer: !process.env.CI,
+    },
+});
+```
+
+**Java comparison:**
+| Java Config Pattern | Playwright Equivalent |
+|---|---|
+| `testng.xml` or `@DataProvider` | `playwright.config.ts` projects array |
+| `config.properties` + `System.getProperty()` | `process.env.VARIABLE` with `??` defaults |
+| Maven profiles (`-Pstaging`) | `process.env.CI` conditionals |
+| `@Listeners(RetryAnalyzer.class)` | `retries: 2` in config |
+
+---
+
+## Practical Implementation (Layer 3)
+
+### Complete Mini POM: LoginPage + DashboardPage with Types
+
+
+```typescript
+// ─── src/pages/dashboard-page.ts ───
+import { Page, Locator } from "@playwright/test";
+
+interface BookingSummary {
+    title: string;
+    status: string;
+    dates: string;
+}
+
+export class DashboardPage {
+    readonly welcomeMessage: Locator;
+    readonly bookingList: Locator;
+    private readonly bookingCards: Locator;
+    private readonly newBookingButton: Locator;
+
+    constructor(private readonly page: Page) {
+        this.welcomeMessage = page.getByTestId("welcome-message");
+        this.bookingList = page.getByTestId("booking-list");
+        this.bookingCards = page.getByTestId("booking-card");
+        this.newBookingButton = page.getByRole("button", { name: "New Booking" });
+    }
+
+    async navigateToBookings(): Promise<void> {
+        await this.page.getByRole("link", { name: "My Bookings" }).click();
+        await this.page.waitForURL("**/bookings");
+    }
+
+    async getBookingCount(): Promise<number> {
+        return this.bookingCards.count();
+    }
+
+    async getBookingSummaries(): Promise<BookingSummary[]> {
+        const cards = await this.bookingCards.all();
+        const summaries: BookingSummary[] = [];
+
+        for (const card of cards) {
+            summaries.push({
+                title: await card.getByTestId("booking-title").innerText(),
+                status: await card.getByTestId("booking-status").innerText(),
+                dates: await card.getByTestId("booking-dates").innerText(),
+            });
+        }
+
+        return summaries;
+    }
+
+    async clickNewBooking(): Promise<void> {
+        await this.newBookingButton.click();
+    }
+}
+```
+
+
+```typescript
+// ─── tests/e2e/booking-flow.spec.ts ───
+import { test, expect } from "../../src/fixtures";
+import { createBookingData } from "../../src/models/booking";
+
+test.describe("Booking Management", () => {
+    test("should create a new booking and see it on dashboard", async ({
+        authenticatedPage,
+        dashboardPage,
+        page,
+    }) => {
+        // Arrange
+        const booking = createBookingData({ roomType: "Suite", guests: 2 });
+        await dashboardPage.navigateToBookings();
+        const initialCount = await dashboardPage.getBookingCount();
+
+        // Act
+        await dashboardPage.clickNewBooking();
+        await page.getByLabel("Guest Name").fill(booking.guestName);
+        await page.getByLabel("Room Type").selectOption(booking.roomType);
+        await page.getByLabel("Check In").fill(booking.checkIn);
+        await page.getByLabel("Check Out").fill(booking.checkOut);
+        await page.getByRole("button", { name: "Book Now" }).click();
+
+        // Assert
+        await expect(page.getByText("Booking confirmed")).toBeVisible();
+        await dashboardPage.navigateToBookings();
+        const newCount = await dashboardPage.getBookingCount();
+        expect(newCount).toBe(initialCount + 1);
+    });
+});
+```
+
+---
+
+## Failure and Debugging (Layer 4)
+
+> **Common Mistakes**
+>
+> **Broken code:**
+
+```typescript
+class LoginPage {
+    constructor(private page: any) {}      // page is any — no autocomplete, no safety
+
+    async login(data: any): Promise<void> {
+        await this.page.fill("#email", data.emial);   // typo: "emial" — no compile error!
+        await this.page.fill("#password", data.pass);  // wrong field name — no compile error!
+        await this.page.click("#submit");
+    }
+}
+```
+
+**Why it's dangerous:** `any` disables TypeScript's entire type system for that value. Typos in property names, wrong method arguments, and missing fields all compile without error. You've essentially written JavaScript with extra syntax.
+
+**Fix:**
+
+```typescript
+import { Page } from "@playwright/test";
+import type { LoginCredentials } from "../models";
+
+class LoginPage {
+    constructor(private readonly page: Page) {}    // Page type — full autocomplete
+
+    async login(data: LoginCredentials): Promise<void> {
+        await this.page.getByLabel("Email").fill(data.email);       // typed field
+        await this.page.getByLabel("Password").fill(data.password); // typed field
+        // data.emial → COMPILE ERROR: Property 'emial' does not exist
+    }
+}
+```
+
+> **Common Mistakes**
+>
+> **Broken code:**
+
+```typescript
+// No return type annotation — is this supposed to return something?
+async function getBookingStatus(id: string) {
+    const response = await fetch(`/api/bookings/${id}`);
+    const data = await response.json();
+    // Forgot to return data — function returns Promise<void>
+    // No compile error because the return type is inferred as void
+}
+
+// Caller thinks they get booking data, but gets undefined
+const status = await getBookingStatus("123");
+console.log(status);     // undefined — silent bug
+```
+
+**Fix — always annotate return types on async functions:**
+
+```typescript
+interface BookingStatus {
+    id: string;
+    status: "confirmed" | "cancelled" | "pending";
+}
+
+async function getBookingStatus(id: string): Promise<BookingStatus> {
+    const response = await fetch(`/api/bookings/${id}`);
+    const data = await response.json();
+    return data as BookingStatus;    // Now forgetting this line is a COMPILE ERROR
+}
+```
+
+> **Common Mistakes**
+>
+> **Broken code — Java-style base class approach:**
+
+```typescript
+// Trying to replicate Java's BaseTest pattern — doesn't work well in Playwright
+class BaseTest {
+    protected page!: Page;
+
+    async setup() {
+        // Where does page come from? Playwright manages page lifecycle.
+    }
+}
+
+// This fights against Playwright's fixture model
+test("my test", async ({ page }) => {
+    const baseTest = new BaseTest();
+    baseTest.page = page;           // manual wiring — fragile
+    await baseTest.setup();
+});
+```
+
+**Fix — use fixtures:**
+
+```typescript
+// Playwright-idiomatic approach
+export const test = base.extend<{ authenticatedPage: Page }>({
+    authenticatedPage: async ({ page }, use) => {
+        await page.goto("/login");
+        await page.getByLabel("Email").fill("test@example.com");
+        await page.getByLabel("Password").fill("password");
+        await page.getByRole("button", { name: "Sign In" }).click();
+        await use(page);
+    },
+});
+```
+
+---
+
+## Engineering Judgment (Layer 5)
+
+### Java Patterns vs. TypeScript Patterns — Translation Guide
+
+| Java Pattern | TypeScript/Playwright Equivalent | Key Difference |
+|---|---|---|
+| `BasePage extends Object` with `WebDriver` field | Class with `Page` constructor param | No inheritance needed — `Page` provides everything |
+| `PageFactory.initElements(driver, this)` | Locators in constructor body | Playwright Locators are lazy — no initialization timing issues |
+| `@BeforeMethod` / `@AfterMethod` chain | Custom fixtures with `use()` | Composition over inheritance; lazy; guaranteed teardown |
+| `@DataProvider` returning `Object[][]` | `for...of` loop over typed array or `test.describe` parameterization | Full type safety on test data |
+| `config.properties` + `System.getProperty()` | `process.env` + `playwright.config.ts` | Config is code — conditionals, type checking, autocomplete |
+| `TestNG @Listeners` | Playwright reporters and fixtures | Declarative in config, not annotation-driven |
+| Builder pattern for test data | Factory function with `Partial<T>` + spread | 10 lines vs 60 lines for equivalent functionality |
+
+### When to Create a Page Object vs. Inline Locators
+
+| Criteria | Create Page Object | Use Inline Locators |
+|---|---|---|
+| Used by 3+ tests | Yes | No |
+| Complex interactions (multi-step form) | Yes | No |
+| One-off smoke test | No | Yes |
+| Locator likely to change | Yes (centralized update) | Risky |
+| API-only test (no UI) | No | No locators at all |
+
+---
+
+## Interview and Revision (Layer 6)
+
+### Fundamental Questions
+
+**Q1: How does Playwright's POM differ from Selenium's POM?**
+> Playwright uses `Locator` objects that are lazy (evaluated at action time) and auto-waiting, eliminating `StaleElementReferenceException` and explicit waits. There's no `PageFactory.initElements()` — locators are assigned in the constructor and resolve fresh on every interaction. The `Page` object is injected via constructor, not inherited from a base class.
+
+**Q2: What are Playwright fixtures and how do they replace Java's `@BeforeMethod`/`@AfterMethod`?**
+> Fixtures are composable setup/teardown units declared via `test.extend()`. Each fixture receives its dependencies as parameters and provides its value through `use()`. Code after `use()` is teardown (guaranteed to run). Tests declare which fixtures they need as function parameters — unused fixtures don't run. This replaces inheritance-based setup where every test in a class gets the same `@BeforeMethod` regardless of need.
+
+**Q3: How would you implement data-driven tests in TypeScript Playwright?**
+> Define an interface for the test data shape, create a factory function with `Partial<T>` for defaults, and iterate over scenarios with `for...of`. Each scenario is a `Partial<T>` that overrides only the relevant fields. TypeScript enforces that all required fields exist in the merged data. This replaces Java's `@DataProvider` with full compile-time type safety.
+
+**Q4: What TypeScript-specific anti-patterns should you watch for in test code?**
+> (1) Using `any` instead of proper types — disables the entire type system. (2) Missing `await` on async operations — causes flaky tests. (3) Missing return type annotations on async functions — allows silent `undefined` returns. (4) Using `forEach` with async callbacks — doesn't properly await iterations. (5) Java-style inheritance instead of Playwright fixtures — fights the framework's design.
+
+
+
+
+| # | Front (Question) | Back (Answer) |
+|---|---|---|
+| 1 | What replaces `PageFactory.initElements()` in Playwright? | Nothing — Playwright Locators are lazy. You assign them in the constructor and they resolve fresh on every action. No StaleElementReferenceException. |
+| 2 | How do you create a custom Playwright fixture? | `export const test = base.extend<MyFixtures>({ myFixture: async ({ page }, use) => { /* setup */ await use(value); /* teardown */ } });` |
+| 3 | What's the TypeScript equivalent of Java's `@DataProvider`? | A typed array + `for...of` loop generating tests, or a factory function with `Partial<T>` overrides for each scenario. |
+| 4 | Why prefer `Partial<T>` + spread over a Builder class? | It achieves the same result (default values + selective overrides) in ~5 lines instead of ~50. TypeScript's structural typing and spread operator make Builders unnecessary for data objects. |
+| 5 | What goes after `use()` in a Playwright fixture? | Teardown code — equivalent to `@AfterMethod`. It runs after the test completes (pass or fail), guaranteed by Playwright's fixture lifecycle. |
+
+### Mastery Checklist
+
+- [ ] I can implement a POM in Playwright with typed Locators and proper `async` methods
+- [ ] I can create custom fixtures that compose setup/teardown for different test needs
+- [ ] I can build type-safe test data factories using interfaces and `Partial<T>`
+- [ ] I can configure `playwright.config.ts` with environment-specific settings
+- [ ] I can translate Java test patterns (POM, data-driven, config) to their TypeScript equivalents
+- [ ] I can identify and fix anti-patterns: `any` usage, missing `await`, inheritance over fixtures
+- [ ] I can create data-driven tests with typed scenarios
+- [ ] I can explain why fixtures are preferred over inheritance for test setup in Playwright
+
+---
+
+> **Related:** Promises And Async Await — async patterns used in page objects and fixtures  
+> **Related:** Types And Interfaces — type system foundations for typed page objects and test data  
+> **Related:** Modules And Error Handling — project structure and imports for organized test code
+
+---
+
+*Last updated: *

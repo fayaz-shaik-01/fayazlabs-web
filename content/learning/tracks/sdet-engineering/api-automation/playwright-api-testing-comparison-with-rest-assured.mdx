@@ -1,0 +1,580 @@
+---
+title: "REST Assured vs Playwright API Testing — Comparison and Decision Framework"
+description: "What: REST Assured and Playwright are both capable of API testing, but they serve different ecosystems and strengths. REST Assured is a dedicated Java API testing library with deep JSON/XML assertion capabilities. Playwright is a browser automation framework with API testing as a secondary feature. Choosing between them — or using both — depends on your team's language, your testing needs, and your project architecture."
+summary: "SDET Engineering guide: REST Assured vs Playwright API Testing — Comparison and Decision Framework"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "api-automation"
+lesson: "playwright-api-testing-comparison-with-rest-assured"
+difficulty: "intermediate"
+estimatedMinutes: 37
+prerequisites: []
+tags: ["SDET", "API", "REST", "Testing"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/api-automation/playwright-api-testing-comparison-with-rest-assured"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# REST Assured vs Playwright API Testing — Comparison and Decision Framework
+
+> **Module:** 04 — API Automation > Playwright API Testing  
+> **Prerequisites:** REST Assured Setup And First Tests, Playwright Setup And First Tests  
+> **Mastery Target:** L4 (Engineering Judgment) — can evaluate both tools against project requirements and recommend the right choice with clear reasoning
+
+---
+
+## Quick Overview (Layer 1)
+
+**What:** REST Assured and Playwright are both capable of API testing, but they serve different ecosystems and strengths. REST Assured is a dedicated Java API testing library with deep JSON/XML assertion capabilities. Playwright is a browser automation framework with API testing as a secondary feature. Choosing between them — or using both — depends on your team's language, your testing needs, and your project architecture.
+
+**Why:** As an SDET, you'll be asked "which API testing tool should we use?" in interviews and on real projects. The wrong answer is "the one I already know." The right answer evaluates the team's stack, the testing requirements, and the trade-offs. Knowing both tools and understanding when each excels makes you the person who can make that architectural decision — a key differentiator at the senior SDET level.
+
+**Where:** Technology evaluation meetings, framework architecture decisions, interview discussions about tooling, and migration planning when a team moves between Java and TypeScript stacks.
+
+<MentalModel>
+
+Think of choosing between REST Assured and Playwright as choosing between a **dedicated sports car and an SUV**. REST Assured is the sports car — purpose-built for API testing, faster and more capable on that specific track, but it only does one thing. Playwright is the SUV — it handles APIs and UI, carries more passenger types (tests), and is more versatile, but it's not as sharp on the API-only track. Neither is better in absolute terms — the right choice depends on where you're driving.
+
+</MentalModel>
+
+
+<KeyTakeaways>
+
+1. **REST Assured** excels at deep API validation: JSON Schema, Hamcrest matchers, POJO mapping, data providers, and Java ecosystem integration.
+2. **Playwright** excels at combined API + UI testing: create data via API, verify via browser, mock responses, share auth state.
+3. Language matters most: Java teams should use REST Assured; TypeScript teams should use Playwright. Don't fight your ecosystem.
+4. Both tools can test any REST API — the difference is in developer experience, assertion depth, and ecosystem integration.
+5. The best test suites often use both: REST Assured for deep API validation, Playwright for API+UI integration.
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation (Layer 2)
+
+### Feature Comparison Table
+
+| Feature | REST Assured (Java) | Playwright API (TypeScript) |
+|---------|-------------------|-----------------------------|
+| **Primary purpose** | Dedicated API testing | Browser automation + API testing |
+| **Language** | Java | TypeScript / JavaScript |
+| **DSL style** | `given().when().then()` fluent chain | `await request.post()` async/await |
+| **JSON assertions** | Hamcrest matchers, GPath, JsonPath | Standard `expect()` matchers |
+| **JSON Schema validation** | Built-in (`matchesJsonSchemaInClasspath`) | Requires external library (Ajv, Zod) |
+| **POJO mapping** | Built-in (Jackson/Gson) | TypeScript interfaces (compile-time only) |
+| **XML support** | Built-in (XmlPath, XSD validation) | Not built-in |
+| **Data-driven testing** | `@DataProvider` (TestNG) | Parameterized via arrays/loops |
+| **Request spec reuse** | `RequestSpecification` builder | Custom test fixtures |
+| **Response time assertion** | `.time(lessThan(2000L))` | Manual timing (`Date.now()`) |
+| **Parallel execution** | TestNG `parallel="classes"` | Built-in worker pool |
+| **UI testing** | Not supported | Core feature |
+| **API + UI combined** | Requires separate framework | Native — same test uses `request` + `page` |
+| **Route mocking** | Not applicable (no browser) | `page.route()` for browser-level mocking |
+| **Auth state sharing** | Manual token management | `storageState` for browser tests |
+| **Reporting** | TestNG/Allure | Built-in HTML, list, JSON reporters |
+| **CI/CD integration** | Maven/Gradle + any CI | npm + any CI |
+| **Learning curve** | Moderate (Java + Hamcrest + REST Assured API) | Low if already using Playwright |
+| **Community/maturity** | Mature, large Java QA community | Growing, strong TypeScript community |
+
+### Syntax Comparison — Same Test, Both Tools
+
+**Scenario:** Login to StayNest, verify the response, extract the token.
+
+**REST Assured (Java):**
+
+
+```java
+import io.restassured.http.ContentType;
+import io.restassured.response.Response;
+import org.testng.annotations.Test;
+
+import static io.restassured.RestAssured.given;
+import static org.hamcrest.Matchers.*;
+
+public class LoginTest {
+
+    @Test
+    public void testLoginSuccess() {
+        Response response = given()
+            .baseUri("http://localhost:8080/api/v1")
+            .contentType(ContentType.JSON)
+            .body("""
+                {
+                    "email": "guest@staynest.com",
+                    "password": "pass123"
+                }
+                """)
+            .log().ifValidationFails()
+        .when()
+            .post("/auth/login")
+        .then()
+            .statusCode(200)
+            .contentType(ContentType.JSON)
+            .body("data.accessToken", notNullValue())
+            .body("data.accessToken", matchesPattern("^eyJ.*"))
+            .body("error", nullValue())
+            .time(lessThan(2000L))
+            .extract().response();
+
+        String token = response.jsonPath().getString("data.accessToken");
+        // Token ready for next request
+    }
+}
+```
+
+**Playwright (TypeScript):**
+
+
+```typescript
+import { test, expect } from '@playwright/test';
+
+test('login success', async ({ request }) => {
+  const response = await request.post('http://localhost:8080/api/v1/auth/login', {
+    data: {
+      email: 'guest@staynest.com',
+      password: 'pass123',
+    },
+  });
+
+  expect(response.status()).toBe(200);
+  expect(response.headers()['content-type']).toContain('application/json');
+
+  const body = await response.json();
+  expect(body.data.accessToken).toBeTruthy();
+  expect(body.data.accessToken).toMatch(/^eyJ.*/);
+  expect(body.error).toBeNull();
+
+  const token = body.data.accessToken;
+  // Token ready for next request
+});
+```
+
+**Key differences visible in this comparison:**
+
+| Aspect | REST Assured | Playwright |
+|--------|------------|-----------|
+| Assertion style | Inline in the chain: `.body("path", matcher)` | Separate: `expect(body.field).toBe(value)` |
+| Body access | JsonPath in chain or extracted: `response.jsonPath()` | Parsed once: `await response.json()` |
+| Type safety | None (string-based paths) | Partial (TypeScript property access) |
+| Response time | Built-in: `.time(lessThan(2000L))` | Manual: `Date.now()` before/after |
+| Logging | Built-in: `.log().ifValidationFails()` | Manual or via test reporter |
+| Verbosity | More boilerplate (imports, static methods) | More concise (async/await, object literals) |
+
+### Deeper Comparison — Data-Driven Tests
+
+**REST Assured with TestNG @DataProvider:**
+
+
+```java
+@DataProvider(name = "loginData")
+public Object[][] loginData() {
+    return new Object[][] {
+        { "valid_guest",     "guest@staynest.com",   "pass123",     200, true  },
+        { "wrong_password",  "guest@staynest.com",   "wrong",       401, false },
+        { "empty_email",     "",                      "pass123",     400, false },
+        { "missing_password","guest@staynest.com",   "",            400, false },
+        { "nonexistent_user","nobody@staynest.com",  "pass123",     401, false },
+    };
+}
+
+@Test(dataProvider = "loginData")
+public void testLogin(String testCase, String email, String password,
+                       int expectedStatus, boolean expectToken) {
+    Response response = given()
+        .spec(baseSpec)
+        .body(String.format("{\"email\":\"%s\",\"password\":\"%s\"}", email, password))
+    .when()
+        .post("/auth/login")
+    .then()
+        .statusCode(expectedStatus)
+        .extract().response();
+
+    if (expectToken) {
+        Assert.assertNotNull(response.jsonPath().getString("data.accessToken"));
+    }
+}
+```
+
+**Playwright with parameterized array:**
+
+
+```typescript
+import { test, expect } from '@playwright/test';
+
+const loginTestCases = [
+  { name: 'valid guest',      email: 'guest@staynest.com', password: 'pass123',  status: 200, hasToken: true  },
+  { name: 'wrong password',   email: 'guest@staynest.com', password: 'wrong',    status: 401, hasToken: false },
+  { name: 'empty email',      email: '',                    password: 'pass123',  status: 400, hasToken: false },
+  { name: 'missing password', email: 'guest@staynest.com', password: '',          status: 400, hasToken: false },
+  { name: 'nonexistent user', email: 'nobody@staynest.com', password: 'pass123', status: 401, hasToken: false },
+];
+
+for (const tc of loginTestCases) {
+  test(`login - ${tc.name}`, async ({ request }) => {
+    const response = await request.post('/auth/login', {
+      data: { email: tc.email, password: tc.password },
+    });
+
+    expect(response.status()).toBe(tc.status);
+
+    if (tc.hasToken) {
+      const body = await response.json();
+      expect(body.data.accessToken).toBeTruthy();
+    }
+  });
+}
+```
+
+**Comparison insight:** TestNG's `@DataProvider` is a first-class framework feature with built-in reporting integration (each row appears as a named test). Playwright's approach uses JavaScript loops — simpler syntax but requires manual naming via template literals. Both achieve the same result; the ergonomics differ.
+
+---
+
+## Practical Implementation (Layer 3)
+
+### Same Booking Flow — Side by Side
+
+**REST Assured: Multi-step booking flow**
+
+
+```java
+public class BookingFlowTest extends BaseApiTest {
+
+    private int bookingId;
+
+    @Test(priority = 1, groups = "smoke")
+    public void createBooking() {
+        CreateBookingRequest request = new CreateBookingRequest()
+            .hotelId(1).roomId(1)
+            .checkInDate("2025-09-01").checkOutDate("2025-09-04")
+            .numberOfGuests(2);
+
+        bookingId = given()
+            .spec(guestSpec)
+            .body(request)
+        .when()
+            .post("/bookings/init")
+        .then()
+            .statusCode(201)
+            .body("data.status", equalTo("PENDING"))
+            .extract().path("data.id");
+    }
+
+    @Test(priority = 2, dependsOnMethods = "createBooking", groups = "smoke")
+    public void verifyBooking() {
+        given()
+            .spec(guestSpec)
+            .pathParam("id", bookingId)
+        .when()
+            .get("/bookings/{id}")
+        .then()
+            .statusCode(200)
+            .body("data.id", equalTo(bookingId))
+            .body("data.status", equalTo("PENDING"))
+            .body("data.totalPrice", greaterThan(0f));
+    }
+
+    @Test(priority = 3, dependsOnMethods = "verifyBooking", groups = "regression")
+    public void cancelBooking() {
+        given()
+            .spec(guestSpec)
+            .pathParam("id", bookingId)
+        .when()
+            .patch("/bookings/{id}/cancel")
+        .then()
+            .statusCode(200)
+            .body("data.status", equalTo("CANCELLED"));
+    }
+}
+```
+
+**Playwright: Same flow with API + browser verification**
+
+
+```typescript
+import { test, expect } from '../fixtures/api-fixtures';
+import type { ApiResponse, BookingData } from '../types/api';
+
+test.describe('Booking Flow', () => {
+  let bookingId: number;
+
+  test('create booking via API', async ({ guestApi }) => {
+    const response = await guestApi.post('/bookings/init', {
+      data: {
+        hotelId: 1,
+        roomId: 1,
+        checkInDate: '2025-09-01',
+        checkOutDate: '2025-09-04',
+        numberOfGuests: 2,
+      },
+    });
+
+    expect(response.status()).toBe(201);
+    const body = await response.json() as ApiResponse<BookingData>;
+    expect(body.data.status).toBe('PENDING');
+    bookingId = body.data.id;
+  });
+
+  test('verify booking via API', async ({ guestApi }) => {
+    const response = await guestApi.get(`/bookings/${bookingId}`);
+
+    expect(response.status()).toBe(200);
+    const body = await response.json() as ApiResponse<BookingData>;
+    expect(body.data.id).toBe(bookingId);
+    expect(body.data.status).toBe('PENDING');
+    expect(body.data.totalPrice).toBeGreaterThan(0);
+  });
+
+  test('verify booking in browser', async ({ page }) => {
+    // This test does what REST Assured CANNOT do — browser verification
+    await page.goto(`/bookings/${bookingId}`);
+    await expect(page.locator('[data-testid="booking-status"]')).toHaveText('PENDING');
+    await expect(page.locator('[data-testid="total-price"]')).toContainText('$');
+  });
+
+  test('cancel booking via API', async ({ guestApi }) => {
+    const response = await guestApi.patch(`/bookings/${bookingId}/cancel`);
+
+    expect(response.status()).toBe(200);
+    const body = await response.json() as ApiResponse<BookingData>;
+    expect(body.data.status).toBe('CANCELLED');
+  });
+});
+```
+
+### Decision Framework for Choosing the Right Tool
+
+Use this flowchart to decide:
+
+```
+START: What is your primary programming language?
+│
+├─ Java / Kotlin
+│   └─ Is this a pure API testing project?
+│       ├─ Yes → REST Assured
+│       └─ No, also need UI testing
+│           └─ Do you need API+UI in the same test?
+│               ├─ No → REST Assured (API) + Selenium (UI)
+│               └─ Yes → Consider Playwright for TypeScript, or
+│                        REST Assured (API) + Playwright (UI) as separate suites
+│
+├─ TypeScript / JavaScript
+│   └─ Are you already using Playwright for UI?
+│       ├─ Yes → Playwright API testing (unified framework)
+│       └─ No → Choose based on project needs:
+│           ├─ Deep API validation → Supertest or REST Assured (if Java OK)
+│           └─ API + UI combined → Playwright
+│
+└─ Other / Mixed team
+    └─ What does the team know best?
+        ├─ Java → REST Assured
+        ├─ TypeScript → Playwright
+        └─ Both → REST Assured for API depth, Playwright for UI+API integration
+```
+
+---
+
+## Failure and Debugging (Layer 4)
+
+### Migration Pitfall 1: Assertion Depth Loss (REST Assured → Playwright)
+
+**The Problem:** Migrating from REST Assured to Playwright, you lose Hamcrest's rich matcher library:
+
+
+```java
+// REST Assured: powerful inline assertion
+.body("data.hotels.name", everyItem(containsString("Hotel")))
+.body("data.hotels", hasSize(greaterThan(0)))
+.body("data.hotels.findAll { it.price > 100 }.size()", greaterThan(0))
+```
+
+
+```typescript
+// Playwright: requires manual implementation
+const body = await response.json();
+for (const hotel of body.data.hotels) {
+  expect(hotel.name).toContain('Hotel');  // Manual loop instead of everyItem()
+}
+expect(body.data.hotels.length).toBeGreaterThan(0);
+const expensive = body.data.hotels.filter((h: any) => h.price > 100);
+expect(expensive.length).toBeGreaterThan(0);  // Manual filter instead of GPath
+```
+
+**The trade-off:** Playwright's assertions are less concise for complex JSON queries. You trade assertion power for TypeScript type safety and API+UI unification.
+
+### Migration Pitfall 2: Sync vs Async Mental Model
+
+**The Problem:** REST Assured is synchronous — each line executes in order. Playwright is async — every API call returns a Promise:
+
+
+```java
+// REST Assured: synchronous, sequential, no await needed
+String token = given().body(login).post("/auth/login")
+    .then().extract().path("data.accessToken");
+String name = given().header("Auth", "Bearer " + token)
+    .get("/users/profile").then().extract().path("data.name");
+```
+
+
+```typescript
+// Playwright: async — forgetting await causes silent failures
+const loginRes = await request.post('/auth/login', { data: login });
+const { data } = await loginRes.json();  // Must await .json() too!
+const profileRes = await request.get('/users/profile', {
+  headers: { Authorization: `Bearer ${data.accessToken}` },
+});
+const profile = await profileRes.json();  // Another await
+```
+
+**Common mistake:** Forgetting `await` on `response.json()` — you get a Promise object instead of the parsed body, and `body.data.accessToken` is `undefined` without any error.
+
+### Migration Pitfall 3: Test Dependencies Across Frameworks
+
+**The Problem:** REST Assured with TestNG has `dependsOnMethods` for sequential test dependencies. Playwright discourages test dependencies — tests are designed to be independent.
+
+**The solution in Playwright:** Use `test.describe.serial()` for tests that must run in order:
+
+
+```typescript
+test.describe.serial('Sequential booking flow', () => {
+  let bookingId: number;
+
+  test('create', async ({ request }) => {
+    // ...
+    bookingId = body.data.id;
+  });
+
+  test('verify', async ({ request }) => {
+    // Uses bookingId from previous test
+    const response = await request.get(`/bookings/${bookingId}`);
+    // ...
+  });
+
+  test('cancel', async ({ request }) => {
+    // Uses bookingId from previous test
+    const response = await request.patch(`/bookings/${bookingId}/cancel`);
+    // ...
+  });
+});
+```
+
+---
+
+## Engineering Judgment (Layer 5)
+
+### When to Use REST Assured
+
+| Scenario | Why REST Assured |
+|----------|-----------------|
+| Java/Kotlin project | Natural ecosystem fit — Maven, TestNG, Spring Boot |
+| Deep API contract validation | JSON Schema, Hamcrest matchers, GPath queries |
+| Data-driven testing at scale | TestNG `@DataProvider` is a first-class feature |
+| Database integration tests | JDBC + REST Assured in the same Java project |
+| Team expertise is Java | Lower adoption cost, existing knowledge |
+| Complex JSON assertions | `everyItem()`, `hasEntry()`, GPath closures |
+
+### When to Use Playwright API Testing
+
+| Scenario | Why Playwright |
+|----------|---------------|
+| TypeScript/JavaScript project | Natural ecosystem fit — npm, Playwright runner |
+| API + UI testing in one framework | Native `request` + `page` in the same test |
+| Mocking API responses for UI tests | `page.route()` for controlled browser testing |
+| Auth state sharing between API and browser | `storageState` for seamless auth reuse |
+| Team already uses Playwright | Zero additional tooling, one test report |
+| Quick API test addition to existing Playwright project | 10-minute setup — no new dependencies |
+
+### When to Use Both
+
+| Scenario | REST Assured Role | Playwright Role |
+|----------|------------------|----------------|
+| Full-stack project with Java backend + React frontend | API contract tests, integration tests | UI tests, API+UI combined tests |
+| Team has Java SDETs and TypeScript developers | Backend API validation | Frontend-facing API validation |
+| Comprehensive test strategy | Deep regression (200+ API test cases) | Smoke suite + UI verification |
+
+### Migration Considerations
+
+**Moving from REST Assured to Playwright:**
+
+| Step | Action | Risk |
+|------|--------|------|
+| 1 | Set up Playwright project with API config | Low — straightforward |
+| 2 | Migrate simple GET/POST tests | Low — syntax differences are mechanical |
+| 3 | Migrate data-driven tests | Medium — need to replicate @DataProvider |
+| 4 | Migrate complex assertions (JSON Schema, GPath) | High — need external libraries (Ajv) |
+| 5 | Add API+UI combined tests (new capability) | Medium — new patterns, high value |
+| 6 | Decommission REST Assured suite | High — only after full migration + confidence |
+
+**Moving from Playwright to REST Assured:**
+
+| Step | Action | Risk |
+|------|--------|------|
+| 1 | Set up Maven project with REST Assured | Low — standard Java setup |
+| 2 | Migrate simple API tests | Low — syntax mapping is direct |
+| 3 | Replicate custom fixtures as RequestSpecification | Medium — different composition model |
+| 4 | Lose API+UI combined tests | High — need separate UI framework |
+| 5 | Add JSON Schema, DataProvider, deep assertions | Low — built-in features |
+
+---
+
+## Interview and Revision (Layer 6)
+
+### Fundamental Questions
+
+**Q1: Compare REST Assured and Playwright for API testing. When would you choose each?**
+
+**A:** REST Assured is a dedicated Java API testing library — it excels at deep JSON validation (Hamcrest matchers, JSON Schema, GPath queries), data-driven testing with TestNG DataProvider, and integration with Java ecosystems (Spring Boot, JDBC, Maven). Playwright is primarily a browser automation tool with API testing as a secondary feature — it excels at combined API+UI testing (create data via API, verify in browser), route mocking for UI tests, and auth state sharing. I choose REST Assured for Java-heavy projects needing deep API validation. I choose Playwright when the team already uses it for UI, when I need API+UI combined tests, or when the project is TypeScript-first. For a full-stack project, I might use both — REST Assured for the API contract test suite and Playwright for UI tests with API-based data setup.
+
+**Q2: What capabilities does REST Assured have that Playwright API testing lacks?**
+
+**A:** Three main capabilities: (1) JSON Schema validation (`matchesJsonSchemaInClasspath()`) — Playwright needs an external library like Ajv. (2) Rich inline assertions with Hamcrest matchers — `everyItem()`, `hasEntry()`, GPath closures like `findAll { it.price > 100 }`. Playwright requires manual loops and filters. (3) Built-in response time assertions (`.time(lessThan(2000L))`) — Playwright requires manual timing with `Date.now()`. Additionally, REST Assured has stronger POJO mapping with Jackson annotations, while Playwright's TypeScript interfaces are compile-time only.
+
+**Q3: What can Playwright do for API testing that REST Assured cannot?**
+
+**A:** Three unique capabilities: (1) Combined API+UI testing — the same test can call `request.post()` to create data and then use `page.goto()` to verify the browser renders it correctly. REST Assured has no browser integration. (2) Route mocking — `page.route()` intercepts browser network requests and returns mock responses, letting you test UI behavior against controlled data (error states, empty states, edge cases). (3) Auth state sharing via `storageState` — authenticate via API, save browser state to a file, and every UI test starts pre-authenticated.
+
+### Scenario-Based Questions
+
+**S1: "You're joining a new team that has a TypeScript frontend and a Java backend. They currently have no API tests. What do you recommend?"**
+
+**A:** I'd recommend a two-tool strategy. For the backend API contract tests — validation, schema checks, data-driven negative testing — REST Assured with TestNG. Java SDETs can own this, it integrates with the backend build, and it provides the deepest API validation. For the frontend-facing tests — API+UI combined flows, auth setup for browser tests, route mocking for edge cases — Playwright. The frontend team already knows TypeScript, and Playwright gives them API testing without a new language. The two suites run in separate CI jobs with separate reports. Over time, if the team standardizes on one language, consolidate.
+
+**S2: "A teammate argues that Playwright can do everything REST Assured can. How do you respond?"**
+
+**A:** Technically, yes — both tools can send HTTP requests and assert responses. But "can do" isn't the same as "does well." REST Assured's Hamcrest matchers, JSON Schema validation, TestNG DataProviders, and GPath queries make complex API validation concise and readable. Achieving the same in Playwright requires external libraries, manual loops, and more code. However, Playwright does things REST Assured cannot — API+UI combined tests, route mocking, and storage state. The question isn't "which can do more?" but "which fits our project's primary need?" Pure API testing in Java → REST Assured. API+UI in TypeScript → Playwright.
+
+
+
+
+| # | Front (Question) | Back (Answer) |
+|---|---|---|
+| 1 | What is REST Assured's primary advantage over Playwright for API testing? | Deep assertion capabilities: Hamcrest matchers, JSON Schema validation, GPath queries, and `@DataProvider` for data-driven tests — all built in |
+| 2 | What is Playwright's primary advantage over REST Assured for API testing? | Combined API + UI testing in one framework: `request` + `page` in the same test, `page.route()` for mocking, `storageState` for auth reuse |
+| 3 | Can Playwright validate JSON Schema? | Not built-in. Requires an external library like Ajv or Zod. REST Assured has `matchesJsonSchemaInClasspath()` built in |
+| 4 | Can REST Assured mock API responses for browser tests? | No. REST Assured has no browser integration. Use Playwright's `page.route()` or a tool like WireMock for server-side mocking |
+| 5 | When should you use BOTH tools in the same project? | Full-stack projects: REST Assured for deep backend API validation (Java), Playwright for frontend UI tests with API-based data setup (TypeScript) |
+
+### Mastery Checklist
+
+- [ ] Can list 5+ feature differences between REST Assured and Playwright API testing
+- [ ] Can write the same API test in both tools and explain the trade-offs
+- [ ] Can recommend the right tool for a given project based on language, team, and requirements
+- [ ] Can explain what each tool does uniquely (REST Assured: schema validation, GPath; Playwright: route mocking, storage state)
+- [ ] Can outline a migration plan from one tool to the other
+- [ ] Can argue for a two-tool strategy when the project warrants it
+- [ ] Can answer the "which is better?" interview question with nuance, not dogma
+
+---
+
+**Related:** Advanced Patterns, REST Assured Setup And First Tests, Api Client Design
+
+*Last updated: *

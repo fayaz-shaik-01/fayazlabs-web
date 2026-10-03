@@ -1,0 +1,440 @@
+---
+title: "Dependency Management"
+description: "What: Dependency management is how you declare, resolve, and control the external libraries your project uses. In Java, that means Maven (pom.xml) or Gradle (build.gradle). In TypeScript, it's npm (package.json). These tools download libraries, resolve version conflicts, and ensure everyone on the team builds with the same versions."
+summary: "SDET Engineering guide: Dependency Management"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "software-engineering"
+lesson: "dependency-management"
+difficulty: "intermediate"
+estimatedMinutes: 30
+prerequisites: []
+tags: ["SDET", "Software Engineering"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/software-engineering/dependency-management"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Dependency Management
+
+> **Module:** 01-Programming Foundations / Software Engineering  
+> **Prerequisites:** Clean Code, Design Patterns  
+> **Mastery Target:** L3 (Independent)
+
+---
+
+## Quick Overview (2-minute read)
+
+**What:** Dependency management is how you declare, resolve, and control the external libraries your project uses. In Java, that means Maven (`pom.xml`) or Gradle (`build.gradle`). In TypeScript, it's npm (`package.json`). These tools download libraries, resolve version conflicts, and ensure everyone on the team builds with the same versions.
+
+**Why:** A test automation project is 80% library code (Selenium, Playwright, TestNG, REST Assured) and 20% your code. If dependencies are misconfigured, you get mysterious `ClassNotFoundException`s, version conflicts where one library needs Guava 31 and another needs Guava 30, or tests that pass on your machine but fail in CI because of a different dependency resolution. Understanding dependency management turns "it works on my machine" into "it works everywhere."
+
+**Where:** Every project's build file — `pom.xml`, `build.gradle`, `package.json`. Every CI/CD pipeline that runs `mvn install` or `npm ci`. Every debugging session that starts with "this class exists but the method signature doesn't match."
+
+<MentalModel>
+
+Think of dependency management as **grocery shopping with a recipe list**. Your `pom.xml` or `package.json` is the recipe — it lists what you need (`selenium-java 4.15.0`). The build tool (Maven/npm) is the delivery service — it fetches the exact items. **Transitive dependencies** are the ingredients your ingredients need (Selenium needs Guava, OkHttp, etc.). **Version conflicts** are when two recipes call for different brands of flour — the build tool must decide which one to use.
+
+</MentalModel>
+
+
+<KeyTakeaways>
+
+1. **`pom.xml` and `package.json` serve the same purpose** — declare what your project depends on, which versions, and for what scope (compile, test, dev).
+2. **Transitive dependencies are invisible until they break** — your library depends on libraries that depend on other libraries. Conflicts in that chain cause the hardest-to-diagnose build failures.
+3. **Lock files ensure reproducibility** — Maven has `pom.xml` (deterministic by version), npm has `package-lock.json`. Always commit lock files.
+4. **Scope matters** — `test` scope in Maven and `devDependencies` in npm prevent test-only libraries from shipping to production.
+5. **`mvn dependency:tree` and `npm ls` are your diagnostic tools** — when dependencies break, these commands show you the full resolution chain.
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation
+
+### Maven: pom.xml Structure
+
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 
+         http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <!-- Project coordinates — uniquely identify this project -->
+    <groupId>com.example</groupId>
+    <artifactId>playwright-tests</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+    <packaging>jar</packaging>
+
+    <!-- Centralize version numbers — change in one place, applies everywhere -->
+    <properties>
+        <maven.compiler.source>17</maven.compiler.source>
+        <maven.compiler.target>17</maven.compiler.target>
+        <selenium.version>4.18.1</selenium.version>
+        <testng.version>7.9.0</testng.version>
+        <rest-assured.version>5.4.0</rest-assured.version>
+    </properties>
+
+    <dependencies>
+        <!-- COMPILE scope (default) — available everywhere, shipped to production -->
+        <dependency>
+            <groupId>org.seleniumhq.selenium</groupId>
+            <artifactId>selenium-java</artifactId>
+            <version>${selenium.version}</version>
+        </dependency>
+
+        <!-- TEST scope — only available in src/test/java, not shipped -->
+        <dependency>
+            <groupId>org.testng</groupId>
+            <artifactId>testng</artifactId>
+            <version>${testng.version}</version>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>io.rest-assured</groupId>
+            <artifactId>rest-assured</artifactId>
+            <version>${rest-assured.version}</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+</project>
+```
+
+### Maven Dependency Scopes
+
+| Scope | Available During | Shipped to Production | Use Case |
+|---|---|---|---|
+| `compile` (default) | Compile + Test + Runtime | Yes | Core libraries (Selenium, HTTP clients) |
+| `test` | Test only | No | TestNG, assertion libraries, test utilities |
+| `provided` | Compile + Test, NOT runtime | No | Servlet API (container provides it) |
+| `runtime` | Test + Runtime, NOT compile | Yes | JDBC drivers (loaded by reflection) |
+
+**For test automation projects:** Most dependencies should be `test` scope because the test project itself doesn't ship to production. Use `compile` only for libraries needed by shared utilities that other projects consume.
+
+### Maven Lifecycle
+
+```
+mvn clean           → deletes target/ directory
+mvn compile          → compiles src/main/java
+mvn test-compile     → compiles src/test/java
+mvn test             → runs tests (includes compile + test-compile)
+mvn package          → creates JAR/WAR (includes test)
+mvn install          → installs to local .m2 repository (includes package)
+mvn dependency:tree  → shows the full dependency resolution tree
+```
+
+### Gradle Basics
+
+
+```groovy
+// build.gradle (Groovy DSL)
+plugins {
+    id 'java'
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // implementation = compile scope in Maven
+    implementation 'org.seleniumhq.selenium:selenium-java:4.18.1'
+
+    // testImplementation = test scope in Maven
+    testImplementation 'org.testng:testng:7.9.0'
+    testImplementation 'io.rest-assured:rest-assured:5.4.0'
+
+    // testRuntimeOnly = runtime + test scope
+    testRuntimeOnly 'org.slf4j:slf4j-simple:2.0.12'
+}
+
+test {
+    useTestNG()     // use TestNG instead of JUnit
+}
+```
+
+**Maven vs. Gradle comparison:**
+
+| Maven | Gradle | Notes |
+|---|---|---|
+| `<scope>compile</scope>` (default) | `implementation` | Main classpath |
+| `<scope>test</scope>` | `testImplementation` | Test classpath only |
+| `pom.xml` (XML) | `build.gradle` (Groovy/Kotlin) | Gradle is more concise |
+| Convention-based, rigid | Convention + scripting, flexible | Gradle allows custom logic |
+| `mvn dependency:tree` | `gradle dependencies` | Same purpose |
+
+### Transitive Dependencies and Conflicts
+
+
+```
+Your project
+├── selenium-java:4.18.1
+│   ├── guava:33.0.0-jre          ← Selenium needs Guava 33
+│   ├── okhttp:4.12.0
+│   └── ...
+├── rest-assured:5.4.0
+│   ├── guava:32.1.3-jre          ← REST Assured needs Guava 32
+│   └── ...
+└── CONFLICT: which Guava version wins?
+```
+
+**Maven's resolution strategy:** "nearest definition wins." The version declared closest to your project in the dependency tree takes precedence. If both are equidistant, the first one declared in `pom.xml` wins.
+
+**Diagnosing conflicts:**
+
+
+```bash
+# Show the full dependency tree — see which versions are resolved
+mvn dependency:tree
+
+# Filter for a specific artifact
+mvn dependency:tree -Dincludes=com.google.guava
+
+# Output (example):
+# [INFO] com.example:playwright-tests:jar:1.0.0-SNAPSHOT
+# [INFO] +- org.seleniumhq.selenium:selenium-java:jar:4.18.1:compile
+# [INFO] |  \- com.google.guava:guava:jar:33.0.0-jre:compile
+# [INFO] \- io.rest-assured:rest-assured:jar:5.4.0:test
+# [INFO]    \- (com.google.guava:guava:jar:32.1.3-jre:test - omitted for conflict)
+```
+
+**Resolving conflicts — exclusions:**
+
+
+```xml
+<!-- Exclude the conflicting transitive dependency -->
+<dependency>
+    <groupId>io.rest-assured</groupId>
+    <artifactId>rest-assured</artifactId>
+    <version>${rest-assured.version}</version>
+    <scope>test</scope>
+    <exclusions>
+        <exclusion>
+            <groupId>com.google.guava</groupId>
+            <artifactId>guava</artifactId>
+        </exclusion>
+    </exclusions>
+</dependency>
+
+<!-- Or force a specific version with dependencyManagement -->
+<dependencyManagement>
+    <dependencies>
+        <dependency>
+            <groupId>com.google.guava</groupId>
+            <artifactId>guava</artifactId>
+            <version>33.0.0-jre</version>
+        </dependency>
+    </dependencies>
+</dependencyManagement>
+```
+
+### npm/package.json for TypeScript Projects
+
+
+```jsonc
+{
+    "name": "playwright-test-suite",
+    "version": "1.0.0",
+    "scripts": {
+        "test": "npx playwright test",
+        "test:ci": "npx playwright test --reporter=junit",
+        "lint": "eslint . --ext .ts",
+        "typecheck": "tsc --noEmit"
+    },
+    "devDependencies": {
+        "@playwright/test": "^1.44.0",
+        "typescript": "^5.4.0",
+        "@typescript-eslint/eslint-plugin": "^7.0.0",
+        "eslint": "^8.57.0"
+    }
+}
+```
+
+**npm version ranges:**
+
+| Syntax | Meaning | Example: `^1.44.0` |
+|---|---|---|
+| `^1.44.0` | Compatible with 1.x.x (allows minor + patch updates) | Installs `1.44.0` to `1.99.99` |
+| `~1.44.0` | Approximately 1.44.x (allows patch updates only) | Installs `1.44.0` to `1.44.99` |
+| `1.44.0` | Exact version | Installs exactly `1.44.0` |
+
+**Key npm commands:**
+
+
+```bash
+npm install              # install all dependencies from package.json
+npm ci                   # clean install from lock file — deterministic (use in CI)
+npm install --save-dev @playwright/test   # add a dev dependency
+npm ls                   # show dependency tree (like mvn dependency:tree)
+npm ls @playwright/test  # show specific package in tree
+npm outdated             # show packages with available updates
+npm audit                # check for known security vulnerabilities
+```
+
+**`npm install` vs `npm ci`:** Use `npm install` locally (updates lock file). Use `npm ci` in CI (reads lock file exactly, fails if lock file is out of sync). This is like the difference between `mvn install` and a reproducible build.
+
+---
+
+## Practical Implementation (Layer 3)
+
+### Reading a Maven Dependency Tree — Walkthrough
+
+
+```bash
+$ mvn dependency:tree -Dincludes=com.google.guava
+
+[INFO] --- maven-dependency-plugin:3.6.1:tree (default-cli) @ booking-tests ---
+[INFO] com.example:booking-tests:jar:1.0.0-SNAPSHOT
+[INFO] +- org.seleniumhq.selenium:selenium-java:jar:4.18.1:compile
+[INFO] |  \- com.google.guava:guava:jar:33.0.0-jre:compile
+[INFO] +- io.rest-assured:rest-assured:jar:5.4.0:test
+[INFO] |  \- (com.google.guava:guava:jar:32.1.3-jre:test - omitted for conflict with 33.0.0-jre)
+[INFO] \- com.aventstack:extentreports:jar:5.1.1:test
+[INFO]    \- (com.google.guava:guava:jar:31.1-jre:test - omitted for conflict with 33.0.0-jre)
+```
+
+**How to read this:**
+1. **`(omitted for conflict)`** — Maven chose a different version. Check if the winning version is compatible with all consumers.
+2. **`:compile`** vs **`:test`** — the scope determines where the dependency is available.
+3. **Indentation** — shows the transitive chain. Guava 33 comes through Selenium, Guava 32 through REST Assured.
+4. **The winning version (33.0.0-jre)** is the one without parentheses. It won because Selenium is declared first in pom.xml at the same depth.
+
+---
+
+## Failure and Debugging (Layer 4)
+
+### Scenario: NoSuchMethodError at Runtime — Version Conflict
+
+**Symptoms:** Tests compile fine but fail at runtime with `java.lang.NoSuchMethodError` or `java.lang.ClassNotFoundException`.
+
+**Root cause:** Two libraries need different versions of the same transitive dependency. The resolved version doesn't have the method/class the other library expects.
+
+**Diagnostic steps:**
+
+
+```bash
+# Step 1: Identify which dependency uses the missing class/method
+# The stack trace tells you which library called the missing method
+# e.g., "at io.restassured.internal.http.HttpResponseDecorator.<init>"
+
+# Step 2: Find the conflicting dependency
+mvn dependency:tree -Dincludes=groupId:artifactId
+# where groupId:artifactId is the library containing the missing class
+
+# Step 3: Check which version was resolved vs which was expected
+# The "omitted for conflict" entries show what was replaced
+
+# Step 4: Force the correct version in dependencyManagement
+# or exclude the conflicting transitive dependency
+```
+
+**Fix — `dependencyManagement` to force a version:**
+
+
+```xml
+<dependencyManagement>
+    <dependencies>
+        <dependency>
+            <groupId>commons-codec</groupId>
+            <artifactId>commons-codec</artifactId>
+            <version>1.16.1</version>   <!-- force the version all libraries use -->
+        </dependency>
+    </dependencies>
+</dependencyManagement>
+```
+
+### Scenario: npm "Works Locally, Fails in CI"
+
+**Symptoms:** Tests pass on your machine. CI pipeline fails with `Module not found` or `Cannot find module`.
+
+**Root cause:** `package-lock.json` is not committed, or CI uses `npm install` instead of `npm ci`.
+
+**Fix:**
+1. **Always commit `package-lock.json`** — it pins exact versions for reproducibility.
+2. **Use `npm ci` in CI pipelines** — it installs from the lock file exactly, failing if the lock file doesn't match `package.json`.
+3. **Never run `npm install` in CI** — it may resolve different versions and update the lock file.
+
+---
+
+## Engineering Judgment (Layer 5)
+
+### Version Pinning: Exact vs. Range
+
+| Strategy | Syntax | Pros | Cons | Use When |
+|---|---|---|---|---|
+| Exact | `1.44.0` | Fully reproducible | Must manually update | Critical production dependencies |
+| Caret (minor) | `^1.44.0` | Gets bug fixes + features | May get breaking changes in practice | Default for npm — most libraries follow semver |
+| Tilde (patch) | `~1.44.0` | Gets bug fixes only | Misses useful features | When stability matters more than features |
+
+**Recommendation for test automation:** Use `^` (caret) for most dependencies with `package-lock.json` for reproducibility. Pin exact versions only for Playwright itself (`@playwright/test`) if you've experienced breaking changes between minor versions.
+
+### When to Exclude vs. When to Upgrade
+
+| Signal | Action |
+|---|---|
+| One library needs an older version of a transitive dependency | Exclude and let the newer version win (test thoroughly) |
+| The conflict causes runtime failures | Force a specific version via `dependencyManagement` |
+| A dependency has a known vulnerability | Upgrade to the patched version immediately |
+| Two major version ranges conflict (Guava 30 vs 33) | Consider if both consumers are compatible with the newer version |
+| You're spending more time on dependencies than on tests | Simplify — reduce the number of libraries, use frameworks with fewer dependencies |
+
+---
+
+## Interview and Revision (Layer 6)
+
+### Fundamental Questions
+
+**Q1: What is a transitive dependency and why does it cause problems?**  
+**A:** A transitive dependency is a library that your direct dependency depends on. For example, Selenium depends on Guava. Your project doesn't declare Guava, but it's on the classpath. Problems arise when two direct dependencies need different versions of the same transitive dependency — the build tool must pick one, and the losing version's consumer may fail at runtime with `NoSuchMethodError`.
+
+**Q2: How do you diagnose a dependency conflict in Maven?**  
+**A:** Run `mvn dependency:tree` to see the full resolution. Filter with `-Dincludes=groupId:artifactId` for the suspected conflict. Look for `(omitted for conflict)` entries — these show which versions were replaced. Then either exclude the conflicting transitive dependency or force a version via `<dependencyManagement>`.
+
+**Q3: What is the difference between `npm install` and `npm ci`?**  
+**A:** `npm install` resolves dependencies from `package.json` and may update `package-lock.json`. `npm ci` installs exactly what's in `package-lock.json`, failing if there's a mismatch with `package.json`. Always use `npm ci` in CI pipelines for reproducible builds.
+
+**Q4: What is the difference between `devDependencies` and `dependencies` in `package.json`?**  
+**A:** `dependencies` are needed at runtime (shipped with your application). `devDependencies` are needed only during development and testing (TypeScript compiler, test frameworks, linters). For test automation projects, almost everything goes in `devDependencies` because tests aren't shipped as production artifacts.
+
+
+
+
+| # | Front (Question) | Back (Answer) |
+|---|---|---|
+| 1 | Maven: What does `<scope>test</scope>` mean? | The dependency is only available during test compilation and execution, not shipped with the final artifact. |
+| 2 | What command shows the Maven dependency tree? | `mvn dependency:tree` — add `-Dincludes=groupId:artifactId` to filter. |
+| 3 | npm: `^1.44.0` vs `~1.44.0` — what's the difference? | `^` allows minor + patch updates (1.44.0 to 1.99.99). `~` allows only patch updates (1.44.0 to 1.44.99). |
+| 4 | Why should you commit `package-lock.json`? | It pins exact resolved versions for reproducible installs. Without it, `npm install` may resolve different versions on different machines. |
+| 5 | Gradle: `implementation` vs `testImplementation`? | `implementation` is the main classpath (compile scope). `testImplementation` is test-only (test scope). |
+
+### Mastery Checklist
+
+- [ ] Can read and write a `pom.xml` with dependencies, scopes, and properties
+- [ ] Can read and write a `build.gradle` with `implementation` and `testImplementation`
+- [ ] Can run `mvn dependency:tree` and identify version conflicts
+- [ ] Can resolve conflicts using exclusions or `<dependencyManagement>`
+- [ ] Can manage npm dependencies with `package.json` and understand version ranges
+- [ ] Can explain why `npm ci` should be used in CI instead of `npm install`
+- [ ] Can explain transitive dependencies and how they cause runtime failures
+
+---
+
+**Next:** Debugging Methodology | **Related:** Design Patterns
+
+---
+
+*Last updated: *

@@ -1,0 +1,512 @@
+---
+title: "Test Orchestration"
+description: "What: Test orchestration is the practice of deciding which tests to run, when to run them, where to run them, and how to distribute them across infrastructure. It bridges the gap between \"I have 2,000 tests\" and \"the right tests run at the right time in the right place.\""
+summary: "SDET Engineering guide: Test Orchestration"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "ci-cd-and-infrastructure"
+lesson: "test-orchestration"
+difficulty: "intermediate"
+estimatedMinutes: 32
+prerequisites: []
+tags: ["SDET", "CI/CD", "Jenkins", "Docker"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/ci-cd-and-infrastructure/test-orchestration"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Test Orchestration
+
+> **Module:** 08 — CI/CD and Infrastructure > Test Orchestration  
+> **Prerequisites:** Environment Management, TestNG/JUnit basics, Pipeline As Code  
+> **Mastery Target:** L3 (Independent) → L4 (Engineering Judgment)
+
+---
+
+## Quick Overview (Layer 1)
+
+**What:** Test orchestration is the practice of deciding *which* tests to run, *when* to run them, *where* to run them, and *how* to distribute them across infrastructure. It bridges the gap between "I have 2,000 tests" and "the right tests run at the right time in the right place."
+
+**Why it matters:** Running all 2,000 tests on every commit takes 90 minutes. Developers stop waiting and merge without test results. Running zero tests means bugs escape to production. Test orchestration finds the balance — fast smoke tests on every PR, full regression nightly, targeted tests on specific changes.
+
+**Where you encounter it:** Every CI pipeline that selects a test suite. Every TestNG XML that groups tests by scope. Every Jenkins job that splits tests across agents for speed. Every morning when you check whether the nightly regression passed.
+
+<MentalModel>
+
+Think of test orchestration as **restaurant kitchen management**. You have many dishes (tests) and limited cooks (agents/executors). A lunch rush (PR build) needs quick items — salads and sandwiches (smoke tests). Dinner service (nightly build) runs the full menu (regression). A VIP order (hotfix) gets priority and specific dishes. The kitchen manager (orchestrator) decides what to cook, who cooks it, and in what order — ensuring every customer gets served efficiently.
+
+</MentalModel>
+
+
+<KeyTakeaways>
+
+1. **Not all tests should run on every trigger** — smoke tests on every PR (fast feedback), regression nightly (comprehensive), sanity after deployment (critical path).
+2. **Test selection by tags/groups is essential** — TestNG groups (`@Test(groups = "smoke")`) or JUnit tags let you slice your suite by scope, speed, or feature.
+3. **Sharding splits tests across agents** — 2,000 tests across 4 agents = ~500 each = 4x faster. Critical for keeping CI fast as the suite grows.
+4. **Tests should be independent** — each test must pass or fail regardless of execution order. Dependencies between tests create fragile, unparallelizable suites.
+5. **Changed-code-based selection is advanced but powerful** — run only tests affected by the code change. Reduces feedback time from 90 minutes to 5 minutes.
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation (Layer 2)
+
+### Test Suite Types
+
+| Suite | When It Runs | Duration Target | What It Covers | Failure Response |
+|-------|-------------|-----------------|----------------|-----------------|
+| **Smoke** | Every PR / push | &lt; 5 minutes | Critical paths: login, search, book, pay | Block merge |
+| **Sanity** | After deployment | &lt; 10 minutes | Verify deployment didn't break basics | Rollback |
+| **Regression** | Nightly / scheduled | 30-90 minutes | Everything — all features, edge cases | Investigate next morning |
+| **Performance** | Weekly / on-demand | 15-60 minutes | Response times, throughput, stability | Alert if degradation > 10% |
+
+**The pyramid of CI execution:**
+
+```
+         ┌─────────┐
+         │ Nightly  │  ← Full regression (all 2000 tests)
+         │ Full     │
+        ┌┴─────────┴┐
+        │ Post-Deploy│  ← Sanity (50 critical tests)
+        │ Sanity     │
+       ┌┴────────────┴┐
+       │ PR / Push     │  ← Smoke (20 critical-path tests)
+       │ Smoke         │
+       └───────────────┘
+```
+
+### Test Selection Strategies
+
+**Tag/Group-based (most common):**
+
+
+```java
+@Test(groups = {"smoke", "api"})
+public void shouldCreateBooking() { /* ... */ }
+
+@Test(groups = {"regression", "api"})
+public void shouldHandleDoubleBooking() { /* ... */ }
+
+@Test(groups = {"regression", "ui"})
+public void shouldDisplayBookingConfirmation() { /* ... */ }
+```
+
+Run subsets by specifying groups:
+```bash
+mvn test -Dgroups=smoke          # Only smoke tests
+mvn test -Dgroups=regression,api  # Regression + API tests
+```
+
+**Suite XML-based (TestNG):**
+
+Define explicit test suites in XML files that select specific classes, packages, or groups.
+
+**Changed-code-based (advanced):**
+
+Analyze the Git diff to determine which modules changed, then run only the tests for those modules. Example: if only `BookingService.java` changed, run `BookingApiTest` and `BookingUiTest` — skip `SearchTest`, `LoginTest`, etc.
+
+### Test Independence
+
+**Rule: Every test must pass in isolation, regardless of execution order.**
+
+Why? If `testB` depends on `testA` creating a user, and you run only `testB` (smoke suite), it fails. If you parallelize, `testA` might run on Agent 1 while `testB` runs on Agent 2 — `testB` fails because the user doesn't exist on Agent 2's environment.
+
+
+```java
+// BAD — test dependency
+@Test(priority = 1)
+public void testCreateUser() {
+    userId = api.createUser(testUser);  // Creates state
+}
+
+@Test(priority = 2, dependsOnMethods = "testCreateUser")
+public void testBookProperty() {
+    api.createBooking(userId, propertyId);  // Depends on prior test
+}
+```
+
+
+```java
+// GOOD — each test is self-contained
+@Test(groups = "smoke")
+public void shouldBookProperty() {
+    // Arrange — create all required data
+    String userId = api.createUser(TestDataFactory.randomUser());
+    String propertyId = api.getAvailableProperty();
+    
+    // Act
+    Response response = api.createBooking(userId, propertyId);
+    
+    // Assert
+    assertThat(response.statusCode()).isEqualTo(201);
+    
+    // Cleanup
+    api.deleteBooking(response.jsonPath().getString("id"));
+    api.deleteUser(userId);
+}
+```
+
+### Sharding / Splitting Tests
+
+When your regression suite takes 90 minutes on one agent, split it across multiple agents:
+
+```
+┌──────────────────────────────────────────┐
+│         Jenkins Orchestrator              │
+│                                          │
+│  Total: 2000 tests, 4 agents available   │
+├──────────┬──────────┬──────────┬─────────┤
+│ Agent 1  │ Agent 2  │ Agent 3  │ Agent 4 │
+│ Tests    │ Tests    │ Tests    │ Tests   │
+│ 1-500    │ 501-1000 │ 1001-1500│1501-2000│
+│ ~22 min  │ ~23 min  │ ~22 min  │ ~23 min │
+└──────────┴──────────┴──────────┴─────────┘
+Total time: ~23 min (vs 90 min sequential)
+```
+
+**Splitting strategies:**
+- **By count:** Divide tests evenly by number. Simple but unbalanced if test durations vary.
+- **By duration:** Use historical timing data to balance total execution time per shard. Better balance.
+- **By module:** API tests on Agent 1-2, UI tests on Agent 3-4. Natural grouping, but may be uneven.
+
+---
+
+## Practical Implementation (Layer 3)
+
+### Example 1: TestNG Suite XMLs for StayNest
+
+**Smoke suite — runs on every PR (~3 minutes):**
+
+
+```xml
+<!-- src/test/resources/suites/smoke.xml -->
+<!DOCTYPE suite SYSTEM "https://testng.org/testng-1.0.dtd">
+<suite name="StayNest Smoke Suite" parallel="methods" thread-count="5">
+    
+    <test name="API Smoke">
+        <groups>
+            <run>
+                <include name="smoke"/>
+                <include name="api"/>
+            </run>
+        </groups>
+        <packages>
+            <package name="com.staynest.tests.api"/>
+        </packages>
+    </test>
+    
+    <test name="UI Smoke">
+        <groups>
+            <run>
+                <include name="smoke"/>
+                <include name="ui"/>
+            </run>
+        </groups>
+        <packages>
+            <package name="com.staynest.tests.ui"/>
+        </packages>
+    </test>
+    
+</suite>
+```
+
+**Regression suite — runs nightly (~60 minutes):**
+
+
+```xml
+<!-- src/test/resources/suites/regression.xml -->
+<!DOCTYPE suite SYSTEM "https://testng.org/testng-1.0.dtd">
+<suite name="StayNest Regression Suite" parallel="classes" thread-count="10">
+    
+    <test name="API Regression">
+        <packages>
+            <package name="com.staynest.tests.api.*"/>
+        </packages>
+    </test>
+    
+    <test name="UI Regression">
+        <parameter name="browser" value="chrome"/>
+        <packages>
+            <package name="com.staynest.tests.ui.*"/>
+        </packages>
+    </test>
+    
+    <test name="Integration Tests">
+        <packages>
+            <package name="com.staynest.tests.integration.*"/>
+        </packages>
+    </test>
+    
+</suite>
+```
+
+### Example 2: Jenkins Pipeline with Test Suite Selection
+
+
+```groovy
+pipeline {
+    agent { label 'linux' }
+    
+    parameters {
+        choice(
+            name: 'TEST_SUITE',
+            choices: ['smoke', 'regression', 'sanity'],
+            description: 'Test suite to execute'
+        )
+    }
+    
+    stages {
+        stage('Checkout & Build') {
+            steps {
+                checkout scm
+                sh 'mvn clean compile -DskipTests'
+            }
+        }
+        
+        stage('Run Tests') {
+            steps {
+                sh """
+                    mvn test \\
+                        -Dsurefire.suiteXmlFiles=src/test/resources/suites/${params.TEST_SUITE}.xml \\
+                        -Denv=staging
+                """
+            }
+        }
+    }
+    
+    post {
+        always {
+            junit '**/target/surefire-reports/*.xml'
+            allure results: Path: 'Target/Allure Results'
+        }
+    }
+}
+```
+
+### Example 3: Parallel Sharding Across Jenkins Agents
+
+
+```groovy
+pipeline {
+    agent none  // No default agent — each stage gets its own
+    
+    stages {
+        stage('Checkout & Build') {
+            agent { label 'linux' }
+            steps {
+                checkout scm
+                sh 'mvn clean compile -DskipTests'
+                stash name: 'compiled-tests', includes: '**'
+            }
+        }
+        
+        stage('Sharded Test Execution') {
+            parallel {
+                stage('Shard 1 - Auth & User Tests') {
+                    agent { label 'linux' }
+                    steps {
+                        unstash 'compiled-tests'
+                        sh """
+                            mvn test \\
+                                -Dsurefire.suiteXmlFiles=src/test/resources/suites/shard-1.xml \\
+                                -Denv=staging
+                        """
+                    }
+                    post {
+                        always {
+                            junit '**/target/surefire-reports/*.xml'
+                            stash name: 'results-shard-1',
+                                  includes: 'target/allure-results/**',
+                                  allowEmpty: true
+                        }
+                    }
+                }
+                
+                stage('Shard 2 - Search & Booking Tests') {
+                    agent { label 'linux' }
+                    steps {
+                        unstash 'compiled-tests'
+                        sh """
+                            mvn test \\
+                                -Dsurefire.suiteXmlFiles=src/test/resources/suites/shard-2.xml \\
+                                -Denv=staging
+                        """
+                    }
+                    post {
+                        always {
+                            junit '**/target/surefire-reports/*.xml'
+                            stash name: 'results-shard-2',
+                                  includes: 'target/allure-results/**',
+                                  allowEmpty: true
+                        }
+                    }
+                }
+                
+                stage('Shard 3 - Payment & Review Tests') {
+                    agent { label 'linux' }
+                    steps {
+                        unstash 'compiled-tests'
+                        sh """
+                            mvn test \\
+                                -Dsurefire.suiteXmlFiles=src/test/resources/suites/shard-3.xml \\
+                                -Denv=staging
+                        """
+                    }
+                    post {
+                        always {
+                            junit '**/target/surefire-reports/*.xml'
+                            stash name: 'results-shard-3',
+                                  includes: 'target/allure-results/**',
+                                  allowEmpty: true
+                        }
+                    }
+                }
+            }
+        }
+        
+        stage('Merge Reports') {
+            agent { label 'linux' }
+            steps {
+                unstash 'results-shard-1'
+                unstash 'results-shard-2'
+                unstash 'results-shard-3'
+                allure results: Path: 'Target/Allure Results'
+            }
+        }
+    }
+}
+```
+
+---
+
+## Failure and Debugging (Layer 4)
+
+### Failure 1: Smoke Suite Grows to 30 Minutes
+
+**The Problem:** The smoke suite started with 15 tests (3 minutes). Over 6 months, developers added 200 tests tagged "smoke" because it ran on every PR. Now it takes 30 minutes and nobody waits.
+
+**Root cause:** No governance on what qualifies as a "smoke" test. Smoke became a dumping ground.
+
+**The fix — define smoke criteria:**
+
+1. **Smoke = critical user path that generates revenue.** Login, search, book, pay, confirm. That's 10-15 tests, not 200.
+2. **Gate additions:** Any new test tagged `smoke` requires team review. Add a CI check that counts smoke tests and alerts if the count exceeds a threshold.
+3. **Move demoted tests to regression:** Reclassify non-critical-path tests from `smoke` to `regression`.
+
+### Failure 2: Sharded Tests Produce Incomplete Reports
+
+**The Problem:** Each shard publishes its own JUnit results and Allure data. The merged Allure report shows only Shard 3's results.
+
+**Root cause:** Each `unstash` overwrites the previous shard's `target/allure-results/` directory.
+
+**The fix — use unique output directories per shard:**
+
+
+```groovy
+// In each shard
+sh """
+    mvn test \\
+        -Dallure.results.directory=target/allure-results/shard-1 \\
+        -Dsurefire.suiteXmlFiles=src/test/resources/suites/shard-1.xml
+"""
+```
+
+
+```groovy
+// In merge stage
+allure results: [
+    [path: 'target/allure-results/shard-1'],
+    [path: 'target/allure-results/shard-2'],
+    [path: 'target/allure-results/shard-3']
+]
+```
+
+### Failure 3: Tests Pass When Run Alone, Fail in Suite
+
+**The Problem:** `shouldDeleteUser` passes when run individually but fails when run after `shouldListUsers` in the regression suite.
+
+**Root cause:** `shouldListUsers` modifies shared state (creates users without cleaning up), and `shouldDeleteUser` assumes a specific user count.
+
+**The fix:** Each test creates its own data and cleans up after itself. Tests must not depend on any state left by other tests.
+
+---
+
+## Engineering Judgment (Layer 5)
+
+### Suite Strategy by Team Maturity
+
+| Maturity | Suite Strategy |
+|----------|---------------|
+| Starting out | Smoke (PR) + Regression (nightly). Two suites. Simple. |
+| Growing team | Smoke (PR) + Sanity (post-deploy) + Regression (nightly) + Performance (weekly) |
+| Mature team | All above + changed-code-based selection + automatic flaky quarantine |
+
+### When to Shard vs When to Optimize
+
+| Signal | Action |
+|--------|--------|
+| Suite takes > 15 min, most tests are fast | Optimize slow tests first (probably waiting on unnecessary sleeps or redundant setup) |
+| Suite takes > 15 min, tests are already optimized | Shard across agents |
+| Suite takes > 60 min | Both — optimize AND shard |
+| &lt; 100 tests | Don't shard — overhead exceeds benefit |
+
+### `dependsOnMethods` — When (If Ever) to Use It
+
+**Almost never.** Test dependencies create ordering constraints that prevent parallelization, make subset execution fragile, and hide bugs (if `testA` masks a defect that `testB` would have caught independently).
+
+**The one exception:** End-to-end workflow tests where you're explicitly testing a user journey: create → modify → verify → delete. Even then, put all steps in *one test method*, not four dependent methods.
+
+---
+
+## Interview and Revision (Layer 6)
+
+### Fundamental Questions
+
+**Q1: How do you decide which tests to run in a CI pipeline?**
+
+**A:** I tier my test suites by trigger. On every PR or push, I run a smoke suite — 15-20 tests covering critical user paths (login, search, book, pay) that complete in under 5 minutes. After each deployment to staging, I run a sanity suite — 50 tests verifying the deployment didn't break core functionality. Nightly, I run the full regression — all tests, all edge cases, with parallelization to keep it under 60 minutes. Tests are tagged with TestNG groups, and the pipeline selects the suite via a parameter.
+
+**Q2: How do you split tests across multiple agents for faster execution?**
+
+**A:** I use Jenkins parallel stages, each running on a separate agent. In the build stage, I stash the compiled test code. Each shard stage unstashes it, runs a subset of tests (defined by separate TestNG suite XMLs), and stashes its results. A final merge stage unstashes all results and publishes a combined Allure report. The key is unique output directories per shard to prevent overwrites during merge. I split by module (auth tests, booking tests, search tests) rather than by count, because module-based splits are more predictable and easier to debug.
+
+**Q3: Why should tests be independent of each other?**
+
+**A:** Independent tests can be run in any order, in any subset, and in parallel. If `testB` depends on `testA` creating data, you can't run `testB` alone (smoke suite fails), you can't parallelize them (they might run on different agents), and a failure in `testA` cascades to `testB` — masking whether `testB`'s actual functionality works. Each test should set up its own preconditions, execute, assert, and clean up.
+
+
+
+
+| # | Front (Question) | Back (Answer) |
+|---|---|---|
+| 1 | What's the difference between smoke and regression suites? | Smoke: 15-20 critical-path tests, runs on every PR, &lt; 5 min. Regression: all tests, runs nightly, 30-90 min. Smoke gates merging; regression catches what smoke missed. |
+| 2 | How does test sharding improve CI speed? | Splits the test suite across multiple agents running in parallel. 2000 tests across 4 agents ≈ 500 each ≈ 4x faster total execution time. |
+| 3 | Why avoid `dependsOnMethods` in TestNG? | Creates ordering constraints that prevent parallelization, break subset execution (smoke), and cascade failures. Each test should be self-contained. |
+| 4 | What is changed-code-based test selection? | Analyzing the Git diff to determine which modules changed, then running only the tests for those modules. Reduces feedback from 90 min to minutes. |
+| 5 | How do you prevent smoke suite bloat? | Define strict criteria (critical revenue paths only), require review for new `smoke` tags, set a test count threshold with CI alerts. |
+
+### Mastery Checklist
+
+- [ ] Can design test suites (smoke, sanity, regression) with appropriate scope and triggers
+- [ ] Can implement TestNG group-based test selection with suite XMLs
+- [ ] Can configure Jenkins pipeline with parameterized suite selection
+- [ ] Can set up parallel sharding across multiple agents with report merging
+- [ ] Can ensure test independence — no shared state, no ordering dependencies
+- [ ] Can justify sharding vs optimizing for a given suite size and duration
+
+---
+
+**Next:** Artifact Management | **Related:** Environment Management
+
+*Last updated: *

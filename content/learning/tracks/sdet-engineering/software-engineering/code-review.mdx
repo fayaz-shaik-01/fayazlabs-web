@@ -1,0 +1,432 @@
+---
+title: "Code Review"
+description: "What: Code review is the practice of systematically examining code changes before they're merged into the main branch. For test automation, this means reviewing test code, page objects, fixtures, configurations, and test data with a focus on test-specific quality attributes: locator stability, wait strategies, test isolation, data cleanup, and assertion quality."
+summary: "SDET Engineering guide: Code Review"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "software-engineering"
+lesson: "code-review"
+difficulty: "intermediate"
+estimatedMinutes: 30
+prerequisites: []
+tags: ["SDET", "Software Engineering"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/software-engineering/code-review"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Code Review
+
+> **Module:** 01-Programming Foundations / Software Engineering  
+> **Prerequisites:** Clean Code, Design Patterns, Debugging Methodology  
+> **Mastery Target:** L3 (Independent)
+
+---
+
+## Quick Overview (2-minute read)
+
+**What:** Code review is the practice of systematically examining code changes before they're merged into the main branch. For test automation, this means reviewing test code, page objects, fixtures, configurations, and test data with a focus on test-specific quality attributes: locator stability, wait strategies, test isolation, data cleanup, and assertion quality.
+
+**Why:** Test code is production code for quality — it runs in CI on every commit and its failures wake people up at night. A bad locator strategy causes weekly maintenance. A missing `await` creates a flaky test that erodes trust. A test that doesn't clean up its data causes cascading failures across the suite. Code review catches these issues before they reach the main branch, when they're cheapest to fix.
+
+**Where:** Every pull request that touches test code — new tests, page object changes, fixture modifications, config updates, and test data changes. Also applies to reviewing your own code before submitting a PR.
+
+<MentalModel>
+
+Think of code review as **a second pair of eyes with a checklist**. You're not just reading code — you're asking structured questions: "Will this locator survive a UI redesign?" "Does this test clean up after itself?" "What happens when this API call returns a 500?" Code review for test automation is like a test *of* the tests — validating that the tests themselves are correct, reliable, and maintainable.
+
+</MentalModel>
+
+
+<KeyTakeaways>
+
+1. **Review for test-specific concerns, not just code style** — locator strategies, wait conditions, test isolation, and assertion quality matter more than formatting.
+2. **A PR without context is unreviewable** — the description should explain *what* changed, *why*, and *how to verify*. Screenshots of new test behavior help enormously.
+3. **Focus on maintainability over cleverness** — tests are read 10x more than they're written. Prefer explicit, boring code over clever abstractions.
+4. **Give actionable feedback** — "This locator is fragile" is unhelpful. "This XPath depends on position — use `getByTestId('submit-btn')` instead for stability" is actionable.
+5. **Review is a conversation, not a gatekeeping exercise** — the goal is shared understanding and better code, not proving who's right.
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation
+
+### Why Code Reviews Matter for Test Automation
+
+| Without Code Review | With Code Review |
+|---|---|
+| Flaky tests sneak into the suite | Flaky patterns caught before merge |
+| Inconsistent locator strategies across tests | Team alignment on preferred locators |
+| One person's understanding of the page | Shared knowledge of how the UI works |
+| Bugs in test code go unnoticed | Second pair of eyes catches logic errors |
+| Technical debt accumulates silently | Debt is identified and tracked |
+
+**The hidden cost of bad test code:** A single test with a fragile XPath locator that breaks every sprint costs ~30 minutes to fix per occurrence. Over a year with bi-weekly sprints, that's 13 hours on *one locator*. Code review catches this in 2 minutes.
+
+### What to Look for in Test Automation Code Reviews
+
+#### 1. Locator Stability
+
+
+```typescript
+// RED FLAG — fragile locators
+await page.locator("div > div:nth-child(3) > button").click();     // position-dependent
+await page.locator(".btn.btn-primary.mt-3").click();                // styling-dependent
+await page.locator("//div[@class='form']/button[2]").click();       // structure-dependent
+
+// GREEN — stable locators (ordered by preference)
+await page.getByRole("button", { name: "Submit" }).click();         // accessible role + name
+await page.getByTestId("submit-button").click();                    // data-testid attribute
+await page.getByLabel("Email address").fill("test@example.com");    // label text
+await page.getByText("Sign In").click();                            // visible text (last resort)
+```
+
+**Review question:** "If a designer changes the page layout or CSS classes, will this test still pass?"
+
+#### 2. Wait Strategies
+
+
+```typescript
+// RED FLAG — arbitrary sleeps or no waits
+await page.click("#submit");
+await page.waitForTimeout(3000);            // hard-coded sleep — fragile, slow
+const text = await page.textContent("#msg"); // may execute before content appears
+
+// GREEN — condition-based waits
+await page.getByRole("button", { name: "Submit" }).click();
+await expect(page.getByTestId("success-message")).toBeVisible();    // auto-waits
+await page.waitForURL("**/dashboard");                              // waits for navigation
+await page.waitForResponse(resp =>                                  // waits for API response
+    resp.url().includes("/api/bookings") && resp.status() === 200
+);
+```
+
+**Review question:** "Is this test waiting for a *condition* or for a *duration*? Conditions are reliable; durations are guesses."
+
+#### 3. Test Isolation
+
+
+```typescript
+// RED FLAG — test depends on state from another test
+test("should display booking list", async ({ page }) => {
+    // Assumes a previous test created bookings — will fail if run in isolation
+    await page.goto("/bookings");
+    await expect(page.getByTestId("booking-card")).toHaveCount(3);
+});
+
+// GREEN — test creates its own preconditions
+test("should display booking list", async ({ page, request }) => {
+    // Arrange: create test data via API
+    await request.post("/api/bookings", { data: { room: "Suite", guest: "Test" } });
+    await request.post("/api/bookings", { data: { room: "Standard", guest: "Test" } });
+
+    // Act
+    await page.goto("/bookings");
+
+    // Assert
+    await expect(page.getByTestId("booking-card")).toHaveCount(2);
+});
+```
+
+**Review question:** "Can I run this test alone, out of order, and in parallel — and it still passes?"
+
+#### 4. Data Cleanup
+
+
+```typescript
+// RED FLAG — creates data but never cleans up
+test("should create a booking", async ({ page, request }) => {
+    const response = await request.post("/api/bookings", { data: bookingData });
+    const bookingId = (await response.json()).id;
+    // ... test assertions ...
+    // No cleanup — booking persists, pollutes future test runs
+});
+
+// GREEN — cleanup in fixture or afterEach
+test("should create a booking", async ({ page, request }) => {
+    const response = await request.post("/api/bookings", { data: bookingData });
+    const bookingId = (await response.json()).id;
+
+    // ... test assertions ...
+
+    // Cleanup — guaranteed to run (in fixture's teardown or test.afterEach)
+    await request.delete(`/api/bookings/${bookingId}`);
+});
+```
+
+**Review question:** "What data does this test create, and is it cleaned up regardless of pass/fail?"
+
+#### 5. Assertion Quality
+
+
+```typescript
+// RED FLAG — weak or missing assertions
+test("should login", async ({ page }) => {
+    await page.goto("/login");
+    await page.fill("#email", "test@example.com");
+    await page.fill("#password", "password");
+    await page.click("#submit");
+    // Test "passes" with zero assertions — it only checks that nothing threw
+});
+
+// RED FLAG — overly broad assertion
+expect(await page.content()).toContain("Welcome");   // matches ANY page with "Welcome" anywhere
+
+// GREEN — specific, meaningful assertions
+test("should redirect to dashboard after login", async ({ page }) => {
+    await page.goto("/login");
+    await page.getByLabel("Email").fill("test@example.com");
+    await page.getByLabel("Password").fill("password");
+    await page.getByRole("button", { name: "Sign In" }).click();
+
+    // Specific assertions that verify the intended behavior
+    await expect(page).toHaveURL(/.*\/dashboard/);
+    await expect(page.getByTestId("welcome-message")).toHaveText("Welcome, Test User");
+    await expect(page.getByRole("navigation")).toBeVisible();
+});
+```
+
+**Review question:** "If the feature is broken, will this test actually fail? What specific behavior does it verify?"
+
+### Code Review Checklist for Test Code
+
+| Category | Check | Severity |
+|---|---|---|
+| **Locators** | Uses role/testid/label instead of CSS/XPath position | High |
+| **Locators** | No hard-coded text that may be localized | Medium |
+| **Waits** | No `waitForTimeout()` or arbitrary sleeps | High |
+| **Waits** | Every action has a proper condition-based wait | High |
+| **Async** | Every Playwright call has `await` | Critical |
+| **Isolation** | Test doesn't depend on other tests' data or execution order | High |
+| **Cleanup** | Test data created during setup is cleaned up in teardown | High |
+| **Assertions** | At least one meaningful assertion per test | Critical |
+| **Assertions** | Assertions are specific enough to catch real failures | High |
+| **Types** | No `any` types — proper interfaces used for test data and page objects | Medium |
+| **Naming** | Test name follows `should_X_when_Y` pattern | Medium |
+| **Structure** | Test follows Arrange-Act-Assert structure | Medium |
+| **Config** | No hard-coded URLs, credentials, or environment-specific values | High |
+| **Error handling** | Async errors are properly caught or allowed to propagate | Medium |
+| **Duplication** | Common setup extracted to fixtures, but tests remain readable | Low |
+
+---
+
+## Practical Implementation (Layer 3)
+
+### Review a Sample PR with Intentional Issues
+
+**PR Title:** "Add booking creation E2E test"  
+**PR Description:** "Added a test for creating bookings."
+
+**The code (with intentional issues — find them all):**
+
+
+```typescript
+// tests/booking.spec.ts
+import { test } from "@playwright/test";
+
+test("test booking", async ({ page }) => {
+    await page.goto("http://localhost:3000/login");
+
+    await page.locator("input[type='email']").fill("admin@test.com");
+    await page.locator("input[type='password']").fill("admin123");
+    await page.locator("button[type='submit']").click();
+    await page.waitForTimeout(3000);
+
+    await page.locator("a.nav-link:nth-child(3)").click();
+    await page.waitForTimeout(2000);
+
+    await page.locator("#guest-name").fill("John");
+    await page.locator("#room-type").selectOption("Suite");
+    await page.locator("#checkin").fill("2024-07-01");
+    await page.locator("#checkout").fill("2024-07-05");
+    page.locator("#submit-booking").click();
+
+    await page.waitForTimeout(3000);
+    const msg = await page.locator(".success-message").textContent();
+    console.log(msg);
+});
+```
+
+**Review comments you should write:**
+
+| Line | Issue | Severity | Suggested Fix |
+|---|---|---|---|
+| PR description | No context — what booking flow? What's the expected behavior? | Medium | Add: what scenario, why this test, how to verify manually |
+| Test name | `"test booking"` — meaningless name | Medium | `"should show confirmation when booking created with valid details"` |
+| `goto` URL | Hard-coded `localhost:3000` — fails in CI | High | Use `baseURL` from config: `await page.goto("/login")` |
+| Email/password | Hard-coded credentials in test | Medium | Extract to fixture or environment variable |
+| `input[type='email']` | Fragile CSS selector | Medium | Use `page.getByLabel("Email")` |
+| `waitForTimeout(3000)` x3 | Hard-coded sleeps | High | Use condition-based waits: `waitForURL`, `toBeVisible()` |
+| `a.nav-link:nth-child(3)` | Position-dependent locator | High | Use `page.getByRole("link", { name: "Bookings" })` |
+| `page.locator("#submit-booking").click()` | Missing `await`! | Critical | Add `await` — without it, click may not complete before assertions |
+| `console.log(msg)` | No assertion — test never verifies the result | Critical | Replace with `expect(msg).toContain("Booking confirmed")` |
+| No cleanup | Test creates a booking but never deletes it | High | Add teardown to delete the booking via API |
+| No `expect` import | `expect` not imported — won't compile if assertions are added | Low | Add to imports |
+
+### PR Description Template
+
+```markdown
+## What
+Brief description of the change (e.g., "Added E2E tests for booking creation flow").
+
+## Why
+Why this change is needed (e.g., "Booking creation has no automated coverage; 
+manual testing takes 15 min per release").
+
+## What Changed
+- Added `BookingPage` page object with form fill and submit methods
+- Added `create-booking.spec.ts` with 3 scenarios (valid, missing fields, past dates)
+- Updated auth fixture to support admin and guest roles
+
+## How to Verify
+1. Run `npx playwright test tests/booking/create-booking.spec.ts`
+2. All 3 tests should pass
+3. Run with `--headed` to see the booking flow visually
+
+## Screenshots / Recordings
+[Attach Playwright trace or headed mode screenshot if UI changed]
+
+## Checklist
+- [ ] Tests pass locally and in CI
+- [ ] No `waitForTimeout()` or hard-coded sleeps
+- [ ] All Playwright actions have `await`
+- [ ] Tests clean up created data
+- [ ] Page objects use stable locators (role, testid, label)
+```
+
+---
+
+## Failure and Debugging (Layer 4)
+
+### Scenario: Reviewer Catches a Subtle Missing `await`
+
+**PR code under review:**
+
+```typescript
+test("should show error when booking dates are invalid", async ({ page }) => {
+    await page.goto("/bookings/new");
+    await page.getByLabel("Check In").fill("2024-07-05");
+    await page.getByLabel("Check Out").fill("2024-07-01");    // checkout before checkin
+    await page.getByRole("button", { name: "Book Now" }).click();
+
+    // Reviewer spots: isVisible() returns Promise<boolean>, not void
+    // Without await, this is always truthy (a Promise object is truthy!)
+    const errorShown = page.getByTestId("date-error").isVisible();
+    expect(errorShown).toBeTruthy();    // ALWAYS PASSES — comparing a Promise, not a boolean
+});
+```
+
+**Reviewer's comment:** "Missing `await` on `isVisible()`. This assertion always passes because a Promise object is truthy. Use `await expect(page.getByTestId('date-error')).toBeVisible()` instead — it's the Playwright-idiomatic pattern that auto-waits."
+
+**Fixed code:**
+
+```typescript
+await expect(page.getByTestId("date-error")).toBeVisible();
+await expect(page.getByTestId("date-error")).toHaveText("Check-out must be after check-in");
+```
+
+### Common Review Mistakes by Reviewers
+
+| Mistake | Impact | Better Approach |
+|---|---|---|
+| Nitpicking formatting when there are logic bugs | Author focuses on trivial changes, real issues missed | Flag logic issues as "blocking," formatting as "nit" |
+| Approving without running the tests | Broken tests merge into main | At minimum, verify CI passed; ideally run locally |
+| Rewriting the author's code in comments | Demoralizing, doesn't build the author's skills | Explain the *principle*, let the author implement |
+| Rubber-stamping ("LGTM" without reading) | Defeats the purpose of review | Take at least 10 minutes to read through meaningfully |
+
+---
+
+## Engineering Judgment (Layer 5)
+
+### Giving Feedback: The Framework
+
+| Prefix | Meaning | Requires Action? |
+|---|---|---|
+| **Blocking:** | Must fix before merge — correctness, reliability, security | Yes |
+| **Suggestion:** | Would improve the code but not required | Author decides |
+| **Nit:** | Style/formatting preference | No — don't block on nits |
+| **Question:** | Seeking understanding, not requesting a change | Clarification only |
+| **Praise:** | Calling out something well done | N/A — builds morale |
+
+**Examples:**
+- **Blocking:** "Missing `await` on line 15 — this creates a flaky test."
+- **Suggestion:** "Consider extracting this login sequence into a fixture — it's repeated in 4 tests."
+- **Nit:** "Convention is `camelCase` for variable names, not `snake_case`."
+- **Question:** "Why `force: true` on this click? Is the element obstructed?"
+- **Praise:** "Nice use of `Promise.all` for parallel API setup — cuts test time significantly."
+
+### Receiving Feedback
+
+1. **Assume good intent** — the reviewer wants better code, not to criticize you.
+2. **Don't take it personally** — the review is about the code, not about you.
+3. **Ask questions if unclear** — "Can you explain why this approach is better?" is always appropriate.
+4. **Disagree constructively** — "I see the concern. In this case, I chose X because Y. Would Z be an acceptable middle ground?"
+5. **Apply feedback consistently** — if a reviewer catches a pattern issue in one place, fix it everywhere in the PR.
+
+### How Much Time Should Reviews Take?
+
+| PR Size | Expected Review Time | Red Flag If |
+|---|---|---|
+| Small (&lt; 100 lines) | 10-15 minutes | > 30 minutes (too complex for the size) |
+| Medium (100-400 lines) | 20-40 minutes | > 1 hour (PR too large?) |
+| Large (400+ lines) | 45-90 minutes | > 2 hours (split the PR) |
+
+**Rule of thumb:** If a PR takes more than an hour to review, it should probably be split into smaller PRs. Large PRs get superficial reviews — the reviewer's attention degrades after ~400 lines.
+
+---
+
+## Interview and Revision (Layer 6)
+
+### Fundamental Questions
+
+**Q1: What do you look for when reviewing test automation code?**  
+**A:** I focus on five test-specific areas: (1) Locator stability — are locators resilient to UI changes? (2) Wait strategies — are waits condition-based, not time-based? (3) Test isolation — can each test run independently? (4) Assertion quality — do assertions verify specific behavior, not just "no errors thrown"? (5) Data cleanup — is test data cleaned up in teardown? Beyond these, I check for missing `await`, proper types, and clear test naming.
+
+**Q2: How do you give feedback on a PR where you disagree with the approach?**  
+**A:** I frame it as a question or suggestion, not a demand: "Have you considered using fixtures for this setup? In my experience, it helps with test isolation because..." I explain the *why* behind my suggestion. If the author has a valid reason for their approach, I'm open to learning. I focus on blocking issues (correctness, reliability) vs. suggestions (style, optimization) and label them accordingly.
+
+**Q3: What makes a PR description useful for a reviewer?**  
+**A:** A good PR description explains what changed, why it changed, and how to verify it. For test PRs, I want to know: what scenarios are covered, what page objects were added or modified, and whether there are any known limitations. A checklist of verification steps and screenshots/traces for UI tests make reviews significantly faster.
+
+**Q4: What is the most common issue you find when reviewing Playwright test code?**  
+**A:** Missing `await` on async operations. It's subtle because the test often still passes — the Promise is created but not awaited, and sometimes Playwright's auto-retry mechanism saves it. But it creates intermittent failures that are expensive to debug later. I always scan for any Playwright method call without `await` as my first pass.
+
+
+
+
+| # | Front (Question) | Back (Answer) |
+|---|---|---|
+| 1 | What are the 5 key areas to review in test automation code? | Locator stability, wait strategies, test isolation, data cleanup, assertion quality. |
+| 2 | Why is `waitForTimeout()` a red flag in code review? | It's a hard-coded sleep — fragile (too short = flaky, too long = slow) and hides the real wait condition. Use condition-based waits instead. |
+| 3 | What does "Blocking" mean in a code review comment? | The issue must be fixed before the PR can be merged — it affects correctness, reliability, or security. |
+| 4 | How do you verify test isolation in a code review? | Ask: "Can this test run alone, out of order, and in parallel?" If it depends on data from other tests or execution order, it's not isolated. |
+| 5 | What makes a good code review comment? | It's actionable (explains *what* to change and *why*), labeled by severity (blocking/suggestion/nit), and respectful in tone. |
+
+### Mastery Checklist
+
+- [ ] Can review test PRs for locator stability, wait strategies, isolation, cleanup, and assertions
+- [ ] Can use the code review checklist systematically on any test automation PR
+- [ ] Can give feedback using the Blocking/Suggestion/Nit/Question/Praise framework
+- [ ] Can receive feedback constructively and apply it consistently
+- [ ] Can spot missing `await`, weak assertions, and hard-coded values in review
+- [ ] Can write a clear PR description using the template
+- [ ] Can identify when a PR should be split into smaller PRs
+
+---
+
+**Related:** Clean Code, Design Patterns, Debugging Methodology
+
+---
+
+*Last updated: *

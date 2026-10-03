@@ -1,0 +1,67 @@
+---
+title: "StayNest — Hotel Booking Platform"
+description: "A full-stack hotel booking application built as a realistic test target for SDET/QA automation frameworks. Features hotel search, room booking, dynamic pricing, mock payments, and role-based access."
+date: "2026-10-03"
+published: true
+featured: true
+image: ""
+tags: ["Full-Stack", "Testing", "Automation", "SDET"]
+stack: ["Spring Boot", "React", "PostgreSQL", "Vite", "Tailwind", "Docker", "Cloud Run"]
+github: ""
+demo: ""
+---
+
+## Purpose
+
+StayNest is a realistic hotel booking platform built specifically as a dependable test target for developing and validating web UI, REST API, and mobile test automation frameworks. It provides a production-like application with real business logic, authentication, and data flows.
+
+## Architecture
+
+The application follows a clean client-server architecture:
+
+- **Backend** — Spring Boot 3.4 REST API with JWT authentication, PostgreSQL persistence, and 33 API endpoints covering auth, hotel management, booking lifecycle, inventory, and payments.
+- **Frontend** — React 19 SPA with Vite, Tailwind CSS, React Router, and Zustand state management. Supports guest booking flows and hotel manager administration.
+- **Database** — PostgreSQL 16 with Hibernate ORM (auto-DDL). 9 tables covering users, hotels, rooms, inventory, bookings, and dynamic pricing.
+- **Payments** — Stripe integration with automatic mock payment mode when no API key is configured.
+
+## Key Features
+
+### Guest Workflows
+- Search hotels by city and date range
+- View hotel details with dynamic pricing
+- Complete booking flow: reserve, add guests, pay (mock), confirm
+- View and cancel bookings
+
+### Manager Workflows
+- Create and manage hotels with contact info, photos, amenities
+- Manage rooms and inventory with date-range controls
+- View bookings and generate reports
+
+### Technical Highlights
+- Dynamic pricing engine with occupancy, surge, urgency, and holiday strategies
+- JWT auth with refresh token rotation via HTTP-only cookies
+- Idempotent seed data for reproducible test environments
+- OpenAPI/Swagger documentation at `/api/v1/swagger-ui`
+- Health endpoint for deployment readiness checks
+- Dockerized with multi-stage builds and non-root containers
+- Deployed on Google Cloud Run with Supabase PostgreSQL
+
+## Stack
+
+- **Java 21** + Spring Boot 3.4 + Spring Security + Spring Data JPA
+- **React 19** + TypeScript 6 + Vite 8 + Tailwind 4
+- **PostgreSQL 16** with Hibernate auto-DDL
+- **Docker** multi-stage builds for Cloud Run
+- **Google Cloud Run** for backend hosting
+- **Vercel** for frontend hosting
+- **Supabase** for managed PostgreSQL
+
+## Test Automation Target
+
+StayNest is designed to be a stable, repeatable target for automation frameworks:
+
+- Deterministic seed data with known test accounts
+- Mock payment mode (no external service dependency)
+- Health and readiness endpoints
+- OpenAPI spec for API test generation
+- Predictable UI with semantic HTML and accessibility attributes

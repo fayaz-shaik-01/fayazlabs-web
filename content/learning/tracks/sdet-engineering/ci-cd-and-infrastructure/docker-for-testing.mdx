@@ -1,0 +1,509 @@
+---
+title: "Docker for Testing"
+description: "What: Docker packages applications and their dependencies into lightweight, portable containers. For test automation, Docker provides consistent test environments — the same browser version, same JDK, same database — on every developer's machine and in CI, eliminating \"works on my machine\" problems."
+summary: "SDET Engineering guide: Docker for Testing"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "ci-cd-and-infrastructure"
+lesson: "docker-for-testing"
+difficulty: "intermediate"
+estimatedMinutes: 32
+prerequisites: []
+tags: ["SDET", "CI/CD", "Jenkins", "Docker"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/ci-cd-and-infrastructure/docker-for-testing"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Docker for Testing
+
+> **Module:** 08 — CI/CD and Infrastructure > Docker for Testing  
+> **Prerequisites:** Pipeline As Code, basic command-line familiarity  
+> **Mastery Target:** L3 (Independent) → L4 (Engineering Judgment)
+
+---
+
+## Quick Overview (Layer 1)
+
+**What:** Docker packages applications and their dependencies into lightweight, portable containers. For test automation, Docker provides consistent test environments — the same browser version, same JDK, same database — on every developer's machine and in CI, eliminating "works on my machine" problems.
+
+**Why it matters:** You spend Monday debugging a test that passes on your MacBook but fails in Jenkins. The root cause: Jenkins has Chrome 120, your machine has Chrome 122. The fix took 3 hours. With Docker, the Chrome version is defined in a `docker-compose.yml` — identical everywhere, every time.
+
+**Where you encounter it:** Selenium Grid in Docker containers. Test databases spun up and torn down per test run. Containerized test execution in CI. Multi-service test environments (app + database + message queue) defined in one file.
+
+<MentalModel>
+
+Think of Docker as **shipping containers for software**. Before shipping containers, loading a cargo ship was chaos — every item had different dimensions, needed different handling, and ports needed specialized equipment. Shipping containers standardized everything: same size, same interface, works on any ship, any port, any truck. Docker does the same for software: package your app (or test environment) once, run it anywhere — laptop, CI server, cloud — with zero "but it works on my port" problems.
+
+</MentalModel>
+
+
+<KeyTakeaways>
+
+1. **Images are blueprints, containers are instances** — an image is a read-only template. A container is a running instance of that image. One image can spawn many containers.
+2. **Dockerfile defines how to build an image** — each instruction (`FROM`, `RUN`, `COPY`) creates a layer. Layers are cached, making rebuilds fast.
+3. **Docker Compose orchestrates multi-container environments** — define your app, database, and Selenium Grid in one `docker-compose.yml` and start everything with `docker compose up`.
+4. **Selenium Grid in Docker is the standard for UI test infrastructure** — hub + browser nodes, all containerized, scalable, disposable.
+5. **Containers are ephemeral** — they start fast, run tests, and are destroyed. No state leakage between runs. This isolation is a feature, not a limitation.
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation (Layer 2)
+
+### Docker Concepts for SDETs
+
+```
+┌────────────────────────────────────────────┐
+│            Docker Architecture              │
+│                                            │
+│  Dockerfile ──build──▶ Image ──run──▶ Container
+│  (recipe)              (blueprint)    (running instance)
+│                                            │
+│  docker-compose.yml                        │
+│  (multi-container recipe)                  │
+└────────────────────────────────────────────┘
+```
+
+**Image:** A read-only filesystem snapshot with everything needed to run an application — OS, runtime, dependencies, code. Built from a `Dockerfile`. Stored in registries (Docker Hub, ECR, GCR).
+
+**Container:** A running instance of an image with its own filesystem, network, and process space. Lightweight — starts in seconds, shares the host OS kernel (unlike VMs which boot an entire OS).
+
+**Dockerfile:** A text file with instructions to build an image:
+
+
+```dockerfile
+# Base image — start from an existing image with Java pre-installed
+FROM maven:3.9-eclipse-temurin-17
+
+# Set working directory inside the container
+WORKDIR /app
+
+# Copy dependency definition first (leverages Docker layer caching)
+COPY pom.xml .
+RUN mvn dependency:resolve
+
+# Copy source code
+COPY src/ ./src/
+
+# Default command when container starts
+CMD ["mvn", "test"]
+```
+
+**Why layer ordering matters:** Docker caches each layer. If `pom.xml` hasn't changed, Docker reuses the cached `dependency:resolve` layer — saving minutes on rebuilds. Put frequently-changing files (source code) last.
+
+### Selenium Grid in Docker
+
+Selenium Grid distributes browser tests across multiple nodes. Docker makes Grid setup trivial:
+
+```
+┌──────────────────────────────────┐
+│         Selenium Hub              │
+│  (routes tests to available       │
+│   browser nodes)                  │
+├──────────┬───────────┬───────────┤
+│ Chrome   │ Chrome    │ Firefox   │
+│ Node 1   │ Node 2    │ Node 1    │
+│ (1 test) │ (1 test)  │ (1 test)  │
+└──────────┴───────────┴───────────┘
+```
+
+**Hub:** Central coordinator. Receives WebDriver requests and routes them to available nodes.
+
+**Node:** A container running a specific browser. Each node handles one test session at a time (by default). Scale by adding more node containers.
+
+**Why Docker Grid beats local Grid:** No browser installation on CI agents. No driver version mismatches. Need 5 Chrome instances? Scale to 5 containers. Finished testing? Destroy everything. Tomorrow's run starts clean.
+
+### Docker Networking
+
+Containers in the same Docker Compose network communicate by service name:
+
+
+```yaml
+services:
+  app:
+    image: staynest-app:latest
+    ports:
+      - "8080:8080"
+  
+  selenium-hub:
+    image: selenium/hub:4.18
+    ports:
+      - "4442:4442"
+      - "4443:4443"
+      - "4444:4444"
+
+  chrome:
+    image: selenium/node-chrome:4.18
+    environment:
+      - SE_EVENT_BUS_HOST=selenium-hub  # Reference by service name
+      - SE_EVENT_BUS_PUBLISH_PORT=4442
+      - SE_EVENT_BUS_SUBSCRIBE_PORT=4443
+```
+
+Inside the Docker network, `chrome` reaches the hub via `selenium-hub:4444` (service name, not localhost). Your test code running outside Docker connects via `localhost:4444` (mapped port).
+
+---
+
+## Practical Implementation (Layer 3)
+
+### Example 1: Docker Compose for StayNest Test Environment
+
+A complete `docker-compose.yml` that stands up the application, database, and Selenium Grid.
+
+
+```yaml
+# docker-compose.yml — StayNest test environment
+version: '3.8'
+
+services:
+  # ---------- Application Under Test ----------
+  staynest-app:
+    image: staynest/api:latest
+    container_name: staynest-app
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_PROFILES_ACTIVE=test
+      - DATABASE_URL=jdbc:postgresql://postgres:5432/staynest_test
+      - DATABASE_USERNAME=staynest
+      - DATABASE_PASSWORD=testpassword
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - test-network
+
+  # ---------- Database ----------
+  postgres:
+    image: postgres:16-alpine
+    container_name: staynest-db
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=staynest_test
+      - POSTGRES_USER=staynest
+      - POSTGRES_PASSWORD=testpassword
+    volumes:
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql  # Seed data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U staynest"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - test-network
+
+  # ---------- Selenium Grid ----------
+  selenium-hub:
+    image: selenium/hub:4.18
+    container_name: selenium-hub
+    ports:
+      - "4442:4442"
+      - "4443:4443"
+      - "4444:4444"
+    networks:
+      - test-network
+
+  chrome-node:
+    image: selenium/node-chrome:4.18
+    container_name: chrome-node
+    environment:
+      - SE_EVENT_BUS_HOST=selenium-hub
+      - SE_EVENT_BUS_PUBLISH_PORT=4442
+      - SE_EVENT_BUS_SUBSCRIBE_PORT=4443
+      - SE_NODE_MAX_SESSIONS=2
+      - SE_NODE_OVERRIDE_MAX_SESSIONS=true
+    depends_on:
+      - selenium-hub
+    shm_size: '2g'  # Prevent Chrome crashes from insufficient shared memory
+    networks:
+      - test-network
+
+  firefox-node:
+    image: selenium/node-firefox:4.18
+    container_name: firefox-node
+    environment:
+      - SE_EVENT_BUS_HOST=selenium-hub
+      - SE_EVENT_BUS_PUBLISH_PORT=4442
+      - SE_EVENT_BUS_SUBSCRIBE_PORT=4443
+    depends_on:
+      - selenium-hub
+    shm_size: '2g'
+    networks:
+      - test-network
+
+networks:
+  test-network:
+    driver: bridge
+```
+
+### Example 2: Running Tests Inside a Docker Container
+
+A Dockerfile that packages the test framework and runs tests inside the container:
+
+
+```dockerfile
+# Dockerfile.tests — containerized test execution
+FROM maven:3.9-eclipse-temurin-17
+
+WORKDIR /tests
+
+# Copy pom.xml first — leverages Docker layer cache for dependencies
+COPY pom.xml .
+RUN mvn dependency:resolve -q
+
+# Copy test source code
+COPY src/ ./src/
+COPY testng-suites/ ./testng-suites/
+
+# Environment variables with defaults (overridable at runtime)
+ENV ENV=staging
+ENV BROWSER=chrome
+ENV HEADLESS=true
+ENV SELENIUM_HUB_URL=http://selenium-hub:4444/wd/hub
+
+# Run tests — CMD can be overridden at docker run
+CMD ["mvn", "test", \
+     "-Denv=${ENV}", \
+     "-Dbrowser=${BROWSER}", \
+     "-Dheadless=${HEADLESS}", \
+     "-Dselenium.hub.url=${SELENIUM_HUB_URL}"]
+```
+
+**Building and running:**
+
+
+```bash
+# Build the test image
+docker build -f Dockerfile.tests -t staynest-tests:latest .
+
+# Run tests against local Docker environment
+docker run --network test-network \
+    -e ENV=staging \
+    -e BROWSER=chrome \
+    -v $(pwd)/target:/tests/target \
+    staynest-tests:latest
+
+# The volume mount (-v) copies test results out of the container
+```
+
+### Example 3: Jenkinsfile Using Docker Compose
+
+
+```groovy
+pipeline {
+    agent { label 'docker' }
+
+    stages {
+        stage('Start Test Environment') {
+            steps {
+                sh 'docker compose up -d --wait'
+                // --wait blocks until healthchecks pass
+                sh 'docker compose ps'  // Verify all services are running
+            }
+        }
+
+        stage('Run API Tests') {
+            steps {
+                sh """
+                    mvn test \\
+                        -Dbase.url=http://localhost:8080 \\
+                        -Dsurefire.suiteXmlFiles=src/test/resources/suites/api-smoke.xml
+                """
+            }
+        }
+
+        stage('Run UI Tests') {
+            steps {
+                sh """
+                    mvn test \\
+                        -Dbase.url=http://localhost:8080 \\
+                        -Dselenium.hub.url=http://localhost:4444/wd/hub \\
+                        -Dsurefire.suiteXmlFiles=src/test/resources/suites/ui-smoke.xml
+                """
+            }
+        }
+    }
+
+    post {
+        always {
+            junit '**/target/surefire-reports/*.xml'
+            sh 'docker compose down -v'  // Tear down and remove volumes
+            cleanWs()
+        }
+    }
+}
+```
+
+---
+
+## Failure and Debugging (Layer 4)
+
+### Failure 1: Chrome Crashes in Docker — "Session not created"
+
+**The Problem:**
+
+```
+org.openqa.selenium.SessionNotCreatedException: Could not start a new session.
+Response code 500. Message: session not created: Chrome failed to start: crashed
+```
+
+**Root cause:** Chrome uses `/dev/shm` (shared memory) for rendering. Docker's default `shm_size` is 64MB — Chrome needs more.
+
+**The fix:**
+
+
+```yaml
+chrome-node:
+    image: selenium/node-chrome:4.18
+    shm_size: '2g'  # Increase shared memory to 2GB
+```
+
+Or add `--disable-dev-shm-usage` to Chrome options:
+
+
+```java
+ChromeOptions options = new ChromeOptions();
+options.addArguments("--disable-dev-shm-usage");
+options.addArguments("--no-sandbox");
+options.addArguments("--headless=new");
+```
+
+### Failure 2: Container Can't Connect to Another Container
+
+**The Problem:** Test container can't reach `staynest-app:8080` — connection refused.
+
+**Root cause:** Containers are on different networks, or the app container hasn't finished starting.
+
+**Diagnostic steps:**
+1. Check if containers are on the same network: `docker network inspect test-network`
+2. Check if the app is healthy: `docker compose ps` — look for health status
+3. Check from inside the container: `docker exec chrome-node curl http://staynest-app:8080/health`
+
+**The fix:** Ensure all services share the same network and use `depends_on` with healthchecks:
+
+
+```yaml
+staynest-app:
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+```
+
+### Failure 3: "No space left on device" in CI
+
+**The Problem:** Docker builds fail with `no space left on device`.
+
+**Root cause:** Docker images, containers, and volumes accumulate on CI agents. Each build pulls/builds images, and old ones aren't cleaned up.
+
+**The fix — add cleanup to your pipeline:**
+
+
+```groovy
+post {
+    always {
+        sh 'docker compose down -v --rmi local'  // Remove containers, volumes, local images
+        sh 'docker system prune -f'              // Remove dangling images and stopped containers
+    }
+}
+```
+
+---
+
+## Engineering Judgment (Layer 5)
+
+### When to Use Docker for Testing
+
+| Scenario | Docker? | Why |
+|----------|---------|-----|
+| Selenium Grid for UI tests | Yes | Consistent browser versions, easy scaling, disposable |
+| Database for integration tests | Yes | Spin up PostgreSQL per test run, seed data, tear down |
+| Running tests inside containers | Sometimes | Guarantees consistent JDK/Maven, but adds complexity |
+| Local development testing | Optional | Convenient for services, but native browser is faster for debugging |
+
+### Docker Compose vs Kubernetes for Test Environments
+
+| Tool | Use When | Complexity |
+|------|----------|------------|
+| Docker Compose | Single machine, CI agent, local dev | Low — one YAML file, `docker compose up` |
+| Kubernetes | Multi-machine clusters, auto-scaling, production-like | High — requires K8s cluster, Helm charts, RBAC |
+
+**Recommendation:** Use Docker Compose for test environments. Kubernetes is for production deployment and large-scale test grids (Zalenium/Moon). Don't bring Kubernetes complexity into your test pipeline unless you're running 50+ parallel browser sessions.
+
+### Image Tagging Strategy
+
+**Don't use `latest` in CI.** `latest` is mutable — it changes with every push. Today's `selenium/node-chrome:latest` might be version 120; tomorrow it's 122, and your tests break.
+
+**Use specific versions:**
+
+
+```yaml
+# Bad — unpredictable
+image: selenium/node-chrome:latest
+
+# Good — deterministic
+image: selenium/node-chrome:4.18.1-20240224
+```
+
+**Update strategy:** Pin to specific versions. Create a scheduled job (monthly) that updates versions, runs the full test suite, and creates a PR with the update.
+
+---
+
+## Interview and Revision (Layer 6)
+
+### Fundamental Questions
+
+**Q1: Why use Docker for test automation?**
+
+**A:** Docker provides consistent, reproducible test environments. Every test run uses the exact same browser version, JDK, and database — regardless of whether it runs on my laptop or a CI server. It eliminates "works on my machine" problems. Containers are ephemeral: they start clean, run tests, and are destroyed — no state leakage between runs. Docker Compose lets me define a complete test environment (app, database, Selenium Grid) in one file and start it with one command.
+
+**Q2: How does Selenium Grid work in Docker?**
+
+**A:** Selenium Grid in Docker consists of a hub container and one or more browser node containers. The hub acts as a central coordinator — it receives WebDriver session requests from test code and routes them to available nodes. Each node container runs a specific browser (Chrome, Firefox) and handles one test session at a time. Containers communicate over a Docker network using service names. I define the entire grid in `docker-compose.yml` and scale nodes with `docker compose up --scale chrome-node=5`.
+
+**Q3: What is `shm_size` and why does Chrome need it?**
+
+**A:** `shm_size` is the shared memory allocation for a Docker container. Chrome uses `/dev/shm` (shared memory filesystem) for browser rendering. Docker's default is 64MB, which is insufficient for Chrome — it crashes with "session not created." Setting `shm_size: '2g'` gives Chrome enough shared memory. Alternatively, you can add `--disable-dev-shm-usage` to Chrome options, which uses `/tmp` instead — slightly slower but avoids the issue entirely.
+
+
+
+
+| # | Front (Question) | Back (Answer) |
+|---|---|---|
+| 1 | Docker image vs container? | Image = read-only blueprint (build once). Container = running instance of an image (create many from one image). |
+| 2 | Why copy `pom.xml` before `src/` in a Dockerfile? | Docker layer caching. If `pom.xml` hasn't changed, the `dependency:resolve` layer is cached — saving minutes on rebuilds. Source code changes don't invalidate the dependency cache. |
+| 3 | How do Docker containers communicate? | Within the same Docker Compose network, containers use service names as hostnames. E.g., `chrome-node` reaches the hub via `selenium-hub:4444`. |
+| 4 | Why avoid `image: latest` in CI? | `latest` is mutable — it changes unpredictably. Today's Chrome 120 becomes Chrome 122 tomorrow, breaking tests. Pin to specific versions for deterministic builds. |
+| 5 | What does `docker compose down -v` do? | Stops and removes containers, networks, and named volumes. The `-v` flag ensures database data and other volume state don't persist between runs. |
+
+### Mastery Checklist
+
+- [ ] Can write a `docker-compose.yml` with app, database, and Selenium Grid
+- [ ] Can build a Dockerfile for containerized test execution
+- [ ] Can explain Docker networking and how containers communicate
+- [ ] Can diagnose Chrome crashes, networking issues, and disk space problems
+- [ ] Can integrate Docker Compose into a Jenkins pipeline with proper teardown
+- [ ] Can justify when to use Docker vs native test execution
+
+---
+
+**Next:** Environment Management | **Related:** Pipeline As Code
+
+*Last updated: *

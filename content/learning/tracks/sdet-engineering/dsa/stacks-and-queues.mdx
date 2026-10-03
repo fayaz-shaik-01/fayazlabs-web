@@ -1,0 +1,390 @@
+---
+title: "Stacks and Queues"
+description: "What: Stacks (LIFO — Last In, First Out) and Queues (FIFO — First In, First Out) are linear data structures that control the order of element access."
+summary: "SDET Engineering guide: Stacks and Queues"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "dsa"
+lesson: "stacks-and-queues"
+difficulty: "intermediate"
+estimatedMinutes: 30
+prerequisites: []
+tags: ["SDET", "DSA", "Algorithms"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/dsa/stacks-and-queues"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Stacks and Queues
+
+> **Module:** 01-programming-foundations / dsa
+> **Prerequisites:** Arrays And Strings, Complexity Analysis
+> **Mastery Target:** L3
+
+---
+
+## Quick Overview (2-minute read)
+
+**What:** Stacks (LIFO — Last In, First Out) and Queues (FIFO — First In, First Out) are linear data structures that control the order of element access.
+
+**Why:** These structures appear in ~20% of interview problems. In automation, they model browser navigation (back stack), test execution queues, retry mechanisms, and undo operations.
+
+**Where:** Expression evaluation, parentheses matching, BFS traversal, task scheduling, call stack understanding, browser history.
+
+<MentalModel>
+
+**Stack** — A stack of plates. You can only add (push) or remove (pop) from the top. The last plate you put on is the first one you take off.
+
+</MentalModel>
+
+
+**Queue** — A line at a store. People join at the back (offer/enqueue) and leave from the front (poll/dequeue). First person in line gets served first.
+
+<KeyTakeaways>
+
+1. Stack operations (push, pop, peek) are all O(1). Use `Deque<E> stack = new ArrayDeque<>()` in Java (not `Stack<E>` which is legacy).
+2. Queue operations (offer, poll, peek) are all O(1). Use `Queue<E> queue = new LinkedList<>()` or `new ArrayDeque<>()`.
+3. If you need to match/pair things (brackets, tags), think **stack**.
+4. If you need to process things in order or level-by-level, think **queue**.
+5. The call stack IS a stack — understanding this helps with recursion and debugging.
+
+</KeyTakeaways>
+
+
+---
+
+## Key Patterns and Techniques
+
+### Stack in Java
+
+
+```java
+Deque<Integer> stack = new ArrayDeque<>();
+stack.push(1);          // push onto top
+stack.push(2);
+stack.peek();           // 2 — look at top without removing
+stack.pop();            // 2 — remove and return top
+stack.isEmpty();        // false
+stack.size();           // 1
+```
+
+### Queue in Java
+
+
+```java
+Queue<String> queue = new LinkedList<>();
+queue.offer("first");   // add to back
+queue.offer("second");
+queue.peek();           // "first" — look at front without removing
+queue.poll();           // "first" — remove and return front
+queue.isEmpty();        // false
+queue.size();           // 1
+```
+
+### Pattern: Monotonic Stack
+
+A stack that maintains elements in sorted order — useful for "next greater/smaller element" problems.
+
+
+```java
+// Template: find next greater element for each position
+public int[] nextGreaterElement(int[] nums) {
+    int[] result = new int[nums.length];
+    Arrays.fill(result, -1);
+    Deque<Integer> stack = new ArrayDeque<>(); // stores indices
+
+    for (int i = 0; i < nums.length; i++) {
+        while (!stack.isEmpty() && nums[i] > nums[stack.peek()]) {
+            int idx = stack.pop();
+            result[idx] = nums[i];
+        }
+        stack.push(i);
+    }
+    return result;
+}
+```
+
+### Pattern: BFS with Queue
+
+
+```java
+// Template: level-order processing
+Queue<Node> queue = new LinkedList<>();
+queue.offer(startNode);
+while (!queue.isEmpty()) {
+    int levelSize = queue.size();
+    for (int i = 0; i < levelSize; i++) {
+        Node current = queue.poll();
+        // process current
+        for (Node neighbor : current.getNeighbors()) {
+            queue.offer(neighbor);
+        }
+    }
+}
+```
+
+---
+
+## Problems with Solutions
+
+### Problem 1: Valid Parentheses (LeetCode 20)
+
+**Task:** Given a string containing `()[]{}`, determine if the input string is valid. Every open bracket must have a matching close bracket in the correct order.
+
+**Hint:** Push open brackets onto a stack. When you see a close bracket, check if the top of the stack matches.
+
+
+
+
+```java
+public boolean isValid(String s) {
+    Deque<Character> stack = new ArrayDeque<>();
+    Map<Character, Character> pairs = Map.of(')', '(', ']', '[', '}', '{');
+
+    for (char c : s.toCharArray()) {
+        if (pairs.containsValue(c)) {
+            stack.push(c);
+        } else if (pairs.containsKey(c)) {
+            if (stack.isEmpty() || stack.pop() != pairs.get(c)) {
+                return false;
+            }
+        }
+    }
+    return stack.isEmpty();
+}
+// Time: O(n) | Space: O(n)
+```
+
+
+
+### Problem 2: Min Stack (LeetCode 155)
+
+**Task:** Design a stack that supports push, pop, top, and retrieving the minimum element, all in O(1).
+
+**Hint:** Use two stacks — one for values, one for tracking the current minimum at each level.
+
+
+
+
+```java
+class MinStack {
+    private Deque<Integer> stack = new ArrayDeque<>();
+    private Deque<Integer> minStack = new ArrayDeque<>();
+
+    public void push(int val) {
+        stack.push(val);
+        int min = minStack.isEmpty() ? val : Math.min(val, minStack.peek());
+        minStack.push(min);
+    }
+
+    public void pop() {
+        stack.pop();
+        minStack.pop();
+    }
+
+    public int top() {
+        return stack.peek();
+    }
+
+    public int getMin() {
+        return minStack.peek();
+    }
+}
+// All operations: O(1) time | Space: O(n)
+```
+
+
+
+### Problem 3: Implement Queue using Stacks (LeetCode 232)
+
+**Task:** Implement a FIFO queue using only two stacks.
+
+**Hint:** Use an "inbox" stack for push and an "outbox" stack for pop/peek. Transfer elements from inbox to outbox when outbox is empty.
+
+
+
+
+```java
+class MyQueue {
+    private Deque<Integer> inbox = new ArrayDeque<>();
+    private Deque<Integer> outbox = new ArrayDeque<>();
+
+    public void push(int x) {
+        inbox.push(x);
+    }
+
+    public int pop() {
+        transferIfNeeded();
+        return outbox.pop();
+    }
+
+    public int peek() {
+        transferIfNeeded();
+        return outbox.peek();
+    }
+
+    public boolean empty() {
+        return inbox.isEmpty() && outbox.isEmpty();
+    }
+
+    private void transferIfNeeded() {
+        if (outbox.isEmpty()) {
+            while (!inbox.isEmpty()) {
+                outbox.push(inbox.pop());
+            }
+        }
+    }
+}
+// Amortized O(1) per operation | Space: O(n)
+```
+
+
+
+### Problem 4: Daily Temperatures (LeetCode 739)
+
+**Task:** Given daily temperatures, return an array where each element says how many days until a warmer temperature. If no warmer day exists, put 0.
+
+**Hint:** Monotonic stack — process from left to right, store indices on the stack. Pop when the current temperature is greater than the stack top.
+
+
+
+
+```java
+public int[] dailyTemperatures(int[] temperatures) {
+    int[] result = new int[temperatures.length];
+    Deque<Integer> stack = new ArrayDeque<>(); // stores indices
+
+    for (int i = 0; i < temperatures.length; i++) {
+        while (!stack.isEmpty() && temperatures[i] > temperatures[stack.peek()]) {
+            int prevIndex = stack.pop();
+            result[prevIndex] = i - prevIndex;
+        }
+        stack.push(i);
+    }
+    return result;
+}
+// Time: O(n) — each index pushed and popped at most once | Space: O(n)
+```
+
+
+
+---
+
+## Common Mistakes
+
+### Mistake 1: Using Legacy Stack Class
+
+
+```java
+// WRONG: Stack is a legacy class, synchronized (slow), extends Vector
+Stack<Integer> stack = new Stack<>();
+
+// RIGHT: use Deque interface with ArrayDeque
+Deque<Integer> stack = new ArrayDeque<>();
+```
+
+### Mistake 2: Popping from Empty Stack
+
+
+```java
+// WRONG: crashes with NoSuchElementException
+char top = stack.pop();
+
+// RIGHT: always check first
+if (!stack.isEmpty()) {
+    char top = stack.pop();
+}
+```
+
+### Mistake 3: Forgetting to Check Stack is Empty at the End
+
+
+```java
+// WRONG: returns true even for "((("
+for (char c : s.toCharArray()) { /* push/pop logic */ }
+return true;
+
+// RIGHT: stack must be empty for valid input
+return stack.isEmpty();
+```
+
+---
+
+## Automation Connections
+
+| Concept | Automation Use Case |
+|---|---|
+| Stack (LIFO) | Browser navigation back button (Page Object stack) |
+| Queue (FIFO) | Test execution queue — tests run in order submitted |
+| Priority Queue | Running critical/smoke tests before regression tests |
+| Retry Queue | Failed tests re-queued for retry with backoff |
+| Monotonic Stack | Finding performance regression points in metrics |
+
+
+```java
+// Example: Test retry queue with max retries
+public class TestRetryQueue {
+    private final Queue<TestCase> retryQueue = new LinkedList<>();
+    private final int maxRetries;
+
+    public TestRetryQueue(int maxRetries) {
+        this.maxRetries = maxRetries;
+    }
+
+    public void addForRetry(TestCase test) {
+        if (test.getAttempts() < maxRetries) {
+            test.incrementAttempts();
+            retryQueue.offer(test);
+        }
+    }
+
+    public TestCase getNextRetry() {
+        return retryQueue.poll(); // null if empty
+    }
+
+    public boolean hasRetries() {
+        return !retryQueue.isEmpty();
+    }
+}
+```
+
+---
+
+## Interview and Revision
+
+
+
+
+**Q:** What's the difference between Stack and Queue?
+**A:** Stack is LIFO (last in, first out) — push/pop from the same end. Queue is FIFO (first in, first out) — add to back, remove from front.
+
+**Q:** Why use `ArrayDeque` instead of `Stack` in Java?
+**A:** `Stack` extends `Vector` (legacy, synchronized, slow). `ArrayDeque` is faster, not synchronized, and implements `Deque` which supports both stack and queue operations.
+
+**Q:** What is a monotonic stack and when do you use it?
+**A:** A stack where elements are always in sorted order (increasing or decreasing). Used for "next greater element" and "next smaller element" problems like Daily Temperatures.
+
+**Q:** How does implementing a queue with two stacks achieve amortized O(1)?
+**A:** Each element is moved from inbox to outbox at most once. Over n operations, total transfer work is O(n), so amortized cost per operation is O(1).
+
+### Mastery Checklist
+
+- [ ] Can implement stack and queue using correct Java classes
+- [ ] Can solve Valid Parentheses from memory
+- [ ] Can explain when to use stack vs queue
+- [ ] Can implement Min Stack with O(1) getMin
+- [ ] Can apply monotonic stack pattern
+- [ ] Can relate stacks/queues to automation scenarios (retry queues, navigation)
+
+---
+
+**Next:** Binary Search | **Related:** Arrays And Strings

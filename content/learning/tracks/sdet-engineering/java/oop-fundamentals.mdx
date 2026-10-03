@@ -1,0 +1,1799 @@
+---
+title: "OOP Fundamentals in Java"
+description: "What: Object-Oriented Programming is a paradigm where you model software as interacting objects — each bundling data (state) and behavior (methods) together. Java was designed around OOP from day one: everything lives inside a class."
+summary: "SDET Engineering guide: OOP Fundamentals in Java"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "java"
+lesson: "oop-fundamentals"
+difficulty: "beginner"
+estimatedMinutes: 118
+prerequisites: []
+tags: ["SDET", "Java", "Programming"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/java/oop-fundamentals"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# OOP Fundamentals in Java
+
+> **Module:** 01 — Programming Foundations / Java
+> **Prerequisites:** Syntax And Control Flow
+> **Mastery Target:** L3 (independent application) → L4 (engineering judgment)
+
+---
+
+## Quick Overview (Layer 1)
+
+**What:** Object-Oriented Programming is a paradigm where you model software as interacting objects — each bundling data (state) and behavior (methods) together. Java was designed around OOP from day one: everything lives inside a class.
+
+**Why it matters for automation engineers:** You already use OOP every day — every Page Object is a class, every `WebDriver` is a polymorphic interface, every `BasePage` uses inheritance. But there is a difference between *using* OOP features and *designing* with OOP principles. The gap between those two is the gap between someone who writes test scripts and someone who builds test frameworks that scale to 50 team members and 10,000 tests.
+
+**Where you encounter it:** Page Object Models, driver factories, test data builders, framework configuration, step definitions, custom listeners — essentially every structural decision in a test framework is an OOP decision.
+
+<MentalModel>
+
+Think of a test automation framework as a **factory floor**. Each object is a specialized worker:
+
+</MentalModel>
+
+
+- The **WebDriver** is the machine operator — it knows how to interact with a browser, but doesn't know *what* to test.
+- A **Page Object** is a department specialist — it knows every control on its page and how to operate them, but doesn't decide the business workflow.
+- A **TestContext** is the shift supervisor — it holds the driver, configuration, and test data, handing the right resources to each worker.
+- A **Test class** is the work order — it describes what should happen and in what sequence.
+
+When your framework struggles — brittle tests, parallel execution failures, impossible refactoring — it's almost always because you violated OOP principles: workers are sharing state they shouldn't, or you forced a specialist to inherit responsibilities that don't belong to them.
+
+<KeyTakeaways>
+
+1. **OOP is not four pillars to memorize — it's a design discipline.** Knowing the definitions of encapsulation, inheritance, polymorphism, and abstraction is necessary but insufficient. You need to know *when* each one helps and *when* each one hurts.
+2. **Polymorphism is the most powerful concept for framework design.** It's what allows a single test to run against Chrome, Firefox, or a mobile browser without changing a line of test code.
+3. **Composition over inheritance is not a suggestion — it's survival advice.** Deep inheritance hierarchies are the #1 architectural mistake in test frameworks.
+4. **Encapsulation protects you from parallel execution bugs.** Mutable shared state is the enemy of reliable concurrent tests.
+5. **Every class should have one reason to change.** If your `BasePage` handles driver management, waits, logging, screenshots, and assertions, it will break for five different reasons.
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation (Layer 2)
+
+### Classes and Objects
+
+#### Why Classes Exist
+
+Before OOP, programs were organized as procedures operating on shared data. As programs grew, any procedure could modify any data, and tracking bugs became a nightmare. Classes solve this by bundling related data and the operations that act on that data into a single unit.
+
+In test automation, think about what happens without classes: you'd have a flat script with global variables for the driver, locators, test data, and configuration — all accessible from everywhere. Any helper function could accidentally overwrite the driver reference. Classes give you walls.
+
+#### Class as Blueprint, Object as Instance
+
+A **class** defines the structure: what fields an object will have, what methods it can perform. An **object** is a living instance of that class, occupying memory and holding actual values.
+
+
+```java
+// Class = blueprint
+public class LoginPage {
+    private WebDriver driver;    // field declaration (no actual driver yet)
+    private String pageUrl;      // field declaration (no actual URL yet)
+
+    public LoginPage(WebDriver driver) {
+        this.driver = driver;
+        this.pageUrl = "/login";
+    }
+
+    public void navigateTo() {
+        driver.get(pageUrl);
+    }
+}
+
+// Object = instance (created at runtime)
+WebDriver driver = new ChromeDriver();
+LoginPage loginPage = new LoginPage(driver);  // now there's a real LoginPage in memory
+loginPage.navigateTo();                        // the object performs behavior
+```
+
+You can create multiple instances of the same class, each with different state:
+
+
+```java
+LoginPage loginOnChrome = new LoginPage(chromeDriver);
+LoginPage loginOnFirefox = new LoginPage(firefoxDriver);
+// Two objects, same blueprint, different internal state
+```
+
+#### Fields (State) and Methods (Behavior)
+
+**Fields** represent what an object *knows* (its data). **Methods** represent what an object *does* (its behavior). Good OOP design keeps these tightly related — a `LoginPage` should only have fields and methods related to the login page.
+
+
+```java
+public class LoginPage {
+    // === STATE (fields) ===
+    private final WebDriver driver;
+    private final By usernameField = By.id("username");
+    private final By passwordField = By.id("password");
+    private final By loginButton = By.cssSelector("[data-testid='login-btn']");
+
+    // === BEHAVIOR (methods) ===
+    public void enterUsername(String username) {
+        driver.findElement(usernameField).sendKeys(username);
+    }
+
+    public void enterPassword(String password) {
+        driver.findElement(passwordField).sendKeys(password);
+    }
+
+    public DashboardPage clickLogin() {
+        driver.findElement(loginButton).click();
+        return new DashboardPage(driver);  // returns next page
+    }
+}
+```
+
+Notice: the locators are **state** (they describe what this page knows about its elements), and the interaction methods are **behavior** (they describe what actions can be performed). A well-designed class keeps these closely aligned.
+
+#### Constructors: Default, Parameterized, and Chaining
+
+A **constructor** initializes an object when it's created. If you don't write one, Java provides a no-argument default constructor. The moment you write any constructor, the default disappears.
+
+
+```java
+public class TestConfig {
+
+    private final String baseUrl;
+    private final int timeoutSeconds;
+    private final String browser;
+
+    // Parameterized constructor — requires all values
+    public TestConfig(String baseUrl, int timeoutSeconds, String browser) {
+        this.baseUrl = baseUrl;
+        this.timeoutSeconds = timeoutSeconds;
+        this.browser = browser;
+    }
+
+    // Constructor chaining with this() — provides sensible defaults
+    // this() MUST be the first statement in the constructor
+    public TestConfig(String baseUrl) {
+        this(baseUrl, 10, "chrome");  // delegates to the 3-arg constructor
+    }
+
+    // Another overloaded constructor
+    public TestConfig(String baseUrl, String browser) {
+        this(baseUrl, 10, browser);   // defaults timeout only
+    }
+}
+```
+
+**Why constructor chaining matters in automation:** It lets you create flexible factory methods. A CI pipeline might pass all three parameters, while a developer running locally uses just the base URL and gets sensible defaults.
+
+#### The `this` Keyword
+
+`this` refers to the current object instance. It has three uses:
+
+1. **Disambiguate** field names from parameter names (most common).
+2. **Pass the current object** to another method.
+3. **Chain constructors** with `this(...)`.
+
+
+```java
+public class SearchPage {
+    private final WebDriver driver;
+
+    public SearchPage(WebDriver driver) {
+        this.driver = driver;  // 1. "this.driver" is the field, "driver" is the parameter
+    }
+
+    public SearchPage enterSearchTerm(String term) {
+        driver.findElement(By.id("search")).sendKeys(term);
+        return this;  // 2. returns the current object for fluent chaining
+    }
+
+    public SearchPage clickSearch() {
+        driver.findElement(By.id("search-btn")).click();
+        return this;  // fluent pattern: searchPage.enterSearchTerm("hotel").clickSearch()
+    }
+}
+```
+
+#### Static vs Instance Members
+
+**Instance members** belong to a specific object. Each object has its own copy. **Static members** belong to the class itself — there's only one copy shared across all instances.
+
+| Aspect | Instance | Static |
+|---|---|---|
+| Belongs to | A specific object | The class itself |
+| Accessed via | `object.method()` | `ClassName.method()` |
+| Can access | Instance + static members | Only static members |
+| Memory | Created per object | Created once when class loads |
+
+**When to use static in automation:**
+
+
+```java
+public class LocatorUtils {
+    // GOOD static: stateless utility method, no instance data needed
+    public static By byTestId(String testId) {
+        return By.cssSelector("[data-testid='" + testId + "']");
+    }
+}
+
+public class BrowserConstants {
+    // GOOD static: true constants that never change
+    public static final int DEFAULT_TIMEOUT = 10;
+    public static final String CHROME = "chrome";
+}
+
+public class LoginPage {
+    // BAD static: driver is instance-specific, making it static breaks parallel tests
+    // private static WebDriver driver;  // NEVER do this
+
+    // GOOD instance: each LoginPage gets its own driver reference
+    private final WebDriver driver;
+}
+```
+
+**Rule of thumb:** Use `static` for stateless utility methods and true constants. Use instance members for anything that holds state or depends on a specific context. In test automation, almost everything should be instance-level because tests run in parallel and need isolated state.
+
+---
+
+### Encapsulation
+
+#### Why Encapsulation Exists
+
+Encapsulation means restricting direct access to an object's internal state and exposing only controlled operations. It's not bureaucracy — it's protection.
+
+Without encapsulation, any code anywhere can reach into an object and change its internals. In a test framework, this means a helper method could accidentally reassign a page object's driver, or a test could directly modify a config value that other tests depend on.
+
+#### Access Modifiers
+
+Java provides four access levels, from most restrictive to least:
+
+| Modifier | Same Class | Same Package | Subclass (other package) | Everywhere |
+|---|---|---|---|---|
+| `private` | ✅ | ❌ | ❌ | ❌ |
+| (default / package-private) | ✅ | ✅ | ❌ | ❌ |
+| `protected` | ✅ | ✅ | ✅ | ❌ |
+| `public` | ✅ | ✅ | ✅ | ✅ |
+
+**Practical guidance for automation code:**
+
+- **`private`**: Use for locators, driver references, internal helper methods. This is your default choice.
+- **`package-private`** (no modifier): Use for classes within the same package that need to collaborate closely — e.g., page object helper classes.
+- **`protected`**: Use sparingly for methods that subclasses genuinely need to override — e.g., a `waitForPageLoad()` method in a `BasePage`.
+- **`public`**: Use for the API of your class — the methods that tests or other framework components call.
+
+#### Why Getters/Setters Exist (Validation, Not Just Convention)
+
+Getters and setters are not boilerplate — they're control points. They exist so you can:
+
+1. **Validate** input before accepting it.
+2. **Transform** data on the way in or out.
+3. **Trigger side effects** (logging, notifications).
+4. **Change implementation** later without breaking callers.
+
+
+```java
+public class TestConfig {
+    private int timeoutSeconds;
+
+    // Without validation — anything goes, including negative values
+    // public int timeoutSeconds;  // direct field access, no protection
+
+    // With validation through setter
+    public void setTimeoutSeconds(int timeoutSeconds) {
+        if (timeoutSeconds <= 0) {
+            throw new IllegalArgumentException(
+                "Timeout must be positive, got: " + timeoutSeconds
+            );
+        }
+        if (timeoutSeconds > 120) {
+            throw new IllegalArgumentException(
+                "Timeout exceeds maximum of 120 seconds, got: " + timeoutSeconds
+            );
+        }
+        this.timeoutSeconds = timeoutSeconds;
+    }
+
+    public int getTimeoutSeconds() {
+        return timeoutSeconds;
+    }
+}
+```
+
+#### Immutability: Why It Matters in Parallel Test Execution
+
+An **immutable** object cannot be changed after creation. All its fields are set in the constructor, and there are no setters. Immutable objects are inherently thread-safe because concurrent threads can't modify them.
+
+
+```java
+// IMMUTABLE — safe for parallel execution
+public final class TestConfig {
+    private final String baseUrl;
+    private final int timeoutSeconds;
+    private final String browser;
+
+    public TestConfig(String baseUrl, int timeoutSeconds, String browser) {
+        // validate once, at construction time
+        if (baseUrl == null || baseUrl.isBlank()) {
+            throw new IllegalArgumentException("Base URL cannot be blank");
+        }
+        this.baseUrl = baseUrl;
+        this.timeoutSeconds = timeoutSeconds;
+        this.browser = browser;
+    }
+
+    // only getters — no setters
+    public String getBaseUrl() { return baseUrl; }
+    public int getTimeoutSeconds() { return timeoutSeconds; }
+    public String getBrowser() { return browser; }
+}
+```
+
+When 50 tests run in parallel and all share the same `TestConfig`, immutability guarantees that no test can change the base URL out from under another test.
+
+#### Why Page Object Fields Should Be Private
+
+
+```java
+// BAD: public locators invite misuse
+public class LoginPage {
+    public By usernameField = By.id("username");  // any test can overwrite this
+    public WebDriver driver;                       // any test can reassign this
+
+    public void login(String user, String pass) {
+        driver.findElement(usernameField).sendKeys(user);
+    }
+}
+
+// Some test file, months later:
+loginPage.usernameField = By.id("email");  // "fixed" it for one test, broke it for all others
+```
+
+
+```java
+// GOOD: private fields, public behavior
+public class LoginPage {
+    private final WebDriver driver;
+    private final By usernameField = By.id("username");
+
+    public LoginPage(WebDriver driver) {
+        this.driver = driver;
+    }
+
+    public void login(String user, String pass) {
+        driver.findElement(usernameField).sendKeys(user);
+        // ... rest of login logic
+    }
+}
+
+// Tests can only call login() — they can't mess with the locators or driver
+```
+
+The principle: **expose behavior, hide implementation**. Tests should say *what* to do ("log in"), not *how* to do it ("find this element by this locator and type into it").
+
+---
+
+### Inheritance
+
+#### Why Inheritance Exists
+
+Inheritance lets one class (the **subclass** or **child**) acquire the fields and methods of another class (the **superclass** or **parent**). The purpose is to model genuine "is-a" relationships and reuse common behavior.
+
+Java enforces **single inheritance** — a class can extend only one parent. This is intentional: multiple inheritance (as in C++) creates the "diamond problem" where two parent classes have the same method, and the compiler can't decide which one the child inherits.
+
+
+```java
+// Parent class: common behavior for all pages
+public class BasePage {
+    protected final WebDriver driver;
+    protected final WebDriverWait wait;
+
+    public BasePage(WebDriver driver) {
+        this.driver = driver;
+        this.wait = new WebDriverWait(driver, Duration.ofSeconds(10));
+    }
+
+    protected void click(By locator) {
+        wait.until(ExpectedConditions.elementToBeClickable(locator)).click();
+    }
+
+    protected void type(By locator, String text) {
+        WebElement element = wait.until(ExpectedConditions.visibilityOfElementLocated(locator));
+        element.clear();
+        element.sendKeys(text);
+    }
+
+    protected String getText(By locator) {
+        return wait.until(ExpectedConditions.visibilityOfElementLocated(locator)).getText();
+    }
+}
+
+// Child class: inherits common behavior, adds specific behavior
+public class LoginPage extends BasePage {
+
+    private final By usernameField = By.id("username");
+    private final By passwordField = By.id("password");
+    private final By loginButton = By.id("login-btn");
+
+    public LoginPage(WebDriver driver) {
+        super(driver);  // calls BasePage constructor
+    }
+
+    public DashboardPage loginAs(String username, String password) {
+        type(usernameField, username);      // inherited from BasePage
+        type(passwordField, password);      // inherited from BasePage
+        click(loginButton);                 // inherited from BasePage
+        return new DashboardPage(driver);
+    }
+}
+```
+
+#### Constructor Chaining with `super()`
+
+When you create a child object, Java must first initialize the parent portion. `super()` explicitly calls the parent constructor. If you don't write `super()`, Java inserts a no-arg `super()` automatically — which fails if the parent has no no-arg constructor.
+
+
+```java
+public class BasePage {
+    protected final WebDriver driver;
+
+    // Only constructor requires a WebDriver — no default constructor exists
+    public BasePage(WebDriver driver) {
+        this.driver = driver;
+    }
+}
+
+public class SearchPage extends BasePage {
+    private final String searchUrl;
+
+    public SearchPage(WebDriver driver, String searchUrl) {
+        super(driver);  // MUST be first statement; calls BasePage(WebDriver)
+        this.searchUrl = searchUrl;
+    }
+}
+```
+
+#### Method Overriding
+
+A subclass can **override** a parent method to provide specialized behavior. Rules:
+
+1. Same method signature (name + parameter types).
+2. Return type must be the same or a **covariant** (more specific) type.
+3. Access modifier can be the same or *less* restrictive (not more).
+4. Cannot override `final`, `static`, or `private` methods.
+
+
+```java
+public class BasePage {
+    protected final WebDriver driver;
+
+    public BasePage(WebDriver driver) {
+        this.driver = driver;
+    }
+
+    // Default implementation — can be overridden
+    public boolean isLoaded() {
+        return driver.getTitle() != null && !driver.getTitle().isEmpty();
+    }
+}
+
+public class DashboardPage extends BasePage {
+
+    public DashboardPage(WebDriver driver) {
+        super(driver);
+    }
+
+    @Override  // Compiler checks that this actually overrides a parent method
+    public boolean isLoaded() {
+        // More specific check for the dashboard
+        return driver.findElements(By.id("dashboard-header")).size() > 0
+            && driver.getTitle().contains("Dashboard");
+    }
+}
+```
+
+**Covariant return types** allow a subclass to return a more specific type:
+
+
+```java
+public class BasePage {
+    public BasePage navigateToHome() {
+        // ...
+        return new BasePage(driver);
+    }
+}
+
+public class AdminPage extends BasePage {
+    @Override
+    public AdminPage navigateToHome() {   // returns AdminPage instead of BasePage — valid
+        // ...
+        return new AdminPage(driver);
+    }
+}
+```
+
+#### The Fragile Base Class Problem
+
+This is why deep inheritance hierarchies **destroy** test frameworks.
+
+When you change a base class, every subclass is affected. The deeper the hierarchy, the more classes break, and the harder it is to predict which ones.
+
+
+```java
+// The hierarchy from hell
+public class BaseTest { }
+public class BaseUITest extends BaseTest { }
+public class BaseWebTest extends BaseUITest { }
+public class BaseAuthenticatedWebTest extends BaseWebTest { }
+public class BaseAdminWebTest extends BaseAuthenticatedWebTest { }
+
+// A developer adds logging to BaseUITest.setUp()
+// Now ALL tests — BaseWebTest, BaseAuthenticatedWebTest, BaseAdminWebTest —
+// run that logging. Some tests start failing because the logging adds
+// latency. Nobody can figure out why because they're looking at their
+// own test class, not four levels up.
+```
+
+**Rule:** Keep inheritance hierarchies to **at most 2 levels** in automation code. If you find yourself creating a third level, stop and use composition instead.
+
+#### When Inheritance Is Appropriate vs Overused
+
+**Appropriate:**
+- `BasePage` → `LoginPage`, `DashboardPage` (genuine "is-a": every LoginPage IS a page)
+- A `BaseApiClient` with common request/response handling → specialized API clients
+
+**Overused:**
+- `BaseTest` → `BaseUITest` → `BaseWebTest` (tests aren't really subtypes of each other)
+- Any hierarchy deeper than 2 levels
+- When you inherit just to reuse a utility method (use composition instead)
+
+**The Litmus Test:** If you can say "X **is a** Y" and it sounds natural, inheritance *might* be appropriate. If you'd more naturally say "X **uses** Y" or "X **has a** Y," use composition.
+
+---
+
+### Polymorphism
+
+#### Why Polymorphism Is the Most Important OOP Concept for Framework Design
+
+Polymorphism means "one interface, many implementations." It's the mechanism that lets you write test code that doesn't care *which specific* browser, API client, or data source it's using — it just calls methods on an interface, and the right implementation responds.
+
+Without polymorphism, you'd have `if/else` chains everywhere:
+
+
+```java
+// WITHOUT polymorphism — brittle, violates Open/Closed Principle
+public WebDriver getDriver(String browser) {
+    if (browser.equals("chrome")) {
+        return new ChromeDriver();
+    } else if (browser.equals("firefox")) {
+        return new FirefoxDriver();
+    } else if (browser.equals("edge")) {
+        return new EdgeDriver();
+    }
+    // Every new browser = modify this method
+    throw new IllegalArgumentException("Unsupported: " + browser);
+}
+```
+
+With polymorphism, adding a new browser means adding a new class — no existing code changes:
+
+
+```java
+// WITH polymorphism — extensible, closed for modification
+public interface DriverProvider {
+    WebDriver createDriver();
+}
+
+public class ChromeDriverProvider implements DriverProvider {
+    @Override
+    public WebDriver createDriver() { return new ChromeDriver(); }
+}
+
+// Adding Safari = one new class, zero changes to existing code
+public class SafariDriverProvider implements DriverProvider {
+    @Override
+    public WebDriver createDriver() { return new SafariDriver(); }
+}
+```
+
+#### Compile-Time (Overloading) vs Runtime (Overriding) Polymorphism
+
+**Compile-time polymorphism (method overloading):** Multiple methods with the same name but different parameter lists. The compiler decides which to call based on the arguments.
+
+
+```java
+public class ElementActions {
+    // Overloaded: same name, different parameters
+    public void click(By locator) {
+        driver.findElement(locator).click();
+    }
+
+    public void click(By locator, int timeoutSeconds) {
+        new WebDriverWait(driver, Duration.ofSeconds(timeoutSeconds))
+            .until(ExpectedConditions.elementToBeClickable(locator))
+            .click();
+    }
+
+    public void click(WebElement element) {
+        element.click();
+    }
+}
+```
+
+**Runtime polymorphism (method overriding):** A subclass provides a different implementation of a method inherited from its parent. The JVM decides which to call at runtime, based on the actual object type.
+
+
+```java
+BasePage page = new LoginPage(driver);  // reference type: BasePage, object type: LoginPage
+page.isLoaded();  // calls LoginPage.isLoaded(), not BasePage.isLoaded()
+```
+
+**Runtime polymorphism is far more important for framework design.** It's the foundation for programming to interfaces.
+
+#### Programming to Interfaces
+
+"Program to an interface, not an implementation" means your code should depend on *what* an object can do (interface), not *how* it does it (concrete class).
+
+
+```java
+// BAD: tightly coupled to ChromeDriver
+public class LoginTest {
+    private ChromeDriver driver;  // locked to Chrome forever
+
+    @BeforeMethod
+    public void setUp() {
+        driver = new ChromeDriver();
+    }
+}
+
+// GOOD: depends on the WebDriver interface
+public class LoginTest {
+    private WebDriver driver;  // could be Chrome, Firefox, Safari, Appium, anything
+
+    @BeforeMethod
+    public void setUp() {
+        driver = DriverFactory.createDriver();  // factory decides the concrete type
+    }
+}
+```
+
+---
+
+### Abstraction
+
+#### Why Abstraction Exists
+
+Abstraction is about hiding complexity and showing only what's necessary. In Java, you achieve abstraction through **abstract classes** and **interfaces**.
+
+The key difference:
+
+| Aspect | Abstract Class | Interface |
+|---|---|---|
+| Instantiation | Cannot be instantiated | Cannot be instantiated |
+| Methods | Can have abstract + concrete methods | Abstract methods + `default` methods (Java 8+) |
+| Fields | Can have instance fields (any type) | Only `public static final` constants |
+| Constructors | Yes (called via `super()`) | No |
+| Inheritance | Single (extends one class) | Multiple (implements many interfaces) |
+| Access modifiers | Any | Methods are `public` (abstract) or `public default` |
+
+#### When to Use Abstract Class vs Interface — Decision Framework
+
+Use an **abstract class** when:
+- You need to share **state** (instance fields) among related classes.
+- You want to provide **partial implementation** — some methods implemented, some left abstract.
+- The classes are in a genuine **"is-a" hierarchy** (LoginPage IS a BasePage).
+- You need **constructors** to enforce initialization.
+
+Use an **interface** when:
+- You want to define a **contract** (what, not how).
+- A class might need to fulfill **multiple contracts** (Java has no multiple inheritance for classes).
+- You want to enable **polymorphism across unrelated classes** (a DriverProvider and a DataProvider aren't related, but both can implement `Closeable`).
+- You want maximum **flexibility** for future changes.
+
+**In practice for test automation:** Use an abstract class for `BasePage` (it has shared state like the driver and wait). Use interfaces for cross-cutting concerns like `DriverProvider`, `Reportable`, or `Retryable`.
+
+#### Real Example: BasePage Abstract Class
+
+
+```java
+public abstract class BasePage {
+
+    protected final WebDriver driver;
+    protected final WebDriverWait wait;
+
+    // Constructor — every subclass must provide a driver
+    protected BasePage(WebDriver driver) {
+        this.driver = driver;
+        this.wait = new WebDriverWait(driver, Duration.ofSeconds(10));
+    }
+
+    // ABSTRACT method — every page MUST define what "loaded" means for itself
+    public abstract boolean isLoaded();
+
+    // CONCRETE method — shared behavior, all pages can use this as-is
+    protected void click(By locator) {
+        wait.until(ExpectedConditions.elementToBeClickable(locator)).click();
+    }
+
+    // CONCRETE method — shared wait logic
+    protected void type(By locator, String text) {
+        WebElement element = wait.until(
+            ExpectedConditions.visibilityOfElementLocated(locator)
+        );
+        element.clear();
+        element.sendKeys(text);
+    }
+
+    // CONCRETE method — template method pattern
+    public void waitUntilLoaded() {
+        wait.until(driver -> isLoaded());  // calls the abstract method
+    }
+}
+```
+
+Now every page **must** implement `isLoaded()` — the compiler enforces this. But every page **gets** `click()`, `type()`, and `waitUntilLoaded()` for free.
+
+---
+
+### Composition over Inheritance
+
+#### Why "Favor Composition" Is Critical for Test Frameworks
+
+Inheritance creates **tight coupling**. When `LoginTest extends BaseTest`, any change to `BaseTest` ripples through every test. You can't swap out the driver management strategy without modifying the base class, which affects hundreds of tests.
+
+Composition creates **loose coupling**. When `LoginTest` *has* a `TestContext` object, you can change how `TestContext` works — even replace it entirely — without touching any test class.
+
+#### Has-a vs Is-a Relationships
+
+- **Is-a (inheritance):** A LoginPage **is a** BasePage. Correct use of inheritance.
+- **Has-a (composition):** A TestContext **has a** WebDriver, a TestConfig, and a TestDataManager. Correct use of composition.
+
+The critical mistake: treating "has-a" relationships as "is-a." A test doesn't *become* a base test — it *uses* testing utilities.
+
+#### Concrete Comparison: Inheritance vs Composition
+
+**Approach 1: The Inheritance-Heavy Framework (Common but Problematic)**
+
+
+```java
+// BaseTest tries to BE everything
+public class BaseTest {
+    protected WebDriver driver;
+    protected TestConfig config;
+    protected TestDataManager data;
+    protected ExtentReports report;
+
+    @BeforeMethod
+    public void setUp() {
+        config = new TestConfig();
+        driver = new ChromeDriver();
+        data = new TestDataManager();
+        report = new ExtentReports();
+    }
+
+    @AfterMethod
+    public void tearDown() {
+        driver.quit();
+        report.flush();
+    }
+
+    // Utility methods pile up here
+    protected void takeScreenshot() { /* ... */ }
+    protected void logStep(String step) { /* ... */ }
+    protected void waitForPageLoad() { /* ... */ }
+}
+
+// Every test inherits EVERYTHING, even what it doesn't need
+public class LoginTest extends BaseTest {
+    @Test
+    public void testLogin() {
+        // has access to driver, config, data, report, screenshot, logging...
+        // even if this test only needs driver and config
+    }
+}
+
+// Problem: API tests also extend BaseTest and get a WebDriver they don't need
+public class UserApiTest extends BaseTest {
+    @Test
+    public void testGetUser() {
+        // inherits a WebDriver it never uses — wasteful and confusing
+    }
+}
+```
+
+**Approach 2: The Composition-Based Framework (Flexible and Testable)**
+
+
+```java
+// TestContext CONTAINS what tests need — assembled, not inherited
+public class TestContext {
+    private final WebDriver driver;
+    private final TestConfig config;
+    private final TestDataManager data;
+
+    public TestContext(WebDriver driver, TestConfig config, TestDataManager data) {
+        this.driver = driver;
+        this.config = config;
+        this.data = data;
+    }
+
+    public WebDriver getDriver() { return driver; }
+    public TestConfig getConfig() { return config; }
+    public TestDataManager getData() { return data; }
+
+    public void tearDown() {
+        if (driver != null) {
+            driver.quit();
+        }
+    }
+}
+
+// Tests receive only what they need
+public class LoginTest {
+    private TestContext context;
+
+    @BeforeMethod
+    public void setUp() {
+        WebDriver driver = DriverFactory.createDriver("chrome");
+        TestConfig config = TestConfig.loadFromEnvironment();
+        TestDataManager data = new TestDataManager(config);
+        context = new TestContext(driver, config, data);
+    }
+
+    @Test
+    public void testLogin() {
+        LoginPage loginPage = new LoginPage(context.getDriver());
+        loginPage.loginAs("user", "pass");
+    }
+
+    @AfterMethod
+    public void tearDown() {
+        context.tearDown();
+    }
+}
+
+// API tests don't need a driver — different context, no waste
+public class UserApiTest {
+    private ApiClient client;
+
+    @BeforeMethod
+    public void setUp() {
+        TestConfig config = TestConfig.loadFromEnvironment();
+        client = new ApiClient(config);
+    }
+}
+```
+
+**Why composition wins:**
+- API tests don't create a browser they'll never use.
+- You can change the driver strategy in `DriverFactory` without modifying any test.
+- You can unit test `TestContext` independently.
+- You can compose different context objects for different test types.
+
+---
+
+## Practical Implementation (Layer 3)
+
+### Example 1: Page Object with Proper Encapsulation
+
+
+```java
+import org.openqa.selenium.By;
+import org.openqa.selenium.WebDriver;
+import org.openqa.selenium.WebElement;
+import org.openqa.selenium.support.ui.ExpectedConditions;
+import org.openqa.selenium.support.ui.WebDriverWait;
+
+import java.time.Duration;
+
+/**
+ * Page Object for the StayNest login page.
+ * 
+ * Design decisions:
+ * - All fields are private final: no external code can modify locators or driver
+ * - Constructor requires a WebDriver: dependency injection, not internal creation
+ * - Action methods return the NEXT page object: enables fluent test writing
+ * - No public locators: tests describe WHAT to do, not HOW to find elements
+ */
+public class LoginPage {
+
+    // --- Private state: hidden from all external code ---
+
+    private final WebDriver driver;                                          // L1: injected, not created here
+    private final WebDriverWait wait;                                        // L2: scoped to this page
+
+    // Locators are private — tests never reference them directly
+    private final By usernameField = By.id("username");                      // L3: descriptive locator
+    private final By passwordField = By.id("password");                      // L4: stable locator strategy
+    private final By loginButton = By.cssSelector("[data-testid='login']");  // L5: test-id is most stable
+    private final By errorMessage = By.className("error-message");           // L6: for assertion support
+
+    // --- Constructor: the ONLY way to create a LoginPage ---
+
+    /**
+     * @param driver the WebDriver instance (injected, never created internally)
+     */
+    public LoginPage(WebDriver driver) {
+        this.driver = driver;                                                // L7: store the reference
+        this.wait = new WebDriverWait(driver, Duration.ofSeconds(10));       // L8: create wait with driver
+    }
+
+    // --- Public behavior: what this page can DO ---
+
+    /**
+     * Perform a complete login action.
+     * Returns DashboardPage because successful login navigates there.
+     * This return type enables fluent test writing:
+     *     new LoginPage(driver).loginAs("admin", "pass").verifyWelcomeMessage();
+     */
+    public DashboardPage loginAs(String username, String password) {         // L9: action method
+        enterUsername(username);                                              // L10: reuse private helpers
+        enterPassword(password);
+        clickLoginButton();
+        return new DashboardPage(driver);                                    // L11: return next page
+    }
+
+    /**
+     * Attempt login with invalid credentials.
+     * Returns LoginPage (not DashboardPage) because we stay on the same page.
+     */
+    public LoginPage loginExpectingError(String username, String password) { // L12: separate method for failure path
+        enterUsername(username);
+        enterPassword(password);
+        clickLoginButton();
+        return this;                                                         // L13: stay on same page
+    }
+
+    /**
+     * Get the error message text (for assertion in tests).
+     */
+    public String getErrorMessage() {
+        return wait.until(                                                   // L14: wait for element
+            ExpectedConditions.visibilityOfElementLocated(errorMessage)
+        ).getText();
+    }
+
+    /**
+     * Check if the login page is currently displayed.
+     */
+    public boolean isDisplayed() {
+        return driver.findElements(loginButton).size() > 0;                  // L15: non-throwing check
+    }
+
+    // --- Private helpers: encapsulate element interactions ---
+
+    private void enterUsername(String username) {                             // L16: private — internal detail
+        WebElement element = wait.until(
+            ExpectedConditions.visibilityOfElementLocated(usernameField)
+        );
+        element.clear();                                                     // L17: clear before typing
+        element.sendKeys(username);
+    }
+
+    private void enterPassword(String password) {
+        WebElement element = wait.until(
+            ExpectedConditions.visibilityOfElementLocated(passwordField)
+        );
+        element.clear();
+        element.sendKeys(password);
+    }
+
+    private void clickLoginButton() {
+        wait.until(
+            ExpectedConditions.elementToBeClickable(loginButton)             // L18: wait for clickable
+        ).click();
+    }
+}
+```
+
+**Key design decisions explained:**
+- **Line 1 (L1):** The driver is *injected* through the constructor, not created inside the page. This is Dependency Injection — it makes the page testable with any driver implementation.
+- **Lines 3-6 (L3-L6):** Locators are `private final`. No test can see or modify them. If a locator changes, you fix it here — not in 47 test files.
+- **Line 9 (L9):** `loginAs()` returns `DashboardPage`, modeling the user flow. The test reads like a story: "log in as admin, verify dashboard loads."
+- **Line 12 (L12):** Separate method for the failure path. Don't overload one method with boolean flags like `login(user, pass, expectError)`.
+- **Line 15 (L15):** `findElements()` returns an empty list instead of throwing. Use this pattern for "is present?" checks.
+
+---
+
+### Example 2: Interface-Based Driver Management
+
+
+```java
+import org.openqa.selenium.WebDriver;
+import org.openqa.selenium.chrome.ChromeDriver;
+import org.openqa.selenium.chrome.ChromeOptions;
+import org.openqa.selenium.firefox.FirefoxDriver;
+import org.openqa.selenium.firefox.FirefoxOptions;
+
+/**
+ * Interface: defines WHAT a driver provider must do.
+ * Any class implementing this contract can provide a driver.
+ */
+public interface DriverProvider {
+    /**
+     * Create and return a configured WebDriver instance.
+     * Each call returns a NEW driver (important for parallel execution).
+     */
+    WebDriver createDriver();                                                // L1: contract — no implementation
+
+    /**
+     * Return the browser name this provider handles.
+     * Used for registration and logging.
+     */
+    String getBrowserName();                                                 // L2: identity method
+}
+```
+
+
+```java
+/**
+ * Chrome implementation of DriverProvider.
+ * Encapsulates ALL Chrome-specific configuration.
+ */
+public class ChromeDriverProvider implements DriverProvider {
+
+    private final boolean headless;
+
+    public ChromeDriverProvider(boolean headless) {
+        this.headless = headless;
+    }
+
+    @Override
+    public WebDriver createDriver() {                                        // L3: Chrome-specific creation
+        ChromeOptions options = new ChromeOptions();
+        options.addArguments("--disable-notifications");
+        options.addArguments("--start-maximized");
+        if (headless) {
+            options.addArguments("--headless=new");                          // L4: conditional configuration
+        }
+        return new ChromeDriver(options);                                    // L5: returns concrete type
+    }
+
+    @Override
+    public String getBrowserName() {
+        return "chrome";
+    }
+}
+```
+
+
+```java
+/**
+ * Firefox implementation of DriverProvider.
+ * Same interface, completely different internals.
+ */
+public class FirefoxDriverProvider implements DriverProvider {
+
+    private final boolean headless;
+
+    public FirefoxDriverProvider(boolean headless) {
+        this.headless = headless;
+    }
+
+    @Override
+    public WebDriver createDriver() {                                        // L6: Firefox-specific creation
+        FirefoxOptions options = new FirefoxOptions();
+        if (headless) {
+            options.addArguments("-headless");                               // L7: Firefox uses different flag
+        }
+        return new FirefoxDriver(options);
+    }
+
+    @Override
+    public String getBrowserName() {
+        return "firefox";
+    }
+}
+```
+
+
+```java
+import java.util.HashMap;
+import java.util.Map;
+
+/**
+ * Factory that uses polymorphism to create drivers.
+ *
+ * Adding a new browser = writing a new DriverProvider class and registering it.
+ * No modification to this factory. No if/else chains. Open/Closed Principle in action.
+ */
+public class DriverFactory {
+
+    private final Map<String, DriverProvider> providers = new HashMap<>();   // L8: registry of providers
+
+    /**
+     * Register a provider for a browser name.
+     * This is how you extend the factory without modifying it.
+     */
+    public void registerProvider(String browserName, DriverProvider provider) {
+        providers.put(browserName.toLowerCase(), provider);                  // L9: case-insensitive key
+    }
+
+    /**
+     * Create a driver for the given browser name.
+     * The factory doesn't know HOW to create any specific driver —
+     * it delegates to the registered provider.
+     */
+    public WebDriver createDriver(String browserName) {
+        DriverProvider provider = providers.get(browserName.toLowerCase());  // L10: polymorphic lookup
+        if (provider == null) {
+            throw new IllegalArgumentException(
+                "No driver provider registered for: " + browserName
+                + ". Available: " + providers.keySet()                       // L11: helpful error message
+            );
+        }
+        return provider.createDriver();                                      // L12: polymorphic call
+    }
+}
+```
+
+
+```java
+// Usage: wire it up at framework initialization
+public class FrameworkSetup {
+
+    public static DriverFactory createDriverFactory(boolean headless) {
+        DriverFactory factory = new DriverFactory();
+
+        // Register available browsers
+        factory.registerProvider("chrome", new ChromeDriverProvider(headless));
+        factory.registerProvider("firefox", new FirefoxDriverProvider(headless));
+        // Adding Safari? One line:
+        // factory.registerProvider("safari", new SafariDriverProvider());
+
+        return factory;
+    }
+}
+
+// In a test:
+// String browser = System.getProperty("browser", "chrome");
+// WebDriver driver = driverFactory.createDriver(browser);
+```
+
+**Why this design is powerful:**
+- **Line 12 (L12):** `provider.createDriver()` is a polymorphic call. At compile time, Java only knows it's calling `DriverProvider.createDriver()`. At runtime, it calls the correct implementation (Chrome, Firefox, etc.).
+- **Line 8 (L8):** The Map-based registry replaces `if/else` chains. Adding a browser is additive (register a new provider), not modificative (edit existing code).
+- **Line 11 (L11):** Good error messages prevent debugging sessions. Always show what *is* available, not just what's missing.
+
+---
+
+### Example 3: Composition-Based Test Context
+
+
+```java
+import org.openqa.selenium.WebDriver;
+
+/**
+ * TestContext assembles all resources a test needs through COMPOSITION.
+ * 
+ * It CONTAINS a driver, config, and data manager — it doesn't INHERIT from them.
+ * This means:
+ * - You can create different contexts for different test types
+ * - You can mock any component for unit testing
+ * - You can change any component without affecting others
+ * - No deep inheritance hierarchy to debug
+ */
+public class TestContext {
+
+    private final WebDriver driver;                                          // L1: the browser connection
+    private final TestConfig config;                                         // L2: environment configuration
+    private final TestDataManager dataManager;                               // L3: test data access
+
+    // --- Constructor: assembles the context from independent components ---
+
+    /**
+     * All dependencies are injected — TestContext doesn't create anything.
+     * This makes it easy to assemble different contexts for different scenarios:
+     * - Real driver + real config for E2E tests
+     * - Mock driver + test config for unit testing page objects
+     */
+    public TestContext(WebDriver driver, TestConfig config, TestDataManager dataManager) {
+        this.driver = driver;                                                // L4: store, don't create
+        this.config = config;
+        this.dataManager = dataManager;
+    }
+
+    // --- Controlled access to components ---
+
+    public WebDriver getDriver() {
+        return driver;
+    }
+
+    public TestConfig getConfig() {
+        return config;
+    }
+
+    public TestDataManager getDataManager() {
+        return dataManager;
+    }
+
+    // --- Lifecycle management ---
+
+    /**
+     * Clean up all resources. Because TestContext owns the lifecycle,
+     * cleanup is centralized instead of scattered across test methods.
+     */
+    public void tearDown() {
+        if (driver != null) {
+            driver.quit();                                                   // L5: clean up the driver
+        }
+        if (dataManager != null) {
+            dataManager.cleanup();                                           // L6: clean up test data
+        }
+    }
+}
+```
+
+
+```java
+/**
+ * A factory that builds TestContext instances.
+ * Different factory methods create different contexts for different test types.
+ */
+public class TestContextFactory {
+
+    /**
+     * Build a context for UI tests — needs a browser.
+     */
+    public static TestContext forUITest(String browser) {
+        TestConfig config = TestConfig.loadFromEnvironment();
+        WebDriver driver = new DriverFactory()
+            .createDriver(browser);                                          // L7: browser from parameter
+        TestDataManager data = new TestDataManager(config);
+        return new TestContext(driver, config, data);                         // L8: assemble via composition
+    }
+
+    /**
+     * Build a context for API tests — no browser needed.
+     * This is impossible with inheritance (BaseTest always creates a driver).
+     * With composition, we simply don't include one.
+     */
+    public static TestContext forApiTest() {
+        TestConfig config = TestConfig.loadFromEnvironment();
+        TestDataManager data = new TestDataManager(config);
+        return new TestContext(null, config, data);                           // L9: no driver needed
+    }
+}
+```
+
+
+```java
+/**
+ * Test class using composition — no inheritance, full control.
+ */
+public class BookingTest {
+
+    private TestContext context;
+
+    @BeforeMethod
+    public void setUp() {
+        context = TestContextFactory.forUITest("chrome");                    // L10: factory builds context
+    }
+
+    @Test
+    public void shouldBookHotelRoom() {
+        LoginPage loginPage = new LoginPage(context.getDriver());            // L11: page gets driver from context
+        DashboardPage dashboard = loginPage.loginAs(
+            context.getDataManager().getUser("standard").getUsername(),       // L12: data from context
+            context.getDataManager().getUser("standard").getPassword()
+        );
+        // ... rest of test
+    }
+
+    @AfterMethod
+    public void tearDown() {
+        context.tearDown();                                                  // L13: centralized cleanup
+    }
+}
+```
+
+**Line-by-line key decisions:**
+- **L1-L3:** Three independent components composed into one context. None knows about the others.
+- **L4:** `TestContext` stores references but doesn't create the objects — that's Dependency Injection.
+- **L8-L9:** The factory can assemble different combinations. API tests get a context without a driver. This is *impossible* with a `BaseTest` that always creates a driver in `setUp()`.
+- **L10:** Tests use a factory method — they don't need to know how contexts are assembled.
+- **L13:** Cleanup is one method call, regardless of what the context contains.
+
+---
+
+## Failure and Debugging (Layer 4)
+
+### Mistake 1: Deep Inheritance Hierarchies
+
+**The Broken Pattern:**
+
+
+```java
+// Level 0: "let's put common stuff here"
+public class BaseTest {
+    protected WebDriver driver;
+    protected TestConfig config;
+
+    @BeforeMethod
+    public void baseSetUp() {
+        config = new TestConfig();
+    }
+
+    @AfterMethod
+    public void baseTearDown() {
+        if (driver != null) driver.quit();
+    }
+}
+
+// Level 1: "UI tests need a driver"
+public class BaseUITest extends BaseTest {
+    @BeforeMethod
+    public void uiSetUp() {
+        driver = new ChromeDriver();        // always Chrome — inflexible
+    }
+}
+
+// Level 2: "web tests need to navigate to base URL"
+public class BaseWebTest extends BaseUITest {
+    @BeforeMethod
+    public void webSetUp() {
+        driver.get(config.getBaseUrl());     // assumes driver is ready — fragile
+    }
+}
+
+// Level 3: "authenticated tests need to log in first"
+public class BaseAuthenticatedTest extends BaseWebTest {
+    @BeforeMethod
+    public void authSetUp() {
+        new LoginPage(driver).loginAs("admin", "admin123");  // hardcoded credentials
+    }
+}
+
+// Level 4: the actual test, buried under 4 layers of setup
+public class BookingTest extends BaseAuthenticatedTest {
+    @Test
+    public void shouldBookRoom() {
+        // At this point, 4 @BeforeMethod methods have run.
+        // What order? Which one set up the driver?
+        // What if you need Firefox? Change BaseUITest? That affects ALL tests.
+        // What if one test needs a non-authenticated path? Can't skip level 3.
+    }
+}
+```
+
+**Why this breaks:**
+
+1. **Execution order confusion:** TestNG runs `@BeforeMethod` top-down, but developers don't intuitively think through 4 levels of setup.
+2. **Rigid coupling:** Changing `BaseUITest` to support Firefox requires modifying code that 200 test classes depend on.
+3. **Unused baggage:** An API test that accidentally extends `BaseUITest` gets a browser it never uses.
+4. **Debugging nightmare:** When `webSetUp()` throws a NullPointerException on `driver`, you have to trace through `BaseTest` → `BaseUITest` to understand why `driver` might be null (maybe `uiSetUp()` failed silently).
+
+**The Fix — Composition:**
+
+
+```java
+// No inheritance hierarchy. Each concern is a separate, composable object.
+public class BookingTest {
+
+    private TestContext context;
+
+    @BeforeMethod
+    public void setUp() {
+        // Everything is explicit. You can SEE what's happening.
+        context = TestContextFactory.forUITest("chrome");
+        context.getDriver().get(context.getConfig().getBaseUrl());
+
+        // Need authentication? Do it explicitly.
+        new LoginPage(context.getDriver())
+            .loginAs(
+                context.getDataManager().getCredentials("admin").getUsername(),
+                context.getDataManager().getCredentials("admin").getPassword()
+            );
+    }
+
+    @Test
+    public void shouldBookRoom() {
+        // Clear setup, no hidden layers
+    }
+
+    @AfterMethod
+    public void tearDown() {
+        context.tearDown();
+    }
+}
+```
+
+---
+
+### Mistake 2: Static Mutable State in Page Objects
+
+**The Broken Pattern:**
+
+
+```java
+public class LoginPage {
+    // STATIC driver — shared across ALL instances and ALL threads
+    private static WebDriver driver;
+    private static String lastUsername;
+
+    public static void setDriver(WebDriver d) {
+        driver = d;  // Thread A sets Chrome driver
+                     // Thread B sets Firefox driver — overwrites Thread A's driver
+    }
+
+    public void loginAs(String username, String password) {
+        driver.findElement(By.id("username")).sendKeys(username);
+        lastUsername = username;  // Thread A: "admin", Thread B: "user" — race condition
+    }
+
+    public static String getLastUsername() {
+        return lastUsername;  // which thread's value? Unpredictable.
+    }
+}
+```
+
+**What happens in parallel execution:**
+
+```
+Timeline:
+Thread-1: LoginPage.setDriver(chromeDriver)     → static driver = chromeDriver
+Thread-2: LoginPage.setDriver(firefoxDriver)     → static driver = firefoxDriver (OVERWRITES!)
+Thread-1: loginPage.loginAs("admin", "pass")     → uses firefoxDriver (WRONG DRIVER!)
+Thread-1: test fails with StaleElementException — element was on Chrome, driver is Firefox
+```
+
+**The Fix — Instance State:**
+
+
+```java
+public class LoginPage {
+    // INSTANCE driver — each LoginPage object has its own
+    private final WebDriver driver;
+
+    // Constructor injection — each thread creates its own LoginPage with its own driver
+    public LoginPage(WebDriver driver) {
+        this.driver = driver;
+    }
+
+    public DashboardPage loginAs(String username, String password) {
+        driver.findElement(By.id("username")).sendKeys(username);
+        driver.findElement(By.id("password")).sendKeys(password);
+        driver.findElement(By.id("login-btn")).click();
+        return new DashboardPage(driver);
+    }
+}
+
+// Each thread:
+// Thread-1: new LoginPage(thread1Driver) → has its own driver reference
+// Thread-2: new LoginPage(thread2Driver) → has its own driver reference
+// No shared state, no race conditions
+```
+
+**Rule:** Never use `static` for mutable state in page objects or test helpers. The only acceptable static members are:
+- `static final` constants (immutable)
+- `static` utility methods that take all data as parameters (stateless)
+- `ThreadLocal<>` when you intentionally need per-thread static state (advanced; prefer constructor injection)
+
+---
+
+### Mistake 3: Tight Coupling Through Concrete Classes
+
+**The Broken Pattern:**
+
+
+```java
+// Test is directly coupled to ChromeDriver — can't test with anything else
+public class SearchTest {
+    private ChromeDriver driver;                 // concrete class, not interface
+    private MySqlTestDataSource dataSource;       // concrete class, not interface
+
+    @BeforeMethod
+    public void setUp() {
+        driver = new ChromeDriver();             // hardcoded to Chrome
+        dataSource = new MySqlTestDataSource();   // hardcoded to MySQL
+    }
+
+    @Test
+    public void shouldSearchProperties() {
+        SearchPage searchPage = new SearchPage(driver);
+        // What if you need to run this on Firefox? Modify THIS test.
+        // What if you switch to PostgreSQL? Modify THIS test.
+        // What if you want to unit test SearchPage with a mock driver? Can't.
+    }
+}
+```
+
+**The Fix — Depend on Interfaces:**
+
+
+```java
+// Test depends on abstractions (interfaces), not concrete classes
+public class SearchTest {
+    private WebDriver driver;                    // interface — could be any browser
+    private TestDataSource dataSource;           // interface — could be any database
+
+    @BeforeMethod
+    public void setUp() {
+        // Concrete types are decided at configuration time, not in the test
+        driver = DriverFactory.createDriver(
+            System.getProperty("browser", "chrome")
+        );
+        dataSource = TestDataSourceFactory.create(
+            System.getProperty("db", "mysql")
+        );
+    }
+
+    @Test
+    public void shouldSearchProperties() {
+        SearchPage searchPage = new SearchPage(driver);
+        // This test now runs on ANY browser and ANY database
+        // without changing a single line of test code
+    }
+}
+```
+
+**Diagnostic checklist when you suspect tight coupling:**
+1. Search your codebase for `new ChromeDriver()` outside of factory classes — every occurrence is a coupling point.
+2. Check if test classes import concrete implementation classes — they should import interfaces.
+3. Try mentally answering: "Can I run this test on Firefox by changing only configuration?" If no, you have coupling.
+
+---
+
+## Engineering Judgment (Layer 5)
+
+### Decision Matrix: Inheritance vs Composition vs Interface
+
+| Scenario | Use | Reason |
+|---|---|---|
+| Multiple page objects share click/type/wait logic | **Abstract class** (`BasePage`) | Genuine "is-a" + shared state (driver, wait) |
+| Different browsers need different driver setup | **Interface** (`DriverProvider`) | Multiple implementations, no shared state |
+| Tests need driver + config + data | **Composition** (`TestContext`) | "Has-a" relationship, not "is-a" |
+| A listener that reports to multiple systems | **Interface** (`TestReporter`) | Classes may implement multiple reporter interfaces |
+| A retry mechanism for flaky element interactions | **Composition** (inject a `RetryPolicy`) | Behavior should be configurable, not baked in |
+| All API requests need auth headers | **Abstract class** (`BaseApiClient`) | Shared state (auth token, base URL) + template methods |
+| A test needs both UI and API capabilities | **Composition** | A test can't extend two base classes; compose both contexts |
+
+### Abstract Class vs Interface in Java 17+ — Practical Decision Guide
+
+Java 8+ blurred the line by adding `default` methods to interfaces. Java 17+ further added sealed interfaces and records. Here's the practical guide:
+
+**Start with an interface** unless you need one of these:
+- Instance fields (interfaces can only have `static final` constants)
+- Constructors (interfaces don't have them)
+- Protected/package-private methods (interface methods are public)
+- You need to enforce that subclasses call a specific initialization sequence
+
+**If you find yourself adding `default` implementations to more than 2-3 interface methods**, consider whether an abstract class is clearer. An interface with many default methods is essentially an abstract class pretending to be an interface.
+
+
+```java
+// GOOD interface: defines a contract with 0-1 default methods
+public interface Reportable {
+    void reportResult(TestResult result);
+
+    default String formatTimestamp() {
+        return Instant.now().toString();  // one small default is fine
+    }
+}
+
+// GOOD abstract class: shares state and provides partial implementation
+public abstract class BasePage {
+    protected final WebDriver driver;     // interfaces can't have this
+    protected final WebDriverWait wait;   // interfaces can't have this
+
+    protected BasePage(WebDriver driver) {  // interfaces can't have this
+        this.driver = driver;
+        this.wait = new WebDriverWait(driver, Duration.ofSeconds(10));
+    }
+
+    public abstract boolean isLoaded();
+
+    protected void click(By locator) {    // interfaces can't have protected
+        wait.until(ExpectedConditions.elementToBeClickable(locator)).click();
+    }
+}
+```
+
+### Singleton Pattern in Test Frameworks
+
+**When justified:**
+- A configuration object loaded once from a file and never modified (immutable singleton).
+- A connection pool that must be shared across the JVM.
+
+**When harmful:**
+- A WebDriver singleton — makes parallel execution impossible.
+- A "current test" singleton — which test is "current" when 10 are running?
+- Any mutable singleton in a parallel environment.
+
+
+```java
+// JUSTIFIED: Immutable configuration loaded once
+public final class FrameworkConfig {
+    private static volatile FrameworkConfig instance;
+    private final String baseUrl;
+    private final int defaultTimeout;
+
+    private FrameworkConfig() {
+        // Load from properties file once
+        Properties props = loadProperties("framework.properties");
+        this.baseUrl = props.getProperty("base.url");
+        this.defaultTimeout = Integer.parseInt(props.getProperty("timeout", "10"));
+    }
+
+    public static FrameworkConfig getInstance() {
+        if (instance == null) {
+            synchronized (FrameworkConfig.class) {
+                if (instance == null) {
+                    instance = new FrameworkConfig();
+                }
+            }
+        }
+        return instance;
+    }
+
+    // Only getters — immutable
+    public String getBaseUrl() { return baseUrl; }
+    public int getDefaultTimeout() { return defaultTimeout; }
+}
+
+// HARMFUL: Mutable driver singleton — breaks parallel execution
+public class DriverManager {
+    private static WebDriver driver;  // ONE driver for the whole JVM?
+
+    public static WebDriver getDriver() {
+        if (driver == null) {
+            driver = new ChromeDriver();  // What if two threads call this?
+        }
+        return driver;  // All threads share one browser — tests step on each other
+    }
+    // DON'T do this. Use ThreadLocal or dependency injection instead.
+}
+```
+
+### Code Smells: Is Your Framework Properly Using OOP?
+
+| Smell | What It Indicates | What to Do |
+|---|---|---|
+| `BaseTest` has more than 200 lines | God class — too many responsibilities | Split into composed components |
+| More than 2 levels of class inheritance | Fragile hierarchy — changes ripple | Flatten to 1-2 levels, use composition |
+| `static WebDriver` anywhere | Shared mutable state — breaks parallel | Make instance-level, inject via constructor |
+| Tests import concrete driver classes | Tight coupling | Depend on `WebDriver` interface |
+| Page objects have public fields | Broken encapsulation | Make private, expose via methods |
+| `instanceof` checks in test code | Missing polymorphism | Add method to interface instead |
+| Copy-pasting setup code across tests | Missing abstraction | Extract to a factory or context class |
+| A method has more than 3 boolean parameters | Need for separate classes or builder | Split into specific methods or use a config object |
+| Utility class with 50+ methods | Lack of cohesion | Group into focused utility classes |
+| Tests break when you change a base class | Fragile base class problem | Reduce inheritance, favor composition |
+
+---
+
+## Interview and Revision (Layer 6)
+
+### Fundamental Questions
+
+**Q1: What is the difference between abstraction and encapsulation?**
+
+**A:** Encapsulation is about **hiding the internal state** and requiring interaction through controlled methods (getters/setters/action methods). It's an implementation mechanism — you use access modifiers to protect fields. Abstraction is about **hiding complexity** and exposing only relevant behavior — you use abstract classes and interfaces to define *what* an object does without specifying *how*. In automation: encapsulation means making `LoginPage`'s locators private. Abstraction means defining a `DriverProvider` interface that says "create a driver" without specifying the Chrome-specific setup.
+
+**Q2: Why does Java not support multiple inheritance for classes? How does it solve the problem?**
+
+**A:** Multiple class inheritance creates the **diamond problem**: if class C extends both A and B, and both A and B have a `doSomething()` method, which one does C inherit? Java avoids this ambiguity by allowing single class inheritance only. It provides **interfaces** for multiple behavioral contracts — a class can implement many interfaces. Since Java 8, interfaces can have `default` methods, which reintroduces a limited form of the diamond problem. Java resolves it with explicit rules: the class's own method wins over default methods, and a more specific interface's default wins over a less specific one. If the conflict can't be resolved, the compiler requires the class to override the method explicitly.
+
+**Q3: Explain the difference between `==` and `.equals()` for objects. Why does this matter in assertions?**
+
+**A:** `==` compares **reference identity** — are these two variables pointing to the exact same object in memory? `.equals()` compares **logical equality** — do these two objects represent the same value? For assertions, this is critical: `assertEquals(actualTitle, expectedTitle)` calls `.equals()`, which compares string content. Using `==` would check if they're the same String object in memory, which fails for dynamically created strings even if the text is identical. Custom objects (like a `User` data class) need to override `.equals()` and `.hashCode()` for assertions to work correctly.
+
+**Q4: What is method overriding vs method hiding? Why does the distinction matter?**
+
+**A:** Method **overriding** happens with instance methods — the subclass provides a new implementation, and the JVM calls the correct version based on the *actual object type* at runtime (polymorphism). Method **hiding** happens with static methods — if a subclass defines a static method with the same signature, it *hides* the parent's static method. The call depends on the *reference type* at compile time, not the object type. This matters in automation frameworks: if your `BasePage` has a static utility method and a subclass "overrides" it, calling that method through a `BasePage` reference will execute `BasePage`'s version, not the subclass version — leading to confusing bugs.
+
+**Q5: Why is composition preferred over inheritance in test automation frameworks?**
+
+**A:** Three practical reasons: (1) **Flexibility** — a test can compose exactly the components it needs (driver + config for UI tests, just config for API tests), while inheritance forces all subclasses to inherit everything. (2) **Stability** — changing a composed component only affects code that uses that component, while changing a base class affects every subclass. (3) **Testability** — composed dependencies can be mocked or swapped, while inherited behavior is welded in. The deeper issue is that test infrastructure relationships are "has-a" (a test *has* a driver), not "is-a" (a test *is* a base test), and using inheritance for has-a relationships creates brittle architectures.
+
+**Q6: What is the Liskov Substitution Principle and how does it apply to page objects?**
+
+**A:** LSP states that objects of a superclass should be replaceable with objects of a subclass without breaking the program. In page object terms: anywhere your framework uses a `BasePage` reference, you should be able to substitute a `LoginPage`, `DashboardPage`, or any other subclass, and the framework should still work correctly. This breaks when subclasses violate parent contracts — for example, if `BasePage.isLoaded()` is documented to never throw, but `SearchPage.isLoaded()` throws a `NoSuchElementException`. Tests using `BasePage` references would unexpectedly crash. Design subclasses that honor, not violate, the parent's behavioral contract.
+
+**Q7: When would you use `protected` access in a test framework?**
+
+**A:** Use `protected` for methods that subclasses *need to call or override*, but that shouldn't be part of the public API. In a `BasePage`, methods like `click(By)`, `type(By, String)`, and `getText(By)` should be `protected` — they're used by `LoginPage`, `DashboardPage`, etc., but tests should never call `loginPage.click(someLocator)` directly (that breaks the page object abstraction). Another use: a `protected` constructor that prevents direct instantiation but allows subclasses. Avoid overusing `protected` — it's a weaker form of encapsulation because any subclass (even one you don't control) gains access.
+
+**Q8: Explain `final` at each level: class, method, variable. What role does it play in reliable automation code?**
+
+**A:** `final class` — cannot be subclassed (e.g., `final class TestConfig` prevents someone from extending it in unexpected ways). `final method` — cannot be overridden (use for template methods that must not be changed by subclasses). `final variable` — must be assigned exactly once and cannot be reassigned (the value/reference can't change, but the object it points to can still be mutated unless it's also immutable). In automation: `final` fields on page objects (`private final WebDriver driver`) prevent accidental reassignment. `final` on configuration classes prevents subclassing that could introduce mutable state. `final` local variables communicate intent — "this reference won't change within this method."
+
+---
+
+### Coding Questions
+
+**CQ1: Design a fluent Page Object for a registration form**
+
+Write a `RegistrationPage` class with fluent methods (`enterName()`, `enterEmail()`, `selectCountry()`, `submitForm()`) where each method returns `this` for chaining, except `submitForm()` which returns a `ConfirmationPage`. Include proper encapsulation, constructor injection, and explicit waits.
+
+**CQ2: Implement a Strategy Pattern for test data generation**
+
+Define a `TestDataStrategy` interface with a method `UserData generateUser()`. Create two implementations: `RandomDataStrategy` (generates random data via Faker) and `FixedDataStrategy` (returns predefined data from a file). Write a `TestDataManager` that accepts any strategy and uses it.
+
+**CQ3: Refactor an inheritance-heavy test setup into composition**
+
+Given the following hierarchy, refactor it into a composition-based design using a `TestContext` and factory methods:
+
+
+```java
+// Refactor this:
+public class BaseTest { /* config, reporting */ }
+public class BaseUITest extends BaseTest { /* driver setup */ }
+public class BaseAuthTest extends BaseUITest { /* login setup */ }
+public class BookingTest extends BaseAuthTest { /* actual test */ }
+```
+
+---
+
+### Scenario-Based / Framework Design Questions
+
+**FQ1: "Design a page object hierarchy for a StayNest booking application with pages for Login, Dashboard, Property Search, Property Details, Booking Form, and Booking Confirmation."**
+
+Expected answer should address: Where to use `BasePage` (abstract class with shared driver/wait), which pages return other pages (login → dashboard), whether to group pages by feature area or keep flat, how to handle shared components like the navigation header (composition: extract a `NavigationComponent` that multiple pages *contain*), and how to handle pages that appear in both web and mobile (interface-based page contracts).
+
+**FQ2: "How would you design a reporting module that needs to support multiple reporters: ExtentReports, Allure, and a custom Slack notifier — all active simultaneously?"**
+
+Expected answer should cover: Interface `TestReporter` with methods like `onTestStart()`, `onTestPass()`, `onTestFail()`. Concrete implementations for each reporting tool. A `CompositeReporter` that holds a `List<TestReporter>` and iterates through all of them on each event. This demonstrates polymorphism (all reporters implement the same interface), composition (composite holds a list), and the Open/Closed Principle (adding a new reporter = new class + register it).
+
+**FQ3: "Your framework has a `DriverManager` class with a static `WebDriver` field. Tests are failing randomly in CI where they run in parallel. Diagnose and fix."**
+
+Expected answer should identify: The static field is shared across threads. Thread A quits the driver, Thread B tries to use it — `SessionNotCreatedException`. The fix is either `ThreadLocal<WebDriver>` (quick fix) or dependency injection where each test receives its own driver via a `TestContext` (better fix). Should explain *why* `ThreadLocal` is a band-aid (it still uses global state, just partitioned by thread) and why DI is the proper solution (explicit dependencies, testable, no hidden state).
+
+---
+
+
+
+
+**Flashcard 1**
+**Q:** What is the key difference between an abstract class and an interface in Java?
+**A:** An abstract class can have instance fields, constructors, and any access modifier on its methods. An interface can only have `public static final` fields, no constructors, and its methods are implicitly `public`. A class can implement multiple interfaces but extend only one abstract class. Use abstract classes for "is-a" with shared state; use interfaces for contracts across unrelated types.
+
+**Flashcard 2**
+**Q:** Why should page object locators be `private final`?
+**A:** `private` prevents tests from accessing or modifying locators directly, enforcing interaction through action methods only. `final` prevents accidental reassignment within the class itself. Together, they ensure locators are set once at class load time and can only be used through the page's behavior methods — centralizing locator changes to a single file.
+
+**Flashcard 3**
+**Q:** What is the fragile base class problem?
+**A:** When a change to a base class (like `BaseTest`) unexpectedly breaks subclasses that depend on its implementation details. The deeper the hierarchy, the more classes are affected and the harder it is to predict which behaviors change. Fix: keep hierarchies to 2 levels maximum, prefer composition over inheritance.
+
+**Flashcard 4**
+**Q:** When is a Singleton justified in a test framework?
+**A:** Only for truly immutable, JVM-wide resources: a configuration object loaded once from a properties file (read-only after creation), or a shared connection pool. Never for mutable state like WebDriver, "current test," or test data — these must be per-thread or per-test-instance for parallel execution safety.
+
+**Flashcard 5**
+**Q:** What does "program to an interface" mean in practice?
+**A:** Declare variables, parameters, and return types using the most general type that works — typically an interface. Write `WebDriver driver` not `ChromeDriver driver`. Write `List<String> items` not `ArrayList<String> items`. This lets you swap implementations (Chrome → Firefox, ArrayList → LinkedList) without changing calling code.
+
+---
+
+### Mastery Checklist
+
+- [ ] Can explain each OOP concept (encapsulation, inheritance, polymorphism, abstraction) with a test automation example, not a textbook "Animal → Dog" example.
+- [ ] Can design a Page Object Model using proper encapsulation (private fields, public behavior, constructor injection).
+- [ ] Can implement a driver factory using polymorphism and interfaces without if/else chains.
+- [ ] Can refactor a deep inheritance hierarchy into a composition-based design and explain why it's better.
+- [ ] Can identify when `static` state will break parallel test execution and fix it.
+- [ ] Can choose between abstract class and interface for a given framework requirement and justify the decision.
+- [ ] Can draw the access modifier visibility table from memory (private → default → protected → public).
+- [ ] Can explain the fragile base class problem with a concrete framework example.
+- [ ] Can implement the Singleton pattern correctly (double-checked locking) and explain when it's harmful.
+- [ ] Can write a composition-based `TestContext` that supports different test types (UI, API) without inheritance.
+- [ ] Can identify at least 5 OOP code smells in a framework codebase and propose fixes.
+- [ ] Can answer all 8 fundamental questions in this module without looking at the answers.
+
+---
+
+> **Next:** Collections And Generics — How Java's type system enables type-safe, reusable framework components.
+> **Related:** Interfaces And Composition, Equals And Hashcode, Exception Handling

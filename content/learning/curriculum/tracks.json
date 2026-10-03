@@ -1,6 +1,6 @@
 {
-  "version": "2.1.0",
-  "lastUpdated": "2026-08-09",
+  "version": "2.2.0",
+  "lastUpdated": "2026-10-03",
   "tracks": [
     {
       "id": "track_gate_ra_2027",
@@ -13,6 +13,18 @@
       "premium": false,
       "tags": ["GATE", "Mathematics", "Linear Algebra", "Engineering"],
       "manifestFile": "gate-ra-2027.json"
+    },
+    {
+      "id": "track_sdet_engineering",
+      "slug": "sdet-engineering",
+      "title": "SDET Engineering — Test Automation Mastery",
+      "description": "A comprehensive, practical roadmap for mastering test automation engineering — from Java and DSA foundations to framework design, API/Web/Mobile automation, CI/CD, and interview preparation.",
+      "icon": "FlaskConical",
+      "order": 2,
+      "difficulty": "intermediate",
+      "premium": false,
+      "tags": ["SDET", "Test Automation", "Java", "Selenium", "Playwright", "Appium", "REST Assured", "CI/CD"],
+      "manifestFile": "sdet-engineering.json"
     }
   ]
 }

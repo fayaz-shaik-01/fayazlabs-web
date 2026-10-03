@@ -1,0 +1,535 @@
+---
+title: "Setup and First Tests — Appium Java"
+description: "What: Appium 2.x automates native mobile apps using the W3C WebDriver protocol — the same protocol Selenium uses for browsers. Setting it up involves installing the Appium server (Node.js), platform drivers (UiAutomator2 for Android, XCUITest for iOS), configuring device capabilities, and writing tests that launch the app, find elements in the native view hierarchy, interact with them, and assert results. The Appium Java client library provides AndroidDriver and IOSDriver classes."
+summary: "SDET Engineering guide: Setup and First Tests — Appium Java"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "mobile-automation"
+lesson: "appium-java-setup-and-first-tests"
+difficulty: "intermediate"
+estimatedMinutes: 34
+prerequisites: []
+tags: ["SDET", "Mobile", "Appium"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/mobile-automation/appium-java-setup-and-first-tests"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Setup and First Tests — Appium Java
+
+> **Module:** 06 — Mobile Automation > Appium Java > Setup and First Tests  
+> **Prerequisites:** Native Mobile Fundamentals, Setup And First Tests, Locators And Accessibility Ids  
+> **Mastery Target:** L2 (Guided) → L3 (Independent)
+
+---
+
+## Quick Overview (Layer 1)
+
+**What:** Appium 2.x automates native mobile apps using the W3C WebDriver protocol — the same protocol Selenium uses for browsers. Setting it up involves installing the Appium server (Node.js), platform drivers (UiAutomator2 for Android, XCUITest for iOS), configuring device capabilities, and writing tests that launch the app, find elements in the native view hierarchy, interact with them, and assert results. The Appium Java client library provides `AndroidDriver` and `IOSDriver` classes.
+
+**Why:** You already know Selenium's WebDriver pattern — Appium builds on that foundation but introduces mobile-specific concepts: capabilities instead of options, view hierarchies instead of DOM, accessibility IDs instead of CSS selectors, and gesture-based interactions instead of click-and-type. This file establishes the complete setup, explains what's different from web, and delivers a working test class against the StayNest Android app.
+
+**Where:** Every Appium project starts here. The setup feeds into screen objects (next file) and advanced patterns (gestures, deep links, BrowserStack). The capabilities and driver configuration you learn here are reused everywhere.
+
+<MentalModel>
+
+Think of Appium as **Selenium with a translator for mobile devices**. Your Java test code speaks WebDriver protocol (the same language it speaks to Chrome). The Appium server receives these commands and translates them into UiAutomator2 commands (Android) or XCUITest commands (iOS). The device executes the native automation command and returns the result. You write Java tests that look almost like Selenium tests — but instead of `driver.get(url)`, you launch an app. Instead of `By.cssSelector`, you use `AppiumBy.accessibilityId`.
+
+</MentalModel>
+
+
+<KeyTakeaways>
+
+1. **Appium 2.x uses installable drivers** — install `uiautomator2` for Android, `xcuitest` for iOS separately from the Appium server. This modular architecture lets you update drivers independently.
+2. **Capabilities configure the session** — platform, device, app path, automation engine. Wrong capabilities = `SessionNotCreatedException`.
+3. **AndroidDriver and IOSDriver extend WebDriver** — they inherit `findElement`, `click`, `sendKeys` but add mobile-specific methods like `hideKeyboard()`, `runAppInBackground()`, `installApp()`.
+4. **Element location uses mobile strategies** — `accessibilityId` (cross-platform), `AndroidUIAutomator` (Android-only, powerful), `iOSClassChain` (iOS-only). No CSS selectors, no XPath on element attributes like `class` or `href`.
+5. **App launch is slow** — session creation installs helper apps and starts the automation framework on the device. Expect 10-30 seconds per session. Use `noReset` capability to skip reinstallation.
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation (Layer 2)
+
+### Appium 2.x Installation
+
+```bash
+# Step 1: Install Appium server (requires Node.js 16+)
+npm install -g appium
+
+# Step 2: Install the Android driver
+appium driver install uiautomator2
+
+# Step 3: (Optional) Install the iOS driver
+appium driver install xcuitest
+
+# Step 4: Verify installation
+appium driver list --installed
+
+# Step 5: Check environment prerequisites
+appium driver doctor uiautomator2
+# This checks: Java, Android SDK, ANDROID_HOME, build-tools, platform-tools
+```
+
+**Prerequisites for Android:**
+- Java 17+ (JDK, not JRE)
+- Android SDK with platform-tools and build-tools
+- `ANDROID_HOME` environment variable set
+- An emulator created via AVD Manager or a connected real device (`adb devices`)
+
+### Maven Dependencies
+
+
+```xml
+<dependencies>
+    <!-- Appium Java Client -->
+    <dependency>
+        <groupId>io.appium</groupId>
+        <artifactId>java-client</artifactId>
+        <version>9.2.2</version>
+    </dependency>
+
+    <!-- Selenium (Appium client depends on it, but declare explicitly) -->
+    <dependency>
+        <groupId>org.seleniumhq.selenium</groupId>
+        <artifactId>selenium-java</artifactId>
+        <version>4.21.0</version>
+    </dependency>
+
+    <!-- TestNG -->
+    <dependency>
+        <groupId>org.testng</groupId>
+        <artifactId>testng</artifactId>
+        <version>7.10.2</version>
+        <scope>test</scope>
+    </dependency>
+</dependencies>
+```
+
+### Capabilities: UiAutomator2Options vs XCUITestOptions
+
+Capabilities tell Appium what to automate. Appium 2.x uses typed option classes instead of raw `DesiredCapabilities`:
+
+
+```java
+import io.appium.java_client.android.options.UiAutomator2Options;
+
+// Android capabilities
+UiAutomator2Options androidOptions = new UiAutomator2Options()
+    .setPlatformName("Android")
+    .setDeviceName("Pixel_7_API_34")
+    .setApp(System.getProperty("user.dir") + "/apps/staynest.apk")
+    .setAutomationName("UiAutomator2")
+    .setAppPackage("com.staynest.app")
+    .setAppActivity("com.staynest.app.ui.MainActivity")
+    .setAutoGrantPermissions(true)          // auto-accept permissions
+    .setNoReset(true)                       // don't clear app data
+    .setNewCommandTimeout(Duration.ofSeconds(300));
+```
+
+
+```java
+import io.appium.java_client.ios.options.XCUITestOptions;
+
+// iOS capabilities
+XCUITestOptions iosOptions = new XCUITestOptions()
+    .setPlatformName("iOS")
+    .setDeviceName("iPhone 15")
+    .setPlatformVersion("17.2")
+    .setApp(System.getProperty("user.dir") + "/apps/StayNest.app")
+    .setAutomationName("XCUITest")
+    .setBundleId("com.staynest.app")
+    .setAutoAcceptAlerts(true);
+```
+
+**Key capabilities explained:**
+
+| Capability | Purpose | Impact of Wrong Value |
+|---|---|---|
+| `platformName` | Target OS | Session fails |
+| `deviceName` | Emulator/device name | Session fails if device not found |
+| `app` | Path to APK/IPA file | Session fails |
+| `automationName` | Driver to use | Wrong driver, confusing errors |
+| `appPackage` / `bundleId` | App identifier | Wrong app launched, or session fails |
+| `appActivity` | Android launch activity | App launches to wrong screen |
+| `noReset` | Preserve app data between sessions | Tests start from scratch if `false` |
+| `autoGrantPermissions` | Auto-accept Android permission dialogs | Tests hang on permission popups |
+
+### AndroidDriver vs IOSDriver
+
+
+```java
+import io.appium.java_client.android.AndroidDriver;
+import io.appium.java_client.ios.IOSDriver;
+
+// Android
+AndroidDriver androidDriver = new AndroidDriver(
+    new URL("http://localhost:4723"), androidOptions
+);
+
+// iOS
+IOSDriver iosDriver = new IOSDriver(
+    new URL("http://localhost:4723"), iosOptions
+);
+
+// Both extend AppiumDriver, which extends WebDriver
+// Common methods work on both:
+driver.findElement(AppiumBy.accessibilityId("loginBtn")).click();
+
+// Platform-specific methods:
+androidDriver.pressKey(new KeyEvent(AndroidKey.BACK));   // Android back button
+androidDriver.hideKeyboard();                             // dismiss soft keyboard
+androidDriver.runAppInBackground(Duration.ofSeconds(5));  // background the app
+
+iosDriver.hideKeyboard("return");                         // dismiss iOS keyboard
+```
+
+### Starting the Appium Server
+
+```bash
+# Start server (must be running before tests)
+appium --port 4723 --log-level info
+
+# Start with relaxed security (for JS execution, shell commands)
+appium --port 4723 --relaxed-security
+
+# Start on a different port (for parallel execution)
+appium --port 4724
+```
+
+**In CI/CD:** start Appium as a background process before running tests, or use the Appium service in your CI configuration.
+
+### Core Element Location Strategies
+
+
+```java
+import io.appium.java_client.AppiumBy;
+
+// Accessibility ID — preferred, works on both platforms
+driver.findElement(AppiumBy.accessibilityId("loginButton"));
+
+// Android UIAutomator — powerful, Android-only
+// Uses Android's UiSelector API for complex queries
+driver.findElement(AppiumBy.androidUIAutomator(
+    "new UiSelector().text(\"Login\")"
+));
+driver.findElement(AppiumBy.androidUIAutomator(
+    "new UiSelector().resourceId(\"com.staynest.app:id/emailInput\")"
+));
+// Scrollable — find element by scrolling
+driver.findElement(AppiumBy.androidUIAutomator(
+    "new UiScrollable(new UiSelector().scrollable(true))" +
+    ".scrollIntoView(new UiSelector().text(\"Terms & Conditions\"))"
+));
+
+// XPath — works but slower on mobile (full tree traversal)
+driver.findElement(By.xpath("//android.widget.Button[@text='Login']"));
+
+// Class name — native widget type
+driver.findElement(AppiumBy.className("android.widget.EditText"));
+
+// ID (resource-id on Android)
+driver.findElement(By.id("com.staynest.app:id/emailInput"));
+```
+
+---
+
+## Practical Implementation (Layer 3)
+
+### Complete Test Class: StayNest Android Login
+
+
+```java
+import io.appium.java_client.AppiumBy;
+import io.appium.java_client.android.AndroidDriver;
+import io.appium.java_client.android.options.UiAutomator2Options;
+import org.openqa.selenium.WebElement;
+import org.openqa.selenium.support.ui.ExpectedConditions;
+import org.openqa.selenium.support.ui.WebDriverWait;
+import org.testng.Assert;
+import org.testng.annotations.*;
+
+import java.net.URL;
+import java.time.Duration;
+
+public class StayNestLoginTest {
+
+    private AndroidDriver driver;
+    private WebDriverWait wait;
+
+    @BeforeMethod
+    public void setUp() throws Exception {
+        UiAutomator2Options options = new UiAutomator2Options()
+            .setPlatformName("Android")
+            .setDeviceName("Pixel_7_API_34")
+            .setApp(System.getProperty("user.dir") + "/apps/staynest.apk")
+            .setAutomationName("UiAutomator2")
+            .setAppPackage("com.staynest.app")
+            .setAppActivity("com.staynest.app.ui.LoginActivity")
+            .setAutoGrantPermissions(true)
+            .setNoReset(true);
+
+        driver = new AndroidDriver(new URL("http://localhost:4723"), options);
+        wait = new WebDriverWait(driver, Duration.ofSeconds(15));
+    }
+
+    @Test(description = "Successful login navigates to home screen")
+    public void testSuccessfulLogin() {
+        WebElement emailField = wait.until(
+            ExpectedConditions.visibilityOfElementLocated(
+                AppiumBy.accessibilityId("emailInput")
+            )
+        );
+        emailField.sendKeys("user@staynest.com");
+
+        driver.findElement(AppiumBy.accessibilityId("passwordInput"))
+              .sendKeys("SecurePass123!");
+        driver.hideKeyboard();
+
+        driver.findElement(AppiumBy.accessibilityId("loginButton")).click();
+
+        // Wait for home screen element
+        WebElement welcomeText = wait.until(
+            ExpectedConditions.visibilityOfElementLocated(
+                AppiumBy.accessibilityId("welcomeMessage")
+            )
+        );
+        Assert.assertTrue(welcomeText.getText().contains("Welcome"),
+            "Expected welcome message on home screen");
+    }
+
+    @Test(description = "Invalid credentials show error toast")
+    public void testInvalidCredentialsShowError() {
+        wait.until(ExpectedConditions.visibilityOfElementLocated(
+            AppiumBy.accessibilityId("emailInput")
+        )).sendKeys("wrong@email.com");
+
+        driver.findElement(AppiumBy.accessibilityId("passwordInput"))
+              .sendKeys("WrongPassword!");
+        driver.hideKeyboard();
+
+        driver.findElement(AppiumBy.accessibilityId("loginButton")).click();
+
+        WebElement errorMessage = wait.until(
+            ExpectedConditions.visibilityOfElementLocated(
+                AppiumBy.accessibilityId("errorMessage")
+            )
+        );
+        Assert.assertEquals(errorMessage.getText(), "Invalid email or password");
+    }
+
+    @Test(description = "Empty email prevents login")
+    public void testEmptyEmailValidation() {
+        wait.until(ExpectedConditions.visibilityOfElementLocated(
+            AppiumBy.accessibilityId("passwordInput")
+        )).sendKeys("SomePassword123!");
+        driver.hideKeyboard();
+
+        driver.findElement(AppiumBy.accessibilityId("loginButton")).click();
+
+        WebElement emailError = wait.until(
+            ExpectedConditions.visibilityOfElementLocated(
+                AppiumBy.accessibilityId("emailError")
+            )
+        );
+        Assert.assertEquals(emailError.getText(), "Email is required");
+    }
+
+    @Test(description = "Password field masks input")
+    public void testPasswordFieldMasksInput() {
+        WebElement passwordField = wait.until(
+            ExpectedConditions.visibilityOfElementLocated(
+                AppiumBy.accessibilityId("passwordInput")
+            )
+        );
+        passwordField.sendKeys("SecretPassword");
+
+        // On Android, password fields have className android.widget.EditText
+        // and attribute 'password' is true
+        String className = passwordField.getAttribute("className");
+        Assert.assertEquals(className, "android.widget.EditText");
+        // The text should not be readable as plain text (implementation varies)
+    }
+
+    @Test(description = "Login screen has correct elements")
+    public void testLoginScreenStructure() {
+        WebElement emailInput = wait.until(
+            ExpectedConditions.visibilityOfElementLocated(
+                AppiumBy.accessibilityId("emailInput")
+            )
+        );
+        Assert.assertTrue(emailInput.isDisplayed(), "Email input should be visible");
+
+        Assert.assertTrue(
+            driver.findElement(AppiumBy.accessibilityId("passwordInput")).isDisplayed(),
+            "Password input should be visible"
+        );
+        Assert.assertTrue(
+            driver.findElement(AppiumBy.accessibilityId("loginButton")).isEnabled(),
+            "Login button should be enabled"
+        );
+        Assert.assertTrue(
+            driver.findElement(AppiumBy.accessibilityId("signupLink")).isDisplayed(),
+            "Signup link should be visible"
+        );
+    }
+
+    @AfterMethod(alwaysRun = true)
+    public void tearDown() {
+        if (driver != null) {
+            driver.quit();
+        }
+    }
+}
+```
+
+**Key differences from Selenium tests:**
+- `hideKeyboard()` after `sendKeys()` — the soft keyboard can obscure elements on mobile
+- `AppiumBy.accessibilityId()` instead of `By.id()` — accessibility IDs are the preferred mobile locator
+- Longer wait timeouts (15s) — mobile rendering and animations are slower than web
+- `noReset(true)` — avoids reinstalling the app on every test, speeding up session creation
+
+---
+
+## Failure and Debugging (Layer 4)
+
+### Failure: SessionNotCreatedException
+
+**Symptom:** `SessionNotCreatedException: Unable to create a new remote session`
+
+**Diagnostic workflow:**
+
+1. **Is Appium server running?** Check `http://localhost:4723/status`
+2. **Is the driver installed?** `appium driver list --installed`
+3. **Is the emulator/device available?** `adb devices`
+4. **Is the APK path correct?** Verify the file exists at the specified path
+5. **Is another session active?** Only one UiAutomator2 session per device at a time
+
+
+```java
+// Common fix: use absolute path for the app
+.setApp(new File("apps/staynest.apk").getAbsolutePath())
+
+// Common fix: ensure emulator is fully booted
+// adb -s emulator-5554 shell getprop sys.boot_completed
+// Should return "1"
+```
+
+### Failure: Element Not Found After Screen Transition
+
+**Symptom:** `NoSuchElementException` after tapping a button that navigates to a new screen.
+
+**Root Cause:** Screen transitions in mobile apps involve animations (300-500ms) and Activity lifecycle events. The new screen's elements aren't in the view hierarchy until the transition completes.
+
+
+```java
+// BROKEN: no wait after navigation
+driver.findElement(AppiumBy.accessibilityId("loginButton")).click();
+driver.findElement(AppiumBy.accessibilityId("homeTitle")); // too fast!
+
+// FIXED: wait for the destination screen element
+driver.findElement(AppiumBy.accessibilityId("loginButton")).click();
+wait.until(ExpectedConditions.visibilityOfElementLocated(
+    AppiumBy.accessibilityId("homeTitle")
+));
+```
+
+### Failure: Keyboard Covers Elements
+
+**Symptom:** After `sendKeys()`, the next element is hidden behind the soft keyboard, causing `ElementNotInteractableException`.
+
+<BestPractice>
+
+**Fix:** Call `driver.hideKeyboard()` after each text input, or before interacting with elements below the keyboard:
+
+</BestPractice>
+
+
+
+```java
+driver.findElement(AppiumBy.accessibilityId("emailInput")).sendKeys("user@test.com");
+driver.hideKeyboard();  // dismiss keyboard before scrolling to password field
+driver.findElement(AppiumBy.accessibilityId("passwordInput")).sendKeys("pass");
+driver.hideKeyboard();
+```
+
+---
+
+## Engineering Judgment (Layer 5)
+
+### Emulator vs Real Device for Test Development
+
+| Factor | Emulator | Real Device |
+|---|---|---|
+| Speed | Faster session creation, immediate availability | Slower USB connection setup |
+| Cost | Free (included with Android SDK) | Requires purchasing hardware |
+| Reliability | Consistent behavior, no battery issues | More realistic but more variables |
+| CI integration | Easy (start in script) | Requires device lab or cloud service |
+| Gesture accuracy | Good for basic gestures | True touch behavior |
+| Best for | Development, CI pipelines | Final validation, performance testing |
+
+### noReset vs fullReset
+
+| Setting | Behavior | Use When |
+|---|---|---|
+| `noReset: true` | Keep app data, don't reinstall | Tests that need pre-existing state (already logged in) |
+| `noReset: false` (default) | Clear app data but don't uninstall | Each test starts fresh (clean state) |
+| `fullReset: true` | Uninstall and reinstall the app | Testing first-launch experience |
+
+**Recommendation:** Use `noReset: true` during development for faster iteration. Use `noReset: false` in CI for test isolation. Use `fullReset: true` only for specific install/onboarding tests.
+
+---
+
+## Interview and Revision (Layer 6)
+
+### Fundamental Questions
+
+**Q1: Walk me through setting up Appium 2.x for Android testing.**
+
+**A:** Install prerequisites: Node.js, Java 17+, Android SDK with platform-tools and build-tools, and set `ANDROID_HOME`. Install Appium via npm (`npm install -g appium`) and the UiAutomator2 driver (`appium driver install uiautomator2`). Run `appium driver doctor uiautomator2` to verify the environment. Create an emulator or connect a real device (`adb devices` to confirm). Start the Appium server (`appium --port 4723`). Write a test with `UiAutomator2Options` specifying platform, device, app path, and package/activity. Create an `AndroidDriver` pointing to the server URL.
+
+**Q2: What's the difference between AndroidDriver and IOSDriver?**
+
+**A:** Both extend `AppiumDriver` (which extends Selenium's `WebDriver`), so common methods like `findElement`, `click`, and `sendKeys` work the same. AndroidDriver adds Android-specific methods: `pressKey()` for hardware keys (back, home), `currentActivity()` to check the current screen, `openNotifications()`, and Android-specific locator strategies like `AndroidUIAutomator`. IOSDriver adds iOS-specific methods: shake, lock/unlock, and iOS-specific locators like `iOSClassChain`.
+
+**Q3: Why is `accessibilityId` the preferred locator strategy?**
+
+**A:** It works on both Android and iOS (maps to `content-description` on Android and `accessibilityIdentifier` on iOS), making tests more portable. It's semantically meaningful — accessibility labels describe what elements do, making tests readable. It's stable — accessibility IDs are explicitly set by developers and don't change with styling or layout updates. And it promotes accessibility — pushing developers to add IDs improves the app's accessibility for real users.
+
+
+
+
+| # | Front (Question) | Back (Answer) |
+|---|---|---|
+| 1 | What does `autoGrantPermissions` capability do? | Automatically accepts Android runtime permission dialogs (camera, location, storage). Without it, permission popups halt test execution. |
+| 2 | How does Appium 2.x differ from 1.x in driver management? | In 2.x, drivers are installed separately (`appium driver install uiautomator2`). In 1.x, all drivers were bundled. This allows independent updates and a smaller install. |
+| 3 | Why call `driver.hideKeyboard()` after `sendKeys()`? | The soft keyboard can cover elements lower on the screen. `hideKeyboard()` dismisses it so the test can interact with elements that were obscured. |
+| 4 | What is `newCommandTimeout`? | Maximum time in seconds that the Appium server will wait for a new command before killing the session. Set it high enough for debugging but not infinite. |
+| 5 | How is `AppiumBy.accessibilityId` different from Selenium's `By.id`? | `accessibilityId` maps to `content-description` (Android) or `accessibilityIdentifier` (iOS) — purpose-specific attributes. `By.id` maps to `resource-id` on Android, which is app-specific and not cross-platform. |
+
+### Mastery Checklist
+
+- [ ] Can install Appium 2.x server and UiAutomator2 driver
+- [ ] Can configure UiAutomator2Options with all required capabilities
+- [ ] Can create an AndroidDriver session and verify app launch
+- [ ] Can use AppiumBy.accessibilityId and AppiumBy.androidUIAutomator for element location
+- [ ] Can write a complete test class with 5 tests for a mobile login screen
+- [ ] Can troubleshoot SessionNotCreatedException with a systematic checklist
+- [ ] Can explain the Appium 2.x architecture: test → server → driver → device
+
+---
+
+**Next:** Screen Object Implementation | **Related:** Native Mobile Fundamentals, Locators And Accessibility Ids
+
+*Last updated: *

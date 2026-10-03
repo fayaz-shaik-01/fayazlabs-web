@@ -1,0 +1,630 @@
+---
+title: "Promises and Async/Await"
+description: "What: JavaScript is single-threaded but non-blocking. Promises and async/await are the mechanisms that let you write code that waits for slow operations (network requests, browser interactions, file I/O) without freezing the entire program. Every Playwright call that touches the browser returns a Promise."
+summary: "SDET Engineering guide: Promises and Async/Await"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "typescript"
+lesson: "promises-and-async-await"
+difficulty: "intermediate"
+estimatedMinutes: 40
+prerequisites: []
+tags: ["SDET", "TypeScript", "Programming"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/typescript/promises-and-async-await"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Promises and Async/Await
+
+> **Module:** 01 — Programming Foundations / TypeScript  
+> **Prerequisites:** Types And Interfaces, Language Fundamentals  
+> **Mastery Target:** L3 (independent — write async Playwright tests, handle parallel operations, debug missing-await bugs without guidance)
+
+---
+
+## Quick Overview (Layer 1)
+
+**What:** JavaScript is single-threaded but non-blocking. Promises and async/await are the mechanisms that let you write code that *waits* for slow operations (network requests, browser interactions, file I/O) without freezing the entire program. Every Playwright call that touches the browser returns a Promise.
+
+**Why:** In Java, blocking is the default — `driver.findElement()` blocks until the element is found or times out. In TypeScript/Playwright, *nothing blocks by default*. If you forget `await`, your test moves to the next line immediately, the assertion runs against stale data, and the test passes even though it didn't actually verify anything. Understanding async is not optional — it's the difference between tests that work and tests that *appear* to work.
+
+**Where:** Every Playwright test (`page.goto()`, `page.click()`, `expect().toBeVisible()`), API calls (`request.get()`), file operations, database queries, and any operation that talks to something outside your process.
+
+<MentalModel>
+
+Think of JavaScript's event loop as a **single chef in a kitchen**. The chef can only do one thing at a time (single-threaded), but they don't stand at the oven watching bread bake (non-blocking). Instead, they set a timer (Promise), move on to prep the next dish, and come back when the timer rings (callback/await). `await` is the chef saying "I need this ingredient before I can continue this recipe — go do other tasks and come back to me when it's ready."
+
+</MentalModel>
+
+
+In Java (Selenium), each thread is its own chef with its own kitchen — blocking is fine because other chefs keep working. In JavaScript, there's one chef, so blocking would shut down the entire kitchen.
+
+<KeyTakeaways>
+
+1. **JavaScript is single-threaded but non-blocking** — the event loop processes one task at a time but never waits idly for I/O. It queues callbacks and moves on.
+2. **A Promise represents a future value** — it will eventually resolve (success) or reject (failure). Every Playwright browser interaction returns a Promise.
+3. **`async/await` is syntactic sugar over Promises** — `await` pauses the *current function* (not the thread) until the Promise settles. `try/catch` replaces `.catch()`.
+4. **Forgetting `await` is the #1 async bug** — the code runs without error, but the Promise floats unresolved. Tests pass spuriously because assertions execute before the action completes.
+5. **`Promise.all` runs Promises in parallel** — use it for independent operations (multiple API calls, parallel setup) to save time. Don't use it for sequential browser actions.
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation (Layer 2)
+
+### The Event Loop (Conceptual)
+
+JavaScript runs on a **single thread** with an **event loop**. Here's the simplified model:
+
+```
+┌─────────────────────────────────┐
+│         Call Stack               │  ← Executes one function at a time
+│  (your current code)             │
+└──────────┬──────────────────────┘
+           │ When async operation starts,
+           │ it's handed off to the runtime
+           ▼
+┌─────────────────────────────────┐
+│      Web APIs / Node APIs        │  ← Timer, network, file I/O run here
+│  (browser engine / libuv)        │     (outside the single JS thread)
+└──────────┬──────────────────────┘
+           │ When operation completes,
+           │ callback goes to the queue
+           ▼
+┌─────────────────────────────────┐
+│      Callback / Microtask Queue  │  ← Waiting to be picked up
+└──────────┬──────────────────────┘
+           │ Event loop picks up next
+           │ task when call stack is empty
+           ▼
+      Back to Call Stack
+```
+
+**Key insight:** `await` doesn't block the thread. It saves the function's state, returns control to the event loop, and resumes the function when the awaited Promise resolves. Other code (timers, callbacks) can run in the meantime.
+
+### Callbacks to Promises to Async/Await — The Evolution
+
+
+```typescript
+// STAGE 1: Callbacks (the old way) — leads to "callback hell"
+// Imagine each step depends on the previous step's result
+fetchUser("alice", (user) => {
+    fetchOrders(user.id, (orders) => {
+        fetchOrderDetails(orders[0].id, (details) => {
+            console.log(details);  // deeply nested, hard to read
+            // Error handling? Good luck.
+        });
+    });
+});
+
+// STAGE 2: Promises — flat chain, each .then() returns a new Promise
+fetchUser("alice")
+    .then(user => fetchOrders(user.id))
+    .then(orders => fetchOrderDetails(orders[0].id))
+    .then(details => console.log(details))
+    .catch(error => console.error("Something failed:", error));
+
+// STAGE 3: async/await — reads like synchronous code
+async function getOrderDetails(): Promise<void> {
+    try {
+        const user = await fetchUser("alice");
+        const orders = await fetchOrders(user.id);
+        const details = await fetchOrderDetails(orders[0].id);
+        console.log(details);
+    } catch (error) {
+        console.error("Something failed:", error);
+    }
+}
+```
+
+**Java comparison:** Java's `CompletableFuture` chain (`.thenApply().thenCompose()`) is analogous to Promise `.then()` chains. `async/await` is like if Java let you write `var result = future.get()` without blocking the thread — the syntactic simplicity of blocking code with the efficiency of non-blocking execution.
+
+### Promise: resolve, reject, then, catch, finally
+
+
+```typescript
+// Creating a Promise manually (rare in Playwright, but foundational)
+function delay(ms: number): Promise<void> {
+    return new Promise((resolve) => {
+        setTimeout(resolve, ms);
+    });
+}
+
+// A Promise that can succeed or fail
+function fetchUserById(id: number): Promise<{ name: string; email: string }> {
+    return new Promise((resolve, reject) => {
+        if (id <= 0) {
+            reject(new Error(`Invalid user ID: ${id}`));
+        } else {
+            // Simulate async lookup
+            setTimeout(() => {
+                resolve({ name: "Alice", email: "alice@example.com" });
+            }, 100);
+        }
+    });
+}
+
+// Consuming with .then/.catch/.finally
+fetchUserById(1)
+    .then(user => console.log(`Found: ${user.name}`))     // runs on success
+    .catch(error => console.error(`Error: ${error.message}`))  // runs on failure
+    .finally(() => console.log("Request complete"));       // runs always
+
+// Promise states:
+// 1. PENDING   — initial state, operation in progress
+// 2. FULFILLED — operation succeeded, resolve() was called
+// 3. REJECTED  — operation failed, reject() was called
+// Once settled (fulfilled or rejected), a Promise never changes state.
+```
+
+### async/await: Syntactic Sugar Over Promises
+
+Every `async` function returns a Promise. `await` unwraps a Promise's resolved value — or throws if the Promise rejects.
+
+
+```typescript
+// An async function ALWAYS returns a Promise
+async function getBaseUrl(): Promise<string> {
+    return "https://api.example.com";    // automatically wrapped in Promise.resolve()
+}
+
+// await unwraps the Promise
+async function setup(): Promise<void> {
+    const url = await getBaseUrl();      // url is string, not Promise<string>
+    console.log(url);                    // "https://api.example.com"
+}
+
+// Error handling with try/catch (replaces .catch())
+async function loginAndVerify(page: Page): Promise<void> {
+    try {
+        await page.goto("/login");
+        await page.getByLabel("Email").fill("test@example.com");
+        await page.getByLabel("Password").fill("password123");
+        await page.getByRole("button", { name: "Sign In" }).click();
+        await expect(page.getByTestId("dashboard")).toBeVisible();
+    } catch (error) {
+        // Playwright throws TimeoutError if element isn't found
+        console.error("Login failed:", error);
+        throw error;     // re-throw so the test still fails
+    } finally {
+        // Runs whether login succeeded or failed
+        console.log("Login attempt completed");
+    }
+}
+```
+
+**Java comparison:**
+| Java | TypeScript |
+|---|---|
+| `throws Exception` on method signature | `async` keyword + `Promise<T>` return type |
+| `try { future.get() }` | `try { await promise }` |
+| `catch (Exception e)` | `catch (error)` — note: `error` is `unknown` in strict TS |
+| `finally { }` | `finally { }` — identical concept |
+
+### Promise.all, Promise.allSettled, Promise.race
+
+
+```typescript
+// Promise.all — run multiple promises in PARALLEL, fail if ANY fails
+// Use case: independent API calls during test setup
+async function setupTestData(): Promise<void> {
+    const [user, bookings, settings] = await Promise.all([
+        createTestUser(),          // starts immediately
+        createTestBookings(),      // starts immediately (doesn't wait for user)
+        fetchDefaultSettings(),    // starts immediately
+    ]);
+    // All three run concurrently — total time ≈ max(individual times), not sum
+    console.log(`User: ${user.id}, Bookings: ${bookings.length}`);
+}
+
+// If ANY promise rejects, Promise.all rejects immediately
+// The other promises keep running but their results are discarded
+
+// Promise.allSettled — run all, get results for EACH (success or failure)
+// Use case: cleanup where you want to attempt everything regardless of failures
+async function cleanupTestData(ids: string[]): Promise<void> {
+    const results = await Promise.allSettled(
+        ids.map(id => deleteResource(id))
+    );
+
+    for (const result of results) {
+        if (result.status === "fulfilled") {
+            console.log("Deleted successfully");
+        } else {
+            console.warn(`Cleanup failed: ${result.reason}`);
+            // Don't throw — continue cleaning up other resources
+        }
+    }
+}
+
+// Promise.race — returns the FIRST promise to settle (resolve or reject)
+// Use case: timeout pattern
+async function fetchWithTimeout<T>(
+    promise: Promise<T>,
+    timeoutMs: number
+): Promise<T> {
+    const timeout = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error(`Timed out after ${timeoutMs}ms`)), timeoutMs)
+    );
+    return Promise.race([promise, timeout]);
+}
+
+// Usage
+const data = await fetchWithTimeout(fetchApi("/slow-endpoint"), 5000);
+```
+
+**When to use each:**
+
+| Method | Behavior | Use Case |
+|---|---|---|
+| `Promise.all` | Parallel, fail-fast on first rejection | Independent setup operations that all must succeed |
+| `Promise.allSettled` | Parallel, always completes all | Cleanup/teardown where partial failure is OK |
+| `Promise.race` | Returns first to settle | Timeout wrappers, "fastest response wins" |
+
+---
+
+## Practical Implementation (Layer 3)
+
+### Example 1: Playwright Test with Proper Async/Await
+
+Every Playwright interaction is async. This example shows the correct pattern:
+
+
+```typescript
+import { test, expect, Page } from "@playwright/test";
+
+// Helper — async function with proper return type
+async function getLoggedInPage(page: Page, email: string, password: string): Promise<void> {
+    await page.goto("/login");
+    await page.getByLabel("Email").fill(email);
+    await page.getByLabel("Password").fill(password);
+    await page.getByRole("button", { name: "Sign In" }).click();
+    await page.waitForURL("**/dashboard");
+}
+
+test("should display booking details after login", async ({ page }) => {
+    // Every line awaits — sequential browser operations MUST be sequential
+    await getLoggedInPage(page, "guest@example.com", "SecurePass123!");
+
+    await page.getByRole("link", { name: "My Bookings" }).click();
+    await page.waitForURL("**/bookings");
+
+    // Playwright's expect auto-waits, but it still returns a Promise
+    await expect(page.getByTestId("booking-list")).toBeVisible();
+
+    const bookingCount = await page.getByTestId("booking-card").count();
+    expect(bookingCount).toBeGreaterThan(0);     // sync assertion — no await needed
+
+    // Getting text content — returns Promise<string | null>
+    const firstBookingTitle = await page.getByTestId("booking-card").first().textContent();
+    expect(firstBookingTitle).not.toBeNull();
+});
+```
+
+### Example 2: Parallel API Calls with Promise.all for Test Setup
+
+
+```typescript
+import { test, expect, APIRequestContext } from "@playwright/test";
+
+interface TestUser {
+    id: string;
+    email: string;
+    token: string;
+}
+
+interface TestBooking {
+    id: string;
+    roomType: string;
+    status: string;
+}
+
+async function createUser(request: APIRequestContext, email: string): Promise<TestUser> {
+    const response = await request.post("/api/users", {
+        data: { email, password: "TestPass123!", name: "Test User" },
+    });
+    expect(response.ok()).toBeTruthy();
+    return response.json();
+}
+
+async function createBooking(
+    request: APIRequestContext,
+    token: string,
+    roomType: string
+): Promise<TestBooking> {
+    const response = await request.post("/api/bookings", {
+        headers: { Authorization: `Bearer ${token}` },
+        data: { roomType, checkIn: "2024-07-01", checkOut: "2024-07-05" },
+    });
+    expect(response.ok()).toBeTruthy();
+    return response.json();
+}
+
+test("should display all bookings for authenticated user", async ({ page, request }) => {
+    // Step 1: Create user (must happen first — bookings need the token)
+    const user = await createUser(request, "parallel-test@example.com");
+
+    // Step 2: Create multiple bookings IN PARALLEL — they're independent of each other
+    const [booking1, booking2, booking3] = await Promise.all([
+        createBooking(request, user.token, "Standard"),
+        createBooking(request, user.token, "Suite"),
+        createBooking(request, user.token, "Deluxe"),
+    ]);
+    // 3 API calls run concurrently — saves ~2x the time vs sequential
+
+    // Step 3: Verify in the UI
+    await page.goto("/login");
+    await page.getByLabel("Email").fill(user.email);
+    await page.getByLabel("Password").fill("TestPass123!");
+    await page.getByRole("button", { name: "Sign In" }).click();
+    await page.getByRole("link", { name: "My Bookings" }).click();
+
+    await expect(page.getByTestId("booking-card")).toHaveCount(3);
+});
+```
+
+---
+
+## Failure and Debugging (Layer 4)
+
+### Mistake 1: Forgetting `await` — The Silent Killer
+
+**Broken code:**
+
+```typescript
+test("should show error for invalid login", async ({ page }) => {
+    await page.goto("/login");
+    await page.getByLabel("Email").fill("wrong@example.com");
+    await page.getByLabel("Password").fill("wrongpassword");
+    page.getByRole("button", { name: "Sign In" }).click();     // BUG: missing await!
+
+    // This assertion runs IMMEDIATELY — before the click completes
+    // The error message hasn't appeared yet, but the test might still pass
+    // if Playwright's auto-retry happens to catch it, or fail intermittently
+    await expect(page.getByText("Invalid credentials")).toBeVisible();
+});
+```
+
+**Why it's dangerous:** The `click()` returns a Promise that nobody awaits. The test moves to the assertion immediately. Sometimes Playwright's auto-retry in `toBeVisible()` saves you (the click finishes during the retry window), but on a slow CI server, the test fails intermittently — a classic flaky test.
+
+**How to detect:**
+1. **ESLint rule `@typescript-eslint/no-floating-promises`** — catches unhandled Promises at lint time.
+2. **Playwright's `--forbid-only` and strict mode** — won't catch this directly, but strict TypeScript config helps.
+3. **Pattern:** If a test is flaky (passes locally, fails in CI), search for missing `await` first.
+
+**Fix:**
+
+```typescript
+test("should show error for invalid login", async ({ page }) => {
+    await page.goto("/login");
+    await page.getByLabel("Email").fill("wrong@example.com");
+    await page.getByLabel("Password").fill("wrongpassword");
+    await page.getByRole("button", { name: "Sign In" }).click();  // FIXED: added await
+
+    await expect(page.getByText("Invalid credentials")).toBeVisible();
+});
+```
+
+<BestPractice>
+
+**Prevention:** Enable `@typescript-eslint/no-floating-promises` in your ESLint config. This makes missing `await` a *compile-time* error.
+
+</BestPractice>
+
+
+---
+
+### Mistake 2: Using `.forEach()` with `await` Instead of `for...of`
+
+**Broken code:**
+
+```typescript
+test("should verify all items are visible", async ({ page }) => {
+    await page.goto("/products");
+    const items = await page.getByTestId("product-card").all();
+
+    // BUG: forEach doesn't await the async callback properly
+    items.forEach(async (item) => {
+        await expect(item).toBeVisible();     // These fire simultaneously, not sequentially!
+    });
+
+    // This line runs BEFORE all visibility checks complete
+    console.log("All items verified");  // Lies! They might not be verified yet.
+});
+```
+
+**Why it happens:** `.forEach()` calls each callback function but does *not* await the returned Promises. The test function continues immediately after starting all the callbacks. If an assertion fails inside the callback, it throws in an unhandled Promise — the test might still pass.
+
+**Fix:**
+
+```typescript
+test("should verify all items are visible", async ({ page }) => {
+    await page.goto("/products");
+    const items = await page.getByTestId("product-card").all();
+
+    // CORRECT: for...of properly awaits each iteration
+    for (const item of items) {
+        await expect(item).toBeVisible();
+    }
+
+    // If you truly want parallel checks (rare for UI):
+    // await Promise.all(items.map(item => expect(item).toBeVisible()));
+    
+    console.log("All items verified");  // Now this is truthful.
+});
+```
+
+---
+
+### Mistake 3: Swallowing Errors in try/catch
+
+**Broken code:**
+
+```typescript
+async function safeClick(page: Page, selector: string): Promise<void> {
+    try {
+        await page.click(selector);
+    } catch (error) {
+        console.log("Click failed, continuing...");   // BUG: swallows the error!
+    }
+}
+
+test("should submit form", async ({ page }) => {
+    await page.goto("/form");
+    await page.fill("#name", "Alice");
+    await safeClick(page, "#submit-button");
+    // If the button doesn't exist, safeClick silently fails
+    // The test continues and may pass with a false positive
+    await expect(page.getByText("Submitted")).toBeVisible();
+});
+```
+
+**Fix — re-throw or be explicit about what you're catching:**
+
+```typescript
+// Option 1: Let it fail — don't catch errors you can't handle meaningfully
+async function clickButton(page: Page, selector: string): Promise<void> {
+    await page.click(selector);    // throws TimeoutError if not found — good!
+}
+
+// Option 2: Catch, log, and re-throw
+async function clickWithLogging(page: Page, selector: string): Promise<void> {
+    try {
+        await page.click(selector);
+    } catch (error) {
+        console.error(`Failed to click ${selector}:`, error);
+        throw error;      // re-throw so the test still fails
+    }
+}
+
+// Option 3: Catch specific errors for conditional logic (advanced)
+async function clickIfExists(page: Page, selector: string): Promise<boolean> {
+    const element = page.locator(selector);
+    if (await element.isVisible().catch(() => false)) {
+        await element.click();
+        return true;
+    }
+    return false;     // explicit: element wasn't there, caller decides what to do
+}
+```
+
+---
+
+## Engineering Judgment (Layer 5)
+
+### When to Use Sequential vs. Parallel Async Operations
+
+| Scenario | Approach | Why |
+|---|---|---|
+| Browser actions (click, fill, navigate) | **Sequential `await`** | Each action depends on the previous DOM state |
+| Multiple independent API calls for setup | **`Promise.all`** | No dependencies between calls; saves time |
+| Creating data where order matters | **Sequential `await`** | User must exist before creating their bookings |
+| Cleanup/teardown of test data | **`Promise.allSettled`** | Want to attempt all cleanups even if some fail |
+| Polling until a condition is met | **Sequential with loop** | Each check depends on the previous result |
+
+### Why Playwright Is Async
+
+Every Playwright method that touches the browser is async because:
+1. **Browser runs in a separate process** — Playwright communicates with Chrome/Firefox over CDP/WebSocket. Network round-trip = async.
+2. **Auto-waiting is built in** — `page.click()` waits for the element to be visible, enabled, and stable. This waiting is inherently async.
+3. **Consistency** — having *every* browser API return a Promise means you never wonder "does this need `await`?" Yes, it does.
+
+**Java Selenium comparison:** Selenium's `driver.findElement()` *blocks the thread* while waiting. This is simpler to write but wastes the thread's time. Playwright's async approach lets the Node.js runtime handle other work (like running parallel test fixtures) during waits.
+
+### `async/await` vs `.then()` Chains — When Each Is Appropriate
+
+
+```typescript
+// Prefer async/await — reads top-to-bottom like synchronous code
+async function setupTest(page: Page): Promise<void> {
+    await page.goto("/login");
+    await page.fill("#email", "test@example.com");
+    await page.click("#submit");
+}
+
+// Use .then() for one-off transformations or when you're already in a chain
+const statusCode = await request.get("/api/health").then(r => r.status());
+
+// Use .then() with Promise.all for parallel + transform
+const [userCount, bookingCount] = await Promise.all([
+    request.get("/api/users").then(r => r.json()).then(d => d.total),
+    request.get("/api/bookings").then(r => r.json()).then(d => d.total),
+]);
+```
+
+**Rule of thumb:** Use `async/await` for sequential operations (90% of test code). Use `.then()` for inline transformations on individual promises within `Promise.all`.
+
+---
+
+## Interview and Revision (Layer 6)
+
+### Fundamental Questions
+
+**Q1: What is the event loop and why does it matter for Playwright tests?**
+> JavaScript is single-threaded with an event loop that processes async operations non-blockingly. When `await page.click()` is called, the function pauses and the event loop handles other work until the browser confirms the click completed. This is why Playwright can run multiple test fixtures concurrently in a single worker — while one test waits for a page to load, another test's callbacks can execute. Understanding this prevents writing code that accidentally blocks the loop or creates race conditions.
+
+**Q2: What happens if you forget `await` before a Playwright action?**
+> The action starts but the test doesn't wait for it to complete. The next line executes immediately with the old DOM state. This causes flaky tests — sometimes the action completes fast enough and the test passes; other times (CI, slow network) it doesn't. The test appears green but isn't actually verifying the intended behavior. ESLint's `no-floating-promises` rule catches this at lint time.
+
+**Q3: Explain the difference between `Promise.all` and `Promise.allSettled`.**
+> `Promise.all` runs promises in parallel and short-circuits on the first rejection — ideal for setup where all operations must succeed. `Promise.allSettled` runs all promises to completion regardless of failures, returning an array of `{status, value/reason}` objects — ideal for teardown where you want to clean up as much as possible even if some deletions fail.
+
+**Q4: Why can't you use `.forEach()` with async callbacks in Playwright?**
+> `.forEach()` calls each callback but ignores the returned Promise. All callbacks fire simultaneously (like `Promise.all` but without collecting results), and the code after `.forEach()` runs before any callbacks complete. Assertion failures inside the callbacks become unhandled promise rejections — the test may pass even though an assertion failed. Use `for...of` for sequential or `Promise.all(items.map(...))` for parallel.
+
+**Q5: How does `async/await` relate to Promises? Can you use both together?**
+> `async/await` is syntactic sugar over Promises. An `async` function always returns a Promise. `await` unwraps a Promise's resolved value. You can mix them: `const result = await somePromise.then(x => transform(x))`. Under the hood, `await` is equivalent to `.then()` on the returned Promise. The benefit is readability — `await` makes async code read like synchronous code.
+
+### Scenario Questions
+
+**S1:** *"A test creates three API resources in setup using sequential `await` calls. Each takes ~2 seconds. The test takes 6+ seconds just for setup. How do you optimize?"*
+
+> If the three resources are independent (no resource needs a previous one's ID), wrap them in `Promise.all` to run concurrently. Setup drops from ~6s to ~2s. If there are dependencies (e.g., user must exist before booking), identify which are truly independent: `const user = await createUser(); const [booking, settings] = await Promise.all([createBooking(user.id), fetchSettings()]);` — user is sequential, booking and settings are parallel.
+
+**S2:** *"Your team's test cleanup runs three delete operations in `Promise.all`. Sometimes a delete fails with a 404 (resource already cleaned up), and it causes the entire cleanup to fail, leaving other resources un-deleted. How do you fix this?"*
+
+> Switch from `Promise.all` to `Promise.allSettled`. This ensures all three delete operations run to completion regardless of individual failures. Then iterate the results, logging warnings for failures but not throwing. Alternatively, wrap each delete in its own try/catch within `Promise.all`, but `Promise.allSettled` is the cleaner pattern for this exact scenario.
+
+
+
+
+| # | Front (Question) | Back (Answer) |
+|---|---|---|
+| 1 | What does `await` do to a Promise? | It pauses the async function until the Promise settles, then returns the resolved value or throws the rejection reason. |
+| 2 | What type does an `async` function always return? | `Promise<T>` where T is the return type. Even `async function foo(): Promise<void>` returns a Promise. |
+| 3 | `Promise.all` vs `Promise.race` — key difference? | `Promise.all` waits for ALL to settle (fail-fast on rejection). `Promise.race` returns when the FIRST settles (resolve or reject). |
+| 4 | Why is `forEach` with `async` dangerous? | `.forEach()` ignores returned Promises — callbacks fire simultaneously, code after `.forEach()` runs before callbacks complete, and unhandled rejections are swallowed. |
+| 5 | What ESLint rule catches missing `await`? | `@typescript-eslint/no-floating-promises` — flags any Promise that isn't awaited, returned, or explicitly voided. |
+
+### Mastery Checklist
+
+- [ ] I can explain the event loop at a conceptual level and why JavaScript is non-blocking
+- [ ] I can create and consume Promises with `.then()`, `.catch()`, and `.finally()`
+- [ ] I can write async functions with proper `try/catch` error handling
+- [ ] I always `await` Playwright actions and can spot missing `await` in code review
+- [ ] I can use `Promise.all` for parallel independent operations and explain when it's appropriate
+- [ ] I know the difference between `Promise.all`, `Promise.allSettled`, and `Promise.race`
+- [ ] I can explain why `.forEach()` with async callbacks is broken and use `for...of` instead
+- [ ] I can debug flaky tests caused by missing `await` or improper async patterns
+- [ ] I have `@typescript-eslint/no-floating-promises` enabled in my project
+
+---
+
+> **Next:** Modules And Error Handling — ES modules, project structure, and robust error handling  
+> **Related:** Types And Interfaces — type-safe Promise return types, generics with `Promise<T>`
+
+---
+
+*Last updated: *

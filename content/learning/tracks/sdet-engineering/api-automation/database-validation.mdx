@@ -1,0 +1,683 @@
+---
+title: "Database Validation"
+description: "What: Database validation is the practice of querying the database directly in your API tests to verify that the API actually persisted, updated, or deleted data correctly. Instead of trusting the API response alone (\"it returned 201, so the data must be there\"), you check the database to confirm the data exists with the right values in the right tables."
+summary: "SDET Engineering guide: Database Validation"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "api-automation"
+lesson: "database-validation"
+difficulty: "intermediate"
+estimatedMinutes: 43
+prerequisites: []
+tags: ["SDET", "API", "REST", "Testing"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/api-automation/database-validation"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Database Validation
+
+> **Module:** 04 — API Automation  
+> **Prerequisites:** Contract Testing, Status Codes Headers And Json, basic SQL knowledge  
+> **Mastery Target:** L3 (Independent) — can write JDBC-based database validations for API tests, manage connections efficiently, and diagnose data persistence issues
+
+---
+
+## Quick Overview (Layer 1)
+
+**What:** Database validation is the practice of querying the database directly in your API tests to verify that the API actually persisted, updated, or deleted data correctly. Instead of trusting the API response alone ("it returned 201, so the data must be there"), you check the database to confirm the data exists with the right values in the right tables.
+
+**Why:** An API can return 200 OK and lie. A POST endpoint might return a success response but fail to commit the transaction. A PUT might return the updated object but only update the cache, not the database. A DELETE might return 204 but leave orphaned records in related tables. Database validation catches the class of bugs where the API response is correct but the underlying data is wrong — and these bugs are some of the most dangerous because they're invisible to API-only tests.
+
+**Where:** After create operations (verify the record exists), after update operations (verify fields changed), after delete operations (verify the record is gone), and for business rule validation (verify constraints, foreign keys, cascades). Most common in integration and E2E test suites, not unit tests.
+
+<MentalModel>
+
+Think of database validation as **checking the bank vault after a teller tells you your deposit went through**. The teller (API) hands you a receipt (response) saying "your $500 was deposited." The receipt might be correct, or the teller might have made an error. The only way to be sure is to walk into the vault (database) and verify the balance actually changed. You don't do this for every transaction (that would be slow), but you definitely check for large deposits, transfers between accounts, and any transaction where the teller seemed uncertain.
+
+</MentalModel>
+
+
+<KeyTakeaways>
+
+1. API response validation and database validation test different things: response validates the *output*, database validates the *side effect*.
+2. Not every test needs database validation — use it for writes (POST, PUT, DELETE) and business rules, not for reads (GET).
+3. JDBC is the standard Java API for database access in tests. Use a connection pool (HikariCP) to avoid connection exhaustion.
+4. Always query by the ID returned in the API response, not by business fields that might not be unique.
+5. Database validation adds a dependency on the database schema — when the schema changes, both API tests and DB validation queries must update.
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation (Layer 2)
+
+### Why API Responses Aren't Enough
+
+| Scenario | API Response | Database Reality | Bug Caught Only By DB Validation |
+|----------|-------------|------------------|----------------------------------|
+| Transaction rollback | 201 Created (response sent before commit) | Record doesn't exist | Yes |
+| Caching issue | 200 OK with old data | Data was actually updated | Yes (validates cache is stale) |
+| Partial persist | 201 Created with hotel data | Hotel exists but contactInfo is missing | Yes |
+| Soft delete bug | 204 No Content | Record still has `deleted = false` | Yes |
+| Cascade failure | 204 No Content (hotel deleted) | Rooms and inventory still exist | Yes |
+| Field truncation | 200 OK with `name: "Grand Ho"` | DB column is `VARCHAR(8)` truncating the value | Yes |
+
+### JDBC Basics for Test Validation
+
+JDBC (Java Database Connectivity) is Java's standard API for interacting with databases. For test validation, you only need three operations: connect, query, and close.
+
+**The JDBC workflow:**
+
+```
+1. Load the JDBC driver (automatic in modern Java)
+2. Get a Connection from a DataSource (or DriverManager)
+3. Create a PreparedStatement with your SQL query
+4. Execute the query and get a ResultSet
+5. Extract values from the ResultSet
+6. Close everything (or use try-with-resources)
+```
+
+**Key classes:**
+
+| Class | Purpose | Example |
+|-------|---------|---------|
+| `DataSource` / `DriverManager` | Provides database connections | `DriverManager.getConnection(url, user, pass)` |
+| `Connection` | Represents a database session | `dataSource.getConnection()` |
+| `PreparedStatement` | A precompiled SQL query with parameters | `conn.prepareStatement("SELECT * FROM users WHERE id = ?")` |
+| `ResultSet` | The query results (like a cursor over rows) | `rs.getString("email")`, `rs.getInt("id")` |
+
+### Connection Pooling with HikariCP
+
+Opening a new database connection for every test is slow (50-200ms per connection) and can exhaust the database's connection limit. A connection pool maintains a set of open connections and lends them to tests as needed.
+
+**Without pooling:** Each test opens and closes a connection (~100ms overhead per test).
+**With pooling:** First test initializes the pool (~200ms). Every subsequent test borrows a pre-opened connection (~1ms).
+
+For a 200-test suite, pooling saves ~20 seconds of pure connection overhead.
+
+### SQL for Test Validation
+
+Test validation SQL is simple — you're not building features, just checking data:
+
+| Operation Tested | Validation SQL | What to Assert |
+|-----------------|----------------|----------------|
+| POST (create) | `SELECT * FROM hotels WHERE id = ?` | Record exists, fields match request body |
+| PUT (update) | `SELECT name, city FROM hotels WHERE id = ?` | Fields changed to new values |
+| DELETE | `SELECT COUNT(*) FROM hotels WHERE id = ?` | Count is 0 |
+| Cascade delete | `SELECT COUNT(*) FROM rooms WHERE hotel_id = ?` | Count is 0 |
+| Business rule | `SELECT status FROM bookings WHERE id = ?` | Status is `RESERVED` |
+
+### ORM vs Direct SQL for Test Validation
+
+| Approach | Pros | Cons | When to Use |
+|----------|------|------|-------------|
+| **Direct SQL (JDBC)** | No dependency on application code; tests what the DB actually has; explicit | Must know the schema; queries break on schema changes | Most test suites — keep tests independent of app internals |
+| **ORM (JPA/Hibernate)** | Uses the same entities as the app; refactoring-safe | Couples tests to app code; ORM may cache/transform data; hides the real query | When you own the app code and want refactoring safety |
+
+**Recommendation for SDET work:** Use direct SQL. You're validating the database independently of the application — using the same ORM the app uses defeats the purpose. If the ORM has a bug (e.g., not flushing to DB), your ORM-based validation won't catch it because it reads from the same cache.
+
+---
+
+## Practical Implementation (Layer 3)
+
+### Database Connection Manager
+
+
+```java
+import com.zaxxer.hikari.HikariConfig;
+import com.zaxxer.hikari.HikariDataSource;
+
+import java.sql.*;
+
+/**
+ * Manages database connections for test validation.
+ * Uses HikariCP connection pool for performance.
+ * 
+ * Usage:
+ *   DatabaseManager.initialize("jdbc:postgresql://localhost:5432/staynest", "user", "pass");
+ *   try (Connection conn = DatabaseManager.getConnection()) {
+ *       // query...
+ *   }
+ *   DatabaseManager.shutdown();  // In @AfterSuite
+ */
+public class DatabaseManager {
+
+    private static HikariDataSource dataSource;
+
+    /**
+     * Initialize the connection pool. Call once in @BeforeSuite.
+     */
+    public static void initialize(String jdbcUrl, String username, String password) {
+        HikariConfig config = new HikariConfig();
+        config.setJdbcUrl(jdbcUrl);
+        config.setUsername(username);
+        config.setPassword(password);
+
+        // Pool settings tuned for test suites
+        config.setMaximumPoolSize(5);       // Tests don't need many connections
+        config.setMinimumIdle(2);           // Keep 2 ready connections
+        config.setConnectionTimeout(5000);  // Fail fast if DB is down
+        config.setIdleTimeout(60000);       // Close idle connections after 1 min
+
+        dataSource = new HikariDataSource(config);
+    }
+
+    public static Connection getConnection() throws SQLException {
+        if (dataSource == null) {
+            throw new IllegalStateException(
+                "DatabaseManager not initialized. Call initialize() in @BeforeSuite.");
+        }
+        return dataSource.getConnection();
+    }
+
+    /**
+     * Shutdown the pool. Call in @AfterSuite to release connections.
+     */
+    public static void shutdown() {
+        if (dataSource != null && !dataSource.isClosed()) {
+            dataSource.close();
+        }
+    }
+}
+```
+
+### Database Validation Helper
+
+
+```java
+import java.sql.*;
+import java.util.*;
+
+/**
+ * Reusable helper methods for common database validation patterns.
+ * Wraps JDBC boilerplate so tests stay clean and readable.
+ */
+public class DbValidator {
+
+    /**
+     * Check if a record exists by ID in a given table.
+     */
+    public static boolean recordExists(String table, long id) {
+        String sql = "SELECT COUNT(*) FROM " + table + " WHERE id = ?";
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setLong(1, id);
+            ResultSet rs = stmt.executeQuery();
+            rs.next();
+            return rs.getInt(1) > 0;
+        } catch (SQLException e) {
+            throw new RuntimeException("DB validation failed for " + table + " id=" + id, e);
+        }
+    }
+
+    /**
+     * Get a single field value from a record.
+     */
+    public static <T> T getField(String table, long id, String column, Class<T> type) {
+        String sql = "SELECT " + column + " FROM " + table + " WHERE id = ?";
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setLong(1, id);
+            ResultSet rs = stmt.executeQuery();
+            if (!rs.next()) {
+                throw new RuntimeException("No record found in " + table + " with id=" + id);
+            }
+            return rs.getObject(column, type);
+        } catch (SQLException e) {
+            throw new RuntimeException("DB query failed", e);
+        }
+    }
+
+    /**
+     * Get a complete row as a Map for flexible assertions.
+     */
+    public static Map<String, Object> getRow(String table, long id) {
+        String sql = "SELECT * FROM " + table + " WHERE id = ?";
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setLong(1, id);
+            ResultSet rs = stmt.executeQuery();
+            if (!rs.next()) {
+                return Collections.emptyMap();
+            }
+
+            Map<String, Object> row = new LinkedHashMap<>();
+            ResultSetMetaData meta = rs.getMetaData();
+            for (int i = 1; i <= meta.getColumnCount(); i++) {
+                row.put(meta.getColumnName(i), rs.getObject(i));
+            }
+            return row;
+        } catch (SQLException e) {
+            throw new RuntimeException("DB query failed", e);
+        }
+    }
+
+    /**
+     * Count records matching a condition.
+     * Useful for verifying deletes and cascade operations.
+     */
+    public static int countWhere(String table, String whereClause, Object... params) {
+        String sql = "SELECT COUNT(*) FROM " + table + " WHERE " + whereClause;
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            for (int i = 0; i < params.length; i++) {
+                stmt.setObject(i + 1, params[i]);
+            }
+            ResultSet rs = stmt.executeQuery();
+            rs.next();
+            return rs.getInt(1);
+        } catch (SQLException e) {
+            throw new RuntimeException("DB count query failed", e);
+        }
+    }
+}
+```
+
+### Complete Database Validation Tests for StayNest
+
+
+```java
+import org.testng.annotations.*;
+import static io.restassured.RestAssured.*;
+import static org.hamcrest.Matchers.*;
+import static org.testng.Assert.*;
+
+/**
+ * API tests with database validation for StayNest booking flow.
+ * Each test validates BOTH the API response AND the database state.
+ */
+public class BookingDbValidationTests {
+
+    private String guestToken;
+    private String managerToken;
+    private int hotelId;
+    private int roomId;
+
+    @BeforeSuite
+    public void initDatabase() {
+        DatabaseManager.initialize(
+            "jdbc:postgresql://localhost:5432/staynest",
+            "staynest_test",
+            "testpass"
+        );
+    }
+
+    @BeforeClass
+    public void setupTestData() {
+        guestToken = AuthFactory.guest().getAccessToken();
+        managerToken = AuthFactory.manager().getAccessToken();
+        // Create hotel and room for booking tests
+        hotelId = createTestHotel();
+        roomId = createTestRoom(hotelId);
+        activateHotel(hotelId);
+    }
+
+    @Test
+    public void createBooking_persistsInDatabase() {
+        // Step 1: Create booking via API
+        String bookingBody = String.format("""
+            {
+                "hotelId": %d,
+                "roomId": %d,
+                "checkInDate": "2025-08-01",
+                "checkOutDate": "2025-08-05",
+                "roomsCount": 1
+            }
+            """, hotelId, roomId);
+
+        int bookingId = given()
+            .contentType("application/json")
+            .header("Authorization", "Bearer " + guestToken)
+            .body(bookingBody)
+        .when()
+            .post("/bookings/init")
+        .then()
+            .statusCode(200)
+            .body("data.bookingStatus", equalTo("RESERVED"))
+            .extract().jsonPath().getInt("data.id");
+
+        // Step 2: Validate in database
+        assertTrue(DbValidator.recordExists("bookings", bookingId),
+            "Booking should exist in database after API returns 200");
+
+        Map<String, Object> booking = DbValidator.getRow("bookings", bookingId);
+        assertEquals(booking.get("booking_status"), "RESERVED",
+            "Booking status in DB should be RESERVED");
+        assertNotNull(booking.get("check_in_date"),
+            "Check-in date should be persisted");
+        assertNotNull(booking.get("check_out_date"),
+            "Check-out date should be persisted");
+
+        // Step 3: Validate inventory was updated (rooms count reduced)
+        int availableRooms = DbValidator.countWhere(
+            "inventory",
+            "room_id = ? AND date >= '2025-08-01' AND date < '2025-08-05' AND booked_count > 0",
+            roomId
+        );
+        assertTrue(availableRooms > 0,
+            "Inventory should show booked rooms for the date range");
+    }
+
+    @Test
+    public void cancelBooking_updatesStatusInDatabase() {
+        // Setup: create and confirm a booking
+        int bookingId = createAndConfirmBooking();
+
+        // Step 1: Cancel via API
+        given()
+            .header("Authorization", "Bearer " + guestToken)
+        .when()
+            .post("/bookings/" + bookingId + "/cancel")
+        .then()
+            .statusCode(204);
+
+        // Step 2: Validate cancellation in database
+        String status = DbValidator.getField("bookings", bookingId,
+            "booking_status", String.class);
+        assertEquals(status, "CANCELLED",
+            "Booking status should be CANCELLED in database after cancellation");
+
+        // Step 3: Validate inventory was restored
+        // (rooms should be available again after cancellation)
+    }
+
+    @Test
+    public void deleteHotel_cascadesInDatabase() {
+        // Setup: create a hotel with a room
+        int tempHotelId = createTestHotel();
+        int tempRoomId = createTestRoom(tempHotelId);
+
+        // Verify setup
+        assertTrue(DbValidator.recordExists("hotels", tempHotelId));
+        assertTrue(DbValidator.recordExists("rooms", tempRoomId));
+
+        // Step 1: Delete hotel via API
+        given()
+            .header("Authorization", "Bearer " + managerToken)
+        .when()
+            .delete("/admin/hotels/" + tempHotelId)
+        .then()
+            .statusCode(204);
+
+        // Step 2: Validate cascade delete
+        assertFalse(DbValidator.recordExists("hotels", tempHotelId),
+            "Hotel should be deleted from database");
+        assertFalse(DbValidator.recordExists("rooms", tempRoomId),
+            "Associated rooms should be cascade-deleted");
+
+        int orphanedInventory = DbValidator.countWhere(
+            "inventory", "room_id = ?", tempRoomId);
+        assertEquals(orphanedInventory, 0,
+            "No orphaned inventory records should remain");
+    }
+
+    @AfterSuite
+    public void shutdownDatabase() {
+        DatabaseManager.shutdown();
+    }
+
+    // ---- Helper Methods ----
+
+    private int createTestHotel() {
+        // ... create hotel via API, return ID
+        return given()
+            .contentType("application/json")
+            .header("Authorization", "Bearer " + managerToken)
+            .body("{\"name\":\"DB Test Hotel\",\"city\":\"Test\",\"photos\":[],"
+                + "\"amenities\":[],\"contactInfo\":{\"address\":\"1 St\","
+                + "\"phoneNumber\":\"555-0000\",\"email\":\"t@t.com\","
+                + "\"location\":\"Test\"}}")
+        .when()
+            .post("/admin/hotels")
+        .then()
+            .statusCode(201)
+            .extract().jsonPath().getInt("data.id");
+    }
+
+    private int createTestRoom(int hotelId) {
+        return given()
+            .contentType("application/json")
+            .header("Authorization", "Bearer " + managerToken)
+            .body("{\"type\":\"DELUXE\",\"basePrice\":100.00,\"photos\":[],"
+                + "\"amenities\":[],\"totalCount\":5,\"capacity\":2}")
+        .when()
+            .post("/admin/hotels/" + hotelId + "/rooms")
+        .then()
+            .statusCode(201)
+            .extract().jsonPath().getInt("data.id");
+    }
+
+    private void activateHotel(int hotelId) {
+        given()
+            .header("Authorization", "Bearer " + managerToken)
+        .when()
+            .patch("/admin/hotels/" + hotelId + "/activate")
+        .then()
+            .statusCode(204);
+    }
+
+    private int createAndConfirmBooking() {
+        // Create, add guests, pay — returns confirmed booking ID
+        // (simplified for focus on DB validation)
+        return -1; // placeholder
+    }
+}
+```
+
+---
+
+## Failure and Debugging (Layer 4)
+
+### Failure 1: Database Query Returns Empty But Record Exists
+
+**The Problem:**
+
+
+```java
+// Test creates a booking, then immediately queries the DB
+int bookingId = createBookingViaApi();
+boolean exists = DbValidator.recordExists("bookings", bookingId);
+// exists is FALSE — but the API returned 200 with the booking!
+```
+
+**Root cause:** Transaction timing. The API started a database transaction, returned the response, but hasn't committed yet. Your test queries the database before the commit completes. This is a race condition between the API response and the database commit.
+
+**The fix:** Add a small delay (pragmatic but fragile) or retry with a timeout (robust):
+
+
+```java
+// Robust: retry with timeout
+private boolean waitForRecord(String table, long id, int timeoutMs) {
+    long deadline = System.currentTimeMillis() + timeoutMs;
+    while (System.currentTimeMillis() < deadline) {
+        if (DbValidator.recordExists(table, id)) {
+            return true;
+        }
+        try { Thread.sleep(100); } catch (InterruptedException e) { break; }
+    }
+    return false;
+}
+
+// Usage
+assertTrue(waitForRecord("bookings", bookingId, 3000),
+    "Booking should appear in DB within 3 seconds");
+```
+
+### Failure 2: Column Name Mismatch Between API and Database
+
+**The Problem:**
+
+
+```java
+Map<String, Object> row = DbValidator.getRow("bookings", bookingId);
+String status = (String) row.get("bookingStatus");  // Returns null!
+```
+
+**Root cause:** The API response uses camelCase (`bookingStatus`), but the database column uses snake_case (`booking_status`). JDBC returns column names as they are in the database, not as the API serializes them.
+
+**The fix:** Use the database column name, not the API field name:
+
+
+```java
+String status = (String) row.get("booking_status");  // Correct
+```
+
+<BestPractice>
+
+**Prevention:** Document the mapping between API fields and DB columns. Or create a helper that translates:
+
+</BestPractice>
+
+
+
+```java
+// Simple camelCase to snake_case converter
+private static String toSnakeCase(String camelCase) {
+    return camelCase.replaceAll("([A-Z])", "_$1").toLowerCase();
+}
+```
+
+### Failure 3: Connection Pool Exhaustion
+
+**The Problem:**
+
+```
+java.sql.SQLTransientConnectionException: HikariPool-1 - Connection is not available, 
+request timed out after 5000ms.
+```
+
+**Root cause:** Tests are not closing connections. Each `DatabaseManager.getConnection()` borrows a connection from the pool. If the test doesn't close it (or doesn't use try-with-resources), the connection is never returned, and the pool runs out.
+
+**The fix:** Always use try-with-resources:
+
+
+```java
+// WRONG — connection leak
+Connection conn = DatabaseManager.getConnection();
+PreparedStatement stmt = conn.prepareStatement(sql);
+ResultSet rs = stmt.executeQuery();
+// ... use rs but never close conn
+
+// CORRECT — auto-closes connection, statement, and result set
+try (Connection conn = DatabaseManager.getConnection();
+     PreparedStatement stmt = conn.prepareStatement(sql)) {
+    ResultSet rs = stmt.executeQuery();
+    // ... use rs
+}  // Everything closed automatically
+```
+
+---
+
+## Engineering Judgment (Layer 5)
+
+### When to Add Database Validation
+
+| Scenario | Add DB Validation? | Why |
+|----------|-------------------|-----|
+| POST creates a resource | **Yes** | Verify persistence, not just response |
+| PUT/PATCH updates a resource | **Yes** (for critical fields) | Verify the update was committed |
+| DELETE removes a resource | **Yes** | Verify deletion + cascade behavior |
+| GET reads a resource | **No** | GET doesn't change data — API response is sufficient |
+| Business rule enforcement | **Yes** | Verify constraints at the data level |
+| Read-only API calls | **No** | No side effects to validate |
+
+### How Much Database Validation Is Too Much?
+
+**Too little:** Only asserting API responses. Misses persistence bugs, cascade failures, and partial commits.
+
+**Too much:** Querying every column of every affected table for every test. This makes tests slow, brittle (breaks on schema changes), and hard to maintain.
+
+**Just right:** Validate the primary table's key fields after create/update/delete. Validate cascade behavior for delete operations. Validate business-critical fields (status, amounts) but not metadata (timestamps, audit fields).
+
+
+```java
+// Too much — asserting every column
+Map<String, Object> row = DbValidator.getRow("bookings", id);
+assertEquals(row.get("id"), id);
+assertEquals(row.get("hotel_id"), hotelId);
+assertEquals(row.get("room_id"), roomId);
+assertEquals(row.get("check_in_date"), "2025-08-01");
+assertEquals(row.get("check_out_date"), "2025-08-05");
+assertEquals(row.get("rooms_count"), 1);
+assertEquals(row.get("booking_status"), "RESERVED");
+assertEquals(row.get("created_at"), ...);     // Fragile — timestamp precision
+assertEquals(row.get("updated_at"), ...);     // Fragile
+assertEquals(row.get("user_id"), userId);     // Already validated by API response
+
+// Just right — assert the business-critical fields
+assertTrue(DbValidator.recordExists("bookings", id));
+assertEquals(DbValidator.getField("bookings", id, "booking_status", String.class), "RESERVED");
+```
+
+### Database Validation vs API Follow-Up GET
+
+An alternative to database validation is calling GET after a write operation:
+
+| Approach | Pros | Cons |
+|----------|------|------|
+| **DB validation** | Tests the actual data store; catches ORM bugs; independent of API layer | Couples tests to schema; requires DB access; SQL maintenance |
+| **API GET after write** | No DB dependency; tests the full stack; resilient to schema changes | Misses persistence bugs (if GET reads from cache); trusts the API to read correctly |
+
+**Recommendation:** Use API GET follow-up for most tests (simpler, less coupling). Add DB validation for critical paths where persistence correctness is paramount (payments, bookings, user accounts).
+
+---
+
+## Interview and Revision (Layer 6)
+
+### Fundamental Questions
+
+**Q1: Why would you validate the database in addition to the API response?**
+
+**A:** Because an API response doesn't guarantee data was persisted correctly. I've seen cases where the API returns 201 Created but the database transaction rolled back due to a constraint violation caught after the response was sent. I've also seen update endpoints that modify an in-memory cache but don't flush to the database. Database validation catches these persistence bugs that API-only tests miss. I use it selectively — for write operations (POST, PUT, DELETE) and business-critical state changes, not for every test.
+
+**Q2: How do you manage database connections in a test suite?**
+
+**A:** I use a connection pool (HikariCP) initialized once in `@BeforeSuite` and shut down in `@AfterSuite`. The pool keeps 2-5 connections warm so individual tests don't pay the 100ms+ connection overhead. Every database access uses try-with-resources to prevent connection leaks. I configure a 5-second connection timeout so tests fail fast if the database is unreachable, rather than hanging for 30+ seconds on the default timeout.
+
+**Q3: Direct SQL vs ORM for test validation — which do you prefer?**
+
+**A:** Direct SQL for test validation. The whole point of database validation is to check the data independently of the application code. If I use the same ORM the application uses, I'm reading through the same layer that might have a bug — for instance, if Hibernate caches a value that wasn't flushed to the database, an ORM-based validation reads the cache and says "looks good" when the DB is actually empty. Direct SQL bypasses all application layers and reads exactly what's in the database.
+
+### Scenario-Based Questions
+
+**S1: "Your database validation test passes locally but fails in CI. The API response is correct in both environments. What do you investigate?"**
+
+**A:** (1) **Database connection**: CI might use a different database URL, credentials, or port. Check the CI config. (2) **Schema differences**: CI might have a different schema version — maybe a migration hasn't run. (3) **Transaction timing**: CI might be slower, so the query runs before the transaction commits. I'd add a retry with timeout. (4) **Database type**: Local uses PostgreSQL, CI uses H2 in-memory — SQL syntax differences or data type behavior might differ. (5) **Parallel execution**: If CI runs tests in parallel, another test might have modified the data between the API call and the DB query.
+
+
+
+
+| # | Front (Question) | Back (Answer) |
+|---|---|---|
+| 1 | Why use a connection pool for test DB validation? | Performance: opening a new connection costs 50-200ms. A pool keeps connections warm, reducing overhead to ~1ms per test. Also prevents connection exhaustion when running many tests. |
+| 2 | API field `bookingStatus` maps to which DB column? | `booking_status` — APIs use camelCase, databases use snake_case. Always use the DB column name in SQL queries. |
+| 3 | When should you NOT add database validation to a test? | For GET (read-only) operations — they don't change data, so there's nothing to validate in the DB. Also skip for metadata fields (timestamps, audit columns) that add fragility without testing value. |
+| 4 | What causes "Connection not available" errors? | Connection pool exhaustion — tests borrowing connections without returning them. Fix: always use try-with-resources to auto-close connections. |
+| 5 | DB query returns empty right after API returns 200. Why? | Transaction timing — the API response was sent before the database transaction committed. Fix: retry the DB query with a short timeout (e.g., 3 seconds). |
+
+### Mastery Checklist
+
+- [ ] Can set up a HikariCP connection pool for test database access
+- [ ] Can write JDBC queries to validate creates, updates, and deletes
+- [ ] Can handle the camelCase (API) vs snake_case (DB) naming mismatch
+- [ ] Can diagnose connection pool exhaustion and fix connection leaks
+- [ ] Can explain when database validation adds value vs when API assertions suffice
+- [ ] Can handle transaction timing issues with retry mechanisms
+- [ ] Can validate cascade deletes by checking related tables
+
+---
+
+**Next:** Service Integration Testing | **Related:** Contract Testing
+
+*Last updated: *

@@ -1,0 +1,566 @@
+---
+title: "Methods and Parameters in Java"
+description: "Methods are the building blocks of every Java program — every page object action, every assertion helper, every API wrapper lives inside a method. How you design methods (signatures, names, return types) directly determines whether your framework is maintainable or a debugging nightmare."
+summary: "SDET Engineering guide: Methods and Parameters in Java"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "java"
+lesson: "methods-and-parameters"
+difficulty: "beginner"
+estimatedMinutes: 36
+prerequisites: []
+tags: ["SDET", "Java", "Programming"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/java/methods-and-parameters"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Methods and Parameters in Java
+
+> **Module:** 01 — Programming Foundations / Java
+> **Prerequisites:** Syntax And Control Flow
+> **Mastery Target:** L3 (independent application) → L4 (engineering judgment)
+
+---
+
+## Quick Overview (Layer 1)
+
+**Methods** are the building blocks of every Java program — every page object action, every assertion helper, every API wrapper lives inside a method. How you design methods (signatures, names, return types) directly determines whether your framework is maintainable or a debugging nightmare.
+
+**Why parameter passing matters:** A surprising number of automation bugs come from misunderstanding reference vs. value semantics. "I passed the object to a method, modified it, but the caller's variable didn't change!" — this is the pass-by-value confusion.
+
+**Mental model — methods as machines:** A method has input slots (parameters), processing logic (body), and an output slot (return value). The machine never reaches back into *your* hands to swap what you're holding — it works on copies. This is pass-by-value.
+
+<KeyTakeaways>
+
+1. **Java is always pass-by-value** — primitives copy the value; objects copy the *reference*. Reassigning a reference inside a method doesn't affect the caller.
+2. **Method signatures drive readability** — well-named methods with small parameter lists are self-documenting. >3 parameters is a code smell.
+3. **Overloading provides convenience, not new behavior** — simpler overloads should delegate to the fully-parameterized version.
+4. **Return `Optional<T>` instead of `null`** — makes the "might be absent" contract explicit.
+5. **Static methods don't need object state; instance methods do** — making everything static kills testability and parallelism.
+
+</KeyTakeaways>
+
+
+---
+
+## Layer 2 — First-Principles Explanation
+
+### Method Anatomy
+
+
+```java
+//  access    return    name              parameters
+//  modifier  type
+    public    String    getUserName       (int userId, boolean active) {
+        // method body
+        return "some value";
+    }
+```
+
+**Naming conventions:** Methods are **verbs in camelCase** — `calculateTotal()`, `clickLoginButton()`. Boolean-returning methods use `is`/`has`/`can`: `isEmpty()`, `hasErrors()`. Getters/setters: `getName()`, `setName(String name)`.
+
+**`void` vs. returning:** Use `void` when the caller doesn't need a result. Use a return type when the caller needs the output for decisions, assertions, or chaining.
+
+### Parameter Passing: Java Is ALWAYS Pass-by-Value
+
+**Rule:** Java always passes a *copy*. For primitives, a copy of the value. For objects, a copy of the *reference*.
+
+**Primitives — copy of the value:**
+
+
+```java
+public static void doubleValue(int number) {
+    number = number * 2;   // modifies LOCAL copy only
+}
+
+int original = 10;
+doubleValue(original);
+System.out.println(original);  // 10 — unchanged
+```
+
+**Objects — modifying state through the reference copy works:**
+
+
+```java
+public static void addItem(List<String> list) {
+    list.add("new item");  // follows reference copy to the SAME object → works
+}
+
+List<String> myList = new ArrayList<>(List.of("original"));
+addItem(myList);
+System.out.println(myList);  // [original, new item] — visible!
+```
+
+**Objects — reassigning the reference does NOT affect the caller:**
+
+
+```java
+public static void replaceList(List<String> list) {
+    list = new ArrayList<>();     // reassigns LOCAL copy — caller unaffected
+    list.add("replaced item");
+}
+
+List<String> myList = new ArrayList<>(List.of("original"));
+replaceList(myList);
+System.out.println(myList);  // [original] — unchanged!
+```
+
+**The classic swap test — proof Java is pass-by-value:**
+
+
+```java
+public static void swap(StringBuilder a, StringBuilder b) {
+    StringBuilder temp = a;
+    a = b;
+    b = temp;  // swapped LOCALLY only
+}
+
+StringBuilder x = new StringBuilder("Hello");
+StringBuilder y = new StringBuilder("World");
+swap(x, y);
+System.out.println(x);  // "Hello" — NOT swapped
+System.out.println(y);  // "World" — NOT swapped
+```
+
+**Arrays and collections as parameters:** Because they're objects, modifications through the reference copy *are* visible to the caller. Useful for populating test data, but means you can accidentally corrupt caller data.
+
+### Varargs
+
+
+```java
+public static void log(String level, String... messages) {
+    for (String msg : messages) {
+        System.out.println("[" + level + "] " + msg);
+    }
+}
+
+log("INFO", "Test started");
+log("ERROR", "Step 1 failed", "Step 2 skipped", "Test aborted");
+log("DEBUG");  // zero messages — messages is an empty array
+```
+
+**Rules:** Must be the **last parameter**, only **one** per method, treated as an **array** internally.
+
+**When to use in automation:** Logging methods, custom assertion helpers (`assertContainsAll(String actual, String... expected)`), builder-style setup methods.
+
+### Method Overloading
+
+Same name, different parameter lists. Compiler resolves at compile time.
+
+
+```java
+public class WaitHelper {
+    public void waitForElement(By locator) {
+        waitForElement(locator, 10);  // delegates to fuller version
+    }
+
+    public void waitForElement(By locator, int timeoutSeconds) {
+        new WebDriverWait(driver, Duration.ofSeconds(timeoutSeconds))
+            .until(ExpectedConditions.visibilityOfElementLocated(locator));
+    }
+}
+```
+
+**Resolution priority:** exact match → widening (`int`→`long`) → autoboxing (`int`→`Integer`) → varargs.
+
+**Autoboxing ambiguity pitfall:** Avoid overloading with both `int` and `Integer` parameter types — the resolution rules become non-obvious and the intent is unclear. If you also add a `long` overload, widening beats boxing, which may surprise callers.
+
+### Return Types
+
+**Returning `Optional<T>` instead of `null`:**
+
+
+```java
+// BAD: caller must remember to null-check
+public String getProperty(String key) {
+    return properties.get(key);  // returns null if absent
+}
+
+// GOOD: forces caller to handle absence
+public Optional<String> findProperty(String key) {
+    return Optional.ofNullable(properties.get(key));
+}
+
+// Caller:
+String port = reader.findProperty("port").orElse("8080");
+String dbUrl = reader.findProperty("db.url")
+    .orElseThrow(() -> new IllegalStateException("db.url is required"));
+```
+
+**Method chaining (returning `this`):** A method returns the current object to enable fluent calls — `builder.setUrl(url).setMethod("GET").addHeader(k, v).execute()`.
+
+### Static Methods vs. Instance Methods
+
+**Static** — belongs to the class, no access to `this`: utility methods (`StringUtils.isEmpty()`), factory methods (`DriverFactory.createDriver()`).
+
+**Instance** — belongs to an object, accesses `this` and fields: page object methods, anything needing polymorphism.
+
+**Anti-pattern — static `WebDriver` in automation frameworks:**
+
+
+```java
+// BAD: static driver = shared across threads = race conditions in parallel
+public class BasePage {
+    protected static WebDriver driver;
+}
+
+// GOOD: instance driver supports parallel execution
+public class BasePage {
+    protected WebDriver driver;
+    public BasePage(WebDriver driver) { this.driver = driver; }
+}
+```
+
+### Method Design Principles
+
+**Single responsibility:** One method does one thing. If you need "and" in the name (`loginAndVerifyDashboard`), it's multiple methods.
+
+**Parameter count:** >3 parameters is a code smell → group into a parameter object.
+
+
+```java
+// BAD: 6 params, easy to mix up order
+public void createUser(String first, String last, String email,
+                       String phone, String role, boolean active) { }
+
+// GOOD: parameter object
+public void createUser(UserDetails details) { }
+```
+
+**Guard clauses:** Validate inputs early, return/throw immediately — avoid deep nesting.
+
+
+```java
+// BAD: nested validation buries the happy path
+public String processConfig(String path) {
+    if (path != null) { if (!path.isEmpty()) { if (path.endsWith(".json")) {
+        return readAndParse(path);
+    }}} return null;
+}
+
+// GOOD: guard clauses keep happy path at top level
+public String processConfig(String path) {
+    if (path == null) throw new IllegalArgumentException("path must not be null");
+    if (path.isEmpty()) throw new IllegalArgumentException("path must not be empty");
+    if (!path.endsWith(".json")) throw new IllegalArgumentException("must be .json");
+    return readAndParse(path);
+}
+```
+
+---
+
+## Layer 3 — Practical Implementation
+
+### Example 1: Page Object with Method Chaining
+
+
+```java
+public class LoginPage {
+    private final WebDriver driver;
+    private final WebDriverWait wait;
+    private final By usernameField = By.id("username");
+    private final By passwordField = By.id("password");
+    private final By loginButton = By.id("login-btn");
+    private final By errorMessage = By.cssSelector(".error-message");
+
+    public LoginPage(WebDriver driver) {
+        this.driver = driver;
+        this.wait = new WebDriverWait(driver, Duration.ofSeconds(10));
+    }
+
+    public LoginPage enterUsername(String username) {
+        WebElement field = wait.until(ExpectedConditions.visibilityOfElementLocated(usernameField));
+        field.clear();
+        field.sendKeys(username);
+        return this;  // stay on same page → chain
+    }
+
+    public LoginPage enterPassword(String password) {
+        WebElement field = wait.until(ExpectedConditions.visibilityOfElementLocated(passwordField));
+        field.clear();
+        field.sendKeys(password);
+        return this;
+    }
+
+    public DashboardPage clickLogin() {
+        driver.findElement(loginButton).click();
+        wait.until(ExpectedConditions.urlContains("/dashboard"));
+        return new DashboardPage(driver);  // page transition → different return type
+    }
+
+    public LoginPage clickLoginExpectingError() {
+        driver.findElement(loginButton).click();
+        wait.until(ExpectedConditions.visibilityOfElementLocated(errorMessage));
+        return this;  // stayed on login → same return type
+    }
+
+    public String getErrorMessage() {
+        return driver.findElement(errorMessage).getText();
+    }
+}
+
+// Test reads like natural language:
+// DashboardPage dash = new LoginPage(driver)
+//     .enterUsername("admin").enterPassword("secret").clickLogin();
+//
+// String err = new LoginPage(driver)
+//     .enterUsername("admin").enterPassword("wrong")
+//     .clickLoginExpectingError().getErrorMessage();
+```
+
+**Why it works:** Return types encode page transitions — `clickLogin()` returns `DashboardPage`, `clickLoginExpectingError()` returns `LoginPage`. The compiler prevents calling dashboard methods after a failed login.
+
+### Example 2: Utility Method with Optional Return
+
+
+```java
+import java.util.Optional;
+
+public class NetworkUtils {
+
+    public static Optional<Integer> parsePort(String portString) {
+        if (portString == null || portString.isBlank()) return Optional.empty();
+
+        try {
+            int port = Integer.parseInt(portString.trim());
+            if (port < 1 || port > 65535) return Optional.empty();
+            return Optional.of(port);
+        } catch (NumberFormatException e) {
+            return Optional.empty();
+        }
+    }
+}
+
+// Usage:
+int port = NetworkUtils.parsePort("8080").orElse(8080);           // 8080
+int bad  = NetworkUtils.parsePort("99999").orElse(-1);            // -1
+int required = NetworkUtils.parsePort(System.getenv("APP_PORT"))
+    .orElseThrow(() -> new IllegalStateException("APP_PORT invalid"));
+```
+
+### Example 3: Pass-by-Value Confusion
+
+
+```java
+public class PassByValuePitfall {
+
+    // Reassigning parameter — DOES NOT work
+    public static void resetDriver(WebDriver driver) {
+        driver = null;  // reassigns LOCAL copy — caller's driver is still alive
+    }
+
+    // Modifying object state — DOES work
+    public static void addDefaultHeaders(Map<String, String> headers) {
+        headers.put("Content-Type", "application/json");  // same map object
+        headers.put("Accept", "application/json");
+    }
+
+    public static void main(String[] args) {
+        Map<String, String> headers = new HashMap<>();
+        headers.put("Authorization", "Bearer token");
+        addDefaultHeaders(headers);
+        System.out.println(headers);
+        // {Authorization=Bearer token, Content-Type=application/json, Accept=application/json}
+    }
+}
+```
+
+**Takeaway:** To "replace" an object entirely, the method must **return** the new object. Reassigning the parameter is a no-op from the caller's perspective.
+
+---
+
+## Layer 4 — Failure and Debugging
+
+### Mistake 1: Pass-by-Value — Reassigning a Parameter
+
+
+```java
+// BUG: reassigns local reference, caller's session is still the old one
+public static void refreshSession(HttpSession session) {
+    session = createNewSession();  // local reassignment — caller unaffected
+}
+
+// FIX: return the new value
+public static HttpSession refreshSession(HttpSession old) {
+    old.invalidate();
+    return createNewSession();
+}
+// Caller: currentSession = refreshSession(currentSession);
+```
+
+**Diagnostic:** Print `System.identityHashCode()` before and after — the caller's hash never changes.
+
+### Mistake 2: Overloading Ambiguity with Autoboxing
+
+
+```java
+public void retry(int maxAttempts)     { /* ... */ }
+public void retry(long maxAttempts)    { /* ... */ }
+public void retry(Integer maxAttempts) { /* ... */ }
+
+short s = 3;
+retry(s);  // calls retry(int) — widening wins over boxing
+           // if you expected retry(Integer), you're wrong
+```
+
+<BestPractice>
+
+**Fix:** Avoid overloading with both primitive and wrapper types. Use distinct method names if behavior genuinely differs.
+
+</BestPractice>
+
+
+### Mistake 3: Null Parameter Without Validation
+
+
+```java
+// BUG: NPE deep inside when reportTitle is null
+public String generateReport(List<TestResult> results, String reportTitle) {
+    StringBuilder sb = new StringBuilder();
+    sb.append("Report: ").append(reportTitle.toUpperCase());  // NPE here
+    // ...
+}
+
+// FIX: guard clauses at the top
+public String generateReport(List<TestResult> results, String reportTitle) {
+    Objects.requireNonNull(results, "results must not be null");
+    Objects.requireNonNull(reportTitle, "reportTitle must not be null");
+    // ... safe to use
+}
+```
+
+<BestPractice>
+
+**Prevention:** `Objects.requireNonNull()` at method entry produces a clear error message instead of a mysterious NPE three stack frames deep.
+
+</BestPractice>
+
+
+---
+
+## Layer 5 — Engineering Judgment
+
+### When to Overload vs. Use Different Names
+
+| Scenario | Approach | Why |
+|---|---|---|
+| Same action, different detail levels (wait 10s vs. wait Ns) | Overload | Same concept; simpler version delegates to fuller one |
+| Different actions, similar parameter types | Different names | `findById()` vs. `findByName()` — overloading as `find(String)` hides intent |
+| Primitive vs. wrapper parameter | Avoid | Autoboxing ambiguity makes resolution unpredictable |
+
+**Rule of thumb:** If overloads can't share the same Javadoc summary, they shouldn't share a name.
+
+### When to Return `null` vs. `Optional` vs. Throw
+
+| Situation | Strategy | Why |
+|---|---|---|
+| Value might legitimately be absent | `Optional<T>` | Caller forced to handle both cases |
+| Absence is a programming error | Throw exception | Fail fast, don't propagate corrupt state |
+| Method returns a collection | Empty collection, **never** `null` | Eliminates null checks in every caller |
+
+### Method Extraction: When a Method Is Doing Too Much
+
+Signs: sections separated by comments (each section = a method), deeply nested control flow, name requires "and", scrolls off screen.
+
+
+```java
+// BEFORE
+public void processTestResults(List<TestResult> results) {
+    // Calculate statistics
+    int passed = 0, failed = 0;
+    for (TestResult r : results) { if (r.isPassed()) passed++; else failed++; }
+    // Generate report
+    String report = "Passed: " + passed + ", Failed: " + failed;
+    // Send notification
+    if (failed > 0) emailService.send("team@co.com", "Failures", report);
+}
+
+// AFTER: reads like a plan, each step testable independently
+public void processTestResults(List<TestResult> results) {
+    TestStats stats = calculateStats(results);
+    String report = generateReport(stats);
+    notifyIfFailures(stats, report);
+}
+```
+
+---
+
+## Layer 6 — Interview and Revision
+
+### Fundamental Questions with Answers
+
+**Q1: Is Java pass-by-reference or pass-by-value?**
+> Always **pass-by-value**. For objects, the *reference* is copied — you can modify the object's state through the copy, but reassigning the copy doesn't affect the caller. Proof: a swap method that reassigns two references doesn't swap them from the caller's perspective.
+
+**Q2: What is method overloading and how does the compiler resolve it?**
+> Multiple methods with the same name but different parameter lists. Resolution priority at compile time: exact match → widening → autoboxing → varargs.
+
+**Q3: What is the difference between static and instance methods?**
+> Static methods belong to the class, can't access `this`, called via `ClassName.method()`. Instance methods belong to an object, access `this` and fields. Static for stateless utility/factory methods; instance when object state or polymorphism is needed.
+
+**Q4: Why prefer `Optional<T>` over returning `null`?**
+> `Optional` makes absence part of the type signature — the caller is forced to handle it via `orElse()`/`orElseThrow()`. `null` hides this contract, leading to `NullPointerException` when callers forget to check.
+
+**Q5: What are varargs and what are the rules?**
+> `Type... name` accepts zero or more arguments. Rules: must be last parameter, only one per method, treated as array internally. Useful for logging, assertion helpers, and builder APIs.
+
+### Coding Questions
+
+**C1:** Write a method that accepts varargs test names and returns a comma-separated summary. Return `"No tests"` if empty.
+
+```java
+public static String summarizeTests(String... testNames)
+```
+
+**C2:** Write two overloaded wait methods — one with default 10s timeout, one with custom timeout. Simpler delegates to fuller.
+
+```java
+public WebElement waitForVisible(By locator)
+public WebElement waitForVisible(By locator, int timeoutSeconds)
+```
+
+**C3:** Write a method returning `Optional<String>` from a map — empty if key missing or value blank.
+
+```java
+public static Optional<String> getRequiredProperty(Map<String, String> config, String key)
+```
+
+
+
+
+| # | Front (Question) | Back (Answer) |
+|---|---|---|
+| 1 | What does Java pass when you pass an object to a method? | A copy of the reference (the pointer), not the object itself. |
+| 2 | Can you swap two objects by passing them to a method? | No. Reassigning parameter references doesn't affect the caller. |
+| 3 | What is the overload resolution order? | Exact match → widening → autoboxing → varargs. |
+| 4 | `Optional` vs. throwing — when to use each? | `Optional` when absence is normal; throw when absence is an error. |
+| 5 | Why is static `WebDriver` an anti-pattern? | Static fields are shared across threads — causes race conditions in parallel execution. |
+
+### Mastery Checklist
+
+- [ ] I can explain pass-by-value for both primitives and objects without hesitation
+- [ ] I can predict that reassigning an object parameter inside a method doesn't affect the caller
+- [ ] I can design page objects with method chaining (`return this`) and page-transition return types
+- [ ] I can write methods returning `Optional<T>` and use `orElse()`/`orElseThrow()` in callers
+- [ ] I can create overloaded methods where simpler versions delegate to the full version
+- [ ] I can explain overload resolution priority (exact → widening → boxing → varargs)
+- [ ] I know when to use static vs. instance methods and can explain the static `WebDriver` anti-pattern
+- [ ] I can refactor methods with too many parameters into parameter objects
+- [ ] I apply guard clauses to validate inputs early and avoid deep nesting
+- [ ] I can identify when a method violates single responsibility and extract sub-methods
+- [ ] I use varargs correctly (last parameter, one per method, treated as array)
+
+---
+
+> **Next:** Oop Fundamentals — How classes, objects, and OOP principles structure your automation frameworks.
+> **Related:** Syntax And Control Flow

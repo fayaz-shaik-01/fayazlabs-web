@@ -1,0 +1,346 @@
+---
+title: "Metrics and KPIs"
+description: "What: Test metrics are quantitative measurements of your testing activities and their outcomes. KPIs (Key Performance Indicators) are the subset of metrics that directly indicate whether your quality goals are being met. The distinction matters: you can measure hundreds of things, but only a few actually drive decisions."
+summary: "SDET Engineering guide: Metrics and KPIs"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "advanced-quality-engineering"
+lesson: "metrics-and-kpis"
+difficulty: "advanced"
+estimatedMinutes: 30
+prerequisites: []
+tags: ["SDET", "Quality Engineering", "Advanced"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/advanced-quality-engineering/metrics-and-kpis"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Metrics and KPIs
+
+> **Module:** 09 — Advanced Quality Engineering  
+> **Prerequisites:** Test Strategy And Planning, Continuous Testing  
+> **Mastery Target:** L3 (Independent) — can select actionable metrics, calculate automation ROI, and design a test metrics dashboard
+
+---
+
+## Quick Overview (Layer 1)
+
+**What:** Test metrics are quantitative measurements of your testing activities and their outcomes. KPIs (Key Performance Indicators) are the subset of metrics that directly indicate whether your quality goals are being met. The distinction matters: you can measure hundreds of things, but only a few actually drive decisions.
+
+**Why:** Without metrics, quality discussions become opinions. "Our test suite is good" is meaningless. "Our test suite runs 847 tests in 12 minutes with a 97.2% pass rate, 1.8% flaky rate, and catches an average of 3.4 defects per sprint before they reach staging" — that's actionable. Metrics justify automation investment, identify problem areas (which module has the most failures?), and provide release confidence ("are we ready to deploy?").
+
+**Where:** CI/CD dashboards, sprint retrospectives, quarterly quality reviews, automation ROI presentations to leadership. In StayNest: tracking test health across the booking, payment, and hotel management modules.
+
+<KeyTakeaways>
+
+1. **Vanity metrics** feel good but don't drive decisions (total test count, lines of test code). **Actionable metrics** tell you what to do next (flaky test rate, defect escape rate).
+2. The five essential metrics: pass rate, flaky rate, execution time, defect escape rate, and automation coverage.
+3. Automation ROI = (manual testing cost saved - automation investment) / automation investment. Track this quarterly.
+4. Dashboards should answer one question per panel. Stakeholders want "Can we release?" — not raw data dumps.
+5. Measure trends, not snapshots. A 95% pass rate today means nothing without knowing if it was 98% last week (declining) or 90% last week (improving).
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation (Layer 2)
+
+### Vanity Metrics vs Actionable Metrics
+
+| Vanity Metric | Why It's Misleading | Actionable Alternative |
+|---------------|--------------------|-----------------------|
+| Total test count (2,500 tests!) | More tests ≠ better quality. Could be redundant or poorly targeted | **Defect escape rate** — bugs reaching production despite tests |
+| 100% pass rate | Could mean tests are too easy or always skip failures | **Flaky rate** + **meaningful failure rate** |
+| 90% code coverage | Covers lines but not meaningful scenarios | **Critical path coverage** — are the riskiest flows tested? |
+| Tests written per sprint | Incentivizes quantity over quality | **Defects caught per sprint** — are tests actually finding bugs? |
+
+### The Five Essential Metrics
+
+| Metric | Formula | Target | What It Tells You |
+|--------|---------|--------|-------------------|
+| **Pass Rate** | (passed / total) × 100 | >95% stable | Overall suite health |
+| **Flaky Rate** | (flaky / total) × 100 | &lt;2% | Infrastructure/test reliability |
+| **Execution Time** | Total wall-clock time | &lt;15 min for full suite | CI feedback speed |
+| **Defect Escape Rate** | (prod bugs / total bugs) × 100 | &lt;5% | Testing effectiveness |
+| **Automation Coverage** | (automated / total testable scenarios) × 100 | >80% for regression | Automation maturity |
+
+### Automation ROI Calculation
+
+```
+Manual Cost (annual):
+  20 testers × 3 hours/day regression × 250 work days × $50/hour = $750,000
+
+Automation Investment (annual):
+  3 SDETs × $120,000 salary = $360,000
+  Tools/infra = $40,000
+  Total = $400,000
+
+Automation Savings:
+  Manual work reduced by 80% → $750,000 × 0.8 = $600,000 saved
+
+ROI = ($600,000 - $400,000) / $400,000 = 50%
+```
+
+---
+
+## Practical Implementation (Layer 3)
+
+### Metrics Collection from TestNG Results
+
+
+```java
+import org.testng.*;
+import java.util.*;
+import java.time.Duration;
+import java.time.Instant;
+
+/**
+ * TestNG listener that collects metrics from every test execution.
+ * Attach to suite via testng.xml: <listeners><listener class-name="MetricsCollector"/></listeners>
+ */
+public class MetricsCollector implements ITestListener, ISuiteListener {
+
+    private final Map<String, TestMetric> metrics = new LinkedHashMap<>();
+    private Instant suiteStartTime;
+    private int passed, failed, skipped, flaky;
+
+    @Override
+    public void onStart(ISuite suite) {
+        suiteStartTime = Instant.now();
+    }
+
+    @Override
+    public void onTestSuccess(ITestResult result) {
+        passed++;
+        recordMetric(result, "PASSED");
+    }
+
+    @Override
+    public void onTestFailure(ITestResult result) {
+        failed++;
+        recordMetric(result, "FAILED");
+    }
+
+    @Override
+    public void onTestSkipped(ITestResult result) {
+        skipped++;
+        recordMetric(result, "SKIPPED");
+    }
+
+    @Override
+    public void onFinish(ISuite suite) {
+        Duration totalDuration = Duration.between(suiteStartTime, Instant.now());
+        int total = passed + failed + skipped;
+
+        System.out.println("════════════════════════════════════════");
+        System.out.println("  TEST METRICS SUMMARY");
+        System.out.println("════════════════════════════════════════");
+        System.out.printf("  Total Tests:      %d%n", total);
+        System.out.printf("  Passed:           %d (%.1f%%)%n", passed, pct(passed, total));
+        System.out.printf("  Failed:           %d (%.1f%%)%n", failed, pct(failed, total));
+        System.out.printf("  Skipped:          %d (%.1f%%)%n", skipped, pct(skipped, total));
+        System.out.printf("  Execution Time:   %s%n", formatDuration(totalDuration));
+        System.out.printf("  Avg Test Time:    %.1f sec%n",
+            totalDuration.toMillis() / 1000.0 / Math.max(total, 1));
+        System.out.println("════════════════════════════════════════");
+    }
+
+    private void recordMetric(ITestResult result, String status) {
+        String testName = result.getTestClass().getName() + "." + result.getMethod().getMethodName();
+        long durationMs = result.getEndMillis() - result.getStartMillis();
+        metrics.put(testName, new TestMetric(testName, status, durationMs));
+    }
+
+    private double pct(int part, int whole) {
+        return whole == 0 ? 0 : (part * 100.0 / whole);
+    }
+
+    private String formatDuration(Duration d) {
+        return String.format("%dm %ds", d.toMinutes(), d.toSecondsPart());
+    }
+
+    record TestMetric(String name, String status, long durationMs) {}
+}
+```
+
+### Flaky Test Detector
+
+
+```java
+/**
+ * Tracks test results across multiple runs to identify flaky tests.
+ * A test that passes and fails in different runs (same code) is flaky.
+ */
+public class FlakyTestTracker {
+
+    // In production, this would be backed by a database
+    private static final Map<String, List<Boolean>> testHistory = new HashMap<>();
+
+    public static void recordResult(String testName, boolean passed) {
+        testHistory.computeIfAbsent(testName, k -> new ArrayList<>()).add(passed);
+    }
+
+    /** A test is flaky if it has both passes and failures in recent runs */
+    public static List<String> getFlakyTests(int recentRuns) {
+        List<String> flakyTests = new ArrayList<>();
+
+        for (Map.Entry<String, List<Boolean>> entry : testHistory.entrySet()) {
+            List<Boolean> results = entry.getValue();
+            List<Boolean> recent = results.subList(
+                Math.max(0, results.size() - recentRuns), results.size());
+
+            boolean hasPass = recent.contains(true);
+            boolean hasFail = recent.contains(false);
+
+            if (hasPass && hasFail) {
+                flakyTests.add(entry.getKey());
+            }
+        }
+        return flakyTests;
+    }
+
+    public static double getFlakyRate(int recentRuns) {
+        if (testHistory.isEmpty()) return 0;
+        return (double) getFlakyTests(recentRuns).size() / testHistory.size() * 100;
+    }
+}
+```
+
+### StayNest Metrics Dashboard Design
+
+
+```java
+/**
+ * Dashboard panel definitions for StayNest test automation.
+ * Each panel answers one question for a specific audience.
+ */
+public class DashboardDesign {
+
+    /*
+    ┌───────────────────────────────────────────────────────┐
+    │  STAYNEST QUALITY DASHBOARD                           │
+    ├───────────────────────────────────────────────────────┤
+    │                                                       │
+    │  ROW 1: RELEASE READINESS (for: PM, Engineering Lead) │
+    │  ┌──────────┐ ┌──────────┐ ┌──────────┐              │
+    │  │ Pass Rate│ │ Blockers │ │  Can We  │              │
+    │  │  97.2%   │ │   0      │ │ Release? │              │
+    │  │  ▲ +1.1% │ │  ✓ CLEAR │ │  ✅ YES  │              │
+    │  └──────────┘ └──────────┘ └──────────┘              │
+    │                                                       │
+    │  ROW 2: SUITE HEALTH (for: SDET Team)                 │
+    │  ┌──────────┐ ┌──────────┐ ┌──────────────────┐      │
+    │  │ Flaky    │ │ Avg Time │ │ Slowest Tests    │      │
+    │  │ Rate     │ │ per Test │ │ 1. searchTest 8s │      │
+    │  │  1.4%    │ │  0.8s    │ │ 2. bookingE2E 6s│      │
+    │  │  ▼ -0.3% │ │  ▼ -0.1s│ │ 3. paymentTest 5s│     │
+    │  └──────────┘ └──────────┘ └──────────────────┘      │
+    │                                                       │
+    │  ROW 3: TRENDS (for: everyone)                        │
+    │  ┌────────────────────────────────────────────┐       │
+    │  │ Pass Rate Trend (last 30 days)             │       │
+    │  │ 98%─┐     ┌─┐  ┌──────────────            │       │
+    │  │ 96% └──┐ ┌┘ └──┘           97.2%          │       │
+    │  │ 94%    └─┘                                 │       │
+    │  └────────────────────────────────────────────┘       │
+    │                                                       │
+    │  ROW 4: MODULE BREAKDOWN (for: SDET Team)             │
+    │  ┌─────────────────────────────────────┐              │
+    │  │ Module      Tests  Pass  Flaky Time │              │
+    │  │ Booking       142  98%   1.4%  45s  │              │
+    │  │ Payment        87  96%   2.3%  38s  │ ← attention │
+    │  │ Search         63  99%   0%    22s  │              │
+    │  │ Auth           45  100%  0%    15s  │              │
+    │  └─────────────────────────────────────┘              │
+    └───────────────────────────────────────────────────────┘
+    */
+}
+```
+
+---
+
+## Failure and Debugging (Layer 4)
+
+### Failure 1: Pass Rate Drops but No Real Bugs
+
+**The Problem:** Pass rate drops from 97% to 91% after a CI infrastructure update. Investigation shows all failures are timeout errors — no actual application bugs.
+
+**Root cause:** Infrastructure instability (slower CI machines, network issues) causes false failures that pollute metrics.
+
+**The fix:** Separate infrastructure failures from application failures in metrics. Tag failures as "infra" vs "app" and report both rates:
+
+
+```java
+// Categorize failures in the metrics collector
+if (result.getThrowable() instanceof TimeoutException ||
+    result.getThrowable() instanceof ConnectException) {
+    infraFailures++;
+} else {
+    appFailures++;
+}
+```
+
+### Failure 2: 100% Pass Rate Masks Missing Coverage
+
+**The Problem:** Dashboard shows 100% pass rate. Leadership thinks quality is perfect. But the suite only tests happy paths — no negative tests, no edge cases.
+
+**The fix:** Track automation coverage (scenarios automated / scenarios identified) alongside pass rate. 100% pass rate with 30% coverage is worse than 95% pass rate with 85% coverage.
+
+---
+
+## Engineering Judgment (Layer 5)
+
+### Which Metrics for Which Audience
+
+| Audience | Cares About | Doesn't Care About |
+|----------|------------|-------------------|
+| Engineering VP | Defect escape rate, release readiness, ROI | Individual test names, execution details |
+| Engineering Manager | Pass rate trend, flaky rate, team velocity | Test implementation details |
+| SDET Team | Flaky tests, slowest tests, module breakdown | High-level ROI numbers |
+| Developers | Tests affected by their PR, failure details | Suite-wide metrics |
+
+### Metrics Anti-Patterns
+
+1. **Measuring to punish** — "Developer X has the most test failures" creates fear, not quality.
+2. **Gaming metrics** — Deleting flaky tests improves flaky rate but hides problems.
+3. **Too many metrics** — 30 dashboard panels means nobody reads any of them. Pick 5-7.
+4. **No action threshold** — A metric without a "when this hits X, do Y" rule is just decoration.
+
+---
+
+## Interview and Revision (Layer 6)
+
+
+
+
+| # | Front | Back |
+|---|-------|------|
+| 1 | Name three vanity metrics in testing | Total test count, 100% pass rate (without context), lines of test code. They feel good but don't drive decisions |
+| 2 | What are the five essential test automation metrics? | Pass rate, flaky rate, execution time, defect escape rate, automation coverage |
+| 3 | How do you calculate automation ROI? | ROI = (manual cost saved - automation investment) / automation investment. Track manual hours eliminated vs SDET salaries + tooling costs |
+| 4 | What makes a test "flaky"? | A test that passes and fails on different runs without code changes. Causes: timing dependencies, shared state, external service instability |
+| 5 | What question should each dashboard panel answer? | Exactly one question for a specific audience. "Can we release?" for PMs. "Which tests need fixing?" for SDETs. Never raw data dumps |
+
+### Mastery Checklist
+
+- [ ] Can identify vanity metrics vs actionable metrics with examples
+- [ ] Can calculate automation ROI for a quarterly leadership presentation
+- [ ] Can implement a TestNG listener that collects pass rate, timing, and failure categorization
+- [ ] Can design a dashboard with audience-appropriate panels (leadership, SDET, developer views)
+- [ ] Can detect and track flaky tests across multiple runs
+
+---
+
+**Next:** Continuous Testing | **Related:** Test Strategy And Planning
+
+*Last updated: *

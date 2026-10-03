@@ -1,0 +1,1686 @@
+---
+title: "Java Coding Exercises — Structured Progression"
+description: "- Attempt each exercise from a blank file — no copying from other modules"
+summary: "SDET Engineering guide: Java Coding Exercises — Structured Progression"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "java"
+lesson: "coding-exercises"
+difficulty: "beginner"
+estimatedMinutes: 110
+prerequisites: []
+tags: ["SDET", "Java", "Programming"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "lab"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/java/coding-exercises"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Java Coding Exercises — Structured Progression
+
+> **Module:** 01 — Programming Foundations / Java
+> **Prerequisites:** Syntax And Control Flow, Collections And Generics
+> **Purpose:** Build independent coding ability through deliberate practice
+
+---
+
+## How to Use This File
+
+- **Attempt each exercise from a blank file** — no copying from other modules
+- **Time yourself:** 15 min for Level A, 20 min for Level B, 30 min for Level C, 25 min for Level D
+- **Don't look at hints** until you've spent at least half the allotted time
+- **Write tests FIRST**, then implementation (TDD practice)
+- **Solutions** are in a collapsed section at the end of each exercise
+- **Work sequentially within a level** — each exercise builds on the previous one's concepts
+- **Track your time honestly** — if you exceed the limit, finish anyway, but note it. The gap between your time and the target *is* the learning signal.
+
+---
+
+## Level A: Fundamentals (start here)
+
+These exercises test that you can translate basic logic into working Java. No collections beyond arrays and strings.
+
+---
+
+### A1: Validate Email Format
+
+**Problem:** Write a method `boolean isValidEmail(String email)` that returns `true` if the email:
+- Contains exactly one `@`
+- Has at least one `.` after the `@`
+- Contains no spaces
+- Is not null or empty
+
+**Input/Output Examples:**
+
+| Input | Output | Reason |
+|---|---|---|
+| `"test@email.com"` | `true` | Valid format |
+| `"user@domain.co.uk"` | `true` | Multiple dots after `@` are fine |
+| `"test@.com"` | `true` | Has `@` and `.` after it (this is a simple validator, not RFC-compliant) |
+| `"testmail.com"` | `false` | No `@` |
+| `"test@@email.com"` | `false` | Two `@` symbols |
+| `"test @email.com"` | `false` | Contains space |
+| `null` | `false` | Null input |
+| `""` | `false` | Empty input |
+
+**Constraints:** Do NOT use regex. Use `String` methods only (`indexOf`, `lastIndexOf`, `contains`, `charAt`, `length`, `substring`).
+
+**Time Target:** 15 minutes
+
+**Hints:**
+
+
+**Hint 1 (direction)**
+
+Handle null and empty first — they're your guard clauses. Then think about what `indexOf('@')` and `lastIndexOf('@')` being equal tells you.
+
+
+
+
+**Hint 2 (approach)**
+
+After confirming exactly one `@`, use `substring` to get the part after `@`, then check if that substring `contains(".")`. For spaces, `contains(" ")` works.
+
+
+
+
+**Hint 3 (near-solution)**
+
+```
+1. if email is null or empty → return false
+2. if email contains " " → return false
+3. find index of '@' and lastIndex of '@' — if different, return false
+4. if atIndex is -1 → return false
+5. get afterAt = email.substring(atIndex + 1)
+6. return afterAt.contains(".")
+```
+
+
+
+**Tests to Pass:**
+
+
+```java
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+
+class EmailValidatorTest {
+
+    @Test
+    void validEmailReturnsTrue() {
+        assertTrue(isValidEmail("test@email.com"));
+    }
+
+    @Test
+    void multiplDotsAfterAtReturnsTrue() {
+        assertTrue(isValidEmail("user@domain.co.uk"));
+    }
+
+    @Test
+    void missingAtReturnsFalse() {
+        assertFalse(isValidEmail("testmail.com"));
+    }
+
+    @Test
+    void doubleAtReturnsFalse() {
+        assertFalse(isValidEmail("test@@email.com"));
+    }
+
+    @Test
+    void nullInputReturnsFalse() {
+        assertFalse(isValidEmail(null));
+    }
+}
+```
+
+**Solution:**
+
+
+**Click to reveal solution**
+
+
+```java
+public static boolean isValidEmail(String email) {
+    if (email == null || email.isEmpty()) {
+        return false;
+    }
+
+    if (email.contains(" ")) {
+        return false;
+    }
+
+    int atIndex = email.indexOf('@');
+    int lastAtIndex = email.lastIndexOf('@');
+
+    if (atIndex == -1 || atIndex != lastAtIndex) {
+        return false;
+    }
+
+    String afterAt = email.substring(atIndex + 1);
+    return afterAt.contains(".");
+}
+```
+
+
+
+**Extension:** Write a method `List<String> filterValidEmails(List<String> emails)` that returns only the valid emails from the list using streams.
+
+
+**Extension solution**
+
+
+```java
+public static List<String> filterValidEmails(List<String> emails) {
+    if (emails == null) {
+        return List.of();
+    }
+    return emails.stream()
+            .filter(EmailValidator::isValidEmail)
+            .collect(Collectors.toList());
+}
+```
+
+
+
+---
+
+### A2: Count Word Frequencies
+
+**Problem:** Write a method `Map<String, Integer> countWords(String sentence)` that counts the occurrences of each word in the sentence. Words are case-insensitive (treat `"Hello"` and `"hello"` as the same word). Return an empty map for null or empty input.
+
+**Input/Output Examples:**
+
+| Input | Output |
+|---|---|
+| `"the cat sat on the mat"` | `{the=2, cat=1, sat=1, on=1, mat=1}` |
+| `"Hello hello HELLO"` | `{hello=3}` |
+| `""` | `{}` |
+| `null` | `{}` |
+
+**Constraints:** Use `String.split()` to tokenize. Use a `HashMap` for counting.
+
+**Time Target:** 15 minutes
+
+**Hints:**
+
+
+**Hint 1 (direction)**
+
+`split("\\s+")` splits on one or more whitespace characters — this handles multiple spaces between words.
+
+
+
+
+**Hint 2 (approach)**
+
+Convert the sentence to lowercase first, then split. For each word, use `map.getOrDefault(word, 0) + 1` to increment the count.
+
+
+
+
+**Hint 3 (near-solution)**
+
+```
+1. Guard clause for null/empty
+2. sentence = sentence.toLowerCase().trim()
+3. Split on "\\s+"
+4. For each word: map.put(word, map.getOrDefault(word, 0) + 1)
+5. Return map
+```
+
+
+
+**Tests to Pass:**
+
+
+```java
+import org.junit.jupiter.api.Test;
+import java.util.Map;
+import static org.junit.jupiter.api.Assertions.*;
+
+class WordCounterTest {
+
+    @Test
+    void countsDistinctWords() {
+        Map<String, Integer> result = countWords("the cat sat on the mat");
+        assertEquals(2, result.get("the"));
+        assertEquals(1, result.get("cat"));
+    }
+
+    @Test
+    void caseInsensitive() {
+        Map<String, Integer> result = countWords("Hello hello HELLO");
+        assertEquals(3, result.get("hello"));
+        assertEquals(1, result.size());
+    }
+
+    @Test
+    void nullReturnsEmptyMap() {
+        assertTrue(countWords(null).isEmpty());
+    }
+
+    @Test
+    void emptyStringReturnsEmptyMap() {
+        assertTrue(countWords("").isEmpty());
+    }
+
+    @Test
+    void singleWord() {
+        Map<String, Integer> result = countWords("java");
+        assertEquals(1, result.get("java"));
+    }
+}
+```
+
+**Solution:**
+
+
+**Click to reveal solution**
+
+
+```java
+public static Map<String, Integer> countWords(String sentence) {
+    if (sentence == null || sentence.trim().isEmpty()) {
+        return new HashMap<>();
+    }
+
+    String[] words = sentence.toLowerCase().trim().split("\\s+");
+    Map<String, Integer> counts = new HashMap<>();
+
+    for (String word : words) {
+        counts.put(word, counts.getOrDefault(word, 0) + 1);
+    }
+
+    return counts;
+}
+```
+
+
+
+**Extension:** Write `Map<String, Integer> duplicatesOnly(String sentence)` that returns only words appearing more than once.
+
+
+**Extension solution**
+
+
+```java
+public static Map<String, Integer> duplicatesOnly(String sentence) {
+    return countWords(sentence).entrySet().stream()
+            .filter(entry -> entry.getValue() > 1)
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+}
+```
+
+
+
+---
+
+### A3: FizzBuzz Classifier
+
+**Problem:** This is NOT classic "print FizzBuzz." Write two methods:
+
+1. `String classify(int n)` — returns `"Fizz"` if `n` is divisible by 3, `"Buzz"` if divisible by 5, `"FizzBuzz"` if divisible by both, or the number as a string otherwise.
+2. `List<String> classifyRange(int from, int to)` — applies `classify` to every integer in the inclusive range `[from, to]` and returns the results as a list.
+
+**Input/Output Examples:**
+
+| Input | Output |
+|---|---|
+| `classify(3)` | `"Fizz"` |
+| `classify(5)` | `"Buzz"` |
+| `classify(15)` | `"FizzBuzz"` |
+| `classify(7)` | `"7"` |
+| `classifyRange(1, 5)` | `["1", "2", "Fizz", "4", "Buzz"]` |
+
+**Time Target:** 15 minutes
+
+**Hints:**
+
+
+**Hint 1 (direction)**
+
+Order matters: check divisibility by both 3 AND 5 *first*, because a number divisible by both would also match the individual checks.
+
+
+
+
+**Hint 2 (approach)**
+
+Use `n % 3 == 0` and `n % 5 == 0`. For `classifyRange`, an `IntStream.rangeClosed(from, to)` with `.mapToObj()` is the stream approach; a simple for-loop works too.
+
+
+
+
+**Hint 3 (near-solution)**
+
+```
+classify(n):
+  if n % 15 == 0 → "FizzBuzz"    (or: n % 3 == 0 && n % 5 == 0)
+  if n % 3 == 0  → "Fizz"
+  if n % 5 == 0  → "Buzz"
+  else           → String.valueOf(n)
+
+classifyRange(from, to):
+  List<String> results = new ArrayList<>();
+  for (int i = from; i <= to; i++) results.add(classify(i));
+  return results;
+```
+
+
+
+**Tests to Pass:**
+
+
+```java
+import org.junit.jupiter.api.Test;
+import java.util.List;
+import static org.junit.jupiter.api.Assertions.*;
+
+class FizzBuzzClassifierTest {
+
+    @Test
+    void divisibleByThreeReturnsFizz() {
+        assertEquals("Fizz", classify(9));
+    }
+
+    @Test
+    void divisibleByFiveReturnsBuzz() {
+        assertEquals("Buzz", classify(10));
+    }
+
+    @Test
+    void divisibleByBothReturnsFizzBuzz() {
+        assertEquals("FizzBuzz", classify(30));
+    }
+
+    @Test
+    void notDivisibleReturnsNumberAsString() {
+        assertEquals("7", classify(7));
+    }
+
+    @Test
+    void classifyRangeReturnsCorrectList() {
+        List<String> expected = List.of("1", "2", "Fizz", "4", "Buzz");
+        assertEquals(expected, classifyRange(1, 5));
+    }
+}
+```
+
+**Solution:**
+
+
+**Click to reveal solution**
+
+
+```java
+public static String classify(int n) {
+    if (n % 3 == 0 && n % 5 == 0) {
+        return "FizzBuzz";
+    } else if (n % 3 == 0) {
+        return "Fizz";
+    } else if (n % 5 == 0) {
+        return "Buzz";
+    } else {
+        return String.valueOf(n);
+    }
+}
+
+public static List<String> classifyRange(int from, int to) {
+    List<String> results = new ArrayList<>();
+    for (int i = from; i <= to; i++) {
+        results.add(classify(i));
+    }
+    return results;
+}
+```
+
+
+
+---
+
+## Level B: Collections & Data Structures
+
+These exercises require choosing and using the right collection type. Think about *why* you pick `Set` vs `List` vs `Map`.
+
+---
+
+### B1: Find Duplicate Test Case Names
+
+**Problem:** Write a method `Set<String> findDuplicates(List<String> testNames)` that returns a set of test case names that appear more than once in the list. Comparison should be case-sensitive. Return an empty set for null or empty input.
+
+**Input/Output Examples:**
+
+| Input | Output |
+|---|---|
+| `["loginTest", "logoutTest", "loginTest", "searchTest"]` | `{"loginTest"}` |
+| `["a", "b", "c"]` | `{}` |
+| `["x", "x", "x"]` | `{"x"}` |
+| `null` | `{}` |
+
+**Time Target:** 20 minutes
+
+**Hints:**
+
+
+**Hint 1 (direction)**
+
+A `Set` rejects duplicates — `set.add(item)` returns `false` if the item already exists. You can use this return value to detect duplicates.
+
+
+
+
+**Hint 2 (approach)**
+
+Use two sets: one `seen` set to track all names encountered, and one `duplicates` set to collect names that fail the `seen.add()` check.
+
+
+
+
+**Hint 3 (near-solution)**
+
+```
+Set<String> seen = new HashSet<>();
+Set<String> duplicates = new HashSet<>();
+for (String name : testNames) {
+    if (!seen.add(name)) {
+        duplicates.add(name);
+    }
+}
+return duplicates;
+```
+
+
+
+**Tests to Pass:**
+
+
+```java
+import org.junit.jupiter.api.Test;
+import java.util.List;
+import java.util.Set;
+import static org.junit.jupiter.api.Assertions.*;
+
+class DuplicateFinderTest {
+
+    @Test
+    void findsSingleDuplicate() {
+        Set<String> result = findDuplicates(List.of("loginTest", "logoutTest", "loginTest"));
+        assertEquals(Set.of("loginTest"), result);
+    }
+
+    @Test
+    void noDuplicatesReturnsEmptySet() {
+        assertTrue(findDuplicates(List.of("a", "b", "c")).isEmpty());
+    }
+
+    @Test
+    void tripleOccurrenceStillReturnedOnce() {
+        Set<String> result = findDuplicates(List.of("x", "x", "x"));
+        assertEquals(1, result.size());
+        assertTrue(result.contains("x"));
+    }
+
+    @Test
+    void nullReturnsEmptySet() {
+        assertTrue(findDuplicates(null).isEmpty());
+    }
+
+    @Test
+    void caseSensitive() {
+        Set<String> result = findDuplicates(List.of("Login", "login"));
+        assertTrue(result.isEmpty());
+    }
+}
+```
+
+**Solution:**
+
+
+**Click to reveal solution**
+
+
+```java
+public static Set<String> findDuplicates(List<String> testNames) {
+    if (testNames == null || testNames.isEmpty()) {
+        return new HashSet<>();
+    }
+
+    Set<String> seen = new HashSet<>();
+    Set<String> duplicates = new HashSet<>();
+
+    for (String name : testNames) {
+        if (!seen.add(name)) {
+            duplicates.add(name);
+        }
+    }
+
+    return duplicates;
+}
+```
+
+
+
+**Extension:** Write `Map<String, Long> countOccurrences(List<String> testNames)` using streams and `Collectors.groupingBy` with `Collectors.counting()`.
+
+
+**Extension solution**
+
+
+```java
+public static Map<String, Long> countOccurrences(List<String> testNames) {
+    if (testNames == null) {
+        return Map.of();
+    }
+    return testNames.stream()
+            .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
+}
+```
+
+
+
+---
+
+### B2: Group Test Results by Status
+
+**Problem:** Given a list of test results, group the test names by their status.
+
+First, define this record (or class):
+
+
+```java
+record TestResult(String name, String status, long durationMs) {}
+```
+
+Then write `Map<String, List<String>> groupByStatus(List<TestResult> results)` that returns a map where the key is the status (`"PASSED"`, `"FAILED"`, `"SKIPPED"`) and the value is a list of test names with that status.
+
+**Input/Output Examples:**
+
+| Input | Output |
+|---|---|
+| `[TestResult("login", "PASSED", 120), TestResult("checkout", "FAILED", 500), TestResult("search", "PASSED", 80)]` | `{PASSED=[login, search], FAILED=[checkout]}` |
+| `[]` | `{}` |
+
+**Time Target:** 20 minutes
+
+**Hints:**
+
+
+**Hint 1 (direction)**
+
+You need a `Map<String, List<String>>`. For each result, get the list for that status (creating it if it doesn't exist), then add the test name to that list.
+
+
+
+
+**Hint 2 (approach)**
+
+`map.computeIfAbsent(status, k -> new ArrayList<>()).add(name)` is the cleanest imperative approach. It creates the list if the key is missing, then appends to it.
+
+
+
+
+**Hint 3 (near-solution)**
+
+Stream approach: `results.stream().collect(Collectors.groupingBy(TestResult::status, Collectors.mapping(TestResult::name, Collectors.toList())))`.
+
+
+
+**Tests to Pass:**
+
+
+```java
+import org.junit.jupiter.api.Test;
+import java.util.List;
+import java.util.Map;
+import static org.junit.jupiter.api.Assertions.*;
+
+class TestResultGrouperTest {
+
+    @Test
+    void groupsByStatus() {
+        List<TestResult> results = List.of(
+            new TestResult("login", "PASSED", 120),
+            new TestResult("checkout", "FAILED", 500),
+            new TestResult("search", "PASSED", 80)
+        );
+        Map<String, List<String>> grouped = groupByStatus(results);
+        assertEquals(List.of("login", "search"), grouped.get("PASSED"));
+        assertEquals(List.of("checkout"), grouped.get("FAILED"));
+    }
+
+    @Test
+    void emptyInputReturnsEmptyMap() {
+        assertTrue(groupByStatus(List.of()).isEmpty());
+    }
+
+    @Test
+    void allSameStatus() {
+        List<TestResult> results = List.of(
+            new TestResult("a", "PASSED", 10),
+            new TestResult("b", "PASSED", 20)
+        );
+        Map<String, List<String>> grouped = groupByStatus(results);
+        assertEquals(1, grouped.size());
+        assertEquals(2, grouped.get("PASSED").size());
+    }
+
+    @Test
+    void nullReturnsEmptyMap() {
+        assertTrue(groupByStatus(null).isEmpty());
+    }
+
+    @Test
+    void skippedTestsGrouped() {
+        List<TestResult> results = List.of(
+            new TestResult("flaky", "SKIPPED", 0)
+        );
+        assertEquals(List.of("flaky"), groupByStatus(results).get("SKIPPED"));
+    }
+}
+```
+
+**Solution:**
+
+
+**Click to reveal solution — imperative**
+
+
+```java
+public static Map<String, List<String>> groupByStatus(List<TestResult> results) {
+    if (results == null || results.isEmpty()) {
+        return new HashMap<>();
+    }
+
+    Map<String, List<String>> grouped = new HashMap<>();
+    for (TestResult result : results) {
+        grouped.computeIfAbsent(result.status(), k -> new ArrayList<>())
+               .add(result.name());
+    }
+    return grouped;
+}
+```
+
+
+
+
+**Click to reveal solution — streams**
+
+
+```java
+public static Map<String, List<String>> groupByStatus(List<TestResult> results) {
+    if (results == null || results.isEmpty()) {
+        return Map.of();
+    }
+    return results.stream()
+            .collect(Collectors.groupingBy(
+                TestResult::status,
+                Collectors.mapping(TestResult::name, Collectors.toList())
+            ));
+}
+```
+
+
+
+---
+
+### B3: Merge Two Sorted Lists
+
+**Problem:** Write `List<Integer> mergeSorted(List<Integer> list1, List<Integer> list2)` that merges two already-sorted lists into a single sorted list. Do NOT use `Collections.sort()` or `Stream.sorted()`. If either list is null, treat it as empty.
+
+**Input/Output Examples:**
+
+| Input | Output |
+|---|---|
+| `[1, 3, 5]`, `[2, 4, 6]` | `[1, 2, 3, 4, 5, 6]` |
+| `[1, 1, 3]`, `[1, 2]` | `[1, 1, 1, 2, 3]` |
+| `[]`, `[1, 2]` | `[1, 2]` |
+| `null`, `[5]` | `[5]` |
+
+**Time Target:** 20 minutes
+
+**Hints:**
+
+
+**Hint 1 (direction)**
+
+Use two pointers, one for each list. Compare the elements at each pointer, add the smaller one, and advance that pointer.
+
+
+
+
+**Hint 2 (approach)**
+
+Loop while both pointers are within bounds. After the loop, one list may have remaining elements — append all of them.
+
+
+
+
+**Hint 3 (near-solution)**
+
+```
+int i = 0, j = 0;
+while (i < list1.size() && j < list2.size()) {
+    if (list1.get(i) <= list2.get(j)) {
+        result.add(list1.get(i++));
+    } else {
+        result.add(list2.get(j++));
+    }
+}
+// Add remaining from whichever list isn't exhausted
+while (i < list1.size()) result.add(list1.get(i++));
+while (j < list2.size()) result.add(list2.get(j++));
+```
+
+
+
+**Tests to Pass:**
+
+
+```java
+import org.junit.jupiter.api.Test;
+import java.util.List;
+import static org.junit.jupiter.api.Assertions.*;
+
+class MergeSortedTest {
+
+    @Test
+    void mergesInterleavedLists() {
+        assertEquals(List.of(1, 2, 3, 4, 5, 6), mergeSorted(List.of(1, 3, 5), List.of(2, 4, 6)));
+    }
+
+    @Test
+    void handlesDuplicates() {
+        assertEquals(List.of(1, 1, 1, 2, 3), mergeSorted(List.of(1, 1, 3), List.of(1, 2)));
+    }
+
+    @Test
+    void oneEmptyList() {
+        assertEquals(List.of(1, 2), mergeSorted(List.of(), List.of(1, 2)));
+    }
+
+    @Test
+    void nullTreatedAsEmpty() {
+        assertEquals(List.of(5), mergeSorted(null, List.of(5)));
+    }
+
+    @Test
+    void bothEmpty() {
+        assertTrue(mergeSorted(List.of(), List.of()).isEmpty());
+    }
+}
+```
+
+**Solution:**
+
+
+**Click to reveal solution**
+
+
+```java
+public static List<Integer> mergeSorted(List<Integer> list1, List<Integer> list2) {
+    List<Integer> a = (list1 != null) ? list1 : List.of();
+    List<Integer> b = (list2 != null) ? list2 : List.of();
+
+    List<Integer> result = new ArrayList<>(a.size() + b.size());
+    int i = 0, j = 0;
+
+    while (i < a.size() && j < b.size()) {
+        if (a.get(i) <= b.get(j)) {
+            result.add(a.get(i++));
+        } else {
+            result.add(b.get(j++));
+        }
+    }
+
+    while (i < a.size()) {
+        result.add(a.get(i++));
+    }
+    while (j < b.size()) {
+        result.add(b.get(j++));
+    }
+
+    return result;
+}
+```
+
+
+
+---
+
+## Level C: Problem-Solving
+
+Classic algorithmic problems that test your ability to think about efficiency. These come up in interviews and sharpen the thinking you need when designing test frameworks.
+
+---
+
+### C1: Two Sum
+
+**Problem:** Given an array of integers `nums` and an integer `target`, return the indices of the two numbers that add up to `target`. Assume exactly one solution exists, and you may not use the same element twice.
+
+**Input/Output Examples:**
+
+| Input | Output |
+|---|---|
+| `nums = [2, 7, 11, 15]`, `target = 9` | `[0, 1]` |
+| `nums = [3, 2, 4]`, `target = 6` | `[1, 2]` |
+| `nums = [3, 3]`, `target = 6` | `[0, 1]` |
+
+**Complexity Target:** O(n) time, O(n) space
+
+**Time Target:** 30 minutes (brute force first, then optimize)
+
+**Hints:**
+
+
+**Hint 1 (brute force)**
+
+Two nested loops: for each element, check every other element to see if they sum to the target. This is O(n²) — correct but slow.
+
+
+
+
+**Hint 2 (optimization direction)**
+
+If you know one number, the other must be `target - number`. A `HashMap` lets you check "have I seen `target - number` before?" in O(1).
+
+
+
+
+**Hint 3 (near-solution)**
+
+```
+Map<Integer, Integer> seen = new HashMap<>();  // value → index
+for (int i = 0; i < nums.length; i++) {
+    int complement = target - nums[i];
+    if (seen.containsKey(complement)) {
+        return new int[] { seen.get(complement), i };
+    }
+    seen.put(nums[i], i);
+}
+```
+
+
+
+**Tests to Pass:**
+
+
+```java
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+
+class TwoSumTest {
+
+    @Test
+    void basicCase() {
+        assertArrayEquals(new int[]{0, 1}, twoSum(new int[]{2, 7, 11, 15}, 9));
+    }
+
+    @Test
+    void nonAdjacentElements() {
+        assertArrayEquals(new int[]{1, 2}, twoSum(new int[]{3, 2, 4}, 6));
+    }
+
+    @Test
+    void duplicateValues() {
+        assertArrayEquals(new int[]{0, 1}, twoSum(new int[]{3, 3}, 6));
+    }
+
+    @Test
+    void negativeNumbers() {
+        assertArrayEquals(new int[]{0, 2}, twoSum(new int[]{-1, 0, 1}, 0));
+    }
+
+    @Test
+    void largerArray() {
+        assertArrayEquals(new int[]{2, 4}, twoSum(new int[]{1, 5, 3, 7, 3}, 6));
+    }
+}
+```
+
+**Solution:**
+
+
+**Click to reveal solution — brute force O(n²)**
+
+
+```java
+public static int[] twoSumBrute(int[] nums, int target) {
+    for (int i = 0; i < nums.length; i++) {
+        for (int j = i + 1; j < nums.length; j++) {
+            if (nums[i] + nums[j] == target) {
+                return new int[]{i, j};
+            }
+        }
+    }
+    throw new IllegalArgumentException("No two sum solution");
+}
+```
+
+
+
+
+**Click to reveal solution — optimal O(n)**
+
+
+```java
+public static int[] twoSum(int[] nums, int target) {
+    Map<Integer, Integer> seen = new HashMap<>();
+
+    for (int i = 0; i < nums.length; i++) {
+        int complement = target - nums[i];
+        if (seen.containsKey(complement)) {
+            return new int[]{seen.get(complement), i};
+        }
+        seen.put(nums[i], i);
+    }
+
+    throw new IllegalArgumentException("No two sum solution");
+}
+```
+
+
+
+---
+
+### C2: Valid Parentheses
+
+**Problem:** Given a string containing only the characters `(`, `)`, `{`, `}`, `[`, `]`, determine if the input string is valid. A string is valid if:
+- Every open bracket is closed by the same type of bracket
+- Brackets are closed in the correct order
+- Every close bracket has a corresponding open bracket
+
+**Input/Output Examples:**
+
+| Input | Output |
+|---|---|
+| `"()"` | `true` |
+| `"()[]{}"` | `true` |
+| `"(]"` | `false` |
+| `"([)]"` | `false` |
+| `"{[]}"` | `true` |
+| `""` | `true` |
+
+**Complexity Target:** O(n) time, O(n) space
+
+**Time Target:** 30 minutes
+
+**Hints:**
+
+
+**Hint 1 (direction)**
+
+This is a classic stack problem. When you see an opening bracket, push it. When you see a closing bracket, pop and check if it matches.
+
+
+
+
+**Hint 2 (approach)**
+
+Use a `Deque<Character>` as a stack (`ArrayDeque` is the recommended implementation). Map each closing bracket to its expected opening bracket using a `Map`.
+
+
+
+
+**Hint 3 (near-solution)**
+
+```
+1. Create a map: ')' → '(', ']' → '[', '}' → '{'
+2. For each char in string:
+   - If it's an opening bracket → push onto stack
+   - If it's a closing bracket → if stack is empty or top doesn't match → return false; else pop
+3. Return stack.isEmpty()  (handles unclosed brackets)
+```
+
+
+
+**Tests to Pass:**
+
+
+```java
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+
+class ValidParenthesesTest {
+
+    @Test
+    void simplePair() {
+        assertTrue(isValid("()"));
+    }
+
+    @Test
+    void multipleTypes() {
+        assertTrue(isValid("()[]{}"));
+    }
+
+    @Test
+    void mismatchedTypes() {
+        assertFalse(isValid("(]"));
+    }
+
+    @Test
+    void incorrectNesting() {
+        assertFalse(isValid("([)]"));
+    }
+
+    @Test
+    void nestedCorrectly() {
+        assertTrue(isValid("{[]}"));
+    }
+}
+```
+
+**Solution:**
+
+
+**Click to reveal solution**
+
+
+```java
+public static boolean isValid(String s) {
+    if (s == null) {
+        return false;
+    }
+
+    Deque<Character> stack = new ArrayDeque<>();
+    Map<Character, Character> pairs = Map.of(')', '(', ']', '[', '}', '{');
+
+    for (char c : s.toCharArray()) {
+        if (pairs.containsValue(c)) {
+            stack.push(c);
+        } else if (pairs.containsKey(c)) {
+            if (stack.isEmpty() || !stack.pop().equals(pairs.get(c))) {
+                return false;
+            }
+        }
+    }
+
+    return stack.isEmpty();
+}
+```
+
+
+
+---
+
+### C3: Longest Substring Without Repeating Characters
+
+**Problem:** Given a string `s`, find the length of the longest substring without repeating characters.
+
+**Input/Output Examples:**
+
+| Input | Output | Explanation |
+|---|---|---|
+| `"abcabcbb"` | `3` | `"abc"` |
+| `"bbbbb"` | `1` | `"b"` |
+| `"pwwkew"` | `3` | `"wke"` |
+| `""` | `0` | Empty string |
+
+**Complexity Target:** O(n) using sliding window
+
+**Time Target:** 30 minutes
+
+**Hints:**
+
+
+**Hint 1 (direction)**
+
+Use a "sliding window" — two pointers (`left` and `right`) that define the current substring. Expand `right` to include new characters; shrink from `left` when you find a duplicate.
+
+
+
+
+**Hint 2 (approach)**
+
+Use a `Set<Character>` to track which characters are in the current window. When `right` finds a character already in the set, remove characters from `left` until the duplicate is gone.
+
+
+
+
+**Hint 3 (near-solution)**
+
+```
+Set<Character> window = new HashSet<>();
+int left = 0, maxLen = 0;
+for (int right = 0; right < s.length(); right++) {
+    while (window.contains(s.charAt(right))) {
+        window.remove(s.charAt(left));
+        left++;
+    }
+    window.add(s.charAt(right));
+    maxLen = Math.max(maxLen, right - left + 1);
+}
+return maxLen;
+```
+
+
+
+**Tests to Pass:**
+
+
+```java
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+
+class LongestSubstringTest {
+
+    @Test
+    void mixedRepeats() {
+        assertEquals(3, lengthOfLongestSubstring("abcabcbb"));
+    }
+
+    @Test
+    void allSameCharacter() {
+        assertEquals(1, lengthOfLongestSubstring("bbbbb"));
+    }
+
+    @Test
+    void repeatInMiddle() {
+        assertEquals(3, lengthOfLongestSubstring("pwwkew"));
+    }
+
+    @Test
+    void emptyString() {
+        assertEquals(0, lengthOfLongestSubstring(""));
+    }
+
+    @Test
+    void allUnique() {
+        assertEquals(5, lengthOfLongestSubstring("abcde"));
+    }
+}
+```
+
+**Solution:**
+
+
+**Click to reveal solution**
+
+
+```java
+public static int lengthOfLongestSubstring(String s) {
+    if (s == null || s.isEmpty()) {
+        return 0;
+    }
+
+    Set<Character> window = new HashSet<>();
+    int left = 0;
+    int maxLen = 0;
+
+    for (int right = 0; right < s.length(); right++) {
+        while (window.contains(s.charAt(right))) {
+            window.remove(s.charAt(left));
+            left++;
+        }
+        window.add(s.charAt(right));
+        maxLen = Math.max(maxLen, right - left + 1);
+    }
+
+    return maxLen;
+}
+```
+
+
+
+---
+
+## Level D: Automation-Oriented
+
+These exercises reflect real tasks you'd encounter building or maintaining a test framework. They combine parsing, validation, and data generation — the kind of utility code SDETs write regularly.
+
+---
+
+### D1: Parse Configuration from Properties Format
+
+**Problem:** Write `Map<String, String> parseProperties(List<String> lines)` that parses lines in `key=value` format into a map.
+
+Handle these cases:
+- **Comment lines** (starting with `#`) — skip them
+- **Blank lines** — skip them
+- **Keys with no value** (e.g., `debug=`) — store as empty string
+- **Values containing `=`** (e.g., `url=https://api.com?a=1`) — only split on the *first* `=`
+- **Leading/trailing whitespace** on keys and values — trim it
+
+**Input/Output Examples:**
+
+| Input Lines | Output |
+|---|---|
+| `["# DB config", "host=localhost", "port=5432", "", "debug=", "url=https://x.com?a=1"]` | `{host=localhost, port=5432, debug=, url=https://x.com?a=1}` |
+
+**Time Target:** 25 minutes
+
+**Hints:**
+
+
+**Hint 1 (direction)**
+
+`String.trim()` removes whitespace. `String.startsWith("#")` detects comments. `String.indexOf('=')` finds the first `=` — don't use `split("=")` because it would break on values containing `=`.
+
+
+
+
+**Hint 2 (approach)**
+
+For each non-blank, non-comment line: find the first `=` with `indexOf('=')`. Key is `line.substring(0, eqIndex).trim()`. Value is `line.substring(eqIndex + 1).trim()`. If no `=` exists, you could skip the line or treat the whole line as a key with empty value.
+
+
+
+
+**Hint 3 (near-solution)**
+
+```
+for (String line : lines) {
+    String trimmed = line.trim();
+    if (trimmed.isEmpty() || trimmed.startsWith("#")) continue;
+    int eqIndex = trimmed.indexOf('=');
+    if (eqIndex == -1) continue;     // or handle as key-only
+    String key = trimmed.substring(0, eqIndex).trim();
+    String value = trimmed.substring(eqIndex + 1).trim();
+    map.put(key, value);
+}
+```
+
+
+
+**Tests to Pass:**
+
+
+```java
+import org.junit.jupiter.api.Test;
+import java.util.List;
+import java.util.Map;
+import static org.junit.jupiter.api.Assertions.*;
+
+class PropertiesParserTest {
+
+    @Test
+    void parsesSimpleKeyValue() {
+        Map<String, String> result = parseProperties(List.of("host=localhost"));
+        assertEquals("localhost", result.get("host"));
+    }
+
+    @Test
+    void skipsComments() {
+        Map<String, String> result = parseProperties(List.of("# comment", "key=value"));
+        assertEquals(1, result.size());
+        assertEquals("value", result.get("key"));
+    }
+
+    @Test
+    void skipsBlankLines() {
+        Map<String, String> result = parseProperties(List.of("a=1", "", "b=2"));
+        assertEquals(2, result.size());
+    }
+
+    @Test
+    void handlesEmptyValue() {
+        Map<String, String> result = parseProperties(List.of("debug="));
+        assertEquals("", result.get("debug"));
+    }
+
+    @Test
+    void handlesEqualsInValue() {
+        Map<String, String> result = parseProperties(List.of("url=https://x.com?a=1&b=2"));
+        assertEquals("https://x.com?a=1&b=2", result.get("url"));
+    }
+}
+```
+
+**Solution:**
+
+
+**Click to reveal solution**
+
+
+```java
+public static Map<String, String> parseProperties(List<String> lines) {
+    if (lines == null) {
+        return new HashMap<>();
+    }
+
+    Map<String, String> properties = new LinkedHashMap<>();
+
+    for (String line : lines) {
+        String trimmed = line.trim();
+
+        if (trimmed.isEmpty() || trimmed.startsWith("#")) {
+            continue;
+        }
+
+        int eqIndex = trimmed.indexOf('=');
+        if (eqIndex == -1) {
+            continue;
+        }
+
+        String key = trimmed.substring(0, eqIndex).trim();
+        String value = trimmed.substring(eqIndex + 1).trim();
+        properties.put(key, value);
+    }
+
+    return properties;
+}
+```
+
+
+
+---
+
+### D2: Validate API Response
+
+**Problem:** Write `List<String> validateBookingResponse(Map<String, Object> response)` that validates a booking API response and returns a list of validation error messages. An empty list means the response is valid.
+
+Validation rules:
+1. Must have key `"id"` — value must be a positive `Integer`
+2. Must have key `"status"` — value must be one of `"RESERVED"`, `"CONFIRMED"`, `"CANCELLED"`
+3. Must have key `"checkInDate"` and `"checkOutDate"` — both must be `String` in any format, but `checkInDate` must come before `checkOutDate` lexicographically (assumes ISO format like `"2024-01-15"`)
+4. Must have key `"amount"` — value must be a positive `Number`
+
+**Input/Output Examples:**
+
+| Input | Output |
+|---|---|
+| `{id=1, status=CONFIRMED, checkInDate=2024-01-15, checkOutDate=2024-01-20, amount=250.0}` | `[]` (valid) |
+| `{id=-1, status=INVALID}` | `["id must be a positive integer", "status must be one of [RESERVED, CONFIRMED, CANCELLED]", "checkInDate is required", "checkOutDate is required", "amount is required"]` |
+
+**Time Target:** 25 minutes
+
+**Hints:**
+
+
+**Hint 1 (direction)**
+
+Build a `List<String> errors` and add messages as you find problems. Each validation rule is an independent check — don't short-circuit.
+
+
+
+
+**Hint 2 (approach)**
+
+Use `response.get("id") instanceof Integer id` (pattern matching in Java 16+) to check type and extract value simultaneously. For `status`, use `Set.of("RESERVED", "CONFIRMED", "CANCELLED").contains(value)`.
+
+
+
+
+**Hint 3 (near-solution)**
+
+For date comparison, if both are ISO strings (`"2024-01-15"`), `String.compareTo()` works because ISO dates are lexicographically sortable. Check `checkIn.compareTo(checkOut) >= 0` → error.
+
+
+
+**Tests to Pass:**
+
+
+```java
+import org.junit.jupiter.api.Test;
+import java.util.List;
+import java.util.Map;
+import static org.junit.jupiter.api.Assertions.*;
+
+class BookingValidatorTest {
+
+    @Test
+    void validResponseReturnsNoErrors() {
+        Map<String, Object> response = Map.of(
+            "id", 1,
+            "status", "CONFIRMED",
+            "checkInDate", "2024-01-15",
+            "checkOutDate", "2024-01-20",
+            "amount", 250.0
+        );
+        assertTrue(validateBookingResponse(response).isEmpty());
+    }
+
+    @Test
+    void negativeIdReturnsError() {
+        Map<String, Object> response = Map.of(
+            "id", -1, "status", "CONFIRMED",
+            "checkInDate", "2024-01-15", "checkOutDate", "2024-01-20",
+            "amount", 100.0
+        );
+        List<String> errors = validateBookingResponse(response);
+        assertTrue(errors.stream().anyMatch(e -> e.contains("id")));
+    }
+
+    @Test
+    void invalidStatusReturnsError() {
+        Map<String, Object> response = Map.of(
+            "id", 1, "status", "PENDING",
+            "checkInDate", "2024-01-15", "checkOutDate", "2024-01-20",
+            "amount", 100.0
+        );
+        assertTrue(validateBookingResponse(response).stream()
+            .anyMatch(e -> e.contains("status")));
+    }
+
+    @Test
+    void checkInAfterCheckOutReturnsError() {
+        Map<String, Object> response = Map.of(
+            "id", 1, "status", "CONFIRMED",
+            "checkInDate", "2024-01-20", "checkOutDate", "2024-01-15",
+            "amount", 100.0
+        );
+        assertTrue(validateBookingResponse(response).stream()
+            .anyMatch(e -> e.contains("checkInDate")));
+    }
+
+    @Test
+    void missingFieldsReturnErrors() {
+        List<String> errors = validateBookingResponse(Map.of());
+        assertTrue(errors.size() >= 4);
+    }
+}
+```
+
+**Solution:**
+
+
+**Click to reveal solution**
+
+
+```java
+public static List<String> validateBookingResponse(Map<String, Object> response) {
+    List<String> errors = new ArrayList<>();
+
+    if (response == null) {
+        return List.of("Response is null");
+    }
+
+    // Validate id
+    Object id = response.get("id");
+    if (id == null) {
+        errors.add("id is required");
+    } else if (!(id instanceof Integer) || (Integer) id <= 0) {
+        errors.add("id must be a positive integer");
+    }
+
+    // Validate status
+    Set<String> validStatuses = Set.of("RESERVED", "CONFIRMED", "CANCELLED");
+    Object status = response.get("status");
+    if (status == null) {
+        errors.add("status is required");
+    } else if (!(status instanceof String) || !validStatuses.contains(status)) {
+        errors.add("status must be one of [RESERVED, CONFIRMED, CANCELLED]");
+    }
+
+    // Validate dates
+    Object checkIn = response.get("checkInDate");
+    Object checkOut = response.get("checkOutDate");
+
+    if (checkIn == null) {
+        errors.add("checkInDate is required");
+    }
+    if (checkOut == null) {
+        errors.add("checkOutDate is required");
+    }
+    if (checkIn instanceof String checkInStr && checkOut instanceof String checkOutStr) {
+        if (checkInStr.compareTo(checkOutStr) >= 0) {
+            errors.add("checkInDate must be before checkOutDate");
+        }
+    }
+
+    // Validate amount
+    Object amount = response.get("amount");
+    if (amount == null) {
+        errors.add("amount is required");
+    } else if (!(amount instanceof Number) || ((Number) amount).doubleValue() <= 0) {
+        errors.add("amount must be a positive number");
+    }
+
+    return errors;
+}
+```
+
+
+
+---
+
+### D3: Generate Unique Test Data
+
+**Problem:** Write a `TestDataGenerator` class with three methods:
+1. `String uniqueEmail()` — returns a unique email like `"testuser-<unique>@test.com"`
+2. `String uniqueName()` — returns a unique name like `"User-<unique>"`
+3. `Map<String, String> testUser()` — returns a map with keys `"email"`, `"name"`, `"id"` all unique
+
+Uniqueness must be guaranteed across multiple calls within the same test run. Use either `UUID.randomUUID()` or `AtomicInteger` for uniqueness.
+
+**Time Target:** 25 minutes
+
+**Hints:**
+
+
+**Hint 1 (direction)**
+
+`AtomicInteger` gives shorter, more readable IDs (`user-1`, `user-2`). `UUID` gives globally unique but longer IDs. Choose `AtomicInteger` for test readability.
+
+
+
+
+**Hint 2 (approach)**
+
+Make the counter a field: `private final AtomicInteger counter = new AtomicInteger(0)`. Each method calls `counter.incrementAndGet()` to get the next unique number.
+
+
+
+
+**Hint 3 (near-solution)**
+
+```
+class TestDataGenerator {
+    private final AtomicInteger counter = new AtomicInteger(0);
+
+    public String uniqueEmail() {
+        return "testuser-" + counter.incrementAndGet() + "@test.com";
+    }
+    // similar for uniqueName and testUser
+}
+```
+
+
+
+**Tests to Pass:**
+
+
+```java
+import org.junit.jupiter.api.Test;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+import static org.junit.jupiter.api.Assertions.*;
+
+class TestDataGeneratorTest {
+
+    private final TestDataGenerator generator = new TestDataGenerator();
+
+    @Test
+    void emailsAreUnique() {
+        Set<String> emails = new HashSet<>();
+        for (int i = 0; i < 100; i++) {
+            assertTrue(emails.add(generator.uniqueEmail()), "Duplicate email generated");
+        }
+    }
+
+    @Test
+    void namesAreUnique() {
+        assertNotEquals(generator.uniqueName(), generator.uniqueName());
+    }
+
+    @Test
+    void emailContainsAtSign() {
+        assertTrue(generator.uniqueEmail().contains("@"));
+    }
+
+    @Test
+    void testUserHasRequiredKeys() {
+        Map<String, String> user = generator.testUser();
+        assertTrue(user.containsKey("email"));
+        assertTrue(user.containsKey("name"));
+        assertTrue(user.containsKey("id"));
+    }
+
+    @Test
+    void testUserValuesAreNonEmpty() {
+        Map<String, String> user = generator.testUser();
+        user.values().forEach(v -> assertFalse(v.isEmpty()));
+    }
+}
+```
+
+**Solution:**
+
+
+**Click to reveal solution**
+
+
+```java
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
+
+public class TestDataGenerator {
+
+    private final AtomicInteger counter = new AtomicInteger(0);
+
+    public String uniqueEmail() {
+        return "testuser-" + counter.incrementAndGet() + "@test.com";
+    }
+
+    public String uniqueName() {
+        return "User-" + counter.incrementAndGet();
+    }
+
+    public Map<String, String> testUser() {
+        int id = counter.incrementAndGet();
+        return Map.of(
+            "id", String.valueOf(id),
+            "email", "testuser-" + id + "@test.com",
+            "name", "User-" + id
+        );
+    }
+}
+```
+
+
+
+---
+
+## Code Review Checklist (apply to every exercise)
+
+After completing each exercise, review your code against this checklist:
+
+- [ ] **Single responsibility** — method does one thing and does it well
+- [ ] **Edge cases handled** — null, empty, boundary values tested and handled
+- [ ] **No magic numbers** — constants are named or obvious from context
+- [ ] **Variable names are descriptive** — `seen`, `duplicates`, `complement` tell you *what* they hold
+- [ ] **Time complexity stated and meets target** — can you explain the Big-O of your solution?
+- [ ] **Tests written before implementation** — did you follow TDD, or did you write code first and tests after?
+- [ ] **No unnecessary comments** — the code reads clearly without them; comments explain *why*, not *what*
+
+---
+
+**Related:** Syntax And Control Flow, Collections And Generics, Lambdas And Streams

@@ -1,0 +1,590 @@
+---
+title: "Arrays and Strings"
+description: "What: Arrays and strings — contiguous blocks of elements accessed by index — form the basis of ~40% of coding interview problems."
+summary: "SDET Engineering guide: Arrays and Strings"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "dsa"
+lesson: "arrays-and-strings"
+difficulty: "intermediate"
+estimatedMinutes: 37
+prerequisites: []
+tags: ["SDET", "DSA", "Algorithms"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/dsa/arrays-and-strings"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Arrays and Strings
+
+> **Module:** 01-programming-foundations / dsa
+> **Prerequisites:** Complexity Analysis, Collections And Generics
+> **Mastery Target:** L3
+
+---
+
+## Quick Overview (2-minute read)
+
+**What:** Arrays and strings — contiguous blocks of elements accessed by index — form the basis of ~40% of coding interview problems.
+
+**Why:** SDETs work with these constantly: parsing test data, comparing API responses, manipulating locators, validating formatted strings, detecting duplicates. These patterns transfer directly to both interviews and daily automation.
+
+**Where:** Test data arrays, API response comparison, log parsing, locator construction, configuration extraction.
+
+<KeyTakeaways>
+
+1. Most array/string problems boil down to 5 patterns: **frequency counting**, **two pointers**, **sliding window**, **prefix operations**, and **in-place manipulation**. Recognizing the pattern is 80% of solving the problem.
+2. **HashMap is your best friend** — it turns O(n^2) brute-force searches into O(n) lookups. When the problem says "find," "count," or "group," think HashMap first.
+3. **Two pointers** eliminate the need for nested loops on sorted data or when scanning from both ends. O(n^2) → O(n).
+4. **Sliding window** is the go-to pattern for subarray/substring problems with a contiguous constraint. "Maximum/minimum of k consecutive" or "longest substring with property X" are sliding window signals.
+5. **In Java, strings are immutable.** Every concatenation creates a new object. Use `StringBuilder` for building strings in loops, and use `toCharArray()` when you need to modify characters.
+
+</KeyTakeaways>
+
+
+---
+
+## Patterns and Techniques (Layer 2)
+
+### Pattern 1: Frequency Counting with HashMap
+
+**When to use:** The problem involves counting occurrences, finding duplicates, checking if two collections have the same elements (anagrams), or grouping by some property.
+
+**Signal words:** "frequency," "count," "duplicate," "anagram," "permutation," "majority."
+
+**Template:**
+
+
+```java
+// Generic frequency counting template
+public static Map<Character, Integer> buildFrequencyMap(String s) {
+    Map<Character, Integer> freq = new HashMap<>();
+    for (char c : s.toCharArray()) {
+        freq.put(c, freq.getOrDefault(c, 0) + 1);
+    }
+    return freq;
+}
+```
+
+**How it works:** Iterate → `getOrDefault` to increment → query the map (check counts, find max, detect count > 1).
+
+**Complexity:** O(n) time, O(k) space where k = number of distinct elements.
+
+**Tip:** Use `int[26]` instead of HashMap when input is limited to lowercase English letters. Use `Map.merge(key, 1, Integer::sum)` as a concise alternative.
+
+---
+
+### Pattern 2: Two-Pointer Technique
+
+**When to use:** The input is sorted (or ordering matters), and you need to find pairs, check symmetry, or partition elements. Two pointers reduce a nested loop to a single pass.
+
+**Signal words:** "pair," "sorted," "palindrome," "reverse," "in-place," "partition."
+
+#### Variant A: Opposite Ends (Converging Pointers)
+
+Start at both ends, move inward. Use cases: palindrome check, two-sum on sorted array, container with most water.
+
+
+```java
+public static boolean isPalindrome(String s) {
+    int left = 0, right = s.length() - 1;
+    while (left < right) {
+        if (s.charAt(left) != s.charAt(right)) return false;
+        left++;
+        right--;
+    }
+    return true;
+}
+```
+
+#### Variant B: Same Direction (Read/Write Pointers)
+
+Both move forward. Read pointer scans, write pointer tracks where to place the next valid element. Use cases: remove duplicates in-place, move zeros, partition.
+
+
+```java
+public static int removeDuplicates(int[] nums) {
+    if (nums.length == 0) return 0;
+    int write = 1;
+    for (int read = 1; read < nums.length; read++) {
+        if (nums[read] != nums[read - 1]) nums[write++] = nums[read];
+    }
+    return write;
+}
+```
+
+**Complexity:** O(n) time, O(1) space for both variants.
+
+---
+
+### Pattern 3: Sliding Window
+
+**When to use:** The problem asks about a contiguous subarray or substring, and you need to find the max/min/longest/shortest that satisfies some condition.
+
+**Signal words:** "contiguous," "consecutive," "subarray," "substring," "window," "at most k."
+
+#### Variant A: Fixed-Size Window
+
+Window size k is given. Initialize the first window, then slide: add the new element, remove the element leaving the window.
+
+
+```java
+public static int maxSumOfK(int[] nums, int k) {
+    int windowSum = 0;
+    for (int i = 0; i < k; i++) windowSum += nums[i];
+    int maxSum = windowSum;
+    for (int i = k; i < nums.length; i++) {
+        windowSum += nums[i] - nums[i - k]; // slide: add new, remove old
+        maxSum = Math.max(maxSum, windowSum);
+    }
+    return maxSum;
+}
+```
+
+**Complexity:** O(n) time, O(1) space.
+
+#### Variant B: Variable-Size Window
+
+The window expands and contracts based on a condition. Use two pointers (`left` and `right`) for boundaries. Expand `right` to grow the window; contract `left` when the window violates the constraint. See Problem 5 below for a complete example.
+
+**Complexity:** O(n) time (each element is added and removed at most once), O(k) space.
+
+---
+
+### Pattern 4: Prefix Operations
+
+**When to use:** The problem asks for range sums or cumulative results on a subarray. You need to answer multiple range queries efficiently.
+
+**Signal words:** "sum between indices," "range query," "cumulative," "running total."
+
+
+```java
+// Build: prefix[i] = sum of nums[0..i-1]
+int[] prefix = new int[nums.length + 1];
+for (int i = 0; i < nums.length; i++) prefix[i + 1] = prefix[i] + nums[i];
+
+// Query: sum of nums[left..right] = prefix[right+1] - prefix[left]  →  O(1)
+```
+
+**Complexity:** O(n) to build, O(1) per range query.
+
+---
+
+### Pattern 5: In-Place Array Manipulation
+
+**When to use:** The problem requires modifying an array without extra space. Common when the problem says "in-place" or "constant extra space."
+
+**Signal words:** "in-place," "constant space," "modify the array," "rearrange."
+
+**Core technique:** Use swap or read/write pointers to rearrange elements without allocating a new array.
+
+
+```java
+// Reverse — building block for rotate, palindrome, etc.
+public static void reverse(int[] nums, int start, int end) {
+    while (start < end) { int t = nums[start]; nums[start++] = nums[end]; nums[end--] = t; }
+}
+
+// Move zeros to end — read/write pointer pattern
+public static void moveZeroes(int[] nums) {
+    int w = 0;
+    for (int r = 0; r < nums.length; r++) { if (nums[r] != 0) nums[w++] = nums[r]; }
+    while (w < nums.length) nums[w++] = 0;
+}
+```
+
+**Dutch National Flag (3-way partition):** Partition into three groups in one pass using three pointers (low, mid, high). See LeetCode 75 — Sort Colors.
+
+**Complexity:** O(n) time, O(1) space.
+
+---
+
+## Problems (Layer 3)
+
+### Problem 1: Two Sum (Easy)
+
+**Problem:** Given an array of integers `nums` and an integer `target`, return the indices of the two numbers that add up to `target`. Exactly one solution exists; you may not use the same element twice.
+
+**Examples:** `[2, 7, 11, 15], target=9` → `[0, 1]` | `[3, 2, 4], target=6` → `[1, 2]`
+
+**Brute force:** Check every pair. O(n^2) time, O(1) space.
+**Optimal:** Single pass with HashMap — check if `target - nums[i]` exists in the map. O(n) time, O(n) space.
+
+**Hints:**
+1. For each number, what specific value would you need to find to complete the sum?
+2. How can you check if that complementary value was seen before — in O(1) time?
+3. Store each number's index in a HashMap as you iterate. Check for the complement before inserting.
+
+
+**Solution**
+
+
+```java
+public static int[] twoSum(int[] nums, int target) {
+    Map<Integer, Integer> seen = new HashMap<>();
+    for (int i = 0; i < nums.length; i++) {
+        int complement = target - nums[i];
+        if (seen.containsKey(complement)) {
+            return new int[] { seen.get(complement), i };
+        }
+        seen.put(nums[i], i);
+    }
+    throw new IllegalArgumentException("No two sum solution");
+}
+```
+
+**Time:** O(n) — single pass, O(1) HashMap lookups.
+**Space:** O(n) — HashMap stores up to n entries.
+
+
+
+**Automation connection:** This is the same pattern as matching expected values to actual values in API response validation — "does this expected value exist anywhere in the response array?"
+
+---
+
+### Problem 2: Valid Anagram (Easy)
+
+**Problem:** Given two strings `s` and `t`, return `true` if `t` is an anagram of `s` (same characters, same frequencies, different order).
+
+**Examples:** `"anagram", "nagaram"` → `true` | `"rat", "car"` → `false`
+
+**Brute force:** Sort both strings and compare. O(n log n) time, O(n) space.
+**Optimal:** Count character frequencies — increment for `s`, decrement for `t`. O(n) time, O(1) space.
+
+**Hints:**
+1. Two strings are anagrams if they have the exact same character counts.
+2. You can use a single frequency array: increment for `s`, decrement for `t`.
+3. If all counts are zero at the end, the strings are anagrams.
+
+
+**Solution**
+
+
+```java
+public static boolean isAnagram(String s, String t) {
+    if (s.length() != t.length()) return false;
+
+    int[] freq = new int[26]; // works for lowercase English letters
+    for (int i = 0; i < s.length(); i++) {
+        freq[s.charAt(i) - 'a']++;
+        freq[t.charAt(i) - 'a']--;
+    }
+    for (int count : freq) {
+        if (count != 0) return false;
+    }
+    return true;
+}
+```
+
+**Time:** O(n) — two passes through the arrays.
+**Space:** O(1) — the `int[26]` array is constant size regardless of input length.
+
+
+
+**Automation connection:** Same technique for verifying that two test data sets contain the same elements regardless of order — comparing expected vs actual response fields.
+
+---
+
+### Problem 3: Best Time to Buy and Sell Stock (Easy)
+
+**Problem:** Given an array `prices` where `prices[i]` is the stock price on day `i`, find the maximum profit from one buy and one sell (buy before sell). Return 0 if no profit is possible.
+
+**Examples:** `[7, 1, 5, 3, 6, 4]` → `5` (buy at 1, sell at 6) | `[7, 6, 4, 3, 1]` → `0`
+
+**Brute force:** Check every buy/sell pair. O(n^2) time, O(1) space.
+**Optimal:** Single pass tracking the minimum price seen so far. At each position, calculate `price - minSoFar` and track the max. O(n) time, O(1) space.
+
+**Hints:**
+1. You always want to buy at the lowest price before the current day.
+2. Track the minimum price seen so far as you iterate left to right.
+3. At each day, `profit = prices[i] - minSoFar`. Track the maximum of all such profits.
+
+
+**Solution**
+
+
+```java
+public static int maxProfit(int[] prices) {
+    int minPrice = Integer.MAX_VALUE;
+    int maxProfit = 0;
+    for (int price : prices) {
+        minPrice = Math.min(minPrice, price);
+        maxProfit = Math.max(maxProfit, price - minPrice);
+    }
+    return maxProfit;
+}
+```
+
+**Time:** O(n) — single pass.
+**Space:** O(1) — two variables.
+
+
+
+**Automation connection:** This single-pass-with-running-min/max pattern appears when analyzing test execution times — finding the biggest performance regression between a baseline and the worst observed value.
+
+---
+
+### Problem 4: Container With Most Water (Medium)
+
+**Problem:** Given `n` non-negative integers `height[0..n-1]` representing vertical lines, find two lines that form a container holding the most water.
+
+**Examples:** `[1, 8, 6, 2, 5, 4, 8, 3, 7]` → `49` | `[1, 1]` → `1`
+
+**Brute force:** Check every pair. O(n^2) time, O(1) space.
+**Optimal:** Two pointers at the ends, moving inward. Area = `min(height[left], height[right]) * (right - left)`. Always move the shorter pointer — the only way to find more area is a taller line. O(n) time, O(1) space.
+
+**Hints:**
+1. Area = width × height. Width is `right - left`. Height is the shorter of the two lines.
+2. Start with maximum width (pointers at the two ends). What should you change to potentially increase area?
+3. Moving the taller pointer inward can never increase area (width shrinks, height can't increase). So always move the shorter pointer.
+
+
+**Solution**
+
+
+```java
+public static int maxArea(int[] height) {
+    int left = 0, right = height.length - 1;
+    int maxArea = 0;
+    while (left < right) {
+        int area = Math.min(height[left], height[right]) * (right - left);
+        maxArea = Math.max(maxArea, area);
+        if (height[left] < height[right]) {
+            left++;
+        } else {
+            right--;
+        }
+    }
+    return maxArea;
+}
+```
+
+**Time:** O(n) — each pointer moves at most n times.
+**Space:** O(1) — two pointers and a max tracker.
+
+
+
+---
+
+### Problem 5: Longest Substring Without Repeating Characters (Medium)
+
+**Problem:** Given a string `s`, find the length of the longest substring without repeating characters.
+
+**Examples:** `"abcabcbb"` → `3` ("abc") | `"bbbbb"` → `1` | `"pwwkew"` → `3` ("wke")
+
+**Brute force:** Check every substring for uniqueness. O(n^3) time, O(n) space.
+**Optimal:** Sliding window with HashSet — expand right, contract left when duplicate found. O(n) time, O(min(n, alphabet)) space.
+
+**Hints:**
+1. You need a window of characters with no repeats. What data structure lets you check for membership in O(1)?
+2. When the right pointer hits a character already in the window, shrink from the left until the duplicate is gone.
+3. Track `maxLength = Math.max(maxLength, right - left + 1)` after each valid expansion.
+
+
+**Solution**
+
+
+```java
+public static int lengthOfLongestSubstring(String s) {
+    Set<Character> windowChars = new HashSet<>();
+    int left = 0, maxLen = 0;
+    for (int right = 0; right < s.length(); right++) {
+        while (windowChars.contains(s.charAt(right))) {
+            windowChars.remove(s.charAt(left));
+            left++;
+        }
+        windowChars.add(s.charAt(right));
+        maxLen = Math.max(maxLen, right - left + 1);
+    }
+    return maxLen;
+}
+```
+
+**Time:** O(n) — each character is added and removed from the set at most once.
+**Space:** O(min(n, m)) where m is the alphabet size (26 for lowercase letters, 128 for ASCII).
+
+
+
+**Automation connection:** Parsing unique tokens from log entries or extracting non-repeating segments from test identifiers uses the same windowing logic.
+
+---
+
+### Problem 6: Group Anagrams (Medium)
+
+**Problem:** Given an array of strings `strs`, group the anagrams together.
+
+**Examples:** `["eat","tea","tan","ate","nat","bat"]` → `[["eat","tea","ate"],["tan","nat"],["bat"]]`
+
+**Brute force:** Compare every pair for anagram-ness. O(n^2 * k) time.
+**Optimal:** Sort each string as canonical key → group by key in HashMap. O(n * k * log(k)) time, O(n * k) space.
+
+**Hints:**
+1. Two strings are anagrams if they produce the same result when sorted.
+2. Sorted string = canonical key. Use it as a HashMap key.
+3. `Map<String, List<String>>` — the sorted form maps to all original strings that match.
+
+
+**Solution**
+
+
+```java
+public static List<List<String>> groupAnagrams(String[] strs) {
+    Map<String, List<String>> groups = new HashMap<>();
+    for (String s : strs) {
+        char[] chars = s.toCharArray();
+        Arrays.sort(chars);
+        String key = new String(chars);
+        groups.computeIfAbsent(key, k -> new ArrayList<>()).add(s);
+    }
+    return new ArrayList<>(groups.values());
+}
+```
+
+**Time:** O(n * k * log(k)) where n = number of strings, k = max string length (sorting each string).
+**Space:** O(n * k) — storing all strings in the map.
+
+
+
+**Automation connection:** Grouping test cases by some canonical property (e.g., grouping API tests by endpoint regardless of parameter order) uses the exact same "canonical key → group" pattern.
+
+---
+
+## Common Mistakes (Layer 4)
+
+### Mistake 1: Off-by-One Errors in Substring/Subarray Boundaries
+
+
+```java
+for (int i = 0; i <= s.length(); i++) { }  // WRONG: accesses index s.length()
+for (int i = 0; i < s.length(); i++) { }   // CORRECT: 0 to length-1
+
+"hello".substring(1, 3); // "el" — end is EXCLUSIVE, not "ell"
+
+while (left < right)   // stops when pointers meet — correct for most two-pointer
+while (left <= right)  // includes meeting point — needed for binary search
+```
+
+<BestPractice>
+
+**Prevention:** Draw out indices on paper. Always test with the first element, last element, and empty input.
+
+</BestPractice>
+
+
+### Mistake 2: Modifying an Array While Iterating
+
+
+```java
+// WRONG: removing at index i shifts elements, next i skips one
+for (int i = 0; i < items.size(); i++) {
+    if (items.get(i).equals("b")) items.remove(i); // skips second "b"
+}
+// FIX: use removeIf, Iterator.remove(), or iterate backwards
+items.removeIf(item -> item.equals("b"));
+```
+
+<BestPractice>
+
+**Prevention:** Use `Iterator.remove()`, `removeIf()`, or iterate backwards. For in-place array problems, use the read/write pointer pattern.
+
+</BestPractice>
+
+
+### Mistake 3: Not Handling Empty Input or Single-Element Arrays
+
+
+```java
+int max = nums[0]; // CRASH if nums is empty — ArrayIndexOutOfBoundsException
+
+// SAFE: Always guard
+if (nums == null || nums.length == 0) {
+    throw new IllegalArgumentException("Array must not be empty");
+}
+```
+
+<BestPractice>
+
+**Prevention:** Start every solution by asking: what if the input is null, empty, or has one element? Add guard clauses before accessing elements.
+
+</BestPractice>
+
+
+---
+
+## Automation Connections (Layer 5)
+
+### Comparing Two API Response Arrays
+
+- **Order matters:** `expected.equals(actual)` — `List.equals` checks size + element-by-element.
+- **Order doesn't matter:** Build a frequency map from `expected` (increment), then decrement for `actual`. If all counts are zero, the arrays match. This is Pattern 1 applied directly.
+
+### Finding Duplicate Test Case Names
+
+Use the HashSet "seen" pattern: iterate test names, `seen.add(name)` returns `false` if already present → add to duplicates set. O(n) time. This is the same pattern as Problem 1's complement check, applied to test suite validation.
+
+### Parsing and Validating Structured Strings
+
+
+```java
+// Validate "YYYY-MM-DD" format — positional character checks
+public static boolean isValidDateFormat(String date) {
+    if (date == null || date.length() != 10) return false;
+    for (int i = 0; i < date.length(); i++) {
+        char c = date.charAt(i);
+        if (i == 4 || i == 7) { if (c != '-') return false; }
+        else { if (!Character.isDigit(c)) return false; }
+    }
+    return true;
+}
+```
+
+Same character-by-character scanning applies to email validation, locator format checks, and extracting structured tokens from log lines.
+
+---
+
+## Interview and Revision (Layer 6)
+
+### Difficulty Progression and Timing
+
+**Study order:** Easy first (Two Sum, Valid Anagram, Buy/Sell Stock) → Medium (Container, Longest Substring, Group Anagrams) → don't attempt Hard until Medium is consistent.
+
+| Difficulty | Target Time | Breakdown |
+|---|---|---|
+| Easy | 10–15 min | Recognize pattern: 2 min → code + test: 13 min |
+| Medium | 20–25 min | Identify approach: 5 min → implement: 15 min → edge cases: 5 min |
+
+**Stuck?** If you can't identify the pattern within 5 minutes, check: Is the input sorted? Contiguous subarray? Pairs/groups? In-place? These map directly to the five patterns.
+
+### Pattern Recognition Checklist
+
+| If the Problem Says... | Pattern |
+|---|---|
+| "Count occurrences," "duplicates," "anagram," "permutation" | Frequency counting (Pattern 1) |
+| "Sorted array," "palindrome," "two values," "reverse" | Two pointers (Pattern 2) |
+| "Contiguous subarray/substring," "window of size k," "longest/shortest with property" | Sliding window (Pattern 3) |
+| "Sum between indices," "range query" | Prefix sum (Pattern 4) |
+| "In-place," "constant extra space," "rearrange" | In-place manipulation (Pattern 5) |
+
+### Mastery Checklist
+
+- [ ] Can recognize which of the 5 patterns applies to a new problem within 2–3 minutes
+- [ ] Can write the two-pointer template from memory (both variants)
+- [ ] Can write the sliding window template from memory (both variants)
+- [ ] Can solve Two Sum, Valid Anagram, and Best Time to Buy/Sell Stock in under 15 minutes each
+- [ ] Can solve Container With Most Water and Longest Substring Without Repeating in under 25 minutes each
+- [ ] Can explain the time and space complexity of each solution
+- [ ] Can identify off-by-one traps in substring boundaries
+- [ ] Can apply frequency counting to real automation scenarios (API comparison, duplicate detection)
+
+---
+
+**Next:** Hashmaps And Hashsets | **Related:** Complexity Analysis, Collections And Generics

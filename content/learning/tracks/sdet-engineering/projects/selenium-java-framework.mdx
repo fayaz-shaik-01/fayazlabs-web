@@ -1,0 +1,456 @@
+---
+title: "Project: Selenium + Java + TestNG Framework"
+description: "Build a production-grade Selenium WebDriver framework from scratch for testing the StayNest web application. This project demonstrates the skills most commonly evaluated in SDET interviews: Page Object Model, parallel execution, configuration management, reporting, and CI integration."
+summary: "SDET Engineering guide: Project: Selenium + Java + TestNG Framework"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "projects"
+lesson: "selenium-java-framework"
+difficulty: "intermediate"
+estimatedMinutes: 30
+prerequisites: []
+tags: ["SDET", "Projects", "Portfolio"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/projects/selenium-java-framework"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Project: Selenium + Java + TestNG Framework
+
+> **Module:** 12 — Projects
+> **Prerequisites:** Project Roadmap, Page And Screen Objects, Parallel Execution, Logging And Reporting
+> **Estimated Time:** 20-25 hours
+> **Difficulty:** Intermediate
+
+---
+
+## Project Description
+
+Build a production-grade Selenium WebDriver framework from scratch for testing the StayNest web application. This project demonstrates the skills most commonly evaluated in SDET interviews: Page Object Model, parallel execution, configuration management, reporting, and CI integration.
+
+**What you'll build:** A framework that supports writing new tests in 5-10 lines, runs tests in parallel across browsers, captures screenshots on failure, and produces rich HTML reports.
+
+**System under test:** StayNest React web client (`http://localhost:5173`)
+
+---
+
+## Tech Stack
+
+| Component | Technology | Version | Purpose |
+| --- | --- | --- | --- |
+| Language | Java | 21 | Primary language |
+| Browser Automation | Selenium WebDriver | 4.x | Browser interactions |
+| Test Runner | TestNG | 7.9+ | Execution, grouping, parallel |
+| Build Tool | Maven | 3.9+ | Dependency management, execution |
+| Reporting | Allure | 2.x | HTML reports with screenshots, steps |
+| Logging | Logback + SLF4J | 1.4+ | Structured logging |
+| Driver Management | WebDriverManager | 5.x | Auto-download browser drivers |
+| Assertions | AssertJ | 3.x | Fluent assertion library |
+| Data | Jackson | 2.17+ | JSON test data files |
+
+---
+
+## Framework Architecture
+
+```
+┌─────────────────────────────────────────────┐
+│  Test Layer                                 │
+│  LoginTest, SearchTest, BookingTest         │
+│  - Uses page objects, no direct locators    │
+│  - Reads test data from builders/JSON       │
+│  - Assertions via AssertJ                   │
+├─────────────────────────────────────────────┤
+│  Page Object Layer                          │
+│  LoginPage, HomePage, HotelDetailPage,      │
+│  BookingPage, MyBookingsPage, ProfilePage   │
+│  - Encapsulates locators and actions        │
+│  - Returns page objects for navigation      │
+│  - Uses explicit waits internally           │
+├─────────────────────────────────────────────┤
+│  Component Layer                            │
+│  Navbar, SearchBar, HotelCard, Modal        │
+│  - Reusable UI components shared across     │
+│    pages (e.g., Navbar appears on every pg) │
+├─────────────────────────────────────────────┤
+│  Driver Layer                               │
+│  DriverFactory, DriverManager               │
+│  - Creates WebDriver per thread             │
+│  - ThreadLocal<WebDriver> for parallel      │
+│  - Configures browser options (headless)    │
+├─────────────────────────────────────────────┤
+│  Config Layer                               │
+│  ConfigReader, Environment enum             │
+│  - Reads config.properties                  │
+│  - Supports env overrides via system props  │
+├─────────────────────────────────────────────┤
+│  Utility Layer                              │
+│  ScreenshotUtil, WaitUtil, TestDataUtil     │
+│  - Screenshot capture on failure            │
+│  - Custom wait conditions                   │
+│  - API-based test data setup                │
+└─────────────────────────────────────────────┘
+```
+
+---
+
+## Project Structure
+
+```
+staynest-selenium-framework/
+├── pom.xml
+├── testng.xml
+├── README.md
+├── src/
+│   └── test/
+│       ├── java/
+│       │   └── com/staynest/web/
+│       │       ├── base/
+│       │       │   └── BaseWebTest.java
+│       │       ├── config/
+│       │       │   ├── ConfigReader.java
+│       │       │   └── Environment.java
+│       │       ├── driver/
+│       │       │   ├── DriverFactory.java
+│       │       │   └── DriverManager.java
+│       │       ├── pages/
+│       │       │   ├── LoginPage.java
+│       │       │   ├── HomePage.java
+│       │       │   ├── HotelDetailPage.java
+│       │       │   ├── BookingPage.java
+│       │       │   ├── MyBookingsPage.java
+│       │       │   └── ProfilePage.java
+│       │       ├── components/
+│       │       │   ├── Navbar.java
+│       │       │   ├── SearchBar.java
+│       │       │   └── HotelCard.java
+│       │       ├── utils/
+│       │       │   ├── ScreenshotUtil.java
+│       │       │   ├── WaitUtil.java
+│       │       │   └── ApiTestDataHelper.java
+│       │       ├── listeners/
+│       │       │   └── TestListener.java
+│       │       └── tests/
+│       │           ├── LoginTest.java
+│       │           ├── SearchTest.java
+│       │           ├── BookingFlowTest.java
+│       │           ├── ProfileTest.java
+│       │           └── NavigationTest.java
+│       └── resources/
+│           ├── config.properties
+│           ├── config-ci.properties
+│           └── testdata/
+│               └── users.json
+└── .github/
+    └── workflows/
+        └── test.yml
+```
+
+---
+
+## Implementation Milestones
+
+### Milestone 1: Project Setup (2 hours)
+
+**Objectives:** Maven project, dependencies, basic test that opens a browser.
+
+
+```xml
+<!-- Key pom.xml dependencies -->
+<dependencies>
+    <dependency>
+        <groupId>org.seleniumhq.selenium</groupId>
+        <artifactId>selenium-java</artifactId>
+        <version>4.27.0</version>
+    </dependency>
+    <dependency>
+        <groupId>org.testng</groupId>
+        <artifactId>testng</artifactId>
+        <version>7.9.0</version>
+    </dependency>
+    <dependency>
+        <groupId>io.github.bonigarcia</groupId>
+        <artifactId>webdrivermanager</artifactId>
+        <version>5.9.2</version>
+    </dependency>
+    <dependency>
+        <groupId>io.qameta.allure</groupId>
+        <artifactId>allure-testng</artifactId>
+        <version>2.25.0</version>
+    </dependency>
+    <dependency>
+        <groupId>ch.qos.logback</groupId>
+        <artifactId>logback-classic</artifactId>
+        <version>1.4.14</version>
+    </dependency>
+    <dependency>
+        <groupId>org.assertj</groupId>
+        <artifactId>assertj-core</artifactId>
+        <version>3.26.3</version>
+    </dependency>
+</dependencies>
+```
+
+**Success criteria:**
+- [ ] `mvn test` opens Chrome, navigates to StayNest, and closes — no errors
+
+### Milestone 2: First Real Test (3 hours)
+
+**Objectives:** Write a login test without Page Objects first, then refactor.
+
+
+```java
+// Start with a raw test to understand the UI
+@Test
+public void shouldLoginWithValidCredentials() {
+    driver.get("http://localhost:5173/login");
+
+    WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
+    wait.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector("[data-testid='email-input']")));
+
+    driver.findElement(By.cssSelector("[data-testid='email-input']")).sendKeys("test@example.com");
+    driver.findElement(By.cssSelector("[data-testid='password-input']")).sendKeys("password123");
+    driver.findElement(By.cssSelector("[data-testid='login-button']")).click();
+
+    wait.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector("[data-testid='user-name']")));
+    String userName = driver.findElement(By.cssSelector("[data-testid='user-name']")).getText();
+    assertThat(userName).isNotBlank();
+}
+```
+
+**Success criteria:**
+- [ ] Login test passes with hardcoded locators and values
+- [ ] You understand the UI structure before abstracting into page objects
+
+### Milestone 3: Page Object Model (5 hours)
+
+**Objectives:** Refactor into POM. Create LoginPage, HomePage, and BaseWebTest.
+
+
+```java
+public class LoginPage {
+    private final WebDriver driver;
+    private final WebDriverWait wait;
+
+    private final By emailInput = By.cssSelector("[data-testid='email-input']");
+    private final By passwordInput = By.cssSelector("[data-testid='password-input']");
+    private final By loginButton = By.cssSelector("[data-testid='login-button']");
+    private final By errorMessage = By.cssSelector("[data-testid='error-message']");
+
+    public LoginPage(WebDriver driver) {
+        this.driver = driver;
+        this.wait = new WebDriverWait(driver, Duration.ofSeconds(10));
+    }
+
+    public LoginPage open() {
+        driver.get(ConfigReader.get("web.base.url") + "/login");
+        wait.until(ExpectedConditions.visibilityOfElementLocated(emailInput));
+        return this;
+    }
+
+    public HomePage loginAs(String email, String password) {
+        driver.findElement(emailInput).clear();
+        driver.findElement(emailInput).sendKeys(email);
+        driver.findElement(passwordInput).clear();
+        driver.findElement(passwordInput).sendKeys(password);
+        driver.findElement(loginButton).click();
+        return new HomePage(driver);
+    }
+
+    public String getErrorMessage() {
+        wait.until(ExpectedConditions.visibilityOfElementLocated(errorMessage));
+        return driver.findElement(errorMessage).getText();
+    }
+}
+```
+
+**Success criteria:**
+- [ ] Tests use page objects exclusively — no `By.xxx` in test methods
+- [ ] Page methods return the next page object (fluent navigation)
+- [ ] Each page object handles its own waits
+
+### Milestone 4: Configuration and Driver Management (3 hours)
+
+**Objectives:** Externalize config, implement ThreadLocal driver, support multiple browsers.
+
+
+```java
+public class DriverManager {
+    private static final ThreadLocal<WebDriver> driverThreadLocal = new ThreadLocal<>();
+
+    public static WebDriver getDriver() {
+        return driverThreadLocal.get();
+    }
+
+    public static void setDriver(String browser, boolean headless) {
+        WebDriver driver = DriverFactory.createDriver(browser, headless);
+        driverThreadLocal.set(driver);
+    }
+
+    public static void quitDriver() {
+        WebDriver driver = driverThreadLocal.get();
+        if (driver != null) {
+            driver.quit();
+            driverThreadLocal.remove();
+        }
+    }
+}
+
+public class DriverFactory {
+    public static WebDriver createDriver(String browser, boolean headless) {
+        return switch (browser.toLowerCase()) {
+            case "chrome" -> {
+                ChromeOptions options = new ChromeOptions();
+                if (headless) options.addArguments("--headless=new");
+                options.addArguments("--no-sandbox", "--disable-dev-shm-usage");
+                yield new ChromeDriver(options);
+            }
+            case "firefox" -> {
+                FirefoxOptions options = new FirefoxOptions();
+                if (headless) options.addArguments("--headless");
+                yield new FirefoxDriver(options);
+            }
+            default -> throw new IllegalArgumentException("Unsupported browser: " + browser);
+        };
+    }
+}
+```
+
+**Success criteria:**
+- [ ] Tests run in Chrome and Firefox by changing a config property
+- [ ] Headless mode works via `headless=true` in config
+- [ ] ThreadLocal driver supports parallel test execution
+
+### Milestone 5: Parallel Execution (3 hours)
+
+**Objectives:** Configure TestNG parallel execution, verify thread safety.
+
+
+```xml
+<!-- testng.xml with parallel execution -->
+<suite name="StayNest Web Tests" parallel="methods" thread-count="3">
+    <test name="Web UI Tests">
+        <classes>
+            <class name="com.staynest.web.tests.LoginTest"/>
+            <class name="com.staynest.web.tests.SearchTest"/>
+            <class name="com.staynest.web.tests.BookingFlowTest"/>
+        </classes>
+    </test>
+</suite>
+```
+
+**Success criteria:**
+- [ ] 3 tests run simultaneously in 3 separate browser instances
+- [ ] No test interference — each test has its own driver and data
+- [ ] Total execution time is roughly `max(individual test times)`, not sum
+
+### Milestone 6: Reporting and Screenshots (3 hours)
+
+**Objectives:** Allure reporting with screenshots on failure, step annotations.
+
+
+```java
+public class TestListener implements ITestListener {
+    @Override
+    public void onTestFailure(ITestResult result) {
+        WebDriver driver = DriverManager.getDriver();
+        if (driver != null) {
+            byte[] screenshot = ((TakesScreenshot) driver).getScreenshotAs(OutputType.BYTES);
+            Allure.addAttachment(
+                "Screenshot on failure: " + result.getName(),
+                "image/png",
+                new ByteArrayInputStream(screenshot),
+                ".png"
+            );
+        }
+    }
+}
+```
+
+**Success criteria:**
+- [ ] `allure serve` shows HTML report with test results
+- [ ] Failed tests include screenshots in the report
+- [ ] Page object methods are annotated with `@Step` for Allure step tracking
+
+### Milestone 7: CI Integration (3 hours)
+
+**Objectives:** GitHub Actions or Jenkinsfile that runs tests in headless mode.
+
+
+```yaml
+# .github/workflows/test.yml
+name: Selenium Tests
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+      - name: Start StayNest backend
+        run: docker compose -f staynest-backend/docker-compose.yml up -d
+      - name: Wait for backend
+        run: |
+          for i in $(seq 1 30); do
+            curl -s http://localhost:8080/api/v1/auth/signup && break
+            sleep 2
+          done
+      - name: Run tests
+        run: mvn test -Dbrowser=chrome -Dheadless=true
+      - name: Allure Report
+        uses: simple-elf/allure-report-action@master
+        if: always()
+        with:
+          allure_results: target/allure-results
+```
+
+**Success criteria:**
+- [ ] CI pipeline triggers on push and runs all tests in headless Chrome
+- [ ] Allure report is published as a CI artifact
+- [ ] Pipeline completes in under 5 minutes
+
+---
+
+## Tests to Write
+
+| Test Class | Test Method | Priority | Description |
+| --- | --- | --- | --- |
+| LoginTest | shouldLoginWithValidCredentials | P0 | Login → verify home page |
+| LoginTest | shouldShowErrorForInvalidCredentials | P0 | Login with wrong password → error message |
+| LoginTest | shouldRedirectToLoginForProtectedPage | P1 | Visit /bookings without auth → redirect to /login |
+| SearchTest | shouldSearchHotelsByCity | P0 | Enter city + dates → verify results |
+| SearchTest | shouldShowNoResultsForNonexistentCity | P1 | Search fake city → "no results" message |
+| SearchTest | shouldNavigateToHotelDetail | P0 | Search → click hotel → verify detail page |
+| BookingFlowTest | shouldCompleteBookingFlow | P0 | Login → search → book → confirm |
+| BookingFlowTest | shouldShowBookingInMyBookings | P1 | Complete booking → verify in my bookings list |
+| ProfileTest | shouldDisplayUserProfile | P1 | Login → navigate to profile → verify name and email |
+| NavigationTest | shouldNavigateViaBreadcrumbs | P2 | Navigate through pages → verify breadcrumb links |
+
+---
+
+## Design Decisions to Document
+
+When presenting this project in interviews, be prepared to explain:
+
+| Decision | Your Choice | Why |
+| --- | --- | --- |
+| Locator strategy | `data-testid` attributes | Decoupled from CSS/structure, stable across redesigns |
+| Wait strategy | Explicit waits in page objects | No global implicit wait, each action waits for its own condition |
+| Driver lifecycle | ThreadLocal per test method | Parallel-safe, clean state per test |
+| Test data | API-based setup (create user via REST) | Faster than UI signup, more reliable, independent of UI state |
+| Assertion library | AssertJ over TestNG asserts | Fluent API, better error messages, soft assertions |
+
+---
+
+**Related:** Project Roadmap

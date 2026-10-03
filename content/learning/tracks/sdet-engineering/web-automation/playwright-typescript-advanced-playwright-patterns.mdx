@@ -1,0 +1,539 @@
+---
+title: "Advanced Playwright Patterns"
+description: "What: Beyond page objects and fixtures, Playwright provides advanced capabilities that Selenium requires third-party tools for: native network interception (page.route()) for mocking APIs and monitoring requests, Trace Viewer for post-mortem debugging, codegen for recording test actions, visual comparison (toHaveScreenshot()) for pixel-level regression testing, and APIRequestContext for mixing API calls with browser tests. These features are built into the framework — no plugins, no..."
+summary: "SDET Engineering guide: Advanced Playwright Patterns"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "web-automation"
+lesson: "playwright-typescript-advanced-playwright-patterns"
+difficulty: "intermediate"
+estimatedMinutes: 34
+prerequisites: []
+tags: ["SDET", "Web", "Selenium", "Playwright"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/web-automation/playwright-typescript-advanced-playwright-patterns"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Advanced Playwright Patterns
+
+> **Module:** 05 — Web Automation > Playwright TypeScript > Advanced Playwright Patterns  
+> **Prerequisites:** Fixtures And Page Objects, Setup And First Tests, Network And Downloads  
+> **Mastery Target:** L3 (Independent) → L4 (Engineering Judgment)
+
+---
+
+## Quick Overview (Layer 1)
+
+**What:** Beyond page objects and fixtures, Playwright provides advanced capabilities that Selenium requires third-party tools for: native network interception (`page.route()`) for mocking APIs and monitoring requests, Trace Viewer for post-mortem debugging, codegen for recording test actions, visual comparison (`toHaveScreenshot()`) for pixel-level regression testing, and `APIRequestContext` for mixing API calls with browser tests. These features are built into the framework — no plugins, no extra dependencies.
+
+**Why:** These are the patterns that turn a basic Playwright test suite into a robust testing platform. Network interception lets you test edge cases (payment failures, slow responses) without needing a backend. Trace Viewer eliminates the "I can't reproduce this CI failure" problem. Visual regression catches CSS changes that functional tests miss. API + UI testing in one suite lets you set up data via API and verify results in the browser — the fastest way to write end-to-end tests.
+
+**Where:** Mocking external services (payment, email, maps), debugging CI-only failures, catching visual regressions, optimizing test speed by using APIs for setup, and configuring parallel execution for CI pipelines.
+
+<MentalModel>
+
+Think of advanced Playwright as having **X-ray vision for your tests**. Network interception lets you see and control every HTTP request (like controlling the plumbing behind the walls). Trace Viewer lets you rewind and replay a test execution (like security camera footage). Visual comparison lets you spot-check every pixel (like an architect comparing blueprints to the finished building). API testing lets you take shortcuts (like using the service entrance instead of the front door).
+
+</MentalModel>
+
+
+<KeyTakeaways>
+
+1. **`page.route()` intercepts HTTP requests** — you can mock responses, modify requests, abort calls, or monitor what the app sends to the backend.
+2. **Trace Viewer captures everything** — DOM snapshots, network requests, console logs, and screenshots at every action step. It's the most powerful debugging tool in any test framework.
+3. **`toHaveScreenshot()` does pixel-level comparison** — it generates baseline images on first run and compares against them on subsequent runs, with configurable thresholds.
+4. **`APIRequestContext` sends HTTP requests from tests** — use APIs to create test data, verify backend state, or test API endpoints alongside UI flows.
+5. **Playwright's parallelism is built in** — configure workers, sharding, and reporter in `playwright.config.ts`. No Grid, no external infrastructure.
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation (Layer 2)
+
+### Network Interception: page.route()
+
+`page.route()` intercepts HTTP requests matching a pattern and lets you fulfill, modify, or abort them:
+
+
+```typescript
+import { test, expect } from '@playwright/test';
+
+test('mock payment API to simulate success', async ({ page }) => {
+  // Intercept the payment API call and return a mock response
+  await page.route('**/api/v1/payments', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        id: 'pay_mock_123',
+        status: 'succeeded',
+        amount: 450.00,
+      }),
+    });
+  });
+
+  await page.goto('/booking/123/payment');
+  await page.getByTestId('card-number').fill('4111111111111111');
+  await page.getByTestId('expiry').fill('12/26');
+  await page.getByTestId('cvv').fill('123');
+  await page.getByRole('button', { name: 'Pay Now' }).click();
+
+  // App receives mock success response and shows confirmation
+  await expect(page.getByTestId('payment-success')).toBeVisible();
+  await expect(page.getByTestId('payment-id')).toHaveText('pay_mock_123');
+});
+
+test('mock payment API to simulate failure', async ({ page }) => {
+  await page.route('**/api/v1/payments', async (route) => {
+    await route.fulfill({
+      status: 402,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        error: 'card_declined',
+        message: 'Your card was declined',
+      }),
+    });
+  });
+
+  await page.goto('/booking/123/payment');
+  await page.getByTestId('card-number').fill('4000000000000002');
+  await page.getByTestId('expiry').fill('12/26');
+  await page.getByTestId('cvv').fill('123');
+  await page.getByRole('button', { name: 'Pay Now' }).click();
+
+  await expect(page.getByTestId('payment-error')).toHaveText('Your card was declined');
+});
+```
+
+**Monitoring requests without modifying them:**
+
+
+```typescript
+test('verify login sends correct API payload', async ({ page }) => {
+  // Capture the request but let it proceed normally
+  const requestPromise = page.waitForRequest('**/api/v1/auth/login');
+
+  await page.goto('/login');
+  await page.getByLabel('Email').fill('user@staynest.com');
+  await page.getByLabel('Password').fill('SecurePass123!');
+  await page.getByRole('button', { name: 'Login' }).click();
+
+  const request = await requestPromise;
+  const payload = request.postDataJSON();
+  expect(payload.email).toBe('user@staynest.com');
+  expect(payload.password).toBe('SecurePass123!');
+
+  // Also capture the response
+  const responsePromise = page.waitForResponse('**/api/v1/auth/login');
+  const response = await responsePromise;
+  expect(response.status()).toBe(200);
+});
+```
+
+**Modifying requests in flight:**
+
+
+```typescript
+test('add auth header to all API requests', async ({ page }) => {
+  await page.route('**/api/**', async (route) => {
+    const headers = {
+      ...route.request().headers(),
+      'Authorization': 'Bearer test-token-123',
+    };
+    await route.continue({ headers });
+  });
+
+  await page.goto('/dashboard');
+  // All API calls now include the auth header
+});
+```
+
+### Trace Viewer: Recording and Analyzing Failures
+
+Traces capture a complete timeline of a test execution:
+
+
+```typescript
+// playwright.config.ts — configure trace recording
+use: {
+  trace: 'on-first-retry',   // only record trace when test is retried
+  // Other options: 'on', 'off', 'retain-on-failure'
+}
+```
+
+```bash
+# After a test failure, view the trace
+npx playwright show-trace test-results/login-test-chromium/trace.zip
+```
+
+**What a trace contains:**
+- **Timeline** — every action (click, fill, navigate) with timestamps
+- **DOM snapshots** — the page state before and after each action
+- **Network log** — every HTTP request and response
+- **Console log** — all `console.log`, `console.error` from the application
+- **Screenshots** — visual state at each step
+- **Source** — the test code line that triggered each action
+
+**Manual trace recording in tests:**
+
+
+```typescript
+test('debug booking flow with trace', async ({ page, context }) => {
+  // Start recording a trace manually
+  await context.tracing.start({ screenshots: true, snapshots: true });
+
+  await page.goto('/booking/123');
+  await page.getByRole('button', { name: 'Book Now' }).click();
+  // ... more actions ...
+
+  // Save the trace
+  await context.tracing.stop({ path: 'traces/booking-flow.zip' });
+});
+```
+
+### Playwright Codegen: Recording Browser Actions
+
+Codegen watches you interact with the browser and generates test code:
+
+```bash
+# Launch codegen — opens a browser you can interact with
+npx playwright codegen http://localhost:5173/login
+
+# Codegen for a specific device
+npx playwright codegen --device="iPhone 13" http://localhost:5173
+
+# Codegen with saved auth state
+npx playwright codegen --load-storage=playwright/.auth/user.json http://localhost:5173
+```
+
+**Codegen generates code like:**
+
+
+```typescript
+import { test, expect } from '@playwright/test';
+
+test('test', async ({ page }) => {
+  await page.goto('http://localhost:5173/login');
+  await page.getByLabel('Email').fill('user@staynest.com');
+  await page.getByLabel('Password').fill('SecurePass123!');
+  await page.getByRole('button', { name: 'Login' }).click();
+  await expect(page.getByRole('heading', { name: 'Welcome' })).toBeVisible();
+});
+```
+
+**How to use codegen effectively:** Use it to discover locators and generate a rough test skeleton. Then refactor into your POM structure, add proper assertions, and remove any redundant steps. Never commit raw codegen output — it's a starting point, not a finished test.
+
+### Visual Comparison: toHaveScreenshot()
+
+Pixel-level visual regression testing is built into Playwright:
+
+
+```typescript
+test('login page visual regression', async ({ page }) => {
+  await page.goto('/login');
+
+  // First run: creates baseline screenshot (saved to test-results/)
+  // Subsequent runs: compares against baseline, fails if different
+  await expect(page).toHaveScreenshot('login-page.png');
+});
+
+test('property card visual regression', async ({ page }) => {
+  await page.goto('/search?location=Austin');
+
+  // Screenshot a specific element
+  const firstCard = page.getByTestId('property-card').first();
+  await expect(firstCard).toHaveScreenshot('property-card.png');
+});
+
+test('responsive visual check', async ({ page }) => {
+  await page.goto('/login');
+
+  // Full page screenshot with options
+  await expect(page).toHaveScreenshot('login-full.png', {
+    fullPage: true,
+    maxDiffPixelRatio: 0.01,  // allow 1% pixel difference
+    animations: 'disabled',    // freeze CSS animations
+  });
+});
+```
+
+```bash
+# Update baseline screenshots (when design changes are intentional)
+npx playwright test --update-snapshots
+```
+
+### API Testing with APIRequestContext
+
+Playwright can send HTTP requests directly — use APIs to set up test data or verify backend state:
+
+
+```typescript
+import { test, expect } from '@playwright/test';
+
+test('create property via API, verify in UI', async ({ page, request }) => {
+  // Step 1: Create test data via API (fast, reliable)
+  const response = await request.post('/api/v1/properties', {
+    headers: { 'Authorization': 'Bearer admin-token' },
+    data: {
+      name: 'Test Beach House',
+      location: 'Miami, FL',
+      pricePerNight: 200,
+    },
+  });
+  expect(response.ok()).toBeTruthy();
+  const property = await response.json();
+
+  // Step 2: Verify the property appears in the UI
+  await page.goto(`/property/${property.id}`);
+  await expect(page.getByTestId('property-title')).toHaveText('Test Beach House');
+  await expect(page.getByTestId('price-per-night')).toContainText('$200');
+
+  // Step 3: Clean up via API (don't leave test data behind)
+  await request.delete(`/api/v1/properties/${property.id}`, {
+    headers: { 'Authorization': 'Bearer admin-token' },
+  });
+});
+```
+
+**API-only tests (no browser needed):**
+
+
+```typescript
+test.describe('Property API', () => {
+  test('GET /properties returns list', async ({ request }) => {
+    const response = await request.get('/api/v1/properties');
+    expect(response.status()).toBe(200);
+
+    const data = await response.json();
+    expect(data.properties).toBeInstanceOf(Array);
+    expect(data.properties.length).toBeGreaterThan(0);
+  });
+});
+```
+
+### Parallel Execution, Sharding, and Reporters
+
+
+```typescript
+// playwright.config.ts
+export default defineConfig({
+  workers: process.env.CI ? 4 : undefined,  // 4 workers in CI, auto locally
+  fullyParallel: true,                        // parallelize within files too
+  retries: process.env.CI ? 2 : 0,
+
+  reporter: [
+    ['html', { outputFolder: 'playwright-report' }],
+    ['junit', { outputFile: 'results/junit.xml' }],    // for CI integration
+    ['list'],                                            // console output
+  ],
+});
+```
+
+```bash
+# Sharding — split tests across CI machines
+# Machine 1:
+npx playwright test --shard=1/3
+# Machine 2:
+npx playwright test --shard=2/3
+# Machine 3:
+npx playwright test --shard=3/3
+```
+
+---
+
+## Practical Implementation (Layer 3)
+
+### Advanced StayNest Tests
+
+
+```typescript
+import { test, expect } from '../fixtures';
+
+test.describe('Advanced StayNest Scenarios', () => {
+
+  test('mock slow network and verify loading state', async ({ page }) => {
+    // Delay property list API by 3 seconds
+    await page.route('**/api/v1/properties*', async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+      await route.continue();
+    });
+
+    await page.goto('/search?location=Austin');
+
+    // Loading indicator should be visible during delay
+    await expect(page.getByTestId('loading-spinner')).toBeVisible();
+
+    // After delay, loading disappears and results appear
+    await expect(page.getByTestId('loading-spinner')).toBeHidden({ timeout: 10000 });
+    await expect(page.getByTestId('property-card').first()).toBeVisible();
+  });
+
+  test('abort image requests for faster test execution', async ({ page }) => {
+    // Block image loading for speed (useful for data-only tests)
+    await page.route('**/*.{png,jpg,jpeg,webp}', (route) => route.abort());
+
+    await page.goto('/search?location=Austin');
+
+    // Test still works — we're checking data, not images
+    const count = await page.getByTestId('property-card').count();
+    expect(count).toBeGreaterThan(0);
+  });
+
+  test('visual regression for search results page', async ({ page }) => {
+    // Use consistent mock data for visual stability
+    await page.route('**/api/v1/properties*', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          properties: [
+            { id: '1', name: 'Lakeside Cabin', location: 'Austin, TX', price: 150, image: '/mock-cabin.jpg' },
+            { id: '2', name: 'Downtown Loft', location: 'Austin, TX', price: 200, image: '/mock-loft.jpg' },
+          ],
+        }),
+      });
+    });
+
+    await page.goto('/search?location=Austin');
+    await expect(page.getByTestId('property-card').first()).toBeVisible();
+
+    await expect(page).toHaveScreenshot('search-results-austin.png', {
+      maxDiffPixelRatio: 0.02,
+      animations: 'disabled',
+    });
+  });
+});
+```
+
+---
+
+## Failure and Debugging (Layer 4)
+
+### Failure: Network Intercept Not Catching Requests
+
+**Symptom:** `page.route()` is set up but the API call goes through to the real server.
+
+**Root Cause:** The route pattern doesn't match the actual request URL. Common causes: wrong glob pattern, missing query parameters in the pattern, or the route was set up *after* the page already made the request.
+
+
+```typescript
+// BROKEN: route set up after goto — request already fired
+await page.goto('/dashboard');
+await page.route('**/api/v1/properties', handler); // too late!
+
+// FIXED: set up route before navigation
+await page.route('**/api/v1/properties', handler);
+await page.goto('/dashboard');  // now the route catches the request
+```
+
+**Debugging tip:** Use `page.on('request', ...)` to log all requests and see the exact URLs:
+
+
+```typescript
+page.on('request', (request) => console.log('>>', request.method(), request.url()));
+page.on('response', (response) => console.log('<<', response.status(), response.url()));
+```
+
+### Failure: Visual Snapshot Differs Due to Dynamic Content
+
+**Symptom:** `toHaveScreenshot()` fails because timestamps, usernames, or ads change between runs.
+
+<BestPractice>
+
+**Fix:** Mask dynamic content or use consistent mock data:
+
+</BestPractice>
+
+
+
+```typescript
+// Mask dynamic elements (replaced with a colored rectangle)
+await expect(page).toHaveScreenshot('dashboard.png', {
+  mask: [
+    page.getByTestId('current-time'),
+    page.getByTestId('user-avatar'),
+  ],
+});
+```
+
+---
+
+## Engineering Judgment (Layer 5)
+
+### When to Use Network Interception
+
+| Use Case | Intercept? | Reason |
+|---|---|---|
+| Payment processing in tests | Yes | Never send real payment requests; mock success/failure |
+| Third-party services (maps, analytics) | Yes | External dependencies make tests flaky |
+| Core CRUD operations | Usually no | Test real backend behavior |
+| Error state testing (500, timeout) | Yes | Hard to trigger real server errors |
+| Performance testing | No | Mock data skews real performance |
+
+### Visual Testing: toHaveScreenshot() vs Dedicated Tools
+
+| Factor | Playwright built-in | Applitools/Percy |
+|---|---|---|
+| Setup | Zero (built into Playwright) | Separate service, API keys |
+| Comparison algorithm | Pixel-level | AI-powered visual diff |
+| Dynamic content handling | Manual masking | Intelligent region detection |
+| Cross-browser consistency | Separate baselines per browser | Unified baselines |
+| Cost | Free | Paid (can be expensive) |
+| Best for | Component-level checks, small suites | Large visual regression suites |
+
+---
+
+## Interview and Revision (Layer 6)
+
+### Fundamental Questions
+
+**Q1: How does Playwright's network interception compare to Selenium's?**
+
+**A:** Playwright has native `page.route()` for intercepting HTTP requests — you can mock responses, modify headers, abort requests, or delay them. Selenium has no built-in network interception. You'd need CDP (Chrome-only and version-specific) or an external proxy (BrowserMob). Playwright's approach is cross-browser (Chromium, Firefox, WebKit), simpler to use, and integrated into the test lifecycle.
+
+**Q2: What is Trace Viewer and when would you use it?**
+
+**A:** Trace Viewer replays a recorded test execution showing DOM snapshots, network requests, console logs, and screenshots at every action step. I'd use it primarily for debugging CI failures — when a test passes locally but fails in CI, the trace shows exactly what the CI browser saw. Configure `trace: 'on-first-retry'` to automatically capture traces for flaky tests without the overhead of tracing every run.
+
+**Q3: How do you handle visual regression with dynamic content?**
+
+**A:** Three strategies. First, **mock the data** — use `page.route()` to return consistent API responses so the UI always renders the same content. Second, **mask dynamic elements** — pass `mask` option to `toHaveScreenshot()` for timestamps, avatars, and ads. Third, **use `maxDiffPixelRatio`** — allow a small percentage of pixel differences for anti-aliasing and rendering engine variations.
+
+
+
+
+| # | Front (Question) | Back (Answer) |
+|---|---|---|
+| 1 | What does `page.route('**/api/**', handler)` do? | Intercepts all HTTP requests matching the glob pattern and calls `handler`. The handler can `fulfill()` (mock response), `continue()` (let it through, optionally modified), or `abort()` the request. |
+| 2 | What information does a Playwright trace contain? | Timeline of actions with timestamps, DOM snapshots before/after each action, all network requests and responses, console logs, and per-step screenshots. Opened with `npx playwright show-trace`. |
+| 3 | How does `toHaveScreenshot()` work? | First run: saves a baseline image. Subsequent runs: compares current screenshot to baseline, fails if pixel difference exceeds threshold. Update baselines with `--update-snapshots`. |
+| 4 | What is `request` fixture in Playwright? | An `APIRequestContext` that can send HTTP requests (GET, POST, PUT, DELETE) without a browser. Useful for test data setup/cleanup and API-only tests. Shares cookies with the browser context. |
+| 5 | How does Playwright sharding work? | `--shard=X/Y` splits test files across Y machines. Machine X runs only its portion. Each shard is independent — combine reports after all shards complete. |
+
+### Mastery Checklist
+
+- [ ] Can use `page.route()` to mock API responses for different test scenarios
+- [ ] Can monitor network requests using `page.waitForRequest` and `page.waitForResponse`
+- [ ] Can configure and use Trace Viewer for post-mortem debugging
+- [ ] Can use codegen to generate test skeletons and discover locators
+- [ ] Can implement visual regression tests with `toHaveScreenshot()` and handle dynamic content
+- [ ] Can use `APIRequestContext` for test data setup/cleanup alongside UI tests
+- [ ] Can configure parallel execution, sharding, and multiple reporters
+
+---
+
+**Related:** Fixtures And Page Objects, Setup And First Tests, Network And Downloads, Visual Regression Testing
+
+*Last updated: *

@@ -1,0 +1,903 @@
+---
+title: "Debugging and Profiling in Java"
+description: "What: Debugging is the systematic process of finding and fixing defects in code. Profiling is measuring runtime performance — CPU usage, memory consumption, thread behavior — to identify bottlenecks and resource leaks."
+summary: "SDET Engineering guide: Debugging and Profiling in Java"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "java"
+lesson: "debugging-and-profiling"
+difficulty: "beginner"
+estimatedMinutes: 58
+prerequisites: []
+tags: ["SDET", "Java", "Programming"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/java/debugging-and-profiling"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Debugging and Profiling in Java
+
+> **Module:** 01 — Programming Foundations / Java  
+> **Prerequisites:** Oop Fundamentals, Exception Handling, Lambdas And Streams  
+> **Mastery Target:** L3 (independent — diagnose and resolve failures without guidance)
+
+---
+
+## Quick Overview (Layer 1)
+
+**What:** Debugging is the systematic process of finding and fixing defects in code. Profiling is measuring runtime performance — CPU usage, memory consumption, thread behavior — to identify bottlenecks and resource leaks.  
+**Why:** In test automation, framework code fails in CI with no GUI to inspect. Tests are slow and nobody knows why. Stack traces are cryptic walls of text. Flaky tests pass locally but fail on the pipeline. SDETs who can't debug effectively waste hours guessing instead of minutes diagnosing.  
+**Where:** Every layer of a test framework — element interactions, API calls, data setup, driver management, CI pipeline execution, parallel test runs.
+
+<MentalModel>
+
+Debugging is **detective work**. A detective doesn't guess who committed the crime and then look for evidence — they collect evidence first, form a hypothesis, then test it. The same discipline applies to debugging: read the stack trace (evidence), form a theory about what's broken (hypothesis), verify with a breakpoint or log statement (test), and only then apply a fix. **Never guess. Evidence first, hypothesis second.**
+
+</MentalModel>
+
+
+Profiling is a **health checkup**. You don't wait until you're in the hospital to check your vitals. Regularly profiling your test suite reveals memory leaks (unreleased WebDriver instances), CPU hogs (inefficient waits), and thread contention (parallel execution bottlenecks) before they become emergencies.
+
+<KeyTakeaways>
+
+1. **Read the stack trace bottom-up for the root cause** — the "Caused by" chain at the bottom is almost always the real problem, not the top-level exception.
+2. **The debugger is not your first tool** — reading the stack trace and adding targeted logging solves 80% of problems faster than stepping through code.
+3. **Invest in failure artifacts** — screenshots, page source, and network logs on failure pay for themselves every time a CI build goes red.
+4. **Logging is permanent infrastructure, not a temporary crutch** — well-placed log statements with structured context are your eyes in headless CI environments.
+5. **Profiling catches the silent killers** — memory leaks and CPU waste don't throw exceptions; they slowly degrade your pipeline until tests time out for no apparent reason.
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation (Layer 2)
+
+### Reading Stack Traces
+
+A stack trace is the single most important debugging artifact in Java. It tells you exactly what happened, where it happened, and the chain of method calls that led there.
+
+**Reading order:** The exception type and message are at the top. The method call chain reads top-to-bottom (most recent call first). But the **root cause** is usually at the bottom, in the "Caused by" section.
+
+
+```
+org.openqa.selenium.TimeoutException: Expected condition failed: 
+  waiting for visibility of element located by By.id: checkout-btn
+  (tried for 10 second(s) with 500 milliseconds interval)
+    at org.openqa.selenium.support.ui.WebDriverWait.timeoutException(WebDriverWait.java:95)
+    at org.openqa.selenium.support.ui.FluentWait.until(FluentWait.java:272)
+    at com.framework.pages.CartPage.clickCheckout(CartPage.java:47)        <-- YOUR code
+    at com.tests.CheckoutTest.testGuestCheckout(CheckoutTest.java:23)      <-- YOUR test
+    at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+    at org.testng.internal.TestInvocationHandler.invokeTestMethod(...)
+    ... 14 more
+Caused by: org.openqa.selenium.NoSuchElementException: 
+  no such element: Unable to locate element: {"method":"css selector","value":"#checkout-btn"}
+    at org.openqa.selenium.remote.RemoteWebDriver.findElement(RemoteWebDriver.java:327)
+    at com.framework.pages.CartPage.clickCheckout(CartPage.java:47)
+```
+
+**How to read this:**
+
+1. **Top line:** The exception type (`TimeoutException`) and a human-readable message.
+2. **Your code in the trace:** Scan for your package name (`com.framework`, `com.tests`). `CartPage.java:47` is where the failure occurred in your code.
+3. **"Caused by" chain:** The `TimeoutException` was *caused by* a `NoSuchElementException` — the element `#checkout-btn` doesn't exist in the DOM. That's the real problem.
+4. **Framework noise:** Lines from `org.testng`, `sun.reflect`, `org.openqa.selenium.support` are framework internals. Skip them to find YOUR code.
+
+**Rule of thumb:** Find your package name in the trace. That's where the problem is. Then read the "Caused by" chain to understand *why*.
+
+### Common Exception Types and What They Actually Mean
+
+| Exception | What It Means | Automation Context |
+|-----------|--------------|-------------------|
+| `NullPointerException` | You called a method on a `null` reference | Driver not initialized, page object field not set, test data method returned null |
+| `ClassCastException` | Tried to cast an object to an incompatible type | Wrong return type from a factory, incorrect deserialization |
+| `ArrayIndexOutOfBoundsException` | Accessed an array index that doesn't exist | Test data array shorter than expected, hardcoded index assumptions |
+| `StackOverflowError` | Infinite recursion — method keeps calling itself | Circular page object references, recursive retry without a base case |
+| `OutOfMemoryError` | JVM ran out of heap space | WebDriver instances not quit, large response bodies held in memory, screenshot accumulation |
+| `NoSuchElementException` | `findElement()` can't locate the element in the current DOM | Wrong locator, element not rendered yet, wrong iframe context |
+| `StaleElementReferenceException` | The DOM node was destroyed and recreated after you found it | Page re-rendered (SPA navigation, AJAX update), cached element reference is stale |
+| `TimeoutException` | Explicit wait condition was not met within the timeout | Element never appeared, wrong expected condition, page load too slow |
+
+### IntelliJ Debugging
+
+The IntelliJ debugger is your most powerful tool for understanding *runtime state* — what values variables actually hold at a specific moment.
+
+**Breakpoints:** Click the gutter next to a line number to set a breakpoint. Execution pauses there so you can inspect all variables in scope.
+
+**Conditional breakpoints:** Right-click a breakpoint and add a condition. The debugger only pauses when the condition is true — essential for debugging a specific iteration in a loop or a specific test case in a data-driven suite.
+
+
+```java
+// Set a conditional breakpoint on the line below with condition: username.equals("admin")
+public DashboardPage loginAs(String username, String password) {
+    enterUsername(username);   // Breakpoint here, condition: username.equals("admin")
+    enterPassword(password);
+    clickLoginButton();
+    return new DashboardPage(driver);
+}
+```
+
+**Evaluate Expression (Alt+F8):** While paused at a breakpoint, evaluate any Java expression in the current context. You can call methods, inspect nested objects, even test fix ideas without restarting.
+
+**Watch variables:** Add variables to the watch panel to track their values across multiple step operations. Useful for watching how a list of elements changes through a loop.
+
+**Step controls:**
+- **Step Over (F8):** Execute the current line and move to the next one. Use when you trust the method being called.
+- **Step Into (F7):** Enter the method being called. Use when you suspect the bug is inside that method.
+- **Step Out (Shift+F8):** Run until the current method returns. Use when you stepped into a method by accident or confirmed it's fine.
+
+### Remote Debugging
+
+When tests run inside a Docker container or a CI agent, you can't launch IntelliJ's debugger directly. Remote debugging lets you connect IntelliJ to a running JVM over a network port.
+
+**Step 1:** Start the JVM with debug agent flags:
+
+
+```bash
+# Add to the JVM args when running tests in Docker
+java -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005 \
+     -jar test-suite.jar
+```
+
+- `server=y`: The JVM listens for a debugger connection.
+- `suspend=n`: Don't wait for the debugger to attach before running (set to `y` if you need to debug startup).
+- `address=*:5005`: Listen on port 5005 on all interfaces.
+
+**Step 2:** In Docker, expose the port:
+
+
+```yaml
+# docker-compose.yml
+services:
+  test-runner:
+    image: test-framework:latest
+    ports:
+      - "5005:5005"
+    environment:
+      JAVA_OPTS: "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005"
+```
+
+**Step 3:** In IntelliJ, create a **Remote JVM Debug** run configuration pointing to `localhost:5005`. Set your breakpoints, then click Debug.
+
+### Logging as a Debugging Tool
+
+Logging is your permanent instrumentation in environments where you can't attach a debugger — CI pipelines, remote grids, Docker containers.
+
+**SLF4J + Logback** is the standard Java logging stack. SLF4J is the API (what your code calls), Logback is the implementation (what actually writes the logs).
+
+**Log levels — use them correctly:**
+
+| Level | Purpose | Example |
+|-------|---------|---------|
+| `TRACE` | Finest-grained detail, rarely enabled | Every element interaction, every wait poll |
+| `DEBUG` | Diagnostic information for developers | Method entry/exit, variable values, decision branches |
+| `INFO` | Key business events — the happy path | "Test started", "Navigated to /checkout", "API returned 200" |
+| `WARN` | Something unexpected but recoverable | Retry attempt, slow page load, missing optional element |
+| `ERROR` | Something failed that shouldn't have | Exception caught, test precondition not met, resource cleanup failure |
+
+
+```java
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+public class CartPage {
+    private static final Logger log = LoggerFactory.getLogger(CartPage.class);
+
+    public void addToCart(String productId) {
+        log.info("Adding product to cart: {}", productId);
+        log.debug("Current URL before add-to-cart: {}", driver.getCurrentUrl());
+
+        try {
+            WebElement addButton = wait.until(
+                ExpectedConditions.elementToBeClickable(By.id("add-" + productId))
+            );
+            addButton.click();
+            log.info("Product {} added to cart successfully", productId);
+        } catch (TimeoutException e) {
+            log.error("Failed to add product {} — button not clickable within timeout | URL: {}",
+                productId, driver.getCurrentUrl());
+            throw e;
+        }
+    }
+}
+```
+
+**Structured logging** uses placeholders (`{}`) instead of string concatenation. This is not just style — SLF4J skips the string building entirely if the log level is disabled, avoiding unnecessary object creation.
+
+### Print Debugging
+
+**When it's acceptable:** Quick local investigation — you need to see a value once and you'll delete the `System.out.println` in 5 minutes.
+
+**When it's not:** Committed code. Print statements bypass log levels (they always execute), clutter stdout, and have no structure. If you find yourself adding print statements, you should be adding log statements instead.
+
+
+```java
+// BAD: committed print debugging
+public void checkout() {
+    System.out.println("DEBUG: cart items = " + getCartItems());  // Always prints, no level control
+    System.out.println("DEBUG: total = " + getTotal());            // Clutters CI output
+}
+
+// GOOD: structured logging that stays permanently
+public void checkout() {
+    log.debug("Cart items before checkout: {}", getCartItems());   // Only prints when DEBUG is enabled
+    log.debug("Cart total: {}", getTotal());                       // Structured, filterable
+}
+```
+
+### Profiling Basics
+
+**JVisualVM** (bundled with the JDK through Java 8, separate download after) provides real-time monitoring of a running JVM — CPU usage, heap memory, thread count, and garbage collection activity.
+
+**Why SDETs need profiling:** Your test suite runs 500 tests. Over time, it slows from 15 minutes to 45 minutes. No test changed. The culprit? Memory leaks — WebDriver instances that aren't quit, large response bodies held in static collections, screenshots accumulated in memory instead of written to disk.
+
+**Identifying memory leaks (unreleased WebDriver instances):**
+
+
+```java
+// LEAK: driver created but never quit when test fails mid-execution
+@Test
+public void testProductSearch() {
+    WebDriver driver = new ChromeDriver();   // Created here
+    driver.get(baseUrl + "/search");
+    // ... test logic that throws an exception ...
+    driver.quit();                            // Never reached if exception above
+}
+// After 100 test failures: 100 Chrome processes still running, eating RAM
+
+// FIX: use @AfterMethod or try-finally to guarantee cleanup
+@AfterMethod
+public void tearDown() {
+    if (driver != null) {
+        driver.quit();
+    }
+}
+```
+
+### Heap Dumps and Thread Dumps
+
+**Heap dump:** A snapshot of everything in JVM memory at a specific moment. Use it to find memory leaks — which objects are consuming the most memory and what's keeping them alive.
+
+**When to capture:** When your test suite's JVM memory keeps growing without plateauing (likely a leak), or when you hit `OutOfMemoryError`.
+
+
+```bash
+# Capture a heap dump from a running JVM
+jmap -dump:format=b,file=heap_dump.hprof <PID>
+
+# Or configure the JVM to dump automatically on OOM
+java -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/tmp/dumps/ -jar tests.jar
+```
+
+**Thread dump:** A snapshot of what every thread is doing right now. Use it to diagnose deadlocks, thread starvation, or tests that hang forever.
+
+
+```bash
+# Capture a thread dump from a running JVM
+jstack <PID> > thread_dump.txt
+
+# Or send SIGQUIT (Unix) — the JVM prints the dump to stdout
+kill -3 <PID>
+```
+
+**What to look for in a thread dump:**
+- `BLOCKED` threads waiting for a lock — possible deadlock.
+- Multiple threads stuck in the same method — possible contention point.
+- `WAITING` threads that never wake up — possible missing notify/timeout.
+
+### Common Automation Debugging Patterns
+
+These patterns give you forensic evidence when a CI test fails and you can't reproduce locally.
+
+**Screenshot on failure:** Capture the browser state at the exact moment of failure.
+
+
+```java
+public static void captureScreenshot(WebDriver driver, String testName) {
+    try {
+        File screenshot = ((TakesScreenshot) driver).getScreenshotAs(OutputType.FILE);
+        Path destination = Path.of("target/screenshots", testName + ".png");
+        Files.createDirectories(destination.getParent());
+        Files.copy(screenshot.toPath(), destination, StandardCopyOption.REPLACE_EXISTING);
+    } catch (Exception e) {
+        log.warn("Failed to capture screenshot for {}: {}", testName, e.getMessage());
+    }
+}
+```
+
+**Page source on failure:** The screenshot shows what the user sees; the page source shows what the DOM actually contains — invisible elements, dynamically loaded content, error messages hidden by CSS.
+
+
+```java
+public static void capturePageSource(WebDriver driver, String testName) {
+    try {
+        String source = driver.getPageSource();
+        Path destination = Path.of("target/page-source", testName + ".html");
+        Files.createDirectories(destination.getParent());
+        Files.writeString(destination, source);
+    } catch (Exception e) {
+        log.warn("Failed to capture page source for {}: {}", testName, e.getMessage());
+    }
+}
+```
+
+**Network logs (HAR files):** Capture HTTP requests/responses to diagnose API failures, missing resources, or slow backend calls. Requires a browser proxy like BrowserMob or Selenium's built-in DevTools protocol.
+
+**Video recording:** Record the entire browser session. Tools like Selenoid and Selenium Grid 4 support this natively. Most useful for flaky tests where a screenshot captures only the final state, not the sequence of events that led there.
+
+---
+
+## Practical Implementation (Layer 3)
+
+### Example 1: Diagnose a NullPointerException from a Stack Trace
+
+**The failure:** Your CI build produces this stack trace:
+
+
+```
+java.lang.NullPointerException: Cannot invoke "org.openqa.selenium.WebDriver.get(String)"
+  because "this.driver" is null
+    at com.framework.pages.BasePage.navigateTo(BasePage.java:28)
+    at com.framework.pages.LoginPage.open(LoginPage.java:19)
+    at com.tests.LoginTest.testValidLogin(LoginTest.java:34)
+    at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+    ... 12 more
+```
+
+**Step-by-step diagnosis:**
+
+1. **Read the message:** `"this.driver" is null`. The `driver` field on the page object was never assigned.
+2. **Find your code:** `BasePage.java:28` is where `driver.get(url)` is called. `LoginPage.java:19` called that method. `LoginTest.java:34` is the test.
+3. **Form the hypothesis:** The `driver` field is null at the time `navigateTo()` is called. Either the constructor didn't assign it, or the page object was created before the driver was initialized.
+4. **Investigate the code:**
+
+
+```java
+// BasePage.java
+public class BasePage {
+    protected WebDriver driver;   // Line 10: field declared but not initialized
+
+    public BasePage() {           // Line 12: no-arg constructor — doesn't set driver!
+    }
+
+    public void navigateTo(String url) {
+        driver.get(url);          // Line 28: NPE here because driver is null
+    }
+}
+
+// LoginPage.java
+public class LoginPage extends BasePage {
+    public void open() {
+        navigateTo("/login");     // Line 19: calls BasePage.navigateTo()
+    }
+}
+
+// LoginTest.java
+public class LoginTest {
+    private LoginPage loginPage;
+    private WebDriver driver;
+
+    @BeforeMethod
+    public void setUp() {
+        driver = new ChromeDriver();
+        loginPage = new LoginPage();  // Line 30: creates LoginPage WITHOUT passing driver
+    }
+
+    @Test
+    public void testValidLogin() {
+        loginPage.open();             // Line 34: boom — driver is null inside BasePage
+    }
+}
+```
+
+5. **Root cause:** `LoginPage` extends `BasePage`, but the constructor never passes the driver to the parent. `BasePage` has a no-arg constructor that leaves `driver` as null.
+
+6. **Fix:**
+
+
+```java
+// Fixed BasePage — constructor REQUIRES a driver
+public class BasePage {
+    protected final WebDriver driver;
+
+    public BasePage(WebDriver driver) {
+        if (driver == null) {
+            throw new IllegalArgumentException("WebDriver cannot be null");
+        }
+        this.driver = driver;
+    }
+
+    public void navigateTo(String url) {
+        driver.get(url);
+    }
+}
+
+// Fixed LoginPage — passes driver to parent
+public class LoginPage extends BasePage {
+    public LoginPage(WebDriver driver) {
+        super(driver);
+    }
+
+    public void open() {
+        navigateTo("/login");
+    }
+}
+
+// Fixed LoginTest — passes driver when creating LoginPage
+@BeforeMethod
+public void setUp() {
+    driver = new ChromeDriver();
+    loginPage = new LoginPage(driver);
+}
+```
+
+**Lesson:** Make `null` impossible by requiring dependencies in the constructor. If `BasePage` demands a `WebDriver` parameter, you can never create one without it.
+
+### Example 2: Add Structured Logging to a Test Framework Utility Method
+
+
+```java
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.openqa.selenium.*;
+import org.openqa.selenium.support.ui.*;
+
+import java.time.Duration;
+import java.util.List;
+
+/**
+ * Utility class for common element operations with structured logging.
+ * Every interaction is logged with enough context to diagnose CI failures.
+ */
+public class ElementUtils {
+    private static final Logger log = LoggerFactory.getLogger(ElementUtils.class);
+
+    private final WebDriver driver;
+    private final WebDriverWait wait;
+
+    public ElementUtils(WebDriver driver, int timeoutSeconds) {
+        this.driver = driver;
+        this.wait = new WebDriverWait(driver, Duration.ofSeconds(timeoutSeconds));
+        log.debug("ElementUtils initialized | timeout={}s | driver={}", 
+            timeoutSeconds, driver.getClass().getSimpleName());
+    }
+
+    /**
+     * Waits for an element to be visible, then returns its text.
+     * Logs the full context at every stage for CI diagnosis.
+     */
+    public String getVisibleText(By locator) {
+        log.debug("Waiting for visible text | locator={}", locator);
+        try {
+            WebElement element = wait.until(
+                ExpectedConditions.visibilityOfElementLocated(locator)
+            );
+            String text = element.getText();
+            log.info("Got visible text | locator={} | text='{}' | url={}",
+                locator, text, driver.getCurrentUrl());
+            return text;
+        } catch (TimeoutException e) {
+            log.error("Element not visible within timeout | locator={} | url={} | title='{}'",
+                locator, driver.getCurrentUrl(), driver.getTitle());
+            throw e;
+        }
+    }
+
+    /**
+     * Clicks an element with retry on stale reference.
+     * Logs each attempt so flaky behavior is visible in CI logs.
+     */
+    public void clickWithRetry(By locator, int maxRetries) {
+        log.info("Attempting click | locator={} | maxRetries={}", locator, maxRetries);
+        for (int attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                WebElement element = wait.until(
+                    ExpectedConditions.elementToBeClickable(locator)
+                );
+                element.click();
+                log.info("Click successful | locator={} | attempt={}", locator, attempt);
+                return;
+            } catch (StaleElementReferenceException e) {
+                log.warn("Stale element on click | locator={} | attempt={}/{} | url={}",
+                    locator, attempt, maxRetries, driver.getCurrentUrl());
+                if (attempt == maxRetries) {
+                    log.error("Click failed after all retries | locator={} | retries={}",
+                        locator, maxRetries);
+                    throw e;
+                }
+            }
+        }
+    }
+
+    /**
+     * Checks if elements matching the locator exist in the DOM.
+     * TRACE level — only visible when fine-grained debugging is enabled.
+     */
+    public boolean isPresent(By locator) {
+        List<WebElement> elements = driver.findElements(locator);
+        boolean present = !elements.isEmpty();
+        log.trace("Element presence check | locator={} | present={} | count={}",
+            locator, present, elements.size());
+        return present;
+    }
+}
+```
+
+**Logback configuration for different environments:**
+
+
+```xml
+<!-- src/test/resources/logback-test.xml -->
+<configuration>
+    <!-- Console appender with pattern -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- File appender for CI — captures everything -->
+    <appender name="FILE" class="ch.qos.logback.core.FileAppender">
+        <file>target/test-logs/test-run.log</file>
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{50} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- Framework code: DEBUG locally, INFO in CI (override via system property) -->
+    <logger name="com.framework" level="${LOG_LEVEL:-DEBUG}" />
+
+    <!-- Selenium internals: WARN to reduce noise -->
+    <logger name="org.openqa.selenium" level="WARN" />
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE" />
+        <appender-ref ref="FILE" />
+    </root>
+</configuration>
+```
+
+### Example 3: Implement Screenshot-on-Failure Using TestNG ITestListener
+
+
+```java
+import org.openqa.selenium.*;
+import org.testng.*;
+
+import java.io.File;
+import java.nio.file.*;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+/**
+ * TestNG listener that automatically captures debugging artifacts on test failure:
+ * - Screenshot (what the user sees)
+ * - Page source (what the DOM contains)
+ * - Current URL and title (context)
+ *
+ * Register in testng.xml:
+ *   <listeners>
+ *     <listener class-name="com.framework.listeners.FailureListener" />
+ *   </listeners>
+ */
+public class FailureListener implements ITestListener {
+    private static final Logger log = LoggerFactory.getLogger(FailureListener.class);
+    private static final String ARTIFACTS_DIR = "target/failure-artifacts";
+    private static final DateTimeFormatter TIMESTAMP_FMT = 
+        DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
+
+    @Override
+    public void onTestFailure(ITestResult result) {
+        log.error("TEST FAILED: {} | {}", 
+            result.getMethod().getMethodName(), 
+            result.getThrowable().getMessage());
+
+        // Retrieve the WebDriver from the test instance
+        WebDriver driver = getDriverFromTestInstance(result);
+        if (driver == null) {
+            log.warn("Cannot capture artifacts — WebDriver is null or not accessible");
+            return;
+        }
+
+        String testName = result.getTestClass().getRealClass().getSimpleName()
+            + "_" + result.getMethod().getMethodName();
+        String timestamp = LocalDateTime.now().format(TIMESTAMP_FMT);
+        String artifactPrefix = testName + "_" + timestamp;
+
+        captureScreenshot(driver, artifactPrefix);
+        capturePageSource(driver, artifactPrefix);
+        logFailureContext(driver, result);
+    }
+
+    private void captureScreenshot(WebDriver driver, String prefix) {
+        try {
+            File screenshot = ((TakesScreenshot) driver).getScreenshotAs(OutputType.FILE);
+            Path destination = Path.of(ARTIFACTS_DIR, "screenshots", prefix + ".png");
+            Files.createDirectories(destination.getParent());
+            Files.copy(screenshot.toPath(), destination, StandardCopyOption.REPLACE_EXISTING);
+            log.info("Screenshot saved: {}", destination);
+        } catch (Exception e) {
+            log.warn("Screenshot capture failed: {}", e.getMessage());
+        }
+    }
+
+    private void capturePageSource(WebDriver driver, String prefix) {
+        try {
+            String source = driver.getPageSource();
+            Path destination = Path.of(ARTIFACTS_DIR, "page-source", prefix + ".html");
+            Files.createDirectories(destination.getParent());
+            Files.writeString(destination, source);
+            log.info("Page source saved: {}", destination);
+        } catch (Exception e) {
+            log.warn("Page source capture failed: {}", e.getMessage());
+        }
+    }
+
+    private void logFailureContext(WebDriver driver, ITestResult result) {
+        try {
+            log.error("Failure context | url={} | title='{}' | test={}.{} | duration={}ms",
+                driver.getCurrentUrl(),
+                driver.getTitle(),
+                result.getTestClass().getRealClass().getSimpleName(),
+                result.getMethod().getMethodName(),
+                result.getEndMillis() - result.getStartMillis());
+        } catch (Exception e) {
+            log.warn("Failed to log failure context: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * Retrieves the WebDriver from the test instance.
+     * Assumes the test class has a 'driver' field (common convention).
+     * In a real framework, you'd use ThreadLocal or a TestContext object.
+     */
+    private WebDriver getDriverFromTestInstance(ITestResult result) {
+        try {
+            Object testInstance = result.getInstance();
+            var driverField = testInstance.getClass().getDeclaredField("driver");
+            driverField.setAccessible(true);
+            return (WebDriver) driverField.get(testInstance);
+        } catch (NoSuchFieldException | IllegalAccessException e) {
+            log.debug("Could not extract driver via reflection: {}", e.getMessage());
+            return null;
+        }
+    }
+}
+```
+
+**What this does:** Automatically captures three debugging artifacts every time a test fails — no changes needed in individual test classes. The listener uses reflection to access the driver, captures a screenshot and page source, and logs structured failure context. In CI, these artifacts are attached to the build results for diagnosis.
+
+---
+
+## Failure and Debugging (Layer 4)
+
+### Scenario 1: Stack Trace Points to Framework Code, Not Your Code
+
+**The problem:** The stack trace shows lines from `WebDriverWait.java`, `FluentWait.java`, and `RemoteWebDriver.java` — all Selenium internals. No line from your code is visible in the first 10 lines.
+
+**Diagnosis approach:**
+
+1. **Scroll past the framework lines.** Your code IS in the trace — it's just buried. Search for your package name.
+2. **Read "Caused by" chains.** The outer exception is often a generic framework wrapper. The inner exception is specific.
+3. **Check for "... 14 more" truncation.** Java truncates repeated stack frames. The full trace is in the "Caused by" section.
+
+
+```
+// The confusing version:
+org.openqa.selenium.WebDriverException: unknown error: session deleted
+    at org.openqa.selenium.remote.codec.w3c.W3CHttpResponseCodec.createException(...)
+    at org.openqa.selenium.remote.HttpCommandExecutor.execute(...)
+    at org.openqa.selenium.remote.RemoteWebDriver.execute(...)
+    at org.openqa.selenium.remote.RemoteWebDriver.get(RemoteWebDriver.java:284)
+    at com.framework.pages.BasePage.navigateTo(BasePage.java:28)     <-- HERE
+    at com.tests.SearchTest.testSearchFlow(SearchTest.java:41)       <-- HERE
+    ... 8 more
+```
+
+**The real cause:** "session deleted" means the WebDriver session was already closed. `BasePage.java:28` tried to call `driver.get()` on a dead session. Check your `@AfterMethod` — is it quitting the driver before the test finishes? Is another thread closing the driver?
+
+### Scenario 2: Test Passes Locally, Fails in CI
+
+**The problem:** Your test passes every time on your machine but fails on CI with a `TimeoutException` or `NoSuchElementException`.
+
+**Systematic diagnosis:**
+
+1. **Timing differences:** CI machines are slower. Your local 10-second timeout might not be enough on a shared CI agent under load. **Fix:** Don't increase timeouts blindly — add explicit waits for specific conditions instead of Thread.sleep.
+
+2. **Display server:** CI runs headless (no physical monitor). Some elements behave differently in headless mode — tooltips don't render, hover doesn't trigger, window size is different. **Fix:** Set an explicit window size in headless mode:
+
+
+```java
+ChromeOptions options = new ChromeOptions();
+options.addArguments("--headless=new");
+options.addArguments("--window-size=1920,1080");  // Explicit size — don't rely on default
+```
+
+3. **Environment differences:** Different OS, Java version, browser version, screen resolution, locale, timezone. **Fix:** Run CI tests in Docker containers with pinned browser versions.
+
+4. **Network and DNS:** CI might resolve external URLs differently or have firewall restrictions. **Fix:** Log the base URL and response status at the start of each test.
+
+5. **State leakage:** Tests run in a different order on CI, and a previous test left the app in an unexpected state. **Fix:** Each test should set up its own preconditions and not depend on execution order.
+
+### Scenario 3: Flaky Test That Fails 1 in 10 Runs
+
+**The problem:** A test fails intermittently. Rerunning makes it pass. This is the most frustrating debugging scenario.
+
+**Systematic diagnosis approach:**
+
+1. **Collect data first.** Run the test 50 times. Record pass/fail, execution time, and any log output for each run. Look for patterns — does it fail more often under load? At certain times? On specific CI agents?
+
+2. **Check for race conditions.** Flakiness usually means timing. The test assumes something is ready when it isn't. Common culprits:
+   - Element exists in DOM but isn't clickable yet (overlay, animation).
+   - AJAX call hasn't completed.
+   - Page navigation hasn't fully loaded.
+   - Data from a previous test step hasn't been committed to the database.
+
+3. **Add forensic logging.** Temporarily increase log level to DEBUG for the flaky test's code path. Log timestamps, element states, and URL at every step.
+
+4. **Check for shared mutable state.** If tests run in parallel, a shared static variable, a shared database row, or a shared browser session can cause intermittent interference.
+
+5. **Reproduce with constraints.** Run the test with a slower network (Chrome DevTools throttling), reduced CPU (Docker resource limits), or concurrent load (run it alongside other tests, not in isolation).
+
+
+```java
+// Forensic logging for a flaky checkout test
+@Test
+public void testCheckoutFlow() {
+    log.info("[FLAKY-DEBUG] Starting checkout | thread={} | timestamp={}", 
+        Thread.currentThread().getName(), System.currentTimeMillis());
+
+    cartPage.addItem("PROD-001");
+    log.info("[FLAKY-DEBUG] After addItem | url={} | cartCount={}", 
+        driver.getCurrentUrl(), cartPage.getItemCount());
+
+    cartPage.clickCheckout();
+    log.info("[FLAKY-DEBUG] After clickCheckout | url={} | title='{}'", 
+        driver.getCurrentUrl(), driver.getTitle());
+
+    // The flaky part — does the checkout page load in time?
+    checkoutPage.waitForLoad();
+    log.info("[FLAKY-DEBUG] Checkout page loaded | url={}", driver.getCurrentUrl());
+}
+```
+
+---
+
+## Engineering Judgment (Layer 5)
+
+### When to Use Debugger vs Logging vs Print Statements
+
+| Situation | Tool | Reasoning |
+|-----------|------|-----------|
+| NPE or unexpected value in a specific method | **Debugger** | You need to inspect the exact state at one point in time |
+| Intermittent failure in CI | **Logging** | You can't attach a debugger to CI; logs are your only eyes |
+| Quick one-off check during local development | **Print statement** | Fastest feedback loop — but delete it before committing |
+| Understanding execution flow across multiple classes | **Logging** | Debugger stepping across classes is tedious; log statements show the full flow at once |
+| Diagnosing race conditions in parallel tests | **Logging with thread names** | Debugger pauses threads and changes timing, masking the very bug you're hunting |
+| Exploring unfamiliar third-party library behavior | **Debugger** | Step into library code to understand what it actually does |
+
+### When to Add Permanent Logging vs Temporary
+
+**Permanent logging (committed to the codebase):**
+- Entry/exit of key framework methods (driver creation, page navigation, API calls)
+- All error-handling branches (every catch block should log)
+- Test lifecycle events (test started, test passed, test failed)
+- Configuration values at startup (base URL, browser, timeout)
+- Retry attempts and their outcomes
+
+**Temporary logging (delete before committing):**
+- Variable value dumps during a specific investigation
+- Verbose loop iteration logs
+- Anything prefixed with "DEBUG:" or "TODO: remove"
+
+**Rule of thumb:** If you'd want this log line the *next* time something breaks in CI, make it permanent.
+
+### Performance Impact of Logging Levels
+
+Logging has a real cost. In a tight loop (iterating over 1000 elements), TRACE-level logging can slow execution measurably.
+
+**Key insight:** SLF4J's parameterized logging (`log.debug("value={}", value)`) avoids the cost of string concatenation when the level is disabled. But the method call itself and the parameter evaluation still happen.
+
+For expensive operations in log parameters, guard with a level check:
+
+
+```java
+// BAD: driver.getPageSource() executes even if TRACE is disabled
+log.trace("Page source: {}", driver.getPageSource());   // getPageSource() is expensive
+
+// GOOD: only execute the expensive call if TRACE is actually enabled
+if (log.isTraceEnabled()) {
+    log.trace("Page source: {}", driver.getPageSource());
+}
+```
+
+**In practice:** INFO-level logging in a test framework adds negligible overhead. DEBUG-level logging is fine for development and CI diagnosis. TRACE-level logging should be guarded if the parameter evaluation is expensive.
+
+---
+
+## Interview and Revision (Layer 6)
+
+### Fundamental Questions
+
+**Q1: How do you debug a flaky test?**  
+**A:** I follow a systematic approach: (1) Collect data — run the test 50+ times and record pass/fail with timestamps and logs. (2) Look for patterns — does it correlate with parallel execution, specific CI agents, or time of day? (3) Add forensic logging with thread names and timestamps at every step. (4) Check for the three most common causes: timing issues (element not ready), shared mutable state (static variables, shared DB rows), and environment differences (headless rendering, window size, network latency). (5) Reproduce with constraints — slower CPU, throttled network, concurrent load. (6) Fix the root cause, not the symptom — adding `Thread.sleep` masks the problem; adding a proper explicit wait fixes it.
+
+**Q2: What information does a Java stack trace give you, and how do you read it?**  
+**A:** A stack trace shows the exception type, message, and the chain of method calls from the point of failure back to the entry point. I read it by: (1) Reading the exception message at the top for the "what." (2) Scanning for my package name to find where in MY code the failure occurred. (3) Reading "Caused by" chains to find the root cause — the deepest "Caused by" is usually the real problem. (4) Ignoring framework noise (TestNG internals, Selenium transport layers) unless I suspect a framework bug.
+
+**Q3: What is the difference between a heap dump and a thread dump?**  
+**A:** A heap dump captures everything in JVM memory — every object, its fields, and what references it. Use it to diagnose memory leaks (what's consuming memory and why isn't it being garbage collected). A thread dump captures the state of every thread — what method it's executing, what locks it holds, what it's waiting for. Use it to diagnose deadlocks, hung tests, and thread contention. Heap dumps are large files analyzed with tools like Eclipse MAT. Thread dumps are text files you can read directly.
+
+**Q4: When would you use remote debugging vs logging to diagnose a CI failure?**  
+**A:** I use logging for the vast majority of CI failures because it's non-intrusive, captures data from every test run, and doesn't require a live connection. I'd use remote debugging only when (1) the bug is reproducible in a Docker container I can run locally, (2) the failure is complex enough that I need to inspect runtime state interactively, and (3) I've already tried logging and can't narrow down the cause. Remote debugging requires exposing a port, connecting in real-time, and pauses the JVM — it's impractical for intermittent failures or shared CI agents.
+
+**Q5: How do unreleased WebDriver instances cause memory leaks?**  
+**A:** Each `new ChromeDriver()` spawns a browser process and allocates JVM memory for the session. If a test throws an exception before `driver.quit()` is called, the browser process stays alive and the JVM objects aren't released. After hundreds of failed tests, the machine runs out of memory and CI grinds to a halt. The fix is to guarantee cleanup with `@AfterMethod`/`@AfterTest` or try-finally blocks, ensuring `driver.quit()` runs regardless of test outcome.
+
+### Scenario-Based Questions
+
+**S1: "Your test suite's memory usage keeps growing over a 2-hour CI run until it OOMs. How do you diagnose?"**  
+**A:** (1) Enable heap dump on OOM with `-XX:+HeapDumpOnOutOfMemoryError`. (2) Analyze the dump with Eclipse MAT or VisualVM — look at the "dominator tree" to find which objects hold the most retained memory. (3) Common culprits: unreleased WebDriver sessions (check `@AfterMethod` teardown), static collections that accumulate data across tests (static Lists holding screenshots or response bodies), and large test data objects cached but never cleared. (4) Add a JVM monitoring step to CI that logs heap usage after every Nth test to pinpoint when the leak starts. (5) Fix by ensuring resource cleanup, replacing static caches with test-scoped variables, and using streaming (write screenshots to disk immediately instead of holding them in memory).
+
+**S2: "A colleague says 'I added Thread.sleep(5000) and the flaky test stopped failing.' Is this a good fix?"**  
+**A:** No — it's a mask, not a fix. `Thread.sleep` hides the real problem (a missing wait condition, a race condition, or a timing dependency) while adding 5 seconds to every run of that test. Multiply by hundreds of tests doing the same thing and you've added hours to your pipeline. The correct approach: (1) Identify what the sleep is waiting for — an element to appear? An API to respond? A page to load? (2) Replace it with an explicit wait for that specific condition: `WebDriverWait.until(ExpectedConditions.visibilityOfElementLocated(...))`. (3) If it's a backend delay, wait for a visible indicator (loading spinner disappears, data appears in the table) rather than a fixed time.
+
+**S3: "You see 'org.openqa.selenium.WebDriverException: unknown error: session deleted because of page crash' in CI but never locally. What do you investigate?"**  
+**A:** "Page crash" usually means the browser ran out of memory. CI investigation: (1) Check CI agent resources — is the container's memory limit too low for Chrome? Chrome needs at least 1GB. (2) Check if `--disable-dev-shm-usage` is set in Chrome options — Docker's default `/dev/shm` is 64MB, which Chrome fills quickly. (3) Check for open tabs — is the test or a previous test opening tabs without closing them? (4) Check for large file downloads or heavy JavaScript pages that consume browser memory. (5) Add `--no-sandbox` and `--disable-gpu` for Docker environments. The fix is usually a combination of Docker memory limits, Chrome flags, and proper tab/session cleanup.
+
+
+
+
+**Flashcard 1**  
+**Q:** What does "Caused by" in a stack trace tell you?  
+**A:** It shows the original exception that triggered the higher-level one. The deepest "Caused by" is usually the root cause. Read from the bottom up.
+
+**Flashcard 2**  
+**Q:** Why is `log.debug("value={}", value)` better than `log.debug("value=" + value)`?  
+**A:** Parameterized logging skips string concatenation entirely when DEBUG level is disabled. String concatenation always executes, wasting CPU and creating garbage objects.
+
+**Flashcard 3**  
+**Q:** What JVM flag auto-captures a heap dump on OutOfMemoryError?  
+**A:** `-XX:+HeapDumpOnOutOfMemoryError` combined with `-XX:HeapDumpPath=/path/to/dir/`. The dump is a `.hprof` file analyzed with Eclipse MAT or VisualVM.
+
+**Flashcard 4**  
+**Q:** What's the difference between Step Over, Step Into, and Step Out in IntelliJ?  
+**A:** Step Over (F8) executes the line without entering called methods. Step Into (F7) enters the method being called. Step Out (Shift+F8) runs until the current method returns. Use Step Over when you trust the callee, Step Into when you suspect the bug is inside it.
+
+**Flashcard 5**  
+**Q:** Why can't you reliably debug race conditions with a breakpoint-based debugger?  
+**A:** Breakpoints pause threads, which changes the timing that causes the race condition. The bug may disappear when you debug it. Use logging with thread names and timestamps instead.
+
+### Mastery Checklist
+
+- [ ] Can read a Java stack trace: find your code, follow "Caused by" chains, ignore framework noise
+- [ ] Can diagnose a `NullPointerException` by tracing back to the uninitialized reference
+- [ ] Can set conditional breakpoints in IntelliJ and use Evaluate Expression to test hypotheses
+- [ ] Can configure remote debugging for a JVM in a Docker container
+- [ ] Can implement structured logging with SLF4J at appropriate levels (TRACE through ERROR)
+- [ ] Can write a TestNG `ITestListener` that captures screenshots and page source on failure
+- [ ] Can explain the systematic approach to diagnosing a flaky test
+- [ ] Can capture and interpret a heap dump to find memory leaks
+- [ ] Can capture a thread dump and identify blocked or waiting threads
+- [ ] Can articulate when to use a debugger vs logging vs print statements and defend the choice
+
+---
+
+**Related:** Exception Handling, Concurrency And Threadlocal, Lambdas And Streams
+
+---
+
+*Last updated: *

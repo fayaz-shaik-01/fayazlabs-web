@@ -1,0 +1,537 @@
+---
+title: "Parallel Execution"
+description: "What: Parallel execution is running multiple tests simultaneously across multiple threads or processes. Instead of executing 200 tests sequentially (one after another), you run them in parallel — 4 tests at a time across 4 threads, or 10 at a time across 10 threads — reducing total execution time proportionally."
+summary: "SDET Engineering guide: Parallel Execution"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "framework-engineering"
+lesson: "parallel-execution"
+difficulty: "intermediate"
+estimatedMinutes: 34
+prerequisites: []
+tags: ["SDET", "Framework", "Architecture"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/framework-engineering/parallel-execution"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Parallel Execution
+
+> **Module:** 03 — Framework Engineering > Parallel Execution  
+> **Prerequisites:** Framework Architecture, Concurrency And Threadlocal, Retries And Timeouts  
+> **Mastery Target:** L3 (Independent) → L4 (Engineering Judgment)
+
+---
+
+## Quick Overview (Layer 1)
+
+**What:** Parallel execution is running multiple tests simultaneously across multiple threads or processes. Instead of executing 200 tests sequentially (one after another), you run them in parallel — 4 tests at a time across 4 threads, or 10 at a time across 10 threads — reducing total execution time proportionally.
+
+**Why it matters:** A 200-test suite that takes 30 minutes sequentially takes ~8 minutes with 4 threads. In CI, faster feedback means developers learn about failures before they've context-switched to another task. Slow pipelines erode testing discipline — teams skip test runs, merge without waiting, and ship bugs. Parallel execution is a force multiplier for CI efficiency.
+
+**Where you encounter it:** TestNG `parallel` attribute in suite XML, JUnit 5 parallel execution configuration, Maven Surefire/Failsafe parallel forks, Selenium Grid distributing tests across browser nodes, CI systems running test shards across multiple agents.
+
+<MentalModel>
+
+Think of parallel execution like a **restaurant kitchen with multiple chefs**. A single chef (sequential execution) cooks one dish at a time — safe, predictable, but slow during rush hour. Multiple chefs (parallel threads) cook different dishes simultaneously — fast, but they must have their own workstations, their own cutting boards, their own ingredients. If two chefs reach for the same knife at the same time, food gets dropped. The kitchen works only when each chef has an independent station. That's the thread safety requirement for parallel tests.
+
+</MentalModel>
+
+
+<KeyTakeaways>
+
+1. **Parallel execution exposes every thread-safety violation** — tests that pass sequentially may fail randomly in parallel because they share mutable state (static driver, shared test data, shared counters).
+2. **TestNG offers four parallel modes** — methods, classes, tests, and suites — each with different isolation guarantees and use cases.
+3. **Thread safety is a prerequisite, not an afterthought** — you cannot "add parallelism" to a framework built with shared static state. The thread-safe foundation must exist first.
+4. **Thread count is a tuning decision** — too few threads waste potential, too many threads exhaust CPU, memory, and browser overhead, causing more failures than sequential execution.
+5. **Each thread must own its own resources** — driver, API client, test context, test data. Nothing mutable is shared.
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation (Layer 2)
+
+### Why Parallel Execution Matters
+
+The economics of test execution time are straightforward:
+
+```
+Sequential:  200 tests × 10s average = 2000s = ~33 minutes
+4 threads:   200 tests / 4 = 50 tests per thread × 10s = ~8 minutes
+10 threads:  200 tests / 10 = 20 tests per thread × 10s = ~3.5 minutes
+```
+
+But the speedup is not perfectly linear. Each thread has overhead: creating a browser, allocating memory, OS context-switching. And if tests contend for shared resources (database, API server, file system), parallelism creates contention that doesn't exist in sequential runs.
+
+**The practical speedup formula:**
+
+```
+Actual speedup ≈ Thread count × (1 - contention overhead)
+4 threads with 10% overhead → ~3.6x speedup (not 4x)
+10 threads with 25% overhead → ~7.5x speedup (not 10x)
+```
+
+### TestNG Parallel Modes
+
+TestNG provides four granularity levels for parallelism. Each mode determines what unit of work gets its own thread.
+
+**`parallel="methods"` — Each test method gets its own thread:**
+
+```
+Thread-1 → loginTest()
+Thread-2 → searchTest()
+Thread-3 → bookingTest()
+Thread-4 → paymentTest()
+```
+
+- **When to use:** Methods within the same class are fully independent — no shared state, no execution order dependency.
+- **Risk:** Methods in the same class run on different threads. If the class has instance fields (like `WebDriver driver`), all methods share that field. You need `ThreadLocal` or per-method driver creation.
+- **Best for:** API tests, utility tests, any tests that are naturally stateless.
+
+**`parallel="classes"` — Each test class gets its own thread:**
+
+```
+Thread-1 → LoginTest (all methods run sequentially within this thread)
+Thread-2 → BookingTest (all methods run sequentially within this thread)
+Thread-3 → SearchTest (all methods run sequentially within this thread)
+```
+
+- **When to use:** Methods within a class share state (like a logged-in session) but classes are independent. This is the most common mode for UI test frameworks.
+- **Risk:** If two classes share static state (static driver, static config that's mutable), they still interfere.
+- **Best for:** UI tests with Page Object pattern, where each class tests one page or feature.
+
+**`parallel="tests"` — Each `<test>` tag in testng.xml gets its own thread:**
+
+```xml
+<suite name="Suite" parallel="tests" thread-count="3">
+    <test name="Smoke">      <!-- Thread-1 -->
+        <classes><class name="SmokeTest"/></classes>
+    </test>
+    <test name="Regression">  <!-- Thread-2 -->
+        <classes><class name="BookingTest"/><class name="PaymentTest"/></classes>
+    </test>
+    <test name="API">         <!-- Thread-3 -->
+        <classes><class name="ApiTest"/></classes>
+    </test>
+</suite>
+```
+
+- **When to use:** You want to run functionally different test groups in parallel (smoke, regression, API) while keeping tests within each group sequential.
+- **Best for:** Mixed suites with different test types that have different resource needs.
+
+**`parallel="instances"` — Each test class instance gets its own thread:**
+
+- Relevant when a `@Factory` creates multiple instances of the same class with different data. Each instance runs on its own thread.
+- Less commonly used in practice.
+
+### JUnit 5 Parallel Execution
+
+JUnit 5 parallel execution is configured through `junit-platform.properties` in `src/test/resources`:
+
+```properties
+# Enable parallel execution
+junit.jupiter.execution.parallel.enabled=true
+
+# Default execution mode: concurrent (parallel) vs same_thread (sequential)
+junit.jupiter.execution.parallel.mode.default=concurrent
+
+# Top-level classes: concurrent (parallel) vs same_thread (sequential)
+junit.jupiter.execution.parallel.mode.classes.default=concurrent
+
+# Strategy: fixed (thread count) vs dynamic (based on available processors)
+junit.jupiter.execution.parallel.config.strategy=fixed
+junit.jupiter.execution.parallel.config.fixed.parallelism=4
+```
+
+JUnit 5 uses `@Execution(ExecutionMode.CONCURRENT)` and `@Execution(ExecutionMode.SAME_THREAD)` annotations to control parallelism at the class or method level.
+
+### Thread Safety Requirements
+
+For parallel execution to work reliably, every piece of per-test state must be isolated:
+
+| Resource | Sequential (safe) | Parallel (unsafe unless isolated) | Fix |
+|----------|-------------------|----------------------------------|-----|
+| WebDriver | Instance field | Shared if same class runs on multiple threads | `ThreadLocal<WebDriver>` |
+| Test data | Any variable | Collides if two tests use `"testuser1"` | Unique data per test (UUID) |
+| API client | Instance field | Shared auth tokens get overwritten | `ThreadLocal` or per-method creation |
+| Config | Static field | Safe only if immutable after initialization | Load once in `@BeforeSuite`, never modify |
+| Result collector | Static `ArrayList` | `ConcurrentModificationException` | `ConcurrentHashMap` or `CopyOnWriteArrayList` |
+
+### Thread Count Tuning
+
+The optimal thread count depends on the type of tests and the machine's resources:
+
+**UI tests (browser-based):**
+- Each browser instance consumes ~300-500MB RAM and CPU for rendering.
+- A machine with 8GB RAM and 4 CPU cores can typically handle 4-6 parallel browsers.
+- Going beyond that causes thrashing — the OS spends more time switching between threads than running them.
+
+**API tests (no browser):**
+- Much lighter — each thread is mostly waiting for HTTP responses.
+- The same machine can handle 10-20 parallel API test threads.
+- Bottleneck shifts from local resources to the API server's capacity.
+
+**Rule of thumb:** Start with `CPU cores × 1.5` for UI tests, `CPU cores × 3-4` for API tests. Measure execution time at different thread counts and find the sweet spot where adding more threads no longer reduces total time.
+
+---
+
+## Practical Implementation (Layer 3)
+
+### Example 1: TestNG XML with Parallel Classes
+
+A complete `testng.xml` configuration for parallel class execution with thread-safe test infrastructure.
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE suite SYSTEM "https://testng.org/testng-1.0.dtd">
+
+<suite name="StayNest Regression Suite" parallel="classes" thread-count="4">
+
+    <!-- Global listeners -->
+    <listeners>
+        <listener class-name="com.company.automation.listeners.RetryTransformer"/>
+        <listener class-name="com.company.automation.listeners.FailureListener"/>
+    </listeners>
+
+    <!-- Global parameters -->
+    <parameter name="browser" value="chrome"/>
+    <parameter name="environment" value="staging"/>
+
+    <test name="Authentication Tests">
+        <classes>
+            <class name="com.company.automation.tests.LoginTest"/>
+            <class name="com.company.automation.tests.RegistrationTest"/>
+            <class name="com.company.automation.tests.PasswordResetTest"/>
+        </classes>
+    </test>
+
+    <test name="Booking Tests">
+        <classes>
+            <class name="com.company.automation.tests.BookingCreateTest"/>
+            <class name="com.company.automation.tests.BookingCancelTest"/>
+            <class name="com.company.automation.tests.BookingSearchTest"/>
+        </classes>
+    </test>
+
+    <test name="API Tests" parallel="methods" thread-count="8">
+        <!-- API tests can use higher parallelism — no browser overhead -->
+        <classes>
+            <class name="com.company.automation.tests.api.BookingApiTest"/>
+            <class name="com.company.automation.tests.api.AuthApiTest"/>
+        </classes>
+    </test>
+
+</suite>
+```
+
+### Example 2: Thread-Safe Base Test for Parallel Execution
+
+The `BaseTest` class that ensures each parallel thread gets its own isolated driver and context.
+
+
+```java
+import org.openqa.selenium.WebDriver;
+import org.testng.ITestResult;
+import org.testng.annotations.*;
+
+/**
+ * Thread-safe base test for parallel execution.
+ *
+ * Key design decisions:
+ * 1. ThreadLocal for driver — each thread gets its own browser.
+ * 2. Driver created in @BeforeMethod — fresh browser per test method.
+ * 3. Driver stored IMMEDIATELY after creation — before any navigation.
+ * 4. @AfterMethod(alwaysRun=true) — guaranteed cleanup even on failure.
+ * 5. Config loaded once in @BeforeSuite — immutable, safe to share.
+ */
+public class BaseTest {
+
+    private static final ThreadLocal<WebDriver> driverThreadLocal = new ThreadLocal<>();
+    private static final ThreadLocal<WaitUtils> waitThreadLocal = new ThreadLocal<>();
+
+    protected static ConfigManager config;  // immutable after @BeforeSuite — safe to share
+
+    @BeforeSuite
+    public void initSuite() {
+        String env = System.getProperty("env", "staging");
+        config = ConfigManager.load(env);
+    }
+
+    @BeforeMethod
+    @Parameters({"browser"})
+    public void setUp(@Optional("chrome") String browser) {
+        // 1. Create driver
+        WebDriver driver = DriverFactory.createDriver(browser, config);
+
+        // 2. Store IMMEDIATELY — before any action that might throw
+        driverThreadLocal.set(driver);
+        waitThreadLocal.set(new WaitUtils(driver));
+
+        // 3. Navigate to base URL
+        driver.manage().window().maximize();
+        driver.get(config.getBaseUrl());
+    }
+
+    @AfterMethod(alwaysRun = true)
+    public void tearDown(ITestResult result) {
+        WebDriver driver = driverThreadLocal.get();
+        if (driver != null) {
+            try {
+                if (result.getStatus() == ITestResult.FAILURE) {
+                    ScreenshotUtils.capture(driver, result.getName());
+                }
+            } finally {
+                driver.quit();
+                driverThreadLocal.remove();
+                waitThreadLocal.remove();
+            }
+        }
+    }
+
+    protected WebDriver getDriver() {
+        return driverThreadLocal.get();
+    }
+
+    protected WaitUtils getWait() {
+        return waitThreadLocal.get();
+    }
+}
+```
+
+**Usage — a test class that runs in parallel with others:**
+
+
+```java
+public class BookingTest extends BaseTest {
+
+    @Test
+    public void shouldCreateBookingSuccessfully() {
+        LoginPage loginPage = new LoginPage(getDriver(), getWait());
+        loginPage.loginAs(config.getTestUser(), config.getTestPassword());
+
+        BookingPage bookingPage = new BookingPage(getDriver(), getWait());
+        bookingPage.createBooking("Tokyo Suite", "2025-09-01", "2025-09-05", 2);
+
+        // This test has its own browser — completely isolated from other parallel tests
+        assertThat(bookingPage.getConfirmationStatus()).isEqualTo("Confirmed");
+    }
+
+    @Test
+    public void shouldRejectBookingWithPastDates() {
+        LoginPage loginPage = new LoginPage(getDriver(), getWait());
+        loginPage.loginAs(config.getTestUser(), config.getTestPassword());
+
+        BookingPage bookingPage = new BookingPage(getDriver(), getWait());
+        bookingPage.createBooking("Tokyo Suite", "2020-01-01", "2020-01-05", 2);
+
+        assertThat(bookingPage.getErrorMessage()).contains("past date");
+    }
+}
+```
+
+### Example 3: Maven Surefire Configuration for Parallel Forks
+
+Maven can fork multiple JVM processes, each running a subset of tests. This is process-level parallelism (not just thread-level), providing even stronger isolation.
+
+```xml
+<!-- pom.xml — Maven Surefire plugin configuration -->
+<plugin>
+    <groupId>org.apache.maven.plugins</groupId>
+    <artifactId>maven-surefire-plugin</artifactId>
+    <version>3.2.5</version>
+    <configuration>
+        <!-- Fork 4 JVM processes — each runs a subset of test classes -->
+        <forkCount>4</forkCount>
+        <!-- reuseForks=true: reuse JVM processes for multiple classes (faster) -->
+        <!-- reuseForks=false: fresh JVM per class (maximum isolation, slower) -->
+        <reuseForks>true</reuseForks>
+        <suiteXmlFiles>
+            <suiteXmlFile>testng.xml</suiteXmlFile>
+        </suiteXmlFiles>
+        <systemPropertyVariables>
+            <env>${env}</env>
+        </systemPropertyVariables>
+    </configuration>
+</plugin>
+```
+
+**When to use forks vs threads:**
+- **Threads (TestNG parallel):** Faster startup, lower memory, but requires thread-safe code.
+- **Forks (Maven forkCount):** Separate JVM processes — strongest isolation (no shared memory at all), but higher memory usage (~300MB per JVM fork + browser).
+
+---
+
+## Failure and Debugging (Layer 4)
+
+### Failure 1: Tests Pass Sequentially, Fail Randomly in Parallel
+
+**The Problem:**
+
+
+```java
+public class UserTest extends BaseTest {
+    // Instance field — shared across all methods of this class
+    private String testUserId;
+
+    @BeforeMethod
+    public void createTestUser() {
+        testUserId = api.createUser("testuser@example.com");  // same email every time
+    }
+
+    @Test
+    public void shouldUpdateProfile() {
+        api.updateProfile(testUserId, "New Name");
+        assertThat(api.getUser(testUserId).getName()).isEqualTo("New Name");
+    }
+
+    @Test
+    public void shouldDeleteUser() {
+        api.deleteUser(testUserId);
+        assertThat(api.getUser(testUserId).getStatus()).isEqualTo(404);
+    }
+}
+```
+
+**What happens with `parallel="methods"`:** Both methods run simultaneously. Both call `createTestUser` with the same email. The second `createUser` call either fails (duplicate email) or overwrites the first user. One test deletes the user while the other tries to update it. Random failures, different every run.
+
+**The fix — unique test data per method:**
+
+
+```java
+@BeforeMethod
+public void createTestUser() {
+    String uniqueEmail = "testuser-" + UUID.randomUUID() + "@example.com";
+    testUserId = api.createUser(uniqueEmail);
+}
+```
+
+### Failure 2: Thread Count Too High, CI Machine Thrashing
+
+**Symptoms:** Tests take longer with 10 threads than with 4. CI logs show `OutOfMemoryError`, browser crashes, or `WebDriverException: Session not found`. CPU usage is 100% with all cores saturated.
+
+**Root cause:** Each Chrome browser uses 300-500MB RAM. With 10 browsers + the JVM + the OS:
+```
+10 × 400MB (browsers) + 1GB (JVM) + 2GB (OS) = ~7GB
+CI machine has 8GB RAM → thrashing and swap usage
+```
+
+**The fix:** Reduce thread count. Profile memory usage:
+
+```bash
+# Check how much RAM each Chrome process uses
+ps aux | grep chrome | awk '{sum += $6} END {print sum/1024 " MB"}'
+```
+
+**Guideline:** `Available RAM / (500MB per browser + 200MB JVM overhead)` = max browser threads. For an 8GB machine: `(8192 - 2048) / 700 ≈ 8` threads maximum, but 4-6 is safer.
+
+### Failure 3: Database Contention in Parallel Tests
+
+**The Problem:** Tests create and modify database records. In sequential execution, each test runs against a clean state. In parallel, two tests may:
+- Insert records with the same unique key → constraint violation
+- Read a record that another test just deleted → test sees unexpected state
+- Both modify the same record → last-write-wins, unpredictable assertions
+
+**The fix — three strategies:**
+
+1. **Unique data per test:** Each test creates its own records with UUIDs. No two tests touch the same data.
+2. **Schema-level isolation:** Each thread uses a different database schema or table prefix.
+3. **Transaction rollback:** Each test runs in a transaction that rolls back after assertions — data never persists. (Only works with direct DB access.)
+
+---
+
+## Engineering Judgment (Layer 5)
+
+### Is Parallel Execution Worth It for Your Suite?
+
+| Suite Profile | Parallel Worth It? | Why |
+|---------------|-------------------|-----|
+| 20 smoke tests, 3 minutes total | **No** | Engineering cost of thread safety exceeds time savings |
+| 200 UI tests, 35 minutes total | **Yes** | 35 min → ~10 min with 4 threads. Clear ROI. |
+| 500 API tests, 15 minutes total | **Yes** | API tests are lightweight; 10 threads → ~2 minutes |
+| 50 tests with shared test database, no cleanup | **No (yet)** | Fix data isolation first, then parallelize |
+| 100 tests, 30 minutes, but CI has 1 CPU core | **No** | Parallelism without CPU cores is just overhead |
+
+### Choosing the Right Parallel Mode
+
+| Mode | Isolation Level | Best For | Watch Out For |
+|------|----------------|----------|---------------|
+| `parallel="methods"` | Method-level (weakest) | Stateless tests (API, utility) | Instance fields shared across methods |
+| `parallel="classes"` | Class-level (recommended default) | UI tests with page object pattern | Static mutable state shared across classes |
+| `parallel="tests"` | Test-group-level | Mixed suites (smoke + regression + API) | Groups run in parallel, but tests within a group run sequentially |
+| Maven `forkCount` | Process-level (strongest) | Maximum isolation, legacy code | Higher memory cost, slower startup |
+
+### Signs Your Parallel Infrastructure Is Working
+
+| Indicator | Healthy | Unhealthy |
+|-----------|---------|-----------|
+| Same tests pass/fail regardless of thread count | Tests are properly isolated | Tests depend on execution order |
+| Execution time scales ~linearly with threads (up to a point) | No resource contention | Contention, thrashing, or serialization bottlenecks |
+| No `NoSuchSessionException` or `StaleElementReferenceException` in parallel | Drivers are properly isolated | Shared driver between threads |
+| Memory usage stays stable throughout the run | Proper cleanup in `@AfterMethod` | Memory leaks from un-quit browsers or un-removed `ThreadLocal` |
+
+---
+
+## Interview and Revision (Layer 6)
+
+### Fundamental Questions
+
+**Q1: How do you configure parallel test execution in TestNG?**
+
+**A:** TestNG parallel execution is configured in `testng.xml` using the `parallel` attribute and `thread-count`. For UI tests, I typically use `parallel="classes"` with `thread-count="4"` — each test class gets its own thread, so methods within a class run sequentially (maintaining any within-class state) while classes run in parallel. For API tests, I use `parallel="methods"` since API tests are naturally stateless. The thread count is tuned based on the CI machine's resources — typically `CPU cores × 1.5` for browser tests and `CPU cores × 3` for API tests. The test infrastructure uses `ThreadLocal<WebDriver>` to ensure each thread gets its own browser instance.
+
+**Q2: What thread safety requirements must be met for parallel execution?**
+
+**A:** Four key requirements: (1) No shared mutable state — `WebDriver`, test data, and API clients must be isolated per thread using `ThreadLocal`. (2) Unique test data — each test generates its own data with UUIDs instead of hardcoded values like `"testuser1"`. (3) Immutable shared config — configuration loaded once at suite startup and never modified is safe to share across threads. (4) Thread-safe result collection — if tests write to a shared results list, use `ConcurrentHashMap` or `CopyOnWriteArrayList` instead of `ArrayList`. Violating any of these causes intermittent failures that only appear in parallel.
+
+**Q3: How do you decide the right thread count?**
+
+**A:** I start with the machine's resources. For UI tests: each Chrome browser uses ~300-500MB RAM, so an 8GB CI machine with 2GB reserved for OS/JVM can run about 4-6 browsers. For API tests, the bottleneck is the server, not local resources, so I start higher (10-15 threads) and reduce if the API server shows errors. I measure execution time at different thread counts — 2, 4, 6, 8 — and plot the curve. There's always a diminishing-returns point where more threads increase contention without reducing total time. That's the sweet spot.
+
+### Scenario-Based Questions
+
+**S1: "Tests pass locally with `parallel='methods'` but fail in CI with `parallel='classes'`. What do you investigate?"**
+
+**A:** First difference: `methods` runs methods of the same class on different threads, while `classes` runs different classes on different threads. If tests pass with `methods` but fail with `classes`, I'd look for inter-class dependencies — one class's `@BeforeSuite` or `@BeforeTest` setting up state that another class assumes is there. I'd check for static mutable fields shared across classes (e.g., a static `driver` or a static `testData` map). I'd also compare the thread count and memory usage in CI vs local — CI machines often have less RAM, and `parallel="classes"` may launch more browsers simultaneously than `parallel="methods"` depending on class count.
+
+
+
+
+| # | Front (Question) | Back (Answer) |
+|---|---|---|
+| 1 | What are the four TestNG parallel modes? | `methods` (each method its own thread), `classes` (each class its own thread), `tests` (each `<test>` tag its own thread), `instances` (each factory-created instance its own thread). `classes` is the most common for UI tests. |
+| 2 | Why does `parallel="methods"` require stricter thread safety than `parallel="classes"`? | With `parallel="methods"`, multiple methods of the same class run on different threads simultaneously. Instance fields are shared across these threads. With `parallel="classes"`, methods within a class run sequentially on one thread, so instance fields are safe within a class. |
+| 3 | What is the max browser thread count formula? | `(Available RAM - OS/JVM overhead) / RAM per browser`. For 8GB with 2GB overhead and 500MB per browser: `(8192 - 2048) / 500 ≈ 12` max, but 4-6 is practical due to CPU contention. |
+| 4 | What is the difference between Maven fork parallelism and TestNG thread parallelism? | Maven forks create separate JVM processes — strongest isolation (no shared memory at all) but higher memory cost. TestNG threads share the same JVM — lower memory, faster startup, but requires thread-safe code. |
+| 5 | What three data strategies prevent collisions in parallel tests? | (1) Unique data per test with UUIDs, (2) schema-level isolation (separate DB schema per thread), (3) transaction rollback (each test wraps in a transaction that rolls back). |
+
+### Mastery Checklist
+
+- [ ] Can configure TestNG XML for parallel execution with appropriate mode and thread count
+- [ ] Can configure JUnit 5 parallel execution via `junit-platform.properties`
+- [ ] Can explain the four TestNG parallel modes and when to use each
+- [ ] Can implement a thread-safe `BaseTest` with `ThreadLocal` driver and guaranteed cleanup
+- [ ] Can tune thread count based on machine resources and test type (UI vs API)
+- [ ] Can diagnose parallel-only failures by identifying shared mutable state
+- [ ] Can configure Maven Surefire for process-level parallel forks
+- [ ] Can prevent test data collisions with UUID-based unique data generation
+- [ ] Can measure and compare execution time at different parallelism levels
+- [ ] Can decide whether parallel execution is worth the engineering cost for a given suite
+
+---
+
+**Next:** Thread Safety And Resource Ownership | **Related:** Retries And Timeouts
+
+---
+
+*Last updated: *

@@ -1,0 +1,987 @@
+---
+title: "Selenium and Playwright Interview Questions"
+description: "Each question includes: the question, a detailed answer with code examples, and common pitfalls that cost candidates points. Questions blend Selenium and Playwright to show modern web automation breadth."
+summary: "SDET Engineering guide: Selenium and Playwright Interview Questions"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "interview-preparation"
+lesson: "selenium-and-playwright-questions"
+difficulty: "intermediate"
+estimatedMinutes: 64
+prerequisites: []
+tags: ["SDET", "Interview", "Preparation"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/interview-preparation/selenium-and-playwright-questions"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Selenium and Playwright Interview Questions
+
+> **Module:** 13 — Interview Preparation
+> **Focus:** 15 web automation questions covering both Selenium and Playwright with code examples
+> **Audience:** SDET with ~3 years experience targeting senior roles
+> **Complements:** Fastenal-Prep covers Selenium and Playwright separately with basic Q&A; this file provides deeper technical explanations, comparison answers, and common pitfalls
+
+---
+
+## How to Use This File
+
+Each question includes: the question, a detailed answer with code examples, and common pitfalls that cost candidates points. Questions blend Selenium and Playwright to show modern web automation breadth.
+
+---
+
+## Easy (5 Questions)
+
+### Q1: What locator strategies are available in Selenium? Describe your preferred hierarchy.
+
+**Answer:**
+
+Selenium provides 8 locator strategies:
+
+| Locator | Example | Speed | Reliability |
+| --- | --- | --- | --- |
+| `By.id()` | `By.id("login-btn")` | Fastest | High (if IDs are stable) |
+| `By.name()` | `By.name("username")` | Fast | Medium |
+| `By.className()` | `By.className("btn-primary")` | Fast | Low (CSS classes change) |
+| `By.tagName()` | `By.tagName("input")` | Fast | Low (too generic) |
+| `By.linkText()` | `By.linkText("Sign In")` | Fast | Medium (text changes) |
+| `By.partialLinkText()` | `By.partialLinkText("Sign")` | Fast | Low |
+| `By.cssSelector()` | `By.cssSelector("[data-testid='login']")` | Fast | High |
+| `By.xpath()` | `By.xpath("//button[@type='submit']")` | Slower | Depends on expression |
+
+**Preferred hierarchy:**
+
+```
+1. data-testid / data-qa attributes (most reliable — added specifically for testing)
+2. ID (if stable and unique)
+3. CSS Selector (flexible, performant)
+4. XPath (only when CSS can't reach — text-based, traversing up the DOM)
+```
+
+**Why `data-testid` is best:**
+
+```html
+<!-- Developer adds: -->
+<button data-testid="submit-booking" class="btn btn-primary">Book Now</button>
+```
+
+```java
+<!-- unverified -->
+// Survives CSS refactoring, text changes, and restructuring
+By.cssSelector("[data-testid='submit-booking']")
+```
+
+The class might change from `btn-primary` to `btn-success`. The text might change from "Book Now" to "Reserve." But `data-testid` only changes when the *feature* changes.
+
+**Common Pitfalls:**
+- Using absolute XPath (`/html/body/div[2]/form/input[1]`) — breaks on any DOM change
+- Relying on auto-generated IDs (e.g., `id="j_idt78"`) — change on every build
+- Using `className` for styled components — CSS frameworks change class names
+
+---
+
+### Q2: What is the difference between implicit waits and explicit waits in Selenium?
+
+**Answer:**
+
+**Implicit wait:** Global setting that tells WebDriver to poll the DOM for a specified time when an element is not immediately found. Applies to ALL `findElement` calls.
+
+```java
+<!-- unverified -->
+driver.manage().timeouts().implicitlyWait(Duration.ofSeconds(10));
+// Every findElement will wait up to 10 seconds before throwing NoSuchElementException
+```
+
+**Explicit wait:** Waits for a specific condition on a specific element. Precise, targeted, and configurable.
+
+```java
+<!-- unverified -->
+WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
+WebElement element = wait.until(
+    ExpectedConditions.visibilityOfElementLocated(By.id("results-table"))
+);
+```
+
+**Why explicit waits are preferred:**
+
+| Aspect | Implicit Wait | Explicit Wait |
+| --- | --- | --- |
+| Scope | Global (all elements) | Per element/condition |
+| Flexibility | Wait for presence only | Wait for visibility, clickability, text, staleness, etc. |
+| Performance | Slows down negative tests (waits full timeout for elements that *shouldn't* exist) | Only waits where needed |
+| Debugging | Hard to trace which find is slow | Explicit — you know exactly what you're waiting for |
+| Mixing | Mixing implicit + explicit causes unpredictable behavior | Standalone, predictable |
+
+**Common `ExpectedConditions`:**
+
+```java
+<!-- unverified -->
+// Wait for element to be visible
+wait.until(ExpectedConditions.visibilityOfElementLocated(locator));
+
+// Wait for element to be clickable
+wait.until(ExpectedConditions.elementToBeClickable(locator));
+
+// Wait for element to disappear (loading spinner)
+wait.until(ExpectedConditions.invisibilityOfElementLocated(By.id("spinner")));
+
+// Wait for text to appear
+wait.until(ExpectedConditions.textToBePresentInElementLocated(locator, "Success"));
+
+// Custom condition
+wait.until(driver -> driver.findElements(By.cssSelector(".result-row")).size() > 5);
+```
+
+**Common Pitfalls:**
+- Mixing implicit and explicit waits — Selenium documentation explicitly warns against this
+- Using `Thread.sleep()` instead of proper waits — hardcoded delays are slow and brittle
+- Setting implicit wait too high (30 seconds) — makes tests slow when checking for absence of elements
+
+---
+
+### Q3: How does Playwright handle waits differently from Selenium?
+
+**Answer:**
+
+Playwright has **auto-waiting built in.** Most actions automatically wait for the element to be actionable before performing the action.
+
+**What Playwright auto-waits for before `click()`:**
+1. Element is attached to the DOM
+2. Element is visible
+3. Element is stable (not animating)
+4. Element receives events (not obscured by another element)
+5. Element is enabled
+
+```java
+<!-- unverified -->
+// Selenium — manual wait required
+WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
+wait.until(ExpectedConditions.elementToBeClickable(By.id("submit")));
+driver.findElement(By.id("submit")).click();
+
+// Playwright — auto-waits before clicking
+page.locator("#submit").click();
+// If element isn't ready, Playwright waits automatically (default 30s timeout)
+```
+
+**Playwright's assertion model also auto-waits:**
+
+```java
+<!-- unverified -->
+// Selenium — you must wait, then assert
+wait.until(ExpectedConditions.textToBePresentInElementLocated(By.id("msg"), "Booked"));
+String text = driver.findElement(By.id("msg")).getText();
+assertEquals("Booked", text);
+
+// Playwright — assertion retries until timeout
+assertThat(page.locator("#msg")).hasText("Booked");
+// Retries the assertion for up to 5 seconds (configurable)
+```
+
+**Where you still need explicit waits in Playwright:**
+- Waiting for network responses: `page.waitForResponse(url -> url.contains("/api/bookings"))`
+- Waiting for navigation: `page.waitForURL("**/dashboard")`
+- Waiting for download: `page.waitForDownload()`
+- Custom conditions: `page.waitForFunction("() => document.title.includes('Dashboard')")`
+
+**Common Pitfalls:**
+- Adding Selenium-style explicit waits in Playwright — redundant and masks the auto-wait benefit
+- Assuming auto-wait handles everything — network conditions and complex async flows still need manual waits
+- Not configuring timeouts per test — some tests legitimately need longer timeouts (file uploads)
+
+---
+
+### Q4: How do you handle iframes in Selenium and Playwright?
+
+**Answer:**
+
+An iframe is an embedded HTML document within a page. Elements inside an iframe are invisible to the parent page's DOM — you must switch context.
+
+**Selenium approach:**
+
+```java
+<!-- unverified -->
+// Switch by locator
+driver.switchTo().frame(driver.findElement(By.id("payment-iframe")));
+
+// Now interact with elements inside the iframe
+driver.findElement(By.id("card-number")).sendKeys("4111111111111111");
+
+// MUST switch back to interact with parent page
+driver.switchTo().defaultContent();
+// Or switch to parent frame (if nested iframes)
+driver.switchTo().parentFrame();
+```
+
+**Playwright approach (simpler):**
+
+```java
+<!-- unverified -->
+// Playwright treats frames as first-class objects
+FrameLocator iframe = page.frameLocator("#payment-iframe");
+iframe.locator("#card-number").fill("4111111111111111");
+
+// No need to "switch back" — parent page locators still work
+page.locator("#submit-order").click();
+```
+
+**Nested iframes:**
+
+```java
+<!-- unverified -->
+// Selenium — switch chain
+driver.switchTo().frame("outer-frame");
+driver.switchTo().frame("inner-frame");
+// interact...
+driver.switchTo().defaultContent(); // back to top
+
+// Playwright — chain frame locators
+page.frameLocator("#outer-frame").frameLocator("#inner-frame").locator("#element").click();
+```
+
+**Common Pitfalls:**
+- Forgetting to switch back to `defaultContent()` in Selenium — all subsequent `findElement` calls fail silently
+- Not waiting for the iframe to load before switching — `NoSuchFrameException`
+- In Playwright, using `page.locator()` for elements inside frames — won't find them
+
+---
+
+### Q5: How do you handle alert/popup dialogs in Selenium and Playwright?
+
+**Answer:**
+
+**Selenium — switch to alert:**
+
+```java
+<!-- unverified -->
+// Accept an alert (OK/Yes)
+Alert alert = driver.switchTo().alert();
+String alertText = alert.getText();
+alert.accept();
+
+// Dismiss an alert (Cancel/No)
+driver.switchTo().alert().dismiss();
+
+// Enter text in a prompt
+Alert prompt = driver.switchTo().alert();
+prompt.sendKeys("User input");
+prompt.accept();
+
+// Wait for alert to appear
+WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(5));
+wait.until(ExpectedConditions.alertIsPresent());
+```
+
+**Playwright — dialog handler (must register BEFORE triggering the dialog):**
+
+```java
+<!-- unverified -->
+// Register handler before the action that triggers the dialog
+page.onDialog(dialog -> {
+    System.out.println("Dialog message: " + dialog.message());
+    dialog.accept(); // or dialog.dismiss()
+});
+
+// Now perform the action that triggers the dialog
+page.locator("#delete-btn").click();
+
+// For prompts with input
+page.onDialog(dialog -> dialog.accept("User input"));
+page.locator("#prompt-btn").click();
+```
+
+**Key difference:** In Selenium, you handle the alert after it appears. In Playwright, you set up the handler *before* triggering it — Playwright auto-dismisses dialogs by default if no handler is registered.
+
+**Common Pitfalls:**
+- In Selenium: trying to interact with the page while an alert is open — throws `UnhandledAlertException`
+- In Playwright: forgetting to register the handler before the triggering action — dialog is auto-dismissed
+- Not distinguishing between browser-native alerts (these APIs handle) and custom modal dialogs (regular DOM elements — use standard locators)
+
+---
+
+## Medium (5 Questions)
+
+### Q6: How do you handle Shadow DOM elements in Selenium vs. Playwright?
+
+**Answer:**
+
+Shadow DOM encapsulates component internals — elements inside a shadow root are not accessible via regular DOM queries.
+
+**Selenium 4 approach:**
+
+```java
+<!-- unverified -->
+// Get the host element, then access its shadow root
+WebElement hostElement = driver.findElement(By.cssSelector("my-custom-component"));
+SearchContext shadowRoot = hostElement.getShadowRoot();
+WebElement innerButton = shadowRoot.findElement(By.cssSelector("button.inner-btn"));
+innerButton.click();
+```
+
+**Playwright approach (seamless):**
+
+```java
+<!-- unverified -->
+// Playwright pierces shadow DOM by default with CSS locators
+page.locator("my-custom-component >> button.inner-btn").click();
+
+// Or use the built-in piercing
+page.locator("button.inner-btn").click(); // Finds even inside shadow roots
+```
+
+**Nested shadow DOM (component inside component):**
+
+```java
+<!-- unverified -->
+// Selenium — chain shadow roots
+WebElement outer = driver.findElement(By.cssSelector("outer-component"));
+SearchContext outerShadow = outer.getShadowRoot();
+WebElement inner = outerShadow.findElement(By.cssSelector("inner-component"));
+SearchContext innerShadow = inner.getShadowRoot();
+innerShadow.findElement(By.cssSelector("button")).click();
+
+// Playwright — just locate it
+page.locator("outer-component inner-component button").click();
+```
+
+**Why this matters:** Modern web frameworks (Angular, Lit, Salesforce Lightning) heavily use Shadow DOM. If you can't handle it, you can't test modern web applications.
+
+**Common Pitfalls:**
+- Trying XPath inside shadow DOM in Selenium — XPath does not cross shadow boundaries
+- In Selenium 3, shadow DOM required JavaScript execution (`executeCdpCommand`) — Selenium 4 added native support
+- Assuming all custom components use shadow DOM — some use regular DOM with scoped styles
+
+---
+
+### Q7: Explain the Playwright browser context model. How does it enable test isolation?
+
+**Answer:**
+
+A Playwright **browser context** is an isolated browser session — like an incognito window. Each context has its own cookies, localStorage, and cache. Multiple contexts share the same browser process, making them lightweight.
+
+```
+Browser (one process, launched once)
+  ├── Context 1 (Test A — logged in as admin)
+  │     ├── Page 1
+  │     └── Page 2
+  ├── Context 2 (Test B — logged in as user)
+  │     └── Page 1
+  └── Context 3 (Test C — not logged in)
+        └── Page 1
+```
+
+**Why this is powerful:**
+
+```java
+<!-- unverified -->
+// Create isolated context per test — no shared state
+BrowserContext context = browser.newContext();
+Page page = context.newPage();
+
+// Each test gets fresh cookies, storage, and session
+page.navigate("https://app.example.com/login");
+// ... run test ...
+
+// Cleanup — destroys all state
+context.close();
+
+// Vs. Selenium: must clear cookies manually, localStorage manually,
+// or create a new browser instance (expensive)
+```
+
+**Advanced: Reuse authentication state**
+
+```java
+<!-- unverified -->
+// Save auth state after login
+context.storageState(new BrowserContext.StorageStateOptions()
+    .setPath(Paths.get("auth-state.json")));
+
+// Create new context with pre-authenticated state
+BrowserContext authContext = browser.newContext(
+    new Browser.NewContextOptions()
+        .setStorageStatePath(Paths.get("auth-state.json"))
+);
+// Skip login — context already has cookies/tokens
+```
+
+**Comparison with Selenium:**
+
+| Aspect | Selenium | Playwright |
+| --- | --- | --- |
+| Isolation unit | WebDriver instance (heavy) | BrowserContext (lightweight) |
+| Startup cost | New browser process per test | New context in same browser |
+| Cookie isolation | Manual `deleteAllCookies()` | Automatic per context |
+| Auth reuse | Cookie injection via `addCookie()` | `storageState` file — includes cookies + localStorage |
+| Parallel tests | One driver per thread (heavy) | Multiple contexts in one browser (efficient) |
+
+**Common Pitfalls:**
+- Not closing contexts after tests — contexts accumulate and consume memory
+- Sharing a context across tests — defeats the isolation purpose
+- Using Selenium mental model ("one browser per test") — Playwright contexts are much cheaper
+
+---
+
+### Q8: What is the StaleElementReferenceException in Selenium? How do you fix it?
+
+**Answer:**
+
+A `StaleElementReferenceException` occurs when you try to interact with a `WebElement` reference that is no longer attached to the DOM. The element was found, but by the time you interact with it, the DOM has changed (page reload, AJAX update, SPA navigation).
+
+**Common causes:**
+
+1. **Page navigation between find and interact:**
+
+```java
+<!-- unverified -->
+WebElement button = driver.findElement(By.id("next"));
+driver.navigate().refresh(); // DOM destroyed and rebuilt
+button.click(); // StaleElementReferenceException!
+```
+
+2. **AJAX update replaces the element:**
+
+```java
+<!-- unverified -->
+WebElement price = driver.findElement(By.id("total-price"));
+// User changes quantity, which triggers AJAX to update the price element
+driver.findElement(By.id("quantity")).sendKeys("5");
+Thread.sleep(100); // Price element is destroyed and recreated
+System.out.println(price.getText()); // Stale!
+```
+
+3. **SPA framework re-renders the component:**
+
+```java
+<!-- unverified -->
+// React/Angular re-renders — old DOM node is replaced with new one
+WebElement listItem = driver.findElements(By.cssSelector(".item")).get(0);
+driver.findElement(By.id("sort-btn")).click(); // Triggers re-render
+listItem.click(); // Stale — the .item elements are new DOM nodes
+```
+
+**Solutions:**
+
+```java
+<!-- unverified -->
+// Solution 1: Re-find the element before interaction
+driver.findElement(By.id("total-price")).getText(); // Fresh reference every time
+
+// Solution 2: Use explicit wait for the condition
+new WebDriverWait(driver, Duration.ofSeconds(10))
+    .until(ExpectedConditions.stalenessOf(oldElement)); // Wait for old element to go stale
+WebElement freshElement = driver.findElement(By.id("total-price")); // Then find new one
+
+// Solution 3: Wrap in a retry (for when re-rendering timing is unpredictable)
+public String getTextWithRetry(By locator) {
+    return new WebDriverWait(driver, Duration.ofSeconds(10))
+        .ignoring(StaleElementReferenceException.class)
+        .until(d -> d.findElement(locator).getText());
+}
+
+// Solution 4 (best): Never store element references — always find fresh
+// Instead of: WebElement el = find(); ... later ... el.click();
+// Do:         find().click(); // Single expression — minimal staleness window
+```
+
+**Why Playwright doesn't have this problem:** Playwright locators are lazy — they re-query the DOM on every action. `page.locator("#price")` doesn't find the element until you call `.click()` or `.textContent()`.
+
+**Common Pitfalls:**
+- Storing WebElement references in fields and reusing them across methods — high staleness risk
+- Using `Thread.sleep()` instead of proper staleness wait
+- Not understanding *why* the DOM changed — the fix depends on the cause
+
+---
+
+### Q9: How do you handle file uploads and downloads in automation?
+
+**Answer:**
+
+**File Upload — Selenium:**
+
+```java
+<!-- unverified -->
+// Standard HTML file input — sendKeys works directly
+WebElement fileInput = driver.findElement(By.cssSelector("input[type='file']"));
+fileInput.sendKeys("/path/to/test-document.pdf");
+
+// If the file input is hidden (custom styled upload button):
+// Use JavaScript to make it visible first
+JavascriptExecutor js = (JavascriptExecutor) driver;
+js.executeScript("arguments[0].style.display='block'", fileInput);
+fileInput.sendKeys("/path/to/file.pdf");
+```
+
+**File Upload — Playwright:**
+
+```java
+<!-- unverified -->
+// Simple upload
+page.locator("input[type='file']").setInputFiles(Paths.get("test-document.pdf"));
+
+// Multiple files
+page.locator("input[type='file']").setInputFiles(new Path[]{
+    Paths.get("file1.pdf"), Paths.get("file2.pdf")
+});
+
+// Non-input upload (drag-and-drop or custom button)
+page.locator("#upload-area").setInputFiles(Paths.get("file.pdf"));
+```
+
+**File Download — Selenium (tricky):**
+
+```java
+<!-- unverified -->
+// Configure Chrome to download to a specific directory
+HashMap<String, Object> chromePrefs = new HashMap<>();
+chromePrefs.put("download.default_directory", "/path/to/downloads");
+chromePrefs.put("download.prompt_for_download", false);
+ChromeOptions options = new ChromeOptions();
+options.setExperimentalOption("prefs", chromePrefs);
+
+// Trigger download
+driver.findElement(By.id("download-btn")).click();
+
+// Wait for file to appear (polling)
+File downloadedFile = new File("/path/to/downloads/report.csv");
+WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(30));
+wait.until(d -> downloadedFile.exists() && downloadedFile.length() > 0);
+```
+
+**File Download — Playwright (first-class support):**
+
+```java
+<!-- unverified -->
+// Wait for download event
+Download download = page.waitForDownload(() -> {
+    page.locator("#download-btn").click();
+});
+
+// Save to specific path
+download.saveAs(Paths.get("test-output/report.csv"));
+
+// Verify download
+assertThat(download.suggestedFilename()).isEqualTo("report.csv");
+```
+
+**Common Pitfalls:**
+- Trying to interact with OS file dialogs — automation tools can't control native OS dialogs. Use `sendKeys` on the input element instead.
+- Not configuring the download directory before the test — files go to default Downloads folder
+- Selenium download verification requires file system polling — easy to have race conditions
+
+---
+
+### Q10: How do you run tests in headless mode? What are the trade-offs?
+
+**Answer:**
+
+Headless mode runs the browser without a visible GUI — no window appears on screen.
+
+**Selenium headless setup:**
+
+```java
+<!-- unverified -->
+// Chrome
+ChromeOptions options = new ChromeOptions();
+options.addArguments("--headless=new"); // "new" for Chrome's new headless mode
+options.addArguments("--window-size=1920,1080"); // Set viewport explicitly
+options.addArguments("--disable-gpu");
+options.addArguments("--no-sandbox");
+WebDriver driver = new ChromeDriver(options);
+
+// Firefox
+FirefoxOptions options = new FirefoxOptions();
+options.addArguments("-headless");
+WebDriver driver = new FirefoxDriver(options);
+```
+
+**Playwright headless (default):**
+
+```java
+<!-- unverified -->
+// Playwright runs headless by default
+Browser browser = playwright.chromium().launch();
+
+// To run headed (for debugging):
+Browser browser = playwright.chromium().launch(
+    new BrowserType.LaunchOptions().setHeadless(false)
+);
+```
+
+**Trade-offs:**
+
+| Aspect | Headless | Headed |
+| --- | --- | --- |
+| Speed | 20-30% faster (no rendering overhead) | Slower |
+| CI compatibility | Works on servers without display | Requires virtual display (Xvfb) |
+| Visual debugging | Can't see what's happening | Watch the test in real-time |
+| Rendering accuracy | Very close to headed in modern browsers | Pixel-perfect |
+| Screenshots | Supported — set viewport size explicitly | Supported |
+| Resource usage | Lower CPU/memory | Higher |
+
+**When headed mode is still needed:**
+- Debugging a failing test locally
+- Visual regression testing (some pixel differences in headless)
+- Demos or presentations
+- Tests involving drag-and-drop or complex mouse interactions (occasional headless quirks)
+
+**Common Pitfalls:**
+- Not setting viewport size in headless — defaults to a small viewport, causing responsive layout changes and element visibility issues
+- Tests passing in headed but failing in headless — usually a viewport or timing difference
+- Using old `--headless` flag instead of `--headless=new` in Chrome (old headless was a separate browser implementation)
+
+---
+
+## Hard (5 Questions)
+
+### Q11: Compare Selenium and Playwright architecturally. When would you choose each?
+
+**Answer:**
+
+**Architecture:**
+
+| Aspect | Selenium | Playwright |
+| --- | --- | --- |
+| Communication | WebDriver protocol (HTTP/JSON Wire) | Chrome DevTools Protocol (WebSocket) |
+| Browser control | External driver binary (chromedriver) | Built-in browser binaries |
+| Language support | Java, Python, C#, Ruby, JS | Java, Python, C#, TypeScript/JS |
+| Speed | Slower (HTTP roundtrip per command) | Faster (persistent WebSocket connection) |
+| Auto-waiting | Manual (explicit/implicit waits) | Built-in (auto-wait on actions) |
+| Browser support | Chrome, Firefox, Safari, Edge, IE | Chromium, Firefox, WebKit |
+| Ecosystem age | 2004+, massive ecosystem | 2020+, rapidly growing |
+
+**When to choose Selenium:**
+- Team has deep Selenium expertise and a large existing suite
+- Need to support browsers Playwright doesn't cover (older browser versions)
+- Enterprise environment with Selenium Grid infrastructure already in place
+- Test execution on BrowserStack/Sauce Labs (Selenium is the standard protocol)
+
+**When to choose Playwright:**
+- New project with no existing framework
+- Speed and reliability are top priorities
+- Need built-in features: auto-wait, trace viewer, API testing, network interception
+- Testing modern web apps with Shadow DOM, SPAs, complex async behavior
+- Want test isolation via browser contexts (cheaper than Selenium's full browser instances)
+
+**When neither is wrong:**
+- Team skill matters more than tool superiority
+- Both can solve 95% of web automation problems
+- The framework design matters more than the tool
+
+**Common Pitfalls:**
+- "Playwright is always better" — ignores team expertise, ecosystem, and integration requirements
+- "Selenium is outdated" — Selenium 4 has significant improvements and the largest community
+- Not considering the total cost of migration when switching tools
+
+---
+
+### Q12: How do you handle network interception and mocking in Playwright?
+
+**Answer:**
+
+Playwright can intercept, modify, and mock network requests — powerful for testing without real backends, simulating error conditions, or speeding up tests.
+
+**Mock an API response:**
+
+```java
+<!-- unverified -->
+// Return mock data for an API call
+page.route("**/api/bookings", route -> {
+    route.fulfill(new Route.FulfillOptions()
+        .setStatus(200)
+        .setContentType("application/json")
+        .setBody("[{\"id\": 1, \"name\": \"Mock Booking\"}]")
+    );
+});
+
+// Now when the page makes GET /api/bookings, it gets mock data
+page.navigate("https://app.example.com/bookings");
+assertThat(page.locator(".booking-name")).hasText("Mock Booking");
+```
+
+**Simulate error conditions:**
+
+```java
+<!-- unverified -->
+// Test how the app handles a 500 error
+page.route("**/api/bookings", route -> {
+    route.fulfill(new Route.FulfillOptions()
+        .setStatus(500)
+        .setBody("{\"error\": \"Internal Server Error\"}")
+    );
+});
+
+page.navigate("https://app.example.com/bookings");
+assertThat(page.locator(".error-message")).isVisible();
+```
+
+**Modify a real request/response (pass-through with changes):**
+
+```java
+<!-- unverified -->
+page.route("**/api/user/profile", route -> {
+    // Fetch the real response
+    APIResponse response = route.fetch();
+    String body = response.text();
+    
+    // Modify it (e.g., change the user role for testing)
+    String modified = body.replace("\"role\":\"user\"", "\"role\":\"admin\"");
+    
+    route.fulfill(new Route.FulfillOptions()
+        .setResponse(response)
+        .setBody(modified)
+    );
+});
+```
+
+**Wait for specific network responses:**
+
+```java
+<!-- unverified -->
+// Wait for the booking API to complete before asserting
+Response response = page.waitForResponse(
+    resp -> resp.url().contains("/api/bookings") && resp.status() == 200,
+    () -> page.locator("#search-btn").click()
+);
+
+// Now the data is loaded — safe to assert
+assertThat(page.locator(".results-count")).hasText("5 results");
+```
+
+**Common Pitfalls:**
+- Mocking too aggressively — you're testing your mocks, not the application
+- Not removing routes after tests — routes persist on the page context
+- Forgetting that `route.continue_()` passes the request through — use it when you only want to observe, not mock
+
+---
+
+### Q13: How do you handle dynamic web elements and asynchronous rendering?
+
+**Answer:**
+
+Modern SPAs (React, Angular, Vue) render dynamically — elements appear, disappear, and change asynchronously. This creates the most common automation failures.
+
+**Challenge 1: Element exists in DOM but isn't visible yet**
+
+```java
+<!-- unverified -->
+// Selenium — wait for visibility, not just presence
+WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
+wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("results")));
+
+// Playwright — auto-waits for visibility
+page.locator("#results").waitFor(); // Waits for visible by default
+```
+
+**Challenge 2: Loading spinner blocks interaction**
+
+```java
+<!-- unverified -->
+// Wait for spinner to disappear BEFORE interacting with loaded content
+// Selenium
+wait.until(ExpectedConditions.invisibilityOfElementLocated(By.cssSelector(".loading-spinner")));
+driver.findElement(By.id("first-result")).click();
+
+// Playwright
+page.locator(".loading-spinner").waitFor(new Locator.WaitForOptions().setState(WaitForSelectorState.HIDDEN));
+page.locator("#first-result").click();
+```
+
+**Challenge 3: Dynamically loaded list items (infinite scroll, lazy loading)**
+
+```java
+<!-- unverified -->
+// Wait for a minimum number of items to appear
+// Selenium
+wait.until(d -> d.findElements(By.cssSelector(".item")).size() >= 10);
+
+// Playwright
+page.locator(".item").nth(9).waitFor(); // Wait for at least 10 items (0-indexed)
+```
+
+**Challenge 4: Element re-rendered by framework (React key change)**
+
+```java
+<!-- unverified -->
+// Element is destroyed and recreated — Selenium gives StaleElementReferenceException
+// Solution: Never cache WebElement references for dynamic content
+
+// Selenium — always re-find
+String price = driver.findElement(By.id("price")).getText(); // Fresh find each time
+
+// Playwright — locators are always lazy (never stale)
+String price = page.locator("#price").textContent();
+```
+
+**Challenge 5: Animations delaying clickability**
+
+```java
+<!-- unverified -->
+// Selenium — wait for element to be clickable
+wait.until(ExpectedConditions.elementToBeClickable(By.id("animated-btn")));
+
+// Playwright — auto-waits for stability (no animation movement)
+// If needed, explicitly wait:
+page.locator("#animated-btn").click(new Locator.ClickOptions().setTimeout(15000));
+```
+
+**Common Pitfalls:**
+- Using `Thread.sleep()` to "wait for rendering" — fragile and slow
+- Checking `.isDisplayed()` without a wait — the element might not be in the DOM yet
+- Not considering that "visible" and "clickable" are different states (an element can be visible but behind an overlay)
+
+---
+
+### Q14: How do you implement cross-browser testing in your framework?
+
+**Answer:**
+
+Cross-browser testing verifies the application works consistently across different browsers and versions.
+
+**Framework design for cross-browser:**
+
+```java
+<!-- unverified -->
+// DriverFactory handles browser selection
+public class DriverFactory {
+    public static WebDriver create(String browser) {
+        switch (browser.toLowerCase()) {
+            case "chrome":
+                return new ChromeDriver(chromeOptions());
+            case "firefox":
+                return new FirefoxDriver(firefoxOptions());
+            case "edge":
+                return new EdgeDriver(edgeOptions());
+            case "safari":
+                return new SafariDriver();
+            default:
+                throw new IllegalArgumentException("Unsupported: " + browser);
+        }
+    }
+}
+
+// TestNG parallel with different browsers via XML
+// testng-crossbrowser.xml:
+// <suite name="Cross Browser" parallel="tests" thread-count="3">
+//   <test name="Chrome"><parameter name="browser" value="chrome"/>...</test>
+//   <test name="Firefox"><parameter name="browser" value="firefox"/>...</test>
+//   <test name="Edge"><parameter name="browser" value="edge"/>...</test>
+// </suite>
+```
+
+**Playwright cross-browser:**
+
+```java
+<!-- unverified -->
+// Playwright provides 3 browser engines out of the box
+@ParameterizedTest
+@ValueSource(strings = {"chromium", "firefox", "webkit"})
+void testAcrossBrowsers(String browserName) {
+    BrowserType browserType = switch (browserName) {
+        case "chromium" -> playwright.chromium();
+        case "firefox" -> playwright.firefox();
+        case "webkit" -> playwright.webkit();
+        default -> throw new IllegalArgumentException(browserName);
+    };
+    Browser browser = browserType.launch();
+    Page page = browser.newPage();
+    // test...
+    browser.close();
+}
+```
+
+**Strategy — don't test everything on every browser:**
+
+| Test Type | Chrome | Firefox | Safari/Edge |
+| --- | --- | --- | --- |
+| Smoke (critical paths) | Every commit | Every commit | Every commit |
+| Full regression | Every commit | Daily | Weekly |
+| Visual regression | Every commit | Daily | Weekly |
+
+**Cloud grids for scale:** BrowserStack, Sauce Labs, LambdaTest — run on real devices and browser versions you don't have locally.
+
+**Common Pitfalls:**
+- Testing on every browser version — focus on the latest 2-3 versions users actually use (check analytics)
+- Browser-specific locators — if a test needs different locators per browser, the locator is fragile
+- Not testing Safari — WebKit has unique rendering behaviors that Chrome/Firefox don't expose
+
+---
+
+### Q15: How do you implement visual regression testing?
+
+**Answer:**
+
+Visual regression testing compares screenshots of the application against approved baselines to detect unintended visual changes (layout shifts, font changes, color differences, overlapping elements).
+
+**Tools:**
+- **Playwright built-in:** `assertThat(page).hasScreenshot("homepage.png")`
+- **Percy (BrowserStack):** Cloud-based visual testing with review dashboard
+- **Applitools Eyes:** AI-powered visual comparison (ignores dynamic content)
+- **BackstopJS:** Open-source, configurable viewports
+
+**Playwright visual comparison:**
+
+```java
+<!-- unverified -->
+@Test
+void homepageShouldLookCorrect() {
+    page.navigate("https://app.example.com");
+    
+    // Full page screenshot comparison
+    assertThat(page).hasScreenshot("homepage.png", 
+        new PageAssertions.HasScreenshotOptions()
+            .setMaxDiffPixelRatio(0.01) // Allow 1% pixel difference
+    );
+    
+    // Component-level screenshot
+    assertThat(page.locator(".header")).hasScreenshot("header.png");
+}
+
+// First run: creates baseline screenshots
+// Subsequent runs: compares against baselines
+// If different: test fails with a diff image showing changes
+```
+
+**Handling dynamic content:**
+
+```java
+<!-- unverified -->
+// Hide dynamic elements before screenshot
+page.locator(".timestamp").evaluate("el => el.style.visibility = 'hidden'");
+page.locator(".ad-banner").evaluate("el => el.style.display = 'none'");
+
+// Or mask specific areas
+assertThat(page).hasScreenshot("dashboard.png",
+    new PageAssertions.HasScreenshotOptions()
+        .setMask(Arrays.asList(page.locator(".dynamic-chart")))
+);
+```
+
+**When visual testing adds value:**
+- UI-heavy applications (marketing sites, dashboards, design systems)
+- After CSS/layout framework upgrades
+- Cross-browser visual consistency
+- Catching unintended side effects of CSS changes
+
+**When it's overkill:**
+- API-only testing
+- Applications with highly dynamic content (real-time dashboards)
+- Early-stage products where the UI changes daily
+
+**Common Pitfalls:**
+- Too many full-page screenshots — small changes create massive false positives
+- Not handling dynamic content — timestamps, ads, and animations cause false failures
+- Not maintaining baselines — approved screenshots become stale after intentional changes
+
+---
+
+**Related:** Locator Strategy, Synchronization And Waits, Browser Contexts And Isolation

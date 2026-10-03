@@ -1,0 +1,832 @@
+---
+title: "REST Assured — Advanced Request Patterns"
+description: "What: Beyond basic given().when().then(), REST Assured supports reusable request builders, POJO serialization/deserialization, all parameter types (path, query, form, multipart), request/response filters, and response time validation. These patterns transform test code from copy-pasted HTTP calls into a maintainable, type-safe test architecture."
+summary: "SDET Engineering guide: REST Assured — Advanced Request Patterns"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "api-automation"
+lesson: "rest-assured-java-advanced-request-patterns"
+difficulty: "intermediate"
+estimatedMinutes: 53
+prerequisites: []
+tags: ["SDET", "API", "REST", "Testing"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/api-automation/rest-assured-java-advanced-request-patterns"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# REST Assured — Advanced Request Patterns
+
+> **Module:** 04 — API Automation > REST Assured Java  
+> **Prerequisites:** Setup And First Tests, Authentication And Authorization, Java OOP basics  
+> **Mastery Target:** L3 (Independent) — can build reusable specs, map POJOs, handle parameters, and chain multi-step flows without guidance
+
+---
+
+## Quick Overview (Layer 1)
+
+**What:** Beyond basic `given().when().then()`, REST Assured supports reusable request builders, POJO serialization/deserialization, all parameter types (path, query, form, multipart), request/response filters, and response time validation. These patterns transform test code from copy-pasted HTTP calls into a maintainable, type-safe test architecture.
+
+**Why:** Your basic REST Assured skills let you test individual endpoints. But real test suites need: reusable auth specs applied to 50 tests, Java objects mapped to/from JSON automatically (no more hand-written JSON strings), file uploads tested, and response performance validated. These are the patterns that separate a junior SDET's "it works" test from a senior SDET's production-grade suite.
+
+**Where:** Any REST Assured test suite beyond a handful of tests. POJO mapping appears in every test that sends or receives structured data. Parameter handling covers every endpoint that takes path IDs, query filters, or form data. Filters apply to cross-cutting concerns like logging and auth. Response time checks guard against performance regressions in CI.
+
+<MentalModel>
+
+Think of advanced request patterns as **upgrading from handwritten letters to a mail-merge system**. Basic REST Assured is writing each letter by hand (raw JSON strings, manual headers). Advanced patterns give you templates (request specs), structured forms (POJOs), and automated processing rules (filters). You define the structure once, and the system fills in the details for each test — faster, less error-prone, and easier to change when the template needs updating.
+
+</MentalModel>
+
+
+<KeyTakeaways>
+
+1. **Request spec builders compose** — you can layer specs: base spec + auth spec + logging spec. Each adds its configuration without overwriting the others.
+2. **POJO mapping eliminates JSON strings** — send Java objects, receive Java objects. Typos in field names become compile errors instead of runtime failures.
+3. **Path params, query params, and form params serve different purposes** — know which one to use based on the API's URL design.
+4. **Filters intercept every request/response** — use them for logging, auth token injection, or request modification without touching individual tests.
+5. **Response time validation catches performance regressions early** — but set thresholds generously for CI environments where timing varies.
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation (Layer 2)
+
+### Request Specification Builder — Composable Specs
+
+The `RequestSpecBuilder` lets you create reusable, composable request configurations. The key insight is that specs can inherit from other specs:
+
+
+```java
+import io.restassured.builder.RequestSpecBuilder;
+import io.restassured.filter.log.LogDetail;
+import io.restassured.http.ContentType;
+import io.restassured.specification.RequestSpecification;
+
+public class RequestSpecs {
+
+    /**
+     * Layer 1: Foundation spec — base URI, JSON content type, logging.
+     * Everything builds on this.
+     */
+    public static RequestSpecification base() {
+        return new RequestSpecBuilder()
+            .setBaseUri(System.getProperty("api.baseUri", "http://localhost:8080"))
+            .setBasePath("/api/v1")
+            .setContentType(ContentType.JSON)
+            .setAccept(ContentType.JSON)
+            .log(LogDetail.URI)  // Always log the URL being hit
+            .build();
+    }
+
+    /**
+     * Layer 2: Authenticated spec — adds Bearer token to base.
+     * Most tests use this since most endpoints require auth.
+     */
+    public static RequestSpecification authenticated(String token) {
+        return new RequestSpecBuilder()
+            .addRequestSpecification(base())  // Inherits everything from base
+            .addHeader("Authorization", "Bearer " + token)
+            .build();
+    }
+
+    /**
+     * Layer 2: Admin spec — authenticated with additional admin-specific config.
+     */
+    public static RequestSpecification admin(String adminToken) {
+        return new RequestSpecBuilder()
+            .addRequestSpecification(authenticated(adminToken))
+            .addHeader("X-Request-Source", "api-tests")  // Tag for test traceability
+            .build();
+    }
+
+    /**
+     * Layer 2: No-auth spec — for public endpoints (signup, login, search).
+     * Explicitly no token — makes intent clear.
+     */
+    public static RequestSpecification unauthenticated() {
+        return new RequestSpecBuilder()
+            .addRequestSpecification(base())
+            // No Authorization header — intentionally public
+            .build();
+    }
+}
+```
+
+**Composition matters because:** In real projects, you might have 5-10 spec combinations (base, auth, admin, multipart, slow-endpoint). Without composition, you'd duplicate the base config in each. With composition, changing the base URI propagates to all specs automatically.
+
+### Parameter Types — Path, Query, Form, and Multipart
+
+Each parameter type serves a different purpose in HTTP:
+
+
+```java
+import static io.restassured.RestAssured.given;
+
+public class ParameterExamples {
+
+    /**
+     * PATH PARAMETERS — identify a specific resource in the URL.
+     * URL pattern: /admin/hotels/{hotelId}/rooms/{roomId}
+     * The parameter is PART OF the URL path.
+     */
+    public void pathParamExample(String token) {
+        given()
+            .spec(RequestSpecs.authenticated(token))
+            .pathParam("hotelId", 42)
+            .pathParam("roomId", 7)
+        .when()
+            .get("/admin/hotels/{hotelId}/rooms/{roomId}")
+        .then()
+            .statusCode(200)
+            .body("data.id", equalTo(7));
+        // Sends: GET /api/v1/admin/hotels/42/rooms/7
+    }
+
+    /**
+     * QUERY PARAMETERS — filter, sort, or paginate a collection.
+     * Appended after ? in the URL: /hotels/search?city=NYC&page=0
+     * REST Assured URL-encodes values automatically.
+     */
+    public void queryParamExample() {
+        given()
+            .spec(RequestSpecs.unauthenticated())
+            .queryParam("city", "New York")     // Encoded to "New+York"
+            .queryParam("page", 0)
+            .queryParam("size", 10)
+        .when()
+            .get("/hotels/search")
+        .then()
+            .statusCode(200)
+            .body("data", hasSize(lessThanOrEqualTo(10)));
+        // Sends: GET /api/v1/hotels/search?city=New+York&page=0&size=10
+    }
+
+    /**
+     * FORM PARAMETERS — sent in the body as URL-encoded key-value pairs.
+     * Content-Type: application/x-www-form-urlencoded
+     * Used by OAuth2 token endpoints, HTML forms, some legacy APIs.
+     */
+    public void formParamExample() {
+        given()
+            .contentType("application/x-www-form-urlencoded")
+            .formParam("grant_type", "client_credentials")
+            .formParam("client_id", "my-app")
+            .formParam("client_secret", "secret123")
+        .when()
+            .post("/oauth/token")
+        .then()
+            .statusCode(200)
+            .body("access_token", notNullValue());
+        // Body sent as: grant_type=client_credentials&client_id=my-app&client_secret=secret123
+    }
+
+    /**
+     * MULTIPART — file uploads with binary data.
+     * Content-Type: multipart/form-data (set automatically by REST Assured).
+     * Combine file data with form fields.
+     */
+    public void multipartExample(String token) {
+        given()
+            .spec(RequestSpecs.authenticated(token))
+            .contentType("multipart/form-data")
+            .multiPart("file", new File("src/test/resources/hotel-photo.jpg"), "image/jpeg")
+            .multiPart("description", "Hotel lobby photo")
+        .when()
+            .post("/admin/hotels/42/photos")
+        .then()
+            .statusCode(201)
+            .body("data.url", notNullValue());
+    }
+}
+```
+
+**Quick reference — when to use which parameter type:**
+
+| Type | In the URL? | In the body? | Use Case |
+|------|-------------|-------------|----------|
+| Path | Yes — part of the path | No | Identifying a specific resource: `/hotels/{id}` |
+| Query | Yes — after `?` | No | Filtering, sorting, pagination: `?city=NYC&page=0` |
+| Form | No | Yes — URL-encoded | OAuth, HTML forms, legacy APIs |
+| Multipart | No | Yes — binary + metadata | File uploads |
+
+### POJO Mapping — Type-Safe Request and Response Bodies
+
+Instead of handwriting JSON strings, map Java objects to/from JSON automatically. REST Assured uses Jackson (if on classpath) or Gson for serialization:
+
+
+```java
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
+
+/**
+ * Request POJO for creating a booking.
+ * Jackson serializes this to JSON when passed to .body().
+ * Field names match the API's expected JSON keys.
+ */
+public class CreateBookingRequest {
+
+    private int hotelId;
+    private int roomId;
+    private String checkInDate;    // ISO format: "2025-08-01"
+    private String checkOutDate;
+    private int numberOfGuests;
+
+    // Builder-style setters for fluent test code
+    public CreateBookingRequest hotelId(int hotelId) {
+        this.hotelId = hotelId;
+        return this;
+    }
+
+    public CreateBookingRequest roomId(int roomId) {
+        this.roomId = roomId;
+        return this;
+    }
+
+    public CreateBookingRequest checkInDate(String checkInDate) {
+        this.checkInDate = checkInDate;
+        return this;
+    }
+
+    public CreateBookingRequest checkOutDate(String checkOutDate) {
+        this.checkOutDate = checkOutDate;
+        return this;
+    }
+
+    public CreateBookingRequest numberOfGuests(int numberOfGuests) {
+        this.numberOfGuests = numberOfGuests;
+        return this;
+    }
+
+    // Standard getters (required for Jackson serialization)
+    public int getHotelId() { return hotelId; }
+    public int getRoomId() { return roomId; }
+    public String getCheckInDate() { return checkInDate; }
+    public String getCheckOutDate() { return checkOutDate; }
+    public int getNumberOfGuests() { return numberOfGuests; }
+}
+
+/**
+ * Response POJO for the StayNest envelope + booking data.
+ * Jackson deserializes the JSON response into this object.
+ * @JsonIgnoreProperties prevents failures when the API adds new fields.
+ */
+@JsonIgnoreProperties(ignoreUnknown = true)
+public class BookingResponse {
+
+    private String timeStamp;
+    private BookingData data;
+    private String error;
+
+    // Getters and setters
+    public String getTimeStamp() { return timeStamp; }
+    public void setTimeStamp(String timeStamp) { this.timeStamp = timeStamp; }
+    public BookingData getData() { return data; }
+    public void setData(BookingData data) { this.data = data; }
+    public String getError() { return error; }
+    public void setError(String error) { this.error = error; }
+}
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+public class BookingData {
+
+    private int id;
+    private String status;        // PENDING, CONFIRMED, CANCELLED
+    private String checkInDate;
+    private String checkOutDate;
+    private double totalPrice;
+
+    @JsonProperty("hotelId")      // Explicit mapping when field name differs
+    private int hotelId;
+
+    // Getters and setters
+    public int getId() { return id; }
+    public void setId(int id) { this.id = id; }
+    public String getStatus() { return status; }
+    public void setStatus(String status) { this.status = status; }
+    public String getCheckInDate() { return checkInDate; }
+    public void setCheckInDate(String checkInDate) { this.checkInDate = checkInDate; }
+    public String getCheckOutDate() { return checkOutDate; }
+    public void setCheckOutDate(String checkOutDate) { this.checkOutDate = checkOutDate; }
+    public double getTotalPrice() { return totalPrice; }
+    public void setTotalPrice(double totalPrice) { this.totalPrice = totalPrice; }
+    public int getHotelId() { return hotelId; }
+    public void setHotelId(int hotelId) { this.hotelId = hotelId; }
+}
+```
+
+### Request and Response Filters
+
+Filters intercept every request and response, applying cross-cutting logic without modifying individual tests:
+
+
+```java
+import io.restassured.filter.Filter;
+import io.restassured.filter.FilterContext;
+import io.restassured.response.Response;
+import io.restassured.specification.FilterableRequestSpecification;
+import io.restassured.specification.FilterableResponseSpecification;
+
+/**
+ * Custom filter that adds a correlation ID to every request.
+ * Useful for tracing test requests in server logs.
+ */
+public class CorrelationIdFilter implements Filter {
+
+    @Override
+    public Response filter(
+            FilterableRequestSpecification requestSpec,
+            FilterableResponseSpecification responseSpec,
+            FilterContext ctx) {
+
+        // Add a unique header to every request for traceability
+        String correlationId = "test-" + UUID.randomUUID().toString().substring(0, 8);
+        requestSpec.header("X-Correlation-ID", correlationId);
+
+        // Continue the filter chain — send the request and get the response
+        Response response = ctx.next(requestSpec, responseSpec);
+
+        // Post-processing: log slow responses
+        if (response.getTime() > 2000) {
+            System.out.println("SLOW REQUEST [" + correlationId + "]: "
+                + requestSpec.getMethod() + " " + requestSpec.getURI()
+                + " took " + response.getTime() + "ms");
+        }
+
+        return response;
+    }
+}
+
+// Register the filter globally or per-spec:
+// Global: RestAssured.filters(new CorrelationIdFilter());
+// Per-spec: given().filter(new CorrelationIdFilter())
+```
+
+---
+
+## Practical Implementation (Layer 3)
+
+### StayNest Booking Flow with POJO Models
+
+A complete test demonstrating POJO mapping, multi-step flow, and response extraction:
+
+
+```java
+import io.restassured.response.Response;
+import org.testng.annotations.BeforeClass;
+import org.testng.annotations.Test;
+import org.testng.Assert;
+
+import java.time.LocalDate;
+import java.util.UUID;
+
+import static io.restassured.RestAssured.given;
+import static org.hamcrest.Matchers.*;
+
+/**
+ * End-to-end booking flow using POJO models.
+ * Demonstrates: POJO serialization, deserialization, multi-step chaining.
+ */
+public class BookingFlowTest {
+
+    private String guestToken;
+    private String managerToken;
+    private int hotelId;
+    private int roomId;
+    private int bookingId;
+
+    @BeforeClass
+    public void setup() {
+        // Login as guest and manager to get tokens
+        guestToken = loginAndGetToken("guest@staynest.com", "pass123");
+        managerToken = loginAndGetToken("manager@staynest.com", "pass123");
+
+        // Get a hotel and room for booking
+        hotelId = getAvailableHotelId();
+        roomId = getAvailableRoomId(hotelId);
+    }
+
+    /**
+     * Step 1: Create a booking using a POJO request body.
+     * REST Assured serializes the Java object to JSON automatically.
+     */
+    @Test(priority = 1)
+    public void testCreateBooking() {
+        // Build request using the POJO with fluent setters
+        CreateBookingRequest request = new CreateBookingRequest()
+            .hotelId(hotelId)
+            .roomId(roomId)
+            .checkInDate(LocalDate.now().plusDays(7).toString())
+            .checkOutDate(LocalDate.now().plusDays(10).toString())
+            .numberOfGuests(2);
+
+        // Send POJO as body — Jackson converts to JSON automatically
+        BookingResponse response = given()
+            .spec(RequestSpecs.authenticated(guestToken))
+            .body(request)          // Java object → JSON string (automatic)
+        .when()
+            .post("/bookings/init")
+        .then()
+            .statusCode(201)
+            .body("data.status", equalTo("PENDING"))
+            .body("data.checkInDate", notNullValue())
+            .extract()
+            .as(BookingResponse.class);  // JSON string → Java object (automatic)
+
+        // Now work with typed Java objects instead of raw JSON paths
+        bookingId = response.getData().getId();
+        Assert.assertEquals(response.getData().getStatus(), "PENDING");
+        Assert.assertTrue(response.getData().getTotalPrice() > 0,
+            "Total price should be calculated");
+    }
+
+    /**
+     * Step 2: Retrieve the booking and verify via deserialization.
+     * Shows .as() to deserialize the full response to a POJO.
+     */
+    @Test(priority = 2, dependsOnMethods = "testCreateBooking")
+    public void testGetBooking() {
+        BookingResponse response = given()
+            .spec(RequestSpecs.authenticated(guestToken))
+            .pathParam("bookingId", bookingId)
+        .when()
+            .get("/bookings/{bookingId}")
+        .then()
+            .statusCode(200)
+            .extract()
+            .as(BookingResponse.class);
+
+        // Type-safe assertions — compile-time checks on field names
+        Assert.assertEquals(response.getData().getId(), bookingId);
+        Assert.assertEquals(response.getData().getHotelId(), hotelId);
+        Assert.assertNotNull(response.getData().getCheckInDate());
+    }
+
+    /**
+     * Step 3: Validate response time for critical booking endpoint.
+     * time() checks the total round-trip time in milliseconds.
+     */
+    @Test(priority = 3)
+    public void testBookingEndpointPerformance() {
+        given()
+            .spec(RequestSpecs.authenticated(guestToken))
+            .queryParam("page", 0)
+            .queryParam("size", 10)
+        .when()
+            .get("/bookings")
+        .then()
+            .statusCode(200)
+            .time(lessThan(2000L));  // Response must arrive within 2 seconds
+    }
+
+    // --- Helper methods ---
+
+    private String loginAndGetToken(String email, String password) {
+        return given()
+            .spec(RequestSpecs.unauthenticated())
+            .body(String.format("{\"email\":\"%s\",\"password\":\"%s\"}", email, password))
+        .when()
+            .post("/auth/login")
+        .then()
+            .statusCode(200)
+            .extract().path("data.accessToken");
+    }
+
+    private int getAvailableHotelId() {
+        return given()
+            .spec(RequestSpecs.unauthenticated())
+            .queryParam("page", 0)
+            .queryParam("size", 1)
+        .when()
+            .get("/hotels/search")
+        .then()
+            .statusCode(200)
+            .extract().path("data[0].id");
+    }
+
+    private int getAvailableRoomId(int hotelId) {
+        return given()
+            .spec(RequestSpecs.authenticated(managerToken))
+            .pathParam("hotelId", hotelId)
+        .when()
+            .get("/admin/hotels/{hotelId}/rooms")
+        .then()
+            .statusCode(200)
+            .extract().path("data[0].id");
+    }
+}
+```
+
+### Custom Serialization with Jackson Configuration
+
+When default Jackson behavior doesn't match your API:
+
+
+```java
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import io.restassured.config.ObjectMapperConfig;
+import io.restassured.config.RestAssuredConfig;
+
+/**
+ * Custom Jackson ObjectMapper for REST Assured.
+ * Handles Java 8 dates, null handling, and formatting.
+ */
+public class JacksonConfig {
+
+    public static RestAssuredConfig customJackson() {
+        return RestAssuredConfig.config()
+            .objectMapperConfig(
+                ObjectMapperConfig.objectMapperConfig()
+                    .jackson2ObjectMapperFactory((type, charset) -> {
+                        ObjectMapper mapper = new ObjectMapper();
+
+                        // Handle Java 8 date types (LocalDate, LocalDateTime)
+                        mapper.registerModule(new JavaTimeModule());
+                        mapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+
+                        // Don't fail on unknown properties during deserialization
+                        mapper.configure(
+                            com.fasterxml.jackson.databind.DeserializationFeature
+                                .FAIL_ON_UNKNOWN_PROPERTIES, false
+                        );
+
+                        // Pretty-print for readable logs
+                        mapper.enable(SerializationFeature.INDENT_OUTPUT);
+
+                        return mapper;
+                    })
+            );
+    }
+}
+
+// Usage in tests:
+// given().config(JacksonConfig.customJackson()).body(myPojo)...
+// Or set globally: RestAssured.config = JacksonConfig.customJackson();
+```
+
+### Response Time Validation Patterns
+
+
+```java
+import static org.hamcrest.Matchers.lessThan;
+import java.util.concurrent.TimeUnit;
+
+public class ResponseTimeExamples {
+
+    /**
+     * Basic time assertion — response must arrive within threshold.
+     * Default unit is milliseconds.
+     */
+    public void basicTimeCheck(String token) {
+        given()
+            .spec(RequestSpecs.authenticated(token))
+        .when()
+            .get("/users/profile")
+        .then()
+            .statusCode(200)
+            .time(lessThan(2000L));  // Under 2 seconds
+    }
+
+    /**
+     * Time assertion with explicit unit.
+     */
+    public void timeWithUnit(String token) {
+        given()
+            .spec(RequestSpecs.authenticated(token))
+        .when()
+            .get("/users/profile")
+        .then()
+            .time(lessThan(2L), TimeUnit.SECONDS);  // Same as 2000ms but more readable
+    }
+
+    /**
+     * Extract response time for custom analysis.
+     * Useful for tracking trends or building performance reports.
+     */
+    public void extractTime(String token) {
+        Response response = given()
+            .spec(RequestSpecs.authenticated(token))
+        .when()
+            .get("/users/profile")
+        .then()
+            .extract().response();
+
+        long timeMs = response.getTime();
+        long timeIn = response.getTimeIn(TimeUnit.MILLISECONDS);
+
+        // Log or report for trend analysis
+        System.out.println("GET /users/profile: " + timeMs + "ms");
+    }
+}
+```
+
+---
+
+## Failure and Debugging (Layer 4)
+
+### Failure 1: POJO Deserialization Fails — "Unrecognized field"
+
+**The Problem:**
+
+
+```java
+// API adds a new field "loyaltyPoints" you haven't mapped in your POJO
+BookingResponse response = given()
+    .spec(RequestSpecs.authenticated(token))
+.when()
+    .get("/bookings/1")
+.then()
+    .extract().as(BookingResponse.class);
+// FAILS: UnrecognizedPropertyException: Unrecognized field "loyaltyPoints"
+```
+
+**Root cause:** By default, Jackson fails when it encounters JSON fields not present in the POJO. New fields added to the API break deserialization.
+
+**The fix:**
+
+
+```java
+// Option 1: Annotate the POJO (preferred — explicit per class)
+@JsonIgnoreProperties(ignoreUnknown = true)
+public class BookingResponse { ... }
+
+// Option 2: Configure the ObjectMapper globally
+mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+
+// Option 3: Use RestAssured config
+RestAssured.config = RestAssuredConfig.config()
+    .objectMapperConfig(ObjectMapperConfig.objectMapperConfig()
+        .jackson2ObjectMapperFactory((type, charset) -> {
+            ObjectMapper om = new ObjectMapper();
+            om.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+            return om;
+        }));
+```
+
+<BestPractice>
+
+**Prevention:** Always add `@JsonIgnoreProperties(ignoreUnknown = true)` to response POJOs. Request POJOs don't need it (they're serialized, not deserialized).
+
+</BestPractice>
+
+
+### Failure 2: Path Parameter Not Substituted
+
+**The Problem:**
+
+
+```java
+// Mismatch between pathParam name and placeholder in URL
+given()
+    .pathParam("id", 42)           // Named "id"
+.when()
+    .get("/admin/hotels/{hotelId}")  // Placeholder is "hotelId"
+.then()
+    .statusCode(200);
+// FAILS: java.lang.IllegalArgumentException: Path parameter "id" is not defined
+```
+
+**Root cause:** The `pathParam()` name must exactly match the `{placeholder}` in the URL string. `"id"` ≠ `"hotelId"`.
+
+**The fix:**
+
+
+```java
+given()
+    .pathParam("hotelId", 42)           // Name matches placeholder
+.when()
+    .get("/admin/hotels/{hotelId}")     // {hotelId} resolved to 42
+.then()
+    .statusCode(200);
+```
+
+### Failure 3: Response Time Assertion Fails Intermittently in CI
+
+**The Problem:**
+
+
+```java
+.then()
+    .time(lessThan(500L));  // Passes locally, flaky in CI
+```
+
+**Root cause:** CI environments share resources. Network latency, container startup, garbage collection, and noisy neighbors all add unpredictable overhead. A 200ms response locally might be 800ms in CI.
+
+**The fix:**
+
+
+```java
+// Option 1: Set generous thresholds for CI (3-5x local times)
+long threshold = System.getProperty("ci") != null ? 3000L : 1000L;
+.then().time(lessThan(threshold));
+
+// Option 2: Extract time and soft-assert (warn, don't fail)
+long time = response.getTime();
+if (time > 1000L) {
+    System.out.println("WARNING: GET /bookings took " + time + "ms (threshold: 1000ms)");
+}
+// Hard-fail only on egregious times (10x threshold)
+Assert.assertTrue(time < 10000L, "Response took " + time + "ms — possible regression");
+```
+
+---
+
+## Engineering Judgment (Layer 5)
+
+### POJO Mapping vs Raw JSON Strings: When to Use Each
+
+| Approach | Best For | Trade-off |
+|----------|----------|-----------|
+| Raw JSON strings (`"""{ "key": "val" }"""`) | One-off tests, testing malformed JSON, quick prototypes | No compile-time safety, hard to maintain |
+| POJOs with Jackson | Repeated request/response structures, type safety, data-driven tests | More upfront code, harder for intentionally malformed payloads |
+| Map/HashMap | Dynamic payloads, tests that vary fields between iterations | No type safety, no IDE autocomplete |
+
+**Guideline:** If you use the same request body shape in 3+ tests, create a POJO. For one-off negative tests (missing fields, wrong types), raw JSON strings are more readable because the malformation is visible inline.
+
+### Filter vs Spec for Cross-Cutting Concerns
+
+| Concern | Use Filter | Use Spec |
+|---------|-----------|----------|
+| Adding auth headers | Possible but awkward | Preferred — `.addHeader()` in spec builder |
+| Logging all requests | Yes — `RequestLoggingFilter` | Possible but specs don't intercept |
+| Correlation IDs | Yes — dynamic per-request | No — specs are static after building |
+| Timing/metrics | Yes — filters see both request and response | No — specs only configure the request |
+| Base URI/content type | No — use specs | Yes — this is what specs are for |
+
+### Response Time Thresholds: How to Choose
+
+| Environment | Threshold Strategy | Example |
+|-------------|-------------------|---------|
+| Local development | Tight — catches regressions fast | `< 500ms` |
+| CI pipeline | Generous — avoids flakiness | `< 3000ms` |
+| Performance suite | Baselined — compared to previous runs | `< 120% of baseline` |
+| Production monitoring | SLA-based — from business requirements | `< p95 of 200ms` |
+
+**Recommendation:** Don't put tight response time assertions in functional tests. Create a separate `@Test(groups = "performance")` group with appropriate thresholds, and run it on dedicated infrastructure.
+
+---
+
+## Interview and Revision (Layer 6)
+
+### Fundamental Questions
+
+**Q1: How does POJO serialization work in REST Assured?**
+
+**A:** When you pass a Java object to `.body(myPojo)`, REST Assured uses a JSON library (Jackson or Gson, detected from classpath) to serialize the object to a JSON string. For deserialization, `.extract().as(MyClass.class)` takes the response body JSON and maps it to a Java object. Field names must match JSON keys (or use `@JsonProperty` for custom mapping). I always add `@JsonIgnoreProperties(ignoreUnknown = true)` to response POJOs so new API fields don't break existing tests.
+
+**Q2: What's the difference between path parameters, query parameters, and form parameters?**
+
+**A:** Path parameters are part of the URL structure — they identify a specific resource: `/hotels/{hotelId}` becomes `/hotels/42`. Query parameters are appended after `?` — they filter or modify: `/hotels/search?city=NYC&page=0`. Form parameters go in the request body as URL-encoded key-value pairs: `grant_type=client_credentials&client_id=app`. In REST Assured, each has its own method: `.pathParam()`, `.queryParam()`, `.formParam()`. Using the wrong one is a common bug — path params in query position returns the wrong resource or a 404.
+
+**Q3: How do you handle response time validation in CI where timing is inconsistent?**
+
+**A:** I separate response time checks from functional assertions. Functional tests validate correctness (status codes, body). Performance checks use generous thresholds (3-5x local times) or environment-aware properties (`-Dperf.threshold=3000`). For critical endpoints, I extract response times and log them for trend analysis rather than hard-failing. In a dedicated performance suite, I baseline against previous runs and alert on regressions exceeding a percentage (e.g., 20% slower than the baseline).
+
+### Scenario-Based Questions
+
+**S1: "You need to test a file upload endpoint. How do you structure the REST Assured request?"**
+
+**A:** I use `.multiPart()` with the file and set content type to `multipart/form-data`. REST Assured handles the boundary separators automatically. I pass the file as `new File("path")` with the MIME type, and any accompanying form fields as additional `.multiPart("fieldName", "value")` calls. I test both the happy path (valid file type, under size limit) and edge cases (empty file, wrong MIME type, oversized file). The assertion checks for 201 with the uploaded file's URL in the response.
+
+**S2: "Your team's REST Assured tests have a lot of duplicated request setup. How do you refactor?"**
+
+**A:** I create a `RequestSpecs` utility class with composable `RequestSpecification` builders. A base spec handles URI, content type, and logging. An auth spec adds the Bearer token. An admin spec layers admin-specific headers. Tests call `given().spec(RequestSpecs.authenticated(token))` and only add test-specific configuration (body, path params). For common request bodies, I create POJO classes with builder-style setters. This reduces each test to its unique logic — the endpoint, the specific body, and the specific assertions.
+
+
+
+
+| # | Front (Question) | Back (Answer) |
+|---|---|---|
+| 1 | How do you compose REST Assured request specs? | `new RequestSpecBuilder().addRequestSpecification(baseSpec).addHeader(...)` — `addRequestSpecification()` inherits all config from another spec |
+| 2 | What annotation prevents Jackson deserialization from failing on unknown JSON fields? | `@JsonIgnoreProperties(ignoreUnknown = true)` on the POJO class |
+| 3 | How do you validate response time in REST Assured? | `.then().time(lessThan(2000L))` for milliseconds or `.time(lessThan(2L), TimeUnit.SECONDS)` for explicit units |
+| 4 | What's the difference between .body(String) and .body(Object)? | `.body(String)` sends the raw string. `.body(Object)` serializes the Java object to JSON using Jackson/Gson |
+| 5 | How do you register a filter globally in REST Assured? | `RestAssured.filters(new MyFilter())` — applies to all requests. Per-test: `given().filter(new MyFilter())` |
+
+### Mastery Checklist
+
+- [ ] Can build composable RequestSpecification hierarchies (base → auth → admin)
+- [ ] Can use all four parameter types correctly (path, query, form, multipart)
+- [ ] Can create POJO models for request/response serialization with Jackson annotations
+- [ ] Can implement a custom Filter for cross-cutting concerns (correlation IDs, timing)
+- [ ] Can configure Jackson ObjectMapper for REST Assured (dates, unknown properties)
+- [ ] Can validate response time with appropriate thresholds for different environments
+- [ ] Can articulate when to use POJOs vs raw JSON strings vs Maps
+
+---
+
+**Next:** Test Organization Patterns | **Related:** Setup And First Tests, Api Client Design
+
+*Last updated: *

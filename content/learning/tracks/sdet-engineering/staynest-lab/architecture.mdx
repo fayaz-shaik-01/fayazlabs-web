@@ -1,0 +1,580 @@
+---
+title: "StayNest - Technical Architecture"
+description: "You don't need to build StayNest. You need to test it. But understanding how the system is built gives you three superpowers:"
+summary: "SDET Engineering guide: StayNest - Technical Architecture"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "staynest-lab"
+lesson: "architecture"
+difficulty: "beginner"
+estimatedMinutes: 37
+prerequisites: []
+tags: ["SDET", "StayNest", "Hands-on"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/staynest-lab/architecture"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# StayNest - Technical Architecture
+
+> **Module:** 11 — StayNest Lab
+> **Prerequisites:** System Under Test, Api Contract
+> **Purpose:** Understand the internals so you can write better tests and debug failures faster
+
+---
+
+## Why SDETs Need Architecture Knowledge
+
+You don't need to build StayNest. You need to test it. But understanding *how* the system is built gives you three superpowers:
+
+1. **Targeted tests** — you know which layer enforces a rule, so you test at the right level
+2. **Faster debugging** — when a test fails, you can trace the failure to the exact layer that broke
+3. **Better conversations** — you speak the same language as developers during bug triage
+
+This document walks through every architectural layer in StayNest, from the HTTP request entry point to the database row, and explains what each layer means for your testing strategy.
+
+---
+
+## Backend Architecture: Spring Boot Layers
+
+The backend follows the standard Spring Boot layered architecture. Every HTTP request passes through four layers, each with a single responsibility.
+
+```
+HTTP Request
+    │
+    ▼
+┌──────────────────────────────────────────────┐
+│  Controller Layer                            │
+│  @RestController classes                     │
+│  Responsibility: route requests, validate    │
+│  input, return HTTP status codes             │
+│  Classes: AuthController, HotelController,   │
+│           BookingController, UserController   │
+├──────────────────────────────────────────────┤
+│  Service Layer                               │
+│  @Service classes                            │
+│  Responsibility: business logic, orchestrate │
+│  operations, enforce rules                   │
+│  Classes: AuthService, HotelServiceImpl,     │
+│           BookingServiceImpl, PricingService  │
+├──────────────────────────────────────────────┤
+│  Repository Layer                            │
+│  Spring Data JPA interfaces                  │
+│  Responsibility: database queries, CRUD      │
+│  Classes: UserRepository, HotelRepository,   │
+│           BookingRepository, InventoryRepo    │
+├──────────────────────────────────────────────┤
+│  Entity Layer                                │
+│  @Entity classes (JPA annotations)           │
+│  Responsibility: define database schema,     │
+│  relationships, constraints                  │
+│  Classes: User, Hotel, Room, Booking,        │
+│           Inventory, Guest                    │
+└──────────────────────────────────────────────┘
+    │
+    ▼
+ PostgreSQL 16
+```
+
+### What Each Layer Means for Testing
+
+| Layer | What It Enforces | How You Test It |
+| --- | --- | --- |
+| Controller | HTTP status codes, request validation (`@Valid`), endpoint routing | API tests: send malformed requests, check status codes |
+| Service | Business rules (booking lifecycle, ownership checks, pricing) | API tests: test business flows end-to-end through the API |
+| Repository | Data persistence, unique constraints, relationships | DB validation tests: verify data is stored correctly after API calls |
+| Entity | Schema constraints (`@NotNull`, `@Column(unique=true)`) | Covered indirectly by API tests that trigger constraint violations |
+
+### Request Flow Example: Create a Booking
+
+Tracing a single request helps you understand where different types of failures originate.
+
+```
+POST /bookings/init { hotelId: 1, roomId: 1, checkInDate: "2025-03-01", ... }
+    │
+    ▼
+BookingController.initialiseBooking()
+    │  → Validates request body (@Valid on BookingRequest)
+    │  → If validation fails → 400 Bad Request (never reaches Service)
+    │
+    ▼
+BookingServiceImpl.initialiseBooking()
+    │  → Loads Hotel and Room from repositories (404 if not found)
+    │  → Checks inventory availability via InventoryRepository
+    │  → If no inventory → throws IllegalStateException → 409 Conflict
+    │  → Calculates dynamic price via PricingService
+    │  → Decrements inventory (reservedCount++)
+    │  → Creates Booking entity with status RESERVED
+    │
+    ▼
+BookingRepository.save(booking)
+    │  → JPA persists to PostgreSQL
+    │  → Returns saved entity with generated ID
+    │
+    ▼
+Controller maps Booking → BookingDto → ApiResponse → 200 OK
+```
+
+**Testing insight:** A 400 error means the Controller rejected the request. A 409 error means the Service layer rejected a business rule. A 404 means the Repository couldn't find the referenced entity. Knowing this, you don't waste time debugging the wrong layer.
+
+---
+
+## API Design: REST Conventions
+
+### Endpoint Pattern
+
+StayNest follows a consistent REST pattern:
+
+```
+Base URL: http://localhost:8080/api/v1
+
+Public endpoints:
+  POST /auth/signup          → create account
+  POST /auth/login           → get tokens
+  POST /hotels/search        → search available hotels
+  GET  /hotels/{id}/info     → hotel detail with pricing
+
+Authenticated endpoints:
+  POST /bookings/init        → reserve rooms
+  GET  /users/profile        → get own profile
+
+Admin endpoints (HOTEL_MANAGER only):
+  POST   /admin/hotels       → create hotel
+  PUT    /admin/hotels/{id}  → update hotel
+  DELETE /admin/hotels/{id}  → delete hotel
+  PATCH  /admin/hotels/{id}/activate → activate hotel
+```
+
+### Request/Response DTOs
+
+The backend never exposes entities directly. It converts between entities and DTOs using ModelMapper:
+
+```
+Client sends → RequestDto (e.g., SignUpRequestDto)
+    │
+    Controller validates → Service processes → Entity saved
+    │
+    Entity → ResponseDto (e.g., UserDto — no password field)
+    │
+    Wrapped in ApiResponse → sent to client
+```
+
+**Testing insight:** Always assert against the DTO shape, not the entity shape. For example, `UserDto` never contains `password` — if your test finds a password field in the response, that's a security bug.
+
+### Error Handling Envelope
+
+All responses follow the same `ApiResponse` envelope:
+
+
+```json
+// Success
+{
+  "timeStamp": "2024-01-15T10:30:00",
+  "data": { "id": 1, "email": "user@example.com", "name": "John" },
+  "error": null
+}
+
+// Error
+{
+  "timeStamp": "2024-01-15T10:30:00",
+  "data": null,
+  "error": {
+    "status": "BAD_REQUEST",
+    "message": "Validation failed",
+    "subErrors": ["email: Invalid email format", "name: Name is required"]
+  }
+}
+```
+
+The `GlobalExceptionHandler` maps every exception type to a specific HTTP status:
+
+| Exception | HTTP Status | When It Happens |
+| --- | --- | --- |
+| `MethodArgumentNotValidException` | 400 | `@Valid` annotation catches bad input |
+| `AuthenticationException` | 401 | Wrong credentials or missing/expired token |
+| `AccessDeniedException` | 403 | Wrong role or accessing another user's resource |
+| `ResourceNotFoundException` | 404 | Entity not found by ID |
+| `IllegalStateException` | 409 | Business rule violation (inventory full, wrong status) |
+
+---
+
+## Authentication: JWT Token Lifecycle
+
+### Token Flow
+
+```
+1. SIGNUP
+   Client ──POST /auth/signup──▶ Server
+   Server ──201 { UserDto }──▶ Client
+   (No tokens yet — user must log in)
+
+2. LOGIN
+   Client ──POST /auth/login──▶ Server
+   Server generates:
+     • accessToken  (JWT, 10 min expiry, in response body)
+     • refreshToken (JWT, 6 months, in HttpOnly cookie)
+   Server ──200 { accessToken }──▶ Client
+          ──Set-Cookie: refreshToken=...──▶
+
+3. AUTHENTICATED REQUEST
+   Client ──GET /users/profile──▶ Server
+           Authorization: Bearer <accessToken>
+   JwtAuthFilter extracts token → validates → sets SecurityContext
+   Server ──200 { UserDto }──▶ Client
+
+4. TOKEN EXPIRED (after 10 min)
+   Client ──GET /users/profile──▶ Server
+           Authorization: Bearer <expired-token>
+   JwtAuthFilter rejects → 401 Unauthorized
+
+5. REFRESH
+   Client ──POST /auth/refresh──▶ Server
+           Cookie: refreshToken=<valid-refresh-token>
+   Server generates new accessToken
+   Server ──200 { accessToken }──▶ Client
+```
+
+### JWT Structure
+
+The access token contains these claims:
+
+
+```json
+{
+  "sub": "42",           // user ID (string)
+  "email": "user@example.com",
+  "roles": "ROLE_GUEST", // or "ROLE_HOTEL_MANAGER"
+  "iat": 1705312200,    // issued at (epoch seconds)
+  "exp": 1705312800     // expires at (iat + 600 seconds = 10 min)
+}
+```
+
+### Security Filter Chain
+
+```
+HTTP Request
+    │
+    ▼
+JwtAuthFilter (OncePerRequestFilter)
+    │  → Extracts "Authorization: Bearer <token>" header
+    │  → If no header → passes through (public endpoint check follows)
+    │  → If header present → validates JWT signature and expiry
+    │  → If valid → loads user, sets SecurityContext
+    │  → If invalid/expired → 401 Unauthorized
+    │
+    ▼
+Spring Security Filter Chain
+    │  → Checks URL pattern against WebSecurityConfig rules
+    │  → /admin/** requires ROLE_HOTEL_MANAGER
+    │  → /bookings/** requires authentication
+    │  → /users/** requires authentication
+    │  → /auth/**, /hotels/** → permitAll
+    │
+    ▼
+Controller (request reaches here only if all filters pass)
+```
+
+**Testing insight:** When a test gets an unexpected 401, check two things: (1) is the token present in the `Authorization` header? (2) has the token expired? A 10-minute expiry means long-running test suites can hit expiry mid-execution.
+
+---
+
+## Database Schema
+
+### Entity Relationship Diagram
+
+```
+┌──────────────┐       ┌──────────────────┐       ┌──────────────┐
+│   app_user   │       │      hotel       │       │     room     │
+├──────────────┤  1:N  ├──────────────────┤  1:N  ├──────────────┤
+│ id (PK)      │──────▶│ id (PK)          │──────▶│ id (PK)      │
+│ email (UQ)   │       │ name             │       │ hotel_id (FK)│
+│ password     │       │ city             │       │ type         │
+│ name         │       │ active           │       │ base_price   │
+│ gender       │       │ owner_id (FK)    │       │ total_count  │
+│ date_of_birth│       │ address          │       │ capacity     │
+│ roles        │       │ phone_number     │       │ photos       │
+└──────┬───────┘       │ contact_email    │       │ amenities    │
+       │               │ photos           │       └──────┬───────┘
+       │               │ amenities        │              │
+       │               └──────────────────┘              │ 1:N
+       │                                                 │
+       │ 1:N           ┌──────────────────┐       ┌──────▼───────┐
+       │               │    booking       │       │  inventory   │
+       │               ├──────────────────┤       ├──────────────┤
+       └──────────────▶│ id (PK)          │       │ id (PK)      │
+                       │ hotel_id (FK)    │       │ hotel_id (FK)│
+                       │ room_id (FK)     │       │ room_id (FK) │
+                       │ user_id (FK)     │       │ date         │
+                       │ rooms_count      │       │ booked_count │
+                       │ check_in_date    │       │ reserved_cnt │
+                       │ check_out_date   │       │ total_count  │
+                       │ booking_status   │       │ surge_factor │
+                       │ amount           │       │ price        │
+                       │ payment_session  │       │ city         │
+                       │ created_at       │       │ closed       │
+                       └────────┬─────────┘       └──────────────┘
+                                │ N:M                UQ(hotel,room,date)
+                       ┌────────▼─────────┐
+                       │  booking_guest   │
+                       ├──────────────────┤
+                       │ booking_id (FK)  │
+                       │ guest_id (FK)    │
+                       └──────────────────┘
+
+┌──────────────┐       ┌──────────────────┐
+│    guest     │       │ hotel_min_price  │
+├──────────────┤       ├──────────────────┤
+│ id (PK)      │       │ id (PK)          │
+│ user_id (FK) │       │ hotel_id (FK)    │
+│ name         │       │ date             │
+│ gender       │       │ price            │
+│ date_of_birth│       └──────────────────┘
+└──────────────┘
+```
+
+### Key Constraints That Affect Testing
+
+| Constraint | Table | What It Means for Tests |
+| --- | --- | --- |
+| `email` UNIQUE | `app_user` | Duplicate signup returns error; use unique emails per test |
+| `(hotel_id, room_id, date)` UNIQUE | `inventory` | One inventory record per room-type per date; no duplicates possible |
+| `owner_id` FK | `hotel` | Every hotel has an owner; test that only the owner can modify |
+| `booking_status` ENUM | `booking` | Status transitions are enforced; test invalid transitions |
+| `created_at` TIMESTAMP | `booking` | Used by expiry job; bookings older than 10 min get expired |
+
+---
+
+## Frontend Architecture: React Web Client
+
+### Component Hierarchy
+
+```
+App
+├── AuthProvider (context — manages JWT tokens)
+├── Router
+│   ├── / → HomePage
+│   │       ├── SearchBar (city, dates, rooms)
+│   │       └── HotelCard[] (search results)
+│   ├── /hotel/:id → HotelDetailPage
+│   │       ├── HotelInfo (name, photos, amenities)
+│   │       ├── RoomCard[] (available rooms with pricing)
+│   │       └── BookingForm
+│   ├── /bookings → MyBookingsPage
+│   │       └── BookingCard[] (status, dates, actions)
+│   ├── /login → LoginPage
+│   ├── /signup → SignupPage
+│   └── /profile → ProfilePage
+└── Layout
+    ├── Navbar (logo, auth links)
+    └── Footer
+```
+
+### State Management (Zustand)
+
+```
+authStore
+  ├── accessToken: string | null
+  ├── user: UserDto | null
+  ├── login(email, password)  → calls API, stores token
+  ├── signup(data)            → calls API
+  ├── logout()                → clears token and user
+  └── refreshToken()          → calls /auth/refresh
+
+searchStore
+  ├── city: string
+  ├── startDate: string
+  ├── endDate: string
+  ├── roomsCount: number
+  ├── results: HotelPriceDto[]
+  └── search()               → calls API, stores results
+```
+
+**Testing insight for web UI tests:** The `authStore` holds the JWT in memory (not localStorage). A page refresh loses the token, and the app relies on the refresh token cookie. Your Selenium/Playwright tests need to handle this: after login, the token is in the Zustand store, but a hard refresh requires re-authentication or cookie-based refresh.
+
+### API Client Layer (Axios)
+
+The React app uses a centralized Axios instance:
+
+
+```typescript
+// api/axiosClient.ts
+const apiClient = axios.create({
+  baseURL: "http://localhost:8080/api/v1",
+  withCredentials: true, // sends cookies (refresh token)
+});
+
+apiClient.interceptors.request.use((config) => {
+  const token = useAuthStore.getState().accessToken;
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+apiClient.interceptors.response.use(
+  (response) => response.data.data, // unwrap ApiResponse envelope
+  (error) => {
+    if (error.response?.status === 401) {
+      // attempt token refresh
+    }
+    return Promise.reject(error);
+  }
+);
+```
+
+**Testing insight:** The Axios interceptor unwraps the `ApiResponse` envelope, so the React components see `data` directly, not `{ timeStamp, data, error }`. If you're intercepting network calls in Playwright, the raw response still has the envelope — don't confuse what the component sees with what the network shows.
+
+---
+
+## Mobile Architecture: MVVM Pattern
+
+### Android (Kotlin + Jetpack Compose)
+
+```
+┌─────────────────────────────────────┐
+│  UI Layer (Compose Screens)         │
+│  LoginScreen, SearchScreen,         │
+│  HotelDetailScreen, BookingScreen   │
+├─────────────────────────────────────┤
+│  ViewModel Layer                    │
+│  AuthViewModel, SearchViewModel,    │
+│  BookingViewModel                   │
+│  - Holds UI state (StateFlow)       │
+│  - Calls repository methods         │
+│  - Transforms data for UI           │
+├─────────────────────────────────────┤
+│  Repository Layer                   │
+│  AuthRepository, HotelRepository,   │
+│  BookingRepository                  │
+│  - Single source of truth           │
+│  - Coordinates API + local cache    │
+├─────────────────────────────────────┤
+│  API Layer (Retrofit + OkHttp)      │
+│  StayNestApiService (interface)     │
+│  - Defines endpoint methods         │
+│  - OkHttp interceptor adds JWT      │
+│  - Hilt provides singleton instance │
+└─────────────────────────────────────┘
+```
+
+### iOS (SwiftUI)
+
+```
+┌─────────────────────────────────────┐
+│  View Layer (SwiftUI Views)         │
+│  LoginView, SearchView,             │
+│  HotelDetailView, BookingView       │
+├─────────────────────────────────────┤
+│  ViewModel Layer (@Observable)      │
+│  AuthViewModel, SearchViewModel,    │
+│  BookingViewModel                   │
+│  - Published properties for UI      │
+│  - Calls service methods            │
+├─────────────────────────────────────┤
+│  Service Layer                      │
+│  AuthService, HotelService,         │
+│  BookingService                     │
+│  - Manages API calls                │
+│  - JWT token handling               │
+│  - URLSession with async/await      │
+└─────────────────────────────────────┘
+```
+
+**Testing insight for Appium tests:** Mobile apps often cache data locally. If your test creates a booking via API but the app still shows the old state, the ViewModel may need a refresh trigger. In your Appium tests, perform a pull-to-refresh or navigate away and back to force a data reload.
+
+---
+
+## Dynamic Pricing Architecture
+
+The pricing system uses the **Decorator Pattern** — each strategy wraps the previous one and adjusts the price:
+
+```
+PricingService.calculateDynamicPrice(inventory)
+    │
+    ▼
+BasePricingStrategy
+    │  → Returns inventory.price (the room's base price)
+    │
+    ▼
+SurgePricingStrategy
+    │  → Multiplies by inventory.surgeFactor (default 1.0)
+    │  → surgeFactor 1.5 = 50% price increase
+    │
+    ▼
+OccupancyPricingStrategy
+    │  → Calculates occupancy ratio: bookedCount / totalCount
+    │  → Higher occupancy → higher price multiplier
+    │
+    ▼
+UrgencyPricingStrategy
+    │  → Days until check-in date
+    │  → Closer date → higher price
+    │
+    ▼
+HolidayPricingStrategy
+    │  → Checks if date is a holiday
+    │  → Holiday → higher price
+    │
+    ▼
+Final calculated price (used in booking amount)
+```
+
+**Testing insight:** Dynamic pricing means booking amounts are not simply `basePrice × nights × rooms`. If your test asserts an exact amount, it may break when occupancy changes or dates shift closer to today. Test pricing by verifying the amount is *greater than zero* and *reasonable* rather than an exact match — or control all pricing factors in your test data.
+
+---
+
+## How Architecture Knowledge Helps You Test
+
+| Scenario | Without Architecture Knowledge | With Architecture Knowledge |
+| --- | --- | --- |
+| Test gets 400 error | "The API is broken" | "Controller validation rejected my input — check request body fields" |
+| Test gets 409 on booking | "Something's wrong with bookings" | "Service layer says inventory is exhausted — check room availability dates" |
+| Token works locally but not in CI | "CI is flaky" | "10-minute JWT expiry + server clock difference — generate fresh tokens" |
+| Search returns no results | "Search is broken" | "Hotel must be activated (`active=true`) and have inventory for the dates" |
+| Booking amount seems wrong | "Pricing bug" | "Dynamic pricing uses occupancy — other tests may have changed bookedCount" |
+| UI test sees stale data | "Frontend bug" | "Zustand store caches state — trigger a refresh or navigation" |
+
+---
+
+## Architectural Decisions That Affect Test Strategy
+
+### 1. Single API, Multiple Clients
+
+All clients (web, Android, iOS) share the same REST API. This means:
+- **API tests are your highest-leverage investment** — they cover all clients at once
+- **UI tests validate client-specific behavior** — rendering, navigation, gestures
+- **You don't need to duplicate business logic tests per client**
+
+### 2. Stateless JWT Authentication
+
+The backend doesn't store session state. Every request is authenticated solely by the JWT:
+- **Tests must manage tokens explicitly** — no session cookies to rely on
+- **Token expiry is a real concern in test suites** — generate fresh tokens before each test class
+- **Parallel test execution is safe** — no shared server-side session state
+
+### 3. Database as Source of Truth
+
+All state lives in PostgreSQL. The API is a window into the database:
+- **DB validation tests can verify what the API doesn't expose** — password hashing, inventory counts, timestamps
+- **Test data setup via API is preferred over direct DB insertion** — ensures business rules are applied
+- **Test isolation requires careful data management** — unique emails, cleanup after tests
+
+### 4. Stripe Mock Mode
+
+The payment integration uses a mock mode that auto-confirms payments:
+- **Full booking lifecycle is testable without external dependencies**
+- **No need for Stripe test keys in CI** — mock mode works out of the box
+- **Payment webhook behavior differs between mock and real mode** — test both if possible
+
+---
+
+**Related:** System Under Test, Api Contract

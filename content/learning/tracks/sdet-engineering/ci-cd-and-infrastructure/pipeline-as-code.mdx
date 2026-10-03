@@ -1,0 +1,488 @@
+---
+title: "Pipeline as Code"
+description: "What: Pipeline-as-code means defining your entire CI/CD pipeline in a file (Jenkinsfile) that lives in the same repository as your test code. The pipeline is version-controlled, peer-reviewed, branched, and merged — just like the tests it runs."
+summary: "SDET Engineering guide: Pipeline as Code"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "ci-cd-and-infrastructure"
+lesson: "pipeline-as-code"
+difficulty: "intermediate"
+estimatedMinutes: 30
+prerequisites: []
+tags: ["SDET", "CI/CD", "Jenkins", "Docker"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/ci-cd-and-infrastructure/pipeline-as-code"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Pipeline as Code
+
+> **Module:** 08 — CI/CD and Infrastructure > Pipeline as Code  
+> **Prerequisites:** Jenkins Fundamentals, Git branching  
+> **Mastery Target:** L3 (Independent) → L4 (Engineering Judgment)
+
+---
+
+## Quick Overview (Layer 1)
+
+**What:** Pipeline-as-code means defining your entire CI/CD pipeline in a file (Jenkinsfile) that lives in the same repository as your test code. The pipeline is version-controlled, peer-reviewed, branched, and merged — just like the tests it runs.
+
+**Why it matters:** When your pipeline is "click-configured" in a Jenkins UI, nobody knows what changed, when, or why. When a nightly regression suddenly fails because someone edited the job via the UI at 3 PM, there's no audit trail. Pipeline-as-code puts every change through the same PR process as code — visible, reviewable, revertible.
+
+**Where you encounter it:** Every Jenkinsfile in a test automation repository. Every PR that modifies pipeline behavior. Every pipeline that needs to behave differently across branches (smoke on feature branches, full regression on main).
+
+<MentalModel>
+
+Think of pipeline-as-code as a **recipe book stored with the kitchen**. A Freestyle job is like a recipe written on a whiteboard in the kitchen — anyone can erase it, nobody tracks changes, and if the kitchen burns down, the recipe is gone. A Jenkinsfile is a recipe printed in a book (Git) — every revision is tracked, you can read the original version anytime, and multiple kitchens (environments) can follow the same recipe identically.
+
+</MentalModel>
+
+
+<KeyTakeaways>
+
+1. **Jenkinsfile lives in the repository root** — Jenkins detects it automatically via Multibranch Pipeline. One repo, one pipeline definition, many branches.
+2. **Declarative syntax provides structure** — `pipeline { agent, stages, post }` enforces a consistent skeleton that every team member can read.
+3. **Parameters make pipelines reusable** — environment, browser, test suite are parameters, not hardcoded values. One pipeline serves multiple execution contexts.
+4. **Parallel stages cut execution time** — API and UI tests run simultaneously instead of sequentially. Parallel + agent labels = maximum utilization.
+5. **Shared libraries eliminate duplication** — common pipeline logic (notification, report publishing) lives in a shared library, not copied across 15 Jenkinsfiles.
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation (Layer 2)
+
+### Declarative Pipeline Structure
+
+Every declarative pipeline follows this skeleton:
+
+
+```groovy
+pipeline {
+    agent { /* WHERE to run */ }
+    
+    parameters { /* INPUTS to the pipeline */ }
+    
+    environment { /* VARIABLES available to all stages */ }
+    
+    options { /* PIPELINE-LEVEL settings */ }
+    
+    triggers { /* WHEN to run automatically */ }
+    
+    stages {
+        stage('Name') {
+            when { /* CONDITIONAL execution */ }
+            steps { /* WHAT to do */ }
+            post { /* STAGE-LEVEL cleanup */ }
+        }
+    }
+    
+    post { /* PIPELINE-LEVEL cleanup */ }
+}
+```
+
+**Each block has a purpose:**
+
+- **`agent`** — defines where the pipeline runs. `any` = any available agent. `{ label 'linux' }` = only agents tagged "linux". `{ docker { image 'maven:3.9-eclipse-temurin-17' } }` = inside a Docker container.
+- **`parameters`** — user-selectable inputs displayed in "Build with Parameters" UI. Types: `string`, `choice`, `booleanParam`, `text`.
+- **`environment`** — key-value pairs available as env vars in all stages. Can reference `credentials()`.
+- **`options`** — pipeline behavior: `timeout`, `timestamps`, `retry`, `buildDiscarder`.
+- **`triggers`** — automatic execution: `cron`, `pollSCM`, `upstream`.
+- **`stages`** — ordered list of stages, each with steps.
+- **`post`** — cleanup and notifications: `always`, `success`, `failure`, `unstable`, `changed`.
+
+### Parameters: Flexible Test Execution
+
+Parameters let one pipeline serve multiple purposes — smoke vs regression, Chrome vs Firefox, staging vs production:
+
+
+```groovy
+parameters {
+    choice(
+        name: 'ENVIRONMENT',
+        choices: ['staging', 'dev', 'production'],
+        description: 'Target environment for test execution'
+    )
+    choice(
+        name: 'BROWSER',
+        choices: ['chrome', 'firefox', 'edge'],
+        description: 'Browser for UI tests'
+    )
+    choice(
+        name: 'TEST_SUITE',
+        choices: ['smoke', 'regression', 'sanity'],
+        description: 'Which test suite to run'
+    )
+    booleanParam(
+        name: 'HEADLESS',
+        defaultValue: true,
+        description: 'Run browser in headless mode'
+    )
+}
+```
+
+**How parameters flow into test execution:**
+
+
+```groovy
+stage('Run Tests') {
+    steps {
+        sh """
+            mvn test \\
+                -Denv=${params.ENVIRONMENT} \\
+                -Dbrowser=${params.BROWSER} \\
+                -Dheadless=${params.HEADLESS} \\
+                -Dsurefire.suiteXmlFiles=src/test/resources/suites/${params.TEST_SUITE}.xml
+        """
+    }
+}
+```
+
+### Triggers: When Pipelines Run
+
+
+```groovy
+triggers {
+    // Time-based: nightly regression at 2 AM on weekdays
+    cron('H 2 * * 1-5')
+    
+    // Poll SCM: check Git for changes every 5 minutes
+    pollSCM('H/5 * * * *')
+    
+    // Upstream: run after another job completes
+    upstream(upstreamProjects: 'staynest-deploy-staging', threshold: 'SUCCESS')
+}
+```
+
+**`H` (hash):** Jenkins distributes load by hashing the job name. `H 2 * * *` means "some minute during the 2 AM hour" — not exactly 2:00. This prevents 50 jobs all triggering at 2:00:00.
+
+**Webhook (preferred over pollSCM):** GitHub/GitLab sends a POST to Jenkins when a push happens. Instant triggering, no polling overhead. Configured in Jenkins and the Git hosting platform — not in the Jenkinsfile.
+
+### Shared Libraries
+
+When multiple pipelines share logic (sending Slack notifications, publishing Allure reports, setting up test environments), shared libraries eliminate copy-paste:
+
+```
+shared-library-repo/
+├── vars/
+│   ├── notifySlack.groovy      ← callable as notifySlack() in any pipeline
+│   ├── publishTestReport.groovy
+│   └── runTests.groovy
+└── src/
+    └── com/staynest/pipeline/
+        └── TestRunner.groovy    ← reusable classes
+```
+
+
+```groovy
+// vars/publishTestReport.groovy — shared library function
+def call(Map config = [:]) {
+    String resultsPath = config.get('resultsPath', 'target/allure-results')
+    
+    junit '**/target/surefire-reports/*.xml'
+    
+    allure includeProperties: false,
+           results: Path: Resultspath
+    
+    archiveArtifacts artifacts: '**/target/surefire-reports/**',
+                     allowEmptyArchive: true
+}
+```
+
+
+```groovy
+// In any Jenkinsfile — using the shared library
+@Library('staynest-pipeline-lib') _
+
+pipeline {
+    agent { label 'linux' }
+    stages {
+        stage('Test') {
+            steps {
+                sh 'mvn test'
+            }
+            post {
+                always {
+                    publishTestReport(resultsPath: 'target/allure-results')
+                }
+            }
+        }
+    }
+}
+```
+
+---
+
+## Practical Implementation (Layer 3)
+
+### Complete Multi-Stage Jenkinsfile for StayNest
+
+A production-grade pipeline with parameters, parallel stages, conditional execution, and reporting.
+
+
+```groovy
+@Library('staynest-pipeline-lib') _
+
+pipeline {
+    agent { label 'linux' }
+
+    tools {
+        maven 'Maven-3.9'
+        jdk 'JDK-17'
+    }
+
+    parameters {
+        choice(
+            name: 'ENVIRONMENT',
+            choices: ['staging', 'dev', 'production'],
+            description: 'Target environment'
+        )
+        choice(
+            name: 'TEST_SUITE',
+            choices: ['smoke', 'regression', 'sanity'],
+            description: 'Test suite to execute'
+        )
+        choice(
+            name: 'BROWSER',
+            choices: ['chrome', 'firefox'],
+            description: 'Browser for UI tests'
+        )
+        booleanParam(
+            name: 'RUN_UI_TESTS',
+            defaultValue: true,
+            description: 'Include UI tests in this run'
+        )
+        booleanParam(
+            name: 'HEADLESS',
+            defaultValue: true,
+            description: 'Run browsers headless'
+        )
+    }
+
+    environment {
+        API_KEY       = credentials('staynest-api-key')
+        DB_CREDS      = credentials('staynest-db-credentials')
+        ALLURE_RESULTS = 'target/allure-results'
+    }
+
+    options {
+        timeout(time: 45, unit: 'MINUTES')
+        timestamps()
+        buildDiscarder(logRotator(numToKeepStr: '30'))
+        disableConcurrentBuilds()  // Prevent parallel runs of same job
+    }
+
+    triggers {
+        // Nightly regression at 2 AM weekdays
+        cron(params.TEST_SUITE == 'regression' ? 'H 2 * * 1-5' : '')
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+                echo "Running ${params.TEST_SUITE} suite against ${params.ENVIRONMENT}"
+            }
+        }
+
+        stage('Build') {
+            steps {
+                sh 'mvn clean compile -DskipTests'
+            }
+        }
+
+        stage('Parallel Test Execution') {
+            parallel {
+                stage('API Tests') {
+                    steps {
+                        sh """
+                            mvn test \\
+                                -pl api-tests \\
+                                -Denv=${params.ENVIRONMENT} \\
+                                -Dapi.key=${API_KEY} \\
+                                -Dsurefire.suiteXmlFiles=src/test/resources/suites/api-${params.TEST_SUITE}.xml
+                        """
+                    }
+                    post {
+                        always {
+                            junit '**/api-tests/target/surefire-reports/*.xml'
+                        }
+                    }
+                }
+
+                stage('UI Tests') {
+                    when {
+                        expression { return params.RUN_UI_TESTS }
+                    }
+                    agent { label 'selenium' }  // Agent with browser support
+                    steps {
+                        sh """
+                            mvn test \\
+                                -pl ui-tests \\
+                                -Denv=${params.ENVIRONMENT} \\
+                                -Dbrowser=${params.BROWSER} \\
+                                -Dheadless=${params.HEADLESS} \\
+                                -Dsurefire.suiteXmlFiles=src/test/resources/suites/ui-${params.TEST_SUITE}.xml
+                        """
+                    }
+                    post {
+                        always {
+                            junit '**/ui-tests/target/surefire-reports/*.xml'
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            allure includeProperties: false,
+                   results: Path: "${Allure_Results}"
+            archiveArtifacts artifacts: '**/target/surefire-reports/**',
+                             allowEmptyArchive: true
+            cleanWs()
+        }
+        failure {
+            echo "Tests FAILED on ${params.ENVIRONMENT}. Check Allure report."
+        }
+        success {
+            echo "All ${params.TEST_SUITE} tests passed on ${params.ENVIRONMENT}."
+        }
+    }
+}
+```
+
+---
+
+## Failure and Debugging (Layer 4)
+
+### Failure 1: Parallel Stage Fails — Entire Pipeline Marked Failed
+
+**The Problem:** API tests pass but UI tests fail. The entire pipeline is marked "FAILED" and all post-failure actions trigger, even though the API results are fine.
+
+**Root cause:** By default, any parallel branch failure fails the entire parallel block and thus the pipeline.
+
+**The fix — use `failFast: false` and handle per-stage:**
+
+
+```groovy
+stage('Parallel Test Execution') {
+    // Don't abort other branches when one fails
+    failFast false
+    parallel {
+        stage('API Tests') { /* ... */ }
+        stage('UI Tests') { /* ... */ }
+    }
+}
+```
+
+**Note:** The pipeline still shows FAILED overall, but all branches complete. Per-stage `post` blocks can report independently.
+
+### Failure 2: Parameters Not Appearing on First Build
+
+**The Problem:** You add `parameters` to a Jenkinsfile, push to Git, but "Build with Parameters" doesn't appear in Jenkins.
+
+**Root cause:** Jenkins must run the pipeline once to discover the parameter definitions. The first build runs with default values (or no parameters).
+
+**The fix:** This is expected behavior. After the first build completes (even if it fails), the parameters appear in the UI. For Multibranch Pipelines, scanning the branch triggers this discovery. Plan for the first run to be a no-op or use defaults that don't cause harm.
+
+### Failure 3: Shared Library Not Found
+
+**The Problem:**
+
+```
+ERROR: No such library 'staynest-pipeline-lib'
+```
+
+**Root cause:** The shared library isn't configured in Jenkins. Libraries are registered at the system level (Manage Jenkins → Configure System → Global Pipeline Libraries) or at the folder level.
+
+**The fix:**
+1. Go to Manage Jenkins → System → Global Pipeline Libraries
+2. Add library: name = `staynest-pipeline-lib`, default version = `main`
+3. Configure SCM: Git URL of the shared library repository
+4. Ensure the agent running the pipeline can access that Git repository
+
+---
+
+## Engineering Judgment (Layer 5)
+
+### Pipeline Complexity: When Is It Too Much?
+
+| Complexity Level | Example | Guidance |
+|---|---|---|
+| Simple | Single-stage: checkout → test → report | Perfect. Don't add complexity for complexity's sake. |
+| Moderate | Parameters, 2-3 parallel stages, conditional logic | Ideal for most SDET teams. Readable, flexible, maintainable. |
+| Complex | Shared libraries, dynamic stage generation, matrix builds | Only when multiple teams share pipeline code or you have 10+ variations. |
+| Over-engineered | Groovy classes, metaprogramming, custom DSL | If your pipeline needs a debugger, it's too complex. Simplify. |
+
+### Multibranch Pipeline vs Regular Pipeline
+
+| Type | Use When |
+|------|----------|
+| Regular Pipeline | Single branch (main), manually configured, one job per purpose |
+| Multibranch Pipeline | Multiple branches, auto-discovers Jenkinsfile per branch, PR-based testing |
+
+**Recommendation:** Use Multibranch Pipeline for test automation repos. It automatically creates jobs for each branch that has a Jenkinsfile, runs tests on PRs, and cleans up when branches are deleted.
+
+### Parallel Execution Tradeoffs
+
+**Benefits:** Faster total execution time. API + UI tests at 15 min each → 15 min parallel vs 30 min sequential.
+
+**Costs:** More agents/executors needed. Debugging is harder (interleaved logs). Resource contention if tests hit the same environment simultaneously.
+
+**Rule of thumb:** Parallelize test *types* (API vs UI), not individual tests. Individual test parallelization belongs in the test framework (TestNG parallel, JUnit concurrent), not in Jenkins stages.
+
+---
+
+## Interview and Revision (Layer 6)
+
+### Fundamental Questions
+
+**Q1: What is pipeline-as-code and why does it matter?**
+
+**A:** Pipeline-as-code means defining your CI/CD pipeline in a file (Jenkinsfile) that lives in the same repository as your code. It matters because the pipeline is version-controlled — every change is tracked in Git, reviewed in pull requests, and revertible. Compared to UI-configured Freestyle jobs, pipeline-as-code provides an audit trail, enables branching (different pipeline per branch), and ensures reproducibility across environments.
+
+**Q2: How do you implement parameterized builds for test automation?**
+
+**A:** I use the `parameters` block in the declarative Jenkinsfile to define inputs like environment (staging/production), browser (chrome/firefox), test suite (smoke/regression), and headless mode. These parameters appear in the "Build with Parameters" UI. In the pipeline steps, I reference them as `${params.ENVIRONMENT}` and pass them to Maven as system properties: `-Denv=${params.ENVIRONMENT}`. This way, one pipeline serves multiple execution contexts without code changes.
+
+**Q3: Explain how shared libraries work in Jenkins.**
+
+**A:** Shared libraries are separate Git repositories containing reusable Groovy functions. Functions in the `vars/` directory become globally callable steps — for example, `vars/publishTestReport.groovy` defines a `call()` method that any pipeline can invoke as `publishTestReport()`. Libraries are registered in Jenkins Global Configuration with a name and Git URL. Pipelines import them with `@Library('library-name') _`. This eliminates duplicating notification logic, report publishing, or environment setup across multiple Jenkinsfiles.
+
+
+
+
+| # | Front (Question) | Back (Answer) |
+|---|---|---|
+| 1 | What does `H` mean in a Jenkins cron expression? | Hash — distributes load by hashing the job name. `H 2 * * *` means a random minute during the 2 AM hour, preventing all jobs from triggering at exactly 2:00. |
+| 2 | Why don't parameters appear on the first pipeline build? | Jenkins must run the pipeline once to discover parameter definitions. After the first build, "Build with Parameters" appears in the UI. |
+| 3 | Where do shared library functions live? | In `vars/` directory of the shared library repo. Each `.groovy` file defines a `call()` method that becomes a pipeline step with the same name as the file. |
+| 4 | What does `failFast false` do in parallel stages? | Prevents aborting other parallel branches when one fails. All branches complete, allowing each to report results independently. |
+| 5 | Multibranch Pipeline vs regular Pipeline? | Multibranch auto-discovers Jenkinsfiles in each branch, creates jobs per branch, and cleans up deleted branches. Use it for test repos with PR-based workflows. |
+
+### Mastery Checklist
+
+- [ ] Can write a complete declarative Jenkinsfile with parameters, stages, and post actions
+- [ ] Can implement parallel stages for API + UI test execution
+- [ ] Can configure and use Jenkins shared libraries
+- [ ] Can set up triggers (cron, webhook, upstream) appropriately
+- [ ] Can debug parameter discovery, shared library loading, and parallel stage failures
+- [ ] Can justify pipeline complexity level for a given team size and test suite
+
+---
+
+**Next:** Docker For Testing | **Related:** Jenkins Fundamentals
+
+*Last updated: *

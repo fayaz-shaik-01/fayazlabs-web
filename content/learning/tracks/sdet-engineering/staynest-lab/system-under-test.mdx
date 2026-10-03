@@ -1,0 +1,347 @@
+---
+title: "StayNest - System Under Test"
+description: "StayNest is a full-stack hotel booking platform purpose-built as a learning environment for test automation. It mirrors real-world complexity -- JWT authentication, role-based access, dynamic pricing, payment integration, and multi-platform clients -- giving you a production-grade application to write tests against without the risk of breaking anything real."
+summary: "SDET Engineering guide: StayNest - System Under Test"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "staynest-lab"
+lesson: "system-under-test"
+difficulty: "beginner"
+estimatedMinutes: 30
+prerequisites: []
+tags: ["SDET", "StayNest", "Hands-on"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/staynest-lab/system-under-test"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# StayNest - System Under Test
+
+## Overview
+
+StayNest is a full-stack hotel booking platform purpose-built as a learning environment for test automation. It mirrors real-world complexity -- JWT authentication, role-based access, dynamic pricing, payment integration, and multi-platform clients -- giving you a production-grade application to write tests against without the risk of breaking anything real.
+
+Every test scenario in this lab module traces back to actual code in the StayNest repositories. When a test fails, you can read the source to understand *why* it failed, which accelerates learning far more than testing a black box.
+
+---
+
+## Architecture
+
+```
+                          +------------------+
+                          |   PostgreSQL 16   |
+                          |   (Docker)        |
+                          +--------+---------+
+                                   |
+                                   | JDBC
+                                   |
++----------------+        +--------+---------+        +----------------+
+|  React + Vite  | <----> |  Spring Boot 3.4 | <----> |   Stripe API   |
+|  (Web Client)  |  REST  |  Java 21 + JPA   |  REST  |  (Payments)    |
++----------------+        +--------+---------+        +----------------+
+                                   ^
+                                   | REST
+                          +--------+---------+
+                          |                  |
+                   +------+------+    +------+------+
+                   |   Android   |    |     iOS     |
+                   |   Kotlin    |    |   SwiftUI   |
+                   |   Compose   |    |             |
+                   +-------------+    +-------------+
+```
+
+All clients communicate with the backend through a single REST API. The backend is the source of truth for business logic, security, and data validation.
+
+---
+
+## Technology Stack
+
+### Backend
+
+| Layer          | Technology                                     |
+| -------------- | ---------------------------------------------- |
+| Framework      | Spring Boot 3.4.0                              |
+| Language       | Java 21                                        |
+| Database       | PostgreSQL 16 (via Docker)                     |
+| ORM            | Spring Data JPA / Hibernate                    |
+| Authentication | JWT (jjwt 0.12.6) + Spring Security            |
+| Payments       | Stripe Java SDK 28.2.0 (mock mode available)   |
+| Validation     | Jakarta Bean Validation                        |
+| API Docs       | SpringDoc OpenAPI (Swagger UI)                 |
+| Mapping        | ModelMapper 3.2.2                              |
+| Build          | Maven                                          |
+
+### Web Client
+
+| Layer        | Technology                           |
+| ------------ | ------------------------------------ |
+| Framework    | React 18 + TypeScript                |
+| Build Tool   | Vite                                 |
+| State        | Zustand (authStore, searchStore)     |
+| HTTP Client  | Axios (centralized API client)       |
+| Routing      | React Router                         |
+
+### Android Client
+
+| Layer        | Technology                           |
+| ------------ | ------------------------------------ |
+| Language     | Kotlin                               |
+| UI           | Jetpack Compose                      |
+| DI           | Hilt                                 |
+| Architecture | MVVM (ViewModels + Repositories)     |
+| HTTP Client  | Retrofit / OkHttp                    |
+
+### iOS Client
+
+| Layer        | Technology                           |
+| ------------ | ------------------------------------ |
+| Language     | Swift                                |
+| UI           | SwiftUI                              |
+| Architecture | MVVM (ViewModels + Services)         |
+| Auth         | JWTDecoder utility                   |
+
+---
+
+## Repository Locations
+
+All repositories live under `../projects-for-sdet/` relative to this knowledge base:
+
+```
+projects-for-sdet/
+  staynest-backend/     # Spring Boot API server
+  staynest-web/         # React web client
+  staynest-android/     # Android Kotlin app
+  staynest-ios/         # iOS SwiftUI app
+```
+
+---
+
+## Local Setup
+
+### Prerequisites
+
+- Java 21 (JDK)
+- Maven 3.9+ (or use the included `mvnw` wrapper)
+- Docker and Docker Compose
+- Node.js 18+ and npm (for the web client)
+- Xcode 15+ (for iOS, macOS only)
+- Android Studio (for Android)
+
+### 1. Start the Database
+
+```bash
+cd projects-for-sdet/staynest-backend
+docker compose up -d postgres
+```
+
+This starts PostgreSQL 16 on port `5432` with:
+- Database: `staynest`
+- User: `postgres`
+- Password: `postgres`
+- Seed data loaded from `test-data/seed.sql`
+
+### 2. Run the Backend
+
+```bash
+# From staynest-backend/
+cp .env.example .env          # Review and adjust if needed
+./mvnw spring-boot:run
+```
+
+The API server starts on `http://localhost:8080`. All endpoints are prefixed with `/api/v1` (configured via `server.servlet.context-path`).
+
+Swagger UI is available at: `http://localhost:8080/api/v1/swagger-ui.html`
+
+### 3. Run the Web Client (optional)
+
+```bash
+cd projects-for-sdet/staynest-web
+npm install
+npm run dev
+```
+
+The web client starts on `http://localhost:5173` by default.
+
+### 4. Run with Docker Compose (full stack)
+
+```bash
+cd projects-for-sdet/staynest-backend
+docker compose up -d
+```
+
+This starts both PostgreSQL and the backend as containers. The backend container connects to PostgreSQL via the Docker network.
+
+---
+
+## Domain Model
+
+### Entity Relationships
+
+```
+User (app_user)
+  |
+  +-- owns --> Hotel (1:N)
+  |              |
+  |              +-- has --> Room (1:N)
+  |              |             |
+  |              |             +-- has --> Inventory (1:N, per date)
+  |              |
+  |              +-- embedded --> HotelContactInfo
+  |
+  +-- creates --> Booking (1:N)
+  |                 |
+  |                 +-- for --> Hotel (N:1)
+  |                 +-- for --> Room (N:1)
+  |                 +-- has --> Guest (N:M via booking_guest)
+  |
+  +-- manages --> Guest (1:N)
+```
+
+### Core Entities
+
+| Entity           | Key Fields                                                         | Notes                                      |
+| ---------------- | ------------------------------------------------------------------ | ------------------------------------------ |
+| User             | id, email (unique), password, name, dateOfBirth, gender, roles     | Implements Spring Security `UserDetails`   |
+| Hotel            | id, name, city, photos[], amenities[], active, owner, contactInfo  | Must be activated before appearing in search |
+| Room             | id, hotel, type, basePrice, photos[], amenities[], totalCount, capacity | totalCount = number of rooms of this type |
+| Booking          | id, hotel, room, user, roomsCount, checkInDate, checkOutDate, bookingStatus, amount, paymentSessionId | Core transactional entity |
+| Guest            | id, user, name, gender, dateOfBirth                               | Belongs to a user, linked to bookings      |
+| Inventory        | id, hotel, room, date, bookedCount, reservedCount, totalCount, surgeFactor, price, city, closed | One record per room-type per date |
+| HotelContactInfo | address, phoneNumber, email, location                             | Embedded in Hotel (not a separate table)   |
+| HotelMinPrice    | id, hotel, date, price                                            | Cached cheapest room price per hotel per day |
+
+### Enums
+
+| Enum          | Values                                                           |
+| ------------- | ---------------------------------------------------------------- |
+| Role          | `GUEST`, `HOTEL_MANAGER`                                         |
+| BookingStatus | `RESERVED`, `GUESTS_ADDED`, `PAYMENTS_PENDING`, `CONFIRMED`, `CANCELLED`, `EXPIRED` |
+| PaymentStatus | `PENDING`, `CONFIRMED`, `CANCELLED`                              |
+| Gender        | `MALE`, `FEMALE`, `OTHER`                                        |
+
+---
+
+## User Roles
+
+| Role            | Capabilities                                                                |
+| --------------- | --------------------------------------------------------------------------- |
+| `GUEST`         | Browse hotels, create bookings, manage guests, view own bookings/profile    |
+| `HOTEL_MANAGER` | All GUEST capabilities plus: create/update/delete hotels, manage rooms, view inventory, update inventory, view hotel bookings, generate reports |
+
+Role assignment happens at signup. If no role is specified, the user defaults to `GUEST`.
+
+Security rules (from `WebSecurityConfig`):
+- `/admin/**` -- requires `ROLE_HOTEL_MANAGER`
+- `/bookings/**` -- requires authentication (any role)
+- `/users/**` -- requires authentication (any role)
+- Everything else (auth, browse, swagger) -- public
+
+---
+
+## Key Business Flows
+
+### 1. Registration and Authentication
+
+1. User submits email, password, name via `POST /auth/signup`
+2. Password is hashed with BCrypt and stored
+3. User logs in via `POST /auth/login`, receives JWT access token (10 min expiry) + refresh token (6 months, in HttpOnly cookie)
+4. Access token is sent as `Authorization: Bearer <token>` on subsequent requests
+5. Expired access tokens can be refreshed via `POST /auth/refresh` using the cookie
+
+### 2. Hotel Search and Browse
+
+1. Guest searches by city, date range, and rooms count via `POST /hotels/search`
+2. System queries inventory to find hotels with available rooms for all requested dates
+3. Results include the minimum price per night across available room types
+4. Guest can view detailed hotel info including room pricing via `GET /hotels/{hotelId}/info`
+
+### 3. Booking Lifecycle
+
+1. **Init**: `POST /bookings/init` -- reserves rooms, decrements inventory, sets status to `RESERVED`
+2. **Add Guests**: `POST /bookings/{id}/addGuests` -- attaches guest records, status becomes `GUESTS_ADDED`
+3. **Payment**: `POST /bookings/{id}/payments` -- initiates Stripe checkout (or auto-confirms in mock mode), status becomes `PAYMENTS_PENDING` or `CONFIRMED`
+4. **Confirmation**: Stripe webhook at `POST /webhook/payment` confirms payment, status becomes `CONFIRMED`
+5. **Cancellation**: `POST /bookings/{id}/cancel` -- only confirmed bookings can be cancelled, inventory is restored, Stripe refund is issued
+6. **Expiry**: Scheduled job runs every 2 minutes, expires bookings older than 10 minutes that are still in `RESERVED`, `GUESTS_ADDED`, or `PAYMENTS_PENDING` status
+
+### 4. Inventory Management (Admin)
+
+1. When a room is created, inventory records are auto-generated for the next year
+2. Admin can view inventory per room via `GET /admin/inventory/rooms/{roomId}`
+3. Admin can update surge factor and closed status for a date range via `PATCH /admin/inventory/rooms/{roomId}`
+4. Inventory tracks: totalCount, bookedCount (confirmed), reservedCount (pending), and price per day
+
+### 5. Dynamic Pricing
+
+Price is calculated by chaining pricing strategies (decorator pattern):
+1. **BasePricingStrategy** -- starts with the inventory's base price
+2. **SurgePricingStrategy** -- multiplies by the surge factor
+3. **OccupancyPricingStrategy** -- adjusts based on how booked the room type is
+4. **UrgencyPricingStrategy** -- adjusts based on how close the date is
+5. **HolidayPricingStrategy** -- adjusts for holidays
+
+---
+
+## Stripe Integration Note
+
+The backend supports a **mock mode** for Stripe. When the `STRIPE_SECRET_KEY` environment variable is set to `sk_test_placeholder` (the default), the system:
+
+- Skips real Stripe API calls
+- Auto-generates a mock payment session ID
+- Auto-confirms bookings immediately on payment initiation
+- Skips refund calls on cancellation
+
+This means you can test the full booking flow without a Stripe account. For integration testing with real Stripe, provide a valid test key in the environment.
+
+---
+
+## API Base URL
+
+All API endpoints are served under the context path:
+
+```
+http://localhost:8080/api/v1
+```
+
+For example, the signup endpoint is:
+
+```
+POST http://localhost:8080/api/v1/auth/signup
+```
+
+---
+
+## Response Wrapper
+
+All successful responses are wrapped in an `ApiResponse` envelope:
+
+```json
+{
+  "timeStamp": "2024-01-15T10:30:00",
+  "data": { ... },
+  "error": null
+}
+```
+
+Error responses use the same envelope with an `ApiError` object:
+
+```json
+{
+  "timeStamp": "2024-01-15T10:30:00",
+  "data": null,
+  "error": {
+    "status": "BAD_REQUEST",
+    "message": "Validation failed",
+    "subErrors": ["email: Invalid email format"]
+  }
+}
+```

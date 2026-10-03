@@ -1,0 +1,581 @@
+---
+title: "StayNest - Debugging Challenges"
+description: "Each challenge presents a failing test with the exact symptom, evidence, and logs you'd see in practice. Before reading the solution:"
+summary: "SDET Engineering guide: StayNest - Debugging Challenges"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "staynest-lab"
+lesson: "debugging-challenges"
+difficulty: "beginner"
+estimatedMinutes: 37
+prerequisites: []
+tags: ["SDET", "StayNest", "Hands-on"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/staynest-lab/debugging-challenges"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# StayNest - Debugging Challenges
+
+> **Module:** 11 — StayNest Lab
+> **Prerequisites:** Test Scenarios, Requirements And Business Rules, Architecture
+> **Purpose:** Build real debugging skills by working through failures you'll encounter in production SDET work
+
+---
+
+## How to Use These Challenges
+
+Each challenge presents a failing test with the exact symptom, evidence, and logs you'd see in practice. Before reading the solution:
+
+1. **Read the symptom** — what does the test output look like?
+2. **Examine the evidence** — what do the logs, response, and request tell you?
+3. **Form a hypothesis** — based on your knowledge of StayNest's architecture, what could cause this?
+4. **Only then read the investigation and root cause** — compare your hypothesis to the actual answer
+
+These are not trick questions. Every failure here happens regularly in real SDET work. The goal is to build a systematic debugging muscle so you don't panic when tests fail in CI at 11 PM.
+
+---
+
+## Challenge 1: POST Booking Returns 409 — Room Inventory Exhausted
+
+### Symptom
+
+Your booking integration test was passing consistently. After adding three more booking tests to the suite, the fourth test started failing:
+
+
+```
+BookingLifecycleTest > shouldCreateBookingForDeluxeRoom FAILED
+
+Expected status code: 200
+Actual status code:   409
+
+Response body:
+{
+  "timeStamp": "2025-03-15T14:22:10",
+  "data": null,
+  "error": {
+    "status": "CONFLICT",
+    "message": "Room is not available anymore"
+  }
+}
+```
+
+### Evidence
+
+- The test worked in isolation (`mvn test -Dtest=BookingLifecycleTest#shouldCreateBookingForDeluxeRoom`)
+- The test fails when the full suite runs
+- The room has `totalCount: 2` (only 2 physical rooms of this type)
+- Three other tests in the suite also book the same room type for the same dates
+
+### Investigation Hints
+
+1. Check the `inventory` table for the test dates — what are the `reservedCount` and `bookedCount` values?
+2. How many rooms of this type exist (`totalCount`)?
+3. Are other tests in the suite booking the same room type and date range?
+4. Do prior tests clean up their bookings (cancel or let them expire)?
+
+### Root Cause
+
+The room type has `totalCount: 2`. Three earlier tests each called `POST /bookings/init` for the same room and dates, reserving rooms. The first two succeeded (reserving 1 room each, `reservedCount` = 2). The third test also succeeded because the first booking expired (10-minute expiry, but in fast test execution, this didn't happen). By the fourth test, `reservedCount + bookedCount >= totalCount`, and the `InventoryServiceImpl` threw `IllegalStateException("Room is not available anymore")`.
+
+### Fix
+
+
+```java
+// Option 1: Each test creates its own room with enough inventory
+@BeforeMethod
+public void setupTestRoom() {
+    // Create a fresh hotel and room for this specific test
+    hotelId = createHotel(managerToken, "Test Hotel " + UUID.randomUUID());
+    roomId = createRoom(managerToken, hotelId, "DELUXE", 150.00, 10); // totalCount=10
+    activateHotel(managerToken, hotelId);
+}
+
+// Option 2: Use non-overlapping date ranges per test
+@Test
+public void shouldCreateBookingForDeluxeRoom() {
+    // Use dates unique to this test method
+    String checkIn = LocalDate.now().plusDays(30).toString();  // test 1: +30
+    String checkOut = LocalDate.now().plusDays(32).toString();
+    // Other tests use +40, +50, +60 etc.
+}
+```
+
+### Prevention
+
+- **Isolate test data:** Each test should create its own hotel, room, and inventory — never share mutable resources across tests
+- **Use unique date ranges:** If tests must share a room, use non-overlapping dates
+- **Set high `totalCount`:** When creating test rooms, use `totalCount: 50` or higher to avoid contention
+- **Clean up after tests:** Cancel bookings in `@AfterMethod` to release inventory
+
+---
+
+## Challenge 2: Login Test Passes Locally, 401 in CI
+
+### Symptom
+
+Your login test passes every time on your local machine. In Jenkins CI, it fails intermittently:
+
+
+```
+AuthTest > shouldLoginWithValidCredentials FAILED
+
+Expected status code: 200
+Actual status code:   401
+
+Response body:
+{
+  "timeStamp": "2025-03-15T14:00:05",
+  "data": null,
+  "error": {
+    "status": "UNAUTHORIZED",
+    "message": "Access Denied"
+  }
+}
+```
+
+### Evidence
+
+- The test signs up a user, then immediately logs in — signup succeeds (201) but login fails (401)
+- This only happens in CI, never locally
+- The CI server is a Docker container running in AWS
+- Adding a `Thread.sleep(2000)` before the login call makes it pass (but this is not a real fix)
+- The CI server logs show: `JWT signature verification failed`
+
+### Investigation Hints
+
+1. Check the CI server's system clock — is it synchronized with NTP?
+2. What's the `iat` (issued-at) claim in the JWT from signup vs. the server's current time during login?
+3. Could a clock skew between the app server and the CI runner cause token validation to fail?
+4. Is the test reusing a token from a previous test run?
+
+### Root Cause
+
+The CI Docker container's system clock was 3 seconds ahead of the StayNest backend container. The test flow was:
+
+1. Signup (succeeds — no token needed)
+2. Login (returns a JWT with `iat` based on the backend's clock)
+3. The next request uses this JWT — but the CI runner's HTTP call arrives with a timestamp that the backend's `JwtAuthFilter` considers "from the future" due to clock skew
+
+In a more common variant: the test was reusing a **cached token from a previous suite run** that had already expired. The `@BeforeSuite` method generated a token once and stored it in a static field. When the suite took more than 10 minutes to run, the token expired mid-suite.
+
+### Fix
+
+
+```java
+// Fix 1: Generate fresh tokens per test class, not per suite
+public class BaseApiTest {
+    protected String guestToken;
+
+    @BeforeClass
+    public void authenticate() {
+        // Fresh signup + login for each test class
+        String uniqueEmail = "testuser-" + UUID.randomUUID() + "@test.com";
+        signup(uniqueEmail, "password123", "Test User");
+        guestToken = login(uniqueEmail, "password123");
+    }
+}
+
+// Fix 2: Add a token refresh helper that regenerates if close to expiry
+protected String getFreshToken(String email, String password) {
+    if (isTokenExpiringSoon(currentToken, 60)) { // refresh if <60s remaining
+        currentToken = login(email, password);
+    }
+    return currentToken;
+}
+```
+
+### Prevention
+
+- **Never cache tokens across test classes** — generate per-class at minimum, per-method if tests are slow
+- **Ensure CI containers use NTP** — add `ntpdate` or use `--privileged` Docker mode with host clock
+- **Add token expiry awareness** — a helper method that checks `exp` claim and refreshes proactively
+- **Log token details on failure** — decode and log `iat` and `exp` when a 401 occurs unexpectedly
+
+---
+
+## Challenge 3: Search Returns Empty for Existing Hotel
+
+### Symptom
+
+You created a hotel and room via the admin API, but searching for it returns an empty results list:
+
+
+```
+SearchTest > shouldFindHotelByCity FAILED
+
+java.lang.AssertionError:
+Expected: content array size >= 1
+Actual:   content array size == 0
+
+Test steps:
+  1. POST /admin/hotels → 201 (hotelId: 15)
+  2. POST /admin/hotels/15/rooms → 201 (roomId: 8)
+  3. POST /hotels/search { city: "New York", startDate: "2025-04-01",
+     endDate: "2025-04-03", roomsCount: 1 } → 200
+
+Response:
+{
+  "content": [],
+  "totalElements": 0,
+  "totalPages": 0
+}
+```
+
+### Evidence
+
+- The hotel was created successfully (201 response with ID)
+- The room was created successfully (201 response with ID, inventory auto-generated)
+- The search endpoint returns 200 (not an error) — it just finds nothing
+- GET /admin/hotels/15 confirms the hotel exists with `"active": false`
+
+### Investigation Hints
+
+1. What is the hotel's `active` status after creation?
+2. What does business rule HOTEL-03 say about inactive hotels and search?
+3. Is there a step missing between creating a hotel and it appearing in search results?
+4. Check the `inventory` table — does inventory exist for the requested dates?
+
+### Root Cause
+
+New hotels are created with `active: false` by default (business rule HOTEL-03). The search query in `InventoryServiceImpl.searchHotels()` filters on `hotel.active = true`. The test never called `PATCH /admin/hotels/{id}/activate` after creating the hotel.
+
+### Fix
+
+
+```java
+@Test
+public void shouldFindHotelByCity() {
+    // Step 1: Create hotel
+    Long hotelId = createHotel(managerToken, "Search Test Hotel", "New York");
+
+    // Step 2: Create room (generates inventory)
+    createRoom(managerToken, hotelId, "STANDARD", 100.00, 5);
+
+    // Step 3: ACTIVATE the hotel — this is the missing step!
+    given()
+        .header("Authorization", "Bearer " + managerToken)
+    .when()
+        .patch("/admin/hotels/" + hotelId + "/activate")
+    .then()
+        .statusCode(204);
+
+    // Step 4: Now search
+    SearchResponse response = searchHotels("New York", checkIn, checkOut, 1);
+    assertThat(response.getContent()).hasSizeGreaterThanOrEqualTo(1);
+    assertThat(response.getContent())
+        .extracting("id")
+        .contains(hotelId);
+}
+```
+
+### Prevention
+
+- **Create a test data builder** that always activates hotels as part of the setup: `TestDataBuilder.createActiveHotelWithRoom(token, city)`
+- **Add a smoke test** that explicitly verifies the "create → activate → search" flow
+- **Document the activation requirement** in your test plan — any test that involves search needs an activated hotel
+
+---
+
+## Challenge 4: Cancel Booking Returns 409 Not 204
+
+### Symptom
+
+Your booking cancellation test fails because the cancel endpoint returns 409 instead of 204:
+
+
+```
+BookingCancelTest > shouldCancelConfirmedBooking FAILED
+
+Expected status code: 204
+Actual status code:   409
+
+Response body:
+{
+  "timeStamp": "2025-03-15T14:30:00",
+  "data": null,
+  "error": {
+    "status": "CONFLICT",
+    "message": "Only confirmed bookings can be cancelled, current status: RESERVED"
+  }
+}
+```
+
+### Evidence
+
+- The test creates a booking via `POST /bookings/init` → gets status `RESERVED`
+- Then immediately calls `POST /bookings/{id}/cancel`
+- The error says the booking is in `RESERVED` status, not `CONFIRMED`
+- Business rule BOOK-10: "Only confirmed bookings can be cancelled"
+
+### Investigation Hints
+
+1. Review the booking status lifecycle in `requirements-and-business-rules.md`
+2. What status transitions must a booking go through before it can be cancelled?
+3. What steps are between `RESERVED` and `CONFIRMED`?
+4. Is the test skipping the payment step?
+
+### Root Cause
+
+The booking lifecycle requires multiple steps before cancellation is possible:
+
+```
+RESERVED → (addGuests) → GUESTS_ADDED → (payments) → CONFIRMED → (cancel) → CANCELLED
+```
+
+The test tried to jump from `RESERVED` directly to `CANCELLED`, skipping `addGuests` and `payments`. Business rule BOOK-10 enforces that only `CONFIRMED` bookings can be cancelled.
+
+### Fix
+
+
+```java
+@Test
+public void shouldCancelConfirmedBooking() {
+    // Step 1: Create booking → RESERVED
+    Long bookingId = initBooking(guestToken, hotelId, roomId, checkIn, checkOut, 1);
+
+    // Step 2: Add guests → GUESTS_ADDED
+    Long guestId = createGuest(guestToken, "John Doe", "MALE", "1990-01-01");
+    addGuestsToBooking(guestToken, bookingId, List.of(guestId));
+
+    // Step 3: Make payment → CONFIRMED (mock mode auto-confirms)
+    initiatePayment(guestToken, bookingId);
+
+    // Step 4: Verify status is CONFIRMED before cancelling
+    String status = getBookingStatus(guestToken, bookingId);
+    assertThat(status).isEqualTo("CONFIRMED");
+
+    // Step 5: NOW cancel
+    given()
+        .header("Authorization", "Bearer " + guestToken)
+    .when()
+        .post("/bookings/" + bookingId + "/cancel")
+    .then()
+        .statusCode(204);
+}
+```
+
+### Prevention
+
+- **Create a helper method** `createConfirmedBooking()` that runs the full lifecycle (init → addGuests → payment) and returns a booking ID in `CONFIRMED` status
+- **Assert intermediate statuses** — verify `RESERVED` after init, `GUESTS_ADDED` after addGuests, `CONFIRMED` after payment
+- **Test negative paths explicitly** — write separate tests for cancelling `RESERVED`, `GUESTS_ADDED`, and `EXPIRED` bookings (all should return 409)
+
+---
+
+## Challenge 5: Parallel Booking Tests Interfere With Each Other
+
+### Symptom
+
+Your booking tests pass when run sequentially but fail randomly when run in parallel (TestNG `parallel="methods"`):
+
+
+```
+=== Run 1 (sequential): ALL PASS ===
+BookingTest > shouldInitBooking        PASSED
+BookingTest > shouldCancelBooking      PASSED
+BookingTest > shouldExpireBooking      PASSED
+
+=== Run 2 (parallel): RANDOM FAILURES ===
+BookingTest > shouldInitBooking        PASSED
+BookingTest > shouldCancelBooking      FAILED (409: Room not available)
+BookingTest > shouldExpireBooking      FAILED (404: Booking not found)
+```
+
+### Evidence
+
+- Tests share a static `hotelId` and `roomId` initialized in `@BeforeSuite`
+- `shouldCancelBooking` creates a booking, but by the time it cancels, another parallel thread has consumed the last room
+- `shouldExpireBooking` creates a booking and expects it to still exist, but another thread's cleanup deleted related data
+- The room has `totalCount: 2`, and three tests are running simultaneously
+
+### Investigation Hints
+
+1. Are test methods sharing mutable state (static fields)?
+2. What is the `totalCount` for the shared room — can it support parallel bookings?
+3. Does one test's cleanup affect another test's data?
+4. Would test isolation (each test creates its own hotel+room) solve this?
+
+### Root Cause
+
+Three problems combine:
+
+1. **Shared mutable state:** All tests use the same `hotelId` and `roomId` from a static field, so they compete for the same inventory
+2. **Low inventory:** `totalCount: 2` can't support three simultaneous bookings
+3. **No data isolation:** One test's side effects (booking, cancellation, expiry) change the shared room's inventory, causing other tests to see unexpected state
+
+### Fix
+
+
+```java
+public class BookingTest extends BaseApiTest {
+
+    // Each test method gets its own hotel and room — no shared state
+    private Long createIsolatedTestData() {
+        String uniqueName = "Hotel-" + Thread.currentThread().getId() + "-" + System.nanoTime();
+        Long hotelId = createHotel(managerToken, uniqueName, "Test City");
+        Long roomId = createRoom(managerToken, hotelId, "STANDARD", 100.00, 50);
+        activateHotel(managerToken, hotelId);
+        return roomId; // or return a TestData object with both IDs
+    }
+
+    @Test
+    public void shouldInitBooking() {
+        Long roomId = createIsolatedTestData();
+        // Book against this test's own room — no interference
+        Long bookingId = initBooking(guestToken, hotelId, roomId, checkIn, checkOut, 1);
+        assertThat(bookingId).isNotNull();
+    }
+
+    @Test
+    public void shouldCancelBooking() {
+        Long roomId = createIsolatedTestData();
+        Long bookingId = createConfirmedBooking(guestToken, hotelId, roomId);
+        cancelBooking(guestToken, bookingId);
+        // Verify cancelled
+        String status = getBookingStatus(guestToken, bookingId);
+        assertThat(status).isEqualTo("CANCELLED");
+    }
+}
+```
+
+### Prevention
+
+- **Never share mutable test data across parallel tests** — each test creates and owns its data
+- **Use high `totalCount`** (50+) even for isolated tests — safety margin against timing issues
+- **Use unique identifiers** — include thread ID or UUID in hotel/user names for traceability
+- **Make tests independent** — each test should be able to run in any order, at any time, with any other test
+- **Test parallel safety early** — run with `parallel="methods"` from day one, not as an afterthought
+
+---
+
+## Challenge 6: API Returns 200 But DB Shows Wrong Amount
+
+### Symptom
+
+Your booking amount validation test passes at the API level but fails when you verify the database:
+
+
+```
+BookingAmountTest > shouldCalculateCorrectAmount FAILED
+
+API response amount:  $300.00
+Expected amount:      $300.00  (basePrice $100 × 3 nights × 1 room)
+DB booking amount:    $347.25  ← MISMATCH
+
+java.lang.AssertionError:
+Expected: 300.00
+Actual:   347.25
+```
+
+### Evidence
+
+- Room `basePrice` is $100.00
+- Booking is for 3 nights, 1 room
+- Expected: $100 × 3 = $300
+- The API response shows `amount: 347.25` (but the test was checking `amount: 300.00`)
+- Wait — the test actually checks the *DB* amount, and it's $347.25, which matches the API response
+- So the "expected" value of $300 is wrong — the tester assumed `basePrice × nights`
+
+### Investigation Hints
+
+1. Is `basePrice` the final price, or is there dynamic pricing applied?
+2. Check the `inventory` table for the booked dates — what is the `price` column? What about `surgeFactor`?
+3. How does the pricing chain work? (Base → Surge → Occupancy → Urgency → Holiday)
+4. Are other tests running first that increase occupancy (and thus the occupancy pricing multiplier)?
+
+### Root Cause
+
+The booking amount is **not** simply `basePrice × nights`. StayNest uses dynamic pricing with five chained strategies:
+
+1. Base price: $100 per night
+2. Surge factor: 1.0 (no surge) — but another test had set `surgeFactor: 1.1` on one of the dates
+3. Occupancy: 3 out of 10 rooms booked → occupancy multiplier kicks in slightly
+4. Urgency: dates are 5 days from now → urgency multiplier applies
+5. Holiday: one of the dates falls on a configured holiday → holiday multiplier applies
+
+The combined effect: `($100 × 1.1 × 1.05 × 1.02 × 1.0) + ($100 × 1.0 × 1.05 × 1.02 × 1.0) + ($100 × 1.0 × 1.05 × 1.02 × 1.1) = $347.25` (approximate).
+
+### Fix
+
+
+```java
+@Test
+public void shouldCalculateCorrectAmount() {
+    // Option 1: Don't assert exact amount — assert it's positive and reasonable
+    Long bookingId = initBooking(guestToken, hotelId, roomId, checkIn, checkOut, 1);
+
+    BookingDto booking = getBooking(guestToken, bookingId);
+    assertThat(booking.getAmount())
+        .isGreaterThan(BigDecimal.ZERO)
+        .as("Amount should be positive");
+
+    // The amount should be roughly basePrice × nights, within dynamic pricing range
+    BigDecimal minExpected = basePrice.multiply(BigDecimal.valueOf(nights)).multiply(BigDecimal.valueOf(0.8));
+    BigDecimal maxExpected = basePrice.multiply(BigDecimal.valueOf(nights)).multiply(BigDecimal.valueOf(2.0));
+    assertThat(booking.getAmount())
+        .isBetween(minExpected, maxExpected)
+        .as("Amount should be within reasonable dynamic pricing range");
+}
+
+// Option 2: Control all pricing factors for deterministic testing
+@Test
+public void shouldCalculateAmountWithKnownPricingFactors() {
+    // Create isolated room with known base price
+    Long roomId = createRoom(managerToken, hotelId, "TEST_ROOM", 100.00, 50);
+
+    // Set surge factor to 1.0 for all test dates
+    updateInventory(managerToken, roomId, checkIn, checkOut, 1.0, false);
+
+    // Use dates far in the future (reduces urgency factor)
+    String farCheckIn = LocalDate.now().plusDays(90).toString();
+    String farCheckOut = LocalDate.now().plusDays(93).toString();
+
+    // Book when occupancy is zero (first booking for this room)
+    Long bookingId = initBooking(guestToken, hotelId, roomId, farCheckIn, farCheckOut, 1);
+
+    BookingDto booking = getBooking(guestToken, bookingId);
+    // With controlled factors, amount should be close to base × nights
+    assertThat(booking.getAmount()).isCloseTo(
+        BigDecimal.valueOf(300.00),
+        Percentage.withPercentage(10) // allow 10% variance for minimal occupancy/urgency
+    );
+}
+```
+
+### Prevention
+
+- **Understand the pricing model before writing amount assertions** — dynamic pricing means amounts are never simply `base × nights`
+- **Control pricing factors in test data** — set `surgeFactor: 1.0`, use far-future dates, and book against fresh rooms with zero occupancy
+- **Use range assertions instead of exact matches** — `isBetween(min, max)` or `isCloseTo(expected, percentage)`
+- **Verify pricing in isolation** — write specific tests for each pricing strategy, not just the aggregate
+
+---
+
+## Debugging Checklist
+
+When any StayNest test fails, walk through this checklist:
+
+| Step | Check | How |
+| --- | --- | --- |
+| 1 | Is the backend running? | `curl http://localhost:8080/api/v1/auth/signup` — any response means yes |
+| 2 | Is the token valid? | Decode JWT, check `exp` vs current time |
+| 3 | Is the request correct? | Log full request (URL, headers, body) on failure |
+| 4 | Is the response what you expect? | Log full response (status, headers, body) on failure |
+| 5 | Is the test data in the right state? | Check hotel active? Room has inventory? Booking in correct status? |
+| 6 | Are other tests interfering? | Run the failing test in isolation — does it pass? |
+| 7 | Is the database in a known state? | Query the relevant tables directly |
+| 8 | Is there a timing issue? | Check for 10-min booking expiry, token expiry, or async operations |
+
+---
+
+**Related:** Test Scenarios, Requirements And Business Rules

@@ -1,0 +1,740 @@
+---
+title: "Logging and Reporting"
+description: "What: Logging is the technical diagnostic trail — timestamped messages about what the framework is doing, at what severity, in which thread. Reporting is the stakeholder-facing summary — which tests passed, which failed, why they failed, with screenshots and categorized results. Logging is for you, the SDET, debugging a failure at 2 AM. Reporting is for the team lead, the PM, or the CI dashboard showing test health."
+summary: "SDET Engineering guide: Logging and Reporting"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "framework-engineering"
+lesson: "logging-and-reporting"
+difficulty: "intermediate"
+estimatedMinutes: 47
+prerequisites: []
+tags: ["SDET", "Framework", "Architecture"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/framework-engineering/logging-and-reporting"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Logging and Reporting
+
+> **Module:** 03 — Framework Engineering > Logging and Reporting  
+> **Prerequisites:** Test Lifecycle And Fixtures, Framework Architecture, Configuration And Environments  
+> **Mastery Target:** L3 (Independent) → L4 (Engineering Judgment)
+
+---
+
+## Quick Overview (Layer 1)
+
+**What:** Logging is the technical diagnostic trail — timestamped messages about what the framework is doing, at what severity, in which thread. Reporting is the stakeholder-facing summary — which tests passed, which failed, why they failed, with screenshots and categorized results. Logging is for you, the SDET, debugging a failure at 2 AM. Reporting is for the team lead, the PM, or the CI dashboard showing test health.
+
+**Why it matters:** A test fails in CI. Without logging, you know *that* it failed. With logging, you know the driver was created, the login page loaded, the email field was found, the password field was typed, and the login button click threw a `TimeoutException` at 14:32:07 on Thread-3. Without reporting, the PM asks "how many tests passed?" and you grep through console output. With reporting, they open an Allure dashboard and see pass rates, failure categories, trend graphs, and screenshots.
+
+**Where you encounter it:** Every test failure you need to debug. Every CI pipeline that publishes results. Every sprint review where someone asks "is the feature stable?"
+
+<MentalModel>
+
+Think of logging as a **black box flight recorder** and reporting as the **passenger-facing flight status display**. The flight recorder captures every detail — altitude, speed, throttle position, every second. It's for investigators after an incident. The flight status display shows "On time," "Delayed," or "Arrived" — it's for passengers who need the outcome, not the details. Your framework needs both: detailed technical logs for debugging, and clean visual reports for stakeholders.
+
+</MentalModel>
+
+
+<KeyTakeaways>
+
+1. **Logging and reporting serve different audiences** — logs are for SDETs debugging failures; reports are for stakeholders tracking test health. Don't conflate them.
+2. **Use a logging framework, never `System.out.println`** — SLF4J + Logback gives you log levels, thread context, timestamps, and configurable output without littering production code.
+3. **Screenshots on failure are non-negotiable** — a failure without a screenshot forces you to reproduce locally. A failure with a screenshot often tells you immediately what went wrong.
+4. **Allure annotations turn test code into living documentation** — `@Step`, `@Description`, `@Severity`, and `@Story` make reports readable to non-technical stakeholders.
+5. **Custom listeners keep cross-cutting concerns out of test code** — screenshot capture, report attachment, and log enrichment belong in listeners, not in `@AfterMethod` of every test class.
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation (Layer 2)
+
+### Logging: SLF4J + Logback
+
+**Why not `System.out.println`?**
+
+`System.out.println("Login test started")` has no timestamp, no log level, no thread identifier, and no way to turn it off in production without deleting the line. A logging framework provides all of these:
+
+```
+14:32:07.123 [Thread-3] INFO  c.s.a.pages.LoginPage - Entering email: user@test.com
+14:32:07.456 [Thread-3] DEBUG c.s.a.pages.LoginPage - Waiting for element: By.id("email")
+14:32:08.789 [Thread-3] ERROR c.s.a.base.BaseTest - Test FAILED: shouldLoginSuccessfully
+```
+
+**SLF4J** is the logging facade (interface). **Logback** is the implementation. Your code imports SLF4J; the classpath provides Logback. If you later switch to Log4j2, you change the dependency — not a single line of code.
+
+
+```java
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+public class LoginPage extends BasePage {
+
+    private static final Logger log = LoggerFactory.getLogger(LoginPage.class);
+
+    public DashboardPage loginAs(String email, String password) {
+        log.info("Logging in as: {}", email);
+        log.debug("Email field locator: {}", emailField);
+
+        type(emailField, email);
+        type(passwordField, password);
+        click(loginButton);
+
+        log.info("Login submitted, navigating to Dashboard");
+        return new DashboardPage(driver);
+    }
+}
+```
+
+### Log Levels
+
+| Level | Purpose | Example | When to Use |
+|-------|---------|---------|-------------|
+| `ERROR` | Something failed that shouldn't have | Test failure, driver crash, API 500 | Errors that require investigation |
+| `WARN` | Something unexpected but recoverable | Retry triggered, slow response, missing optional config | Potential issues that didn't fail the test |
+| `INFO` | Major actions and state changes | "Logging in as admin", "Test started", "Driver created" | Default level for CI — high-signal events |
+| `DEBUG` | Detailed internal state | Locator resolved, element found, config value loaded | Turned on for troubleshooting specific failures |
+| `TRACE` | Extremely verbose | Full request/response bodies, DOM snapshots | Rarely used; turned on only for deep debugging |
+
+**Logback configuration:**
+
+
+```xml
+<!-- src/main/resources/logback.xml -->
+<configuration>
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>logs/test-run.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>logs/test-run-%d{yyyy-MM-dd}.log</fileNamePattern>
+            <maxHistory>7</maxHistory>
+        </rollingPolicy>
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{50} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- Framework code at INFO, turn to DEBUG for troubleshooting -->
+    <logger name="com.staynest.automation" level="INFO"/>
+
+    <!-- Selenium at WARN — its INFO is too verbose -->
+    <logger name="org.openqa.selenium" level="WARN"/>
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="FILE"/>
+    </root>
+</configuration>
+```
+
+### MDC for Thread Context
+
+When running tests in parallel, log output interleaves. MDC (Mapped Diagnostic Context) tags every log line with the test name and thread, so you can filter:
+
+
+```java
+import org.slf4j.MDC;
+
+public class BaseTest {
+
+    @BeforeMethod
+    public void setUp(Method method) {
+        MDC.put("testName", method.getName());
+        MDC.put("threadId", Thread.currentThread().getName());
+
+        log.info("Starting test: {}", method.getName());
+        // ...
+    }
+
+    @AfterMethod(alwaysRun = true)
+    public void tearDown(ITestResult result) {
+        try {
+            // ... cleanup ...
+        } finally {
+            MDC.clear();  // prevent MDC leaking to next test in thread pool
+        }
+    }
+}
+```
+
+**Logback pattern with MDC:**
+
+```xml
+<pattern>%d{HH:mm:ss.SSS} [%X{testName}] [%thread] %-5level %logger{36} - %msg%n</pattern>
+```
+
+Output:
+
+```
+14:32:07.123 [shouldLoginSuccessfully] [Thread-3] INFO  LoginPage - Entering email: user@test.com
+14:32:07.124 [shouldSearchProperties]  [Thread-4] INFO  SearchPage - Searching for: Tokyo
+```
+
+Now you can grep `shouldLoginSuccessfully` and see only that test's logs, even from a parallel run.
+
+### Reporting: What Stakeholders Need
+
+Reports answer different questions for different audiences:
+
+| Audience | Questions | Report Features Needed |
+|----------|-----------|----------------------|
+| SDET debugging | Why did this fail? What was the state? | Screenshot, stack trace, request/response log |
+| Tech lead | What's the pass rate? Any regressions? | Summary dashboard, trend chart, failure categories |
+| PM/Product | Is the feature ready? What's blocked? | Pass/fail by feature/story, severity distribution |
+| CI pipeline | Should we deploy? | Pass/fail exit code, blocking failures highlighted |
+
+### Allure Reporting
+
+Allure generates HTML reports from test execution data. It integrates with TestNG and JUnit via annotations.
+
+**Allure annotations:**
+
+
+```java
+import io.qameta.allure.*;
+
+@Epic("Authentication")
+@Feature("Login")
+public class LoginTest extends BaseTest {
+
+    @Test
+    @Story("Valid Login")
+    @Severity(SeverityLevel.CRITICAL)
+    @Description("Verify that a registered user can log in with valid credentials")
+    public void shouldLoginWithValidCredentials() {
+        LoginPage loginPage = new LoginPage(getDriver());
+        DashboardPage dashboard = loginPage.loginAs("user@test.com", "pass123");
+
+        assertThat(dashboard.getWelcomeMessage()).contains("Welcome");
+    }
+
+    @Test
+    @Story("Invalid Login")
+    @Severity(SeverityLevel.NORMAL)
+    @Description("Verify error message for invalid password")
+    public void shouldShowErrorForInvalidPassword() {
+        LoginPage loginPage = new LoginPage(getDriver());
+        loginPage.loginExpectingError("user@test.com", "wrongpass");
+
+        assertThat(loginPage.getErrorMessage())
+            .isEqualTo("Invalid credentials");
+    }
+}
+```
+
+**`@Step` annotation for detailed step breakdown:**
+
+
+```java
+public class LoginPage extends BasePage {
+
+    @Step("Enter email: {email}")
+    public LoginPage enterEmail(String email) {
+        type(emailField, email);
+        return this;
+    }
+
+    @Step("Enter password")  // don't log the actual password
+    public LoginPage enterPassword(String password) {
+        type(passwordField, password);
+        return this;
+    }
+
+    @Step("Click login button")
+    public void clickLogin() {
+        click(loginButton);
+    }
+
+    @Step("Login as {email}")
+    public DashboardPage loginAs(String email, String password) {
+        enterEmail(email);
+        enterPassword(password);
+        clickLogin();
+        return new DashboardPage(driver);
+    }
+}
+```
+
+In the Allure report, each test shows its steps as a nested hierarchy: "Login as user@test.com" → "Enter email: user@test.com" → "Enter password" → "Click login button". A stakeholder can see exactly what the test did without reading code.
+
+### Screenshots on Failure
+
+Automatic screenshot capture on failure is the single most valuable debugging aid. Without it, a failure message says "expected 'Dashboard' but got 'Login'" — you don't know if the page didn't load, the login failed, or an error popup appeared. With a screenshot, you see the actual browser state at the moment of failure.
+
+
+```java
+import org.openqa.selenium.OutputType;
+import org.openqa.selenium.TakesScreenshot;
+
+public class ScreenshotUtils {
+
+    private static final Logger log = LoggerFactory.getLogger(ScreenshotUtils.class);
+
+    public static byte[] capture(WebDriver driver) {
+        if (driver instanceof TakesScreenshot) {
+            return ((TakesScreenshot) driver).getScreenshotAs(OutputType.BYTES);
+        }
+        log.warn("Driver does not support screenshots");
+        return new byte[0];
+    }
+
+    @Attachment(value = "Screenshot on failure", type = "image/png")
+    public static byte[] captureAndAttach(WebDriver driver) {
+        return capture(driver);
+    }
+
+    public static void saveToFile(WebDriver driver, String testName) {
+        try {
+            byte[] screenshot = capture(driver);
+            Path path = Path.of("screenshots", testName + "_" +
+                System.currentTimeMillis() + ".png");
+            Files.createDirectories(path.getParent());
+            Files.write(path, screenshot);
+            log.info("Screenshot saved: {}", path);
+        } catch (Exception e) {
+            log.error("Failed to save screenshot for {}: {}", testName, e.getMessage());
+        }
+    }
+}
+```
+
+### Custom Listeners
+
+Listeners handle cross-cutting concerns — screenshot capture, log enrichment, report flushing — without polluting test code. Every test class benefits automatically.
+
+
+```java
+import org.testng.ITestListener;
+import org.testng.ITestResult;
+
+public class ScreenshotListener implements ITestListener {
+
+    private static final Logger log = LoggerFactory.getLogger(ScreenshotListener.class);
+
+    @Override
+    public void onTestStart(ITestResult result) {
+        log.info("▶ Starting: {}.{}",
+            result.getTestClass().getName(),
+            result.getMethod().getMethodName());
+    }
+
+    @Override
+    public void onTestSuccess(ITestResult result) {
+        log.info("✓ Passed: {}", result.getMethod().getMethodName());
+    }
+
+    @Override
+    public void onTestFailure(ITestResult result) {
+        log.error("✗ Failed: {} — {}",
+            result.getMethod().getMethodName(),
+            result.getThrowable().getMessage());
+
+        // Capture screenshot and attach to Allure report
+        Object testInstance = result.getInstance();
+        if (testInstance instanceof BaseTest) {
+            WebDriver driver = ((BaseTest) testInstance).getDriver();
+            if (driver != null) {
+                ScreenshotUtils.captureAndAttach(driver);
+                ScreenshotUtils.saveToFile(driver,
+                    result.getMethod().getMethodName());
+            }
+        }
+    }
+
+    @Override
+    public void onTestSkipped(ITestResult result) {
+        log.warn("⊘ Skipped: {} — {}",
+            result.getMethod().getMethodName(),
+            result.getThrowable() != null
+                ? result.getThrowable().getMessage()
+                : "dependency failed");
+    }
+}
+```
+
+**Register the listener in testng.xml:**
+
+```xml
+<suite name="StayNest Suite">
+    <listeners>
+        <listener class-name="com.staynest.automation.listeners.ScreenshotListener"/>
+        <listener class-name="io.qameta.allure.testng.AllureTestNg"/>
+    </listeners>
+    <!-- ... tests ... -->
+</suite>
+```
+
+**Or via `@Listeners` annotation:**
+
+
+```java
+@Listeners({ScreenshotListener.class})
+public class BaseTest {
+    // ...
+}
+```
+
+---
+
+## Practical Implementation (Layer 3)
+
+### Example: Complete Allure Reporting Setup for StayNest
+
+**Maven dependencies:**
+
+
+```xml
+<!-- pom.xml -->
+<dependencies>
+    <!-- Allure TestNG integration -->
+    <dependency>
+        <groupId>io.qameta.allure</groupId>
+        <artifactId>allure-testng</artifactId>
+        <version>2.27.0</version>
+        <scope>test</scope>
+    </dependency>
+
+    <!-- Logging -->
+    <dependency>
+        <groupId>org.slf4j</groupId>
+        <artifactId>slf4j-api</artifactId>
+        <version>2.0.13</version>
+    </dependency>
+    <dependency>
+        <groupId>ch.qos.logback</groupId>
+        <artifactId>logback-classic</artifactId>
+        <version>1.5.6</version>
+    </dependency>
+</dependencies>
+
+<build>
+    <plugins>
+        <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-surefire-plugin</artifactId>
+            <version>3.2.5</version>
+            <configuration>
+                <argLine>
+                    -javaagent:"${settings.localRepository}/org/aspectj/aspectjweaver/1.9.22/aspectjweaver-1.9.22.jar"
+                </argLine>
+                <systemPropertyVariables>
+                    <allure.results.directory>
+                        ${project.build.directory}/allure-results
+                    </allure.results.directory>
+                </systemPropertyVariables>
+            </configuration>
+        </plugin>
+    </plugins>
+</build>
+```
+
+**Allure properties:**
+
+```properties
+# src/test/resources/allure.properties
+allure.results.directory=target/allure-results
+allure.link.issue.pattern=https://jira.company.com/browse/{}
+allure.link.tms.pattern=https://testlink.company.com/case/{}
+```
+
+### Example: Combined Logging + Reporting Listener
+
+
+```java
+public class TestExecutionListener implements ITestListener, ISuiteListener {
+
+    private static final Logger log = LoggerFactory.getLogger(TestExecutionListener.class);
+
+    @Override
+    public void onStart(ISuite suite) {
+        log.info("═══════════════════════════════════════");
+        log.info("Suite started: {}", suite.getName());
+        log.info("═══════════════════════════════════════");
+    }
+
+    @Override
+    public void onTestStart(ITestResult result) {
+        MDC.put("testName", result.getMethod().getMethodName());
+        log.info("Starting: {}.{}",
+            result.getTestClass().getRealClass().getSimpleName(),
+            result.getMethod().getMethodName());
+    }
+
+    @Override
+    public void onTestSuccess(ITestResult result) {
+        long duration = result.getEndMillis() - result.getStartMillis();
+        log.info("PASSED: {} ({}ms)", result.getMethod().getMethodName(), duration);
+    }
+
+    @Override
+    public void onTestFailure(ITestResult result) {
+        long duration = result.getEndMillis() - result.getStartMillis();
+        log.error("FAILED: {} ({}ms)", result.getMethod().getMethodName(), duration);
+        log.error("Failure reason: {}", result.getThrowable().getMessage());
+
+        captureFailureArtifacts(result);
+    }
+
+    @Override
+    public void onTestSkipped(ITestResult result) {
+        log.warn("SKIPPED: {}", result.getMethod().getMethodName());
+    }
+
+    @Override
+    public void onFinish(ISuite suite) {
+        log.info("═══════════════════════════════════════");
+        log.info("Suite finished: {}", suite.getName());
+        log.info("═══════════════════════════════════════");
+        MDC.clear();
+    }
+
+    private void captureFailureArtifacts(ITestResult result) {
+        Object instance = result.getInstance();
+        if (instance instanceof BaseTest) {
+            WebDriver driver = ((BaseTest) instance).getDriver();
+            if (driver != null) {
+                // Screenshot
+                ScreenshotUtils.captureAndAttach(driver);
+
+                // Page source (useful for debugging invisible elements)
+                attachPageSource(driver);
+
+                // Browser console logs (catches JS errors)
+                attachBrowserLogs(driver);
+            }
+        }
+    }
+
+    @Attachment(value = "Page Source", type = "text/html")
+    private String attachPageSource(WebDriver driver) {
+        try {
+            return driver.getPageSource();
+        } catch (Exception e) {
+            return "Failed to capture page source: " + e.getMessage();
+        }
+    }
+
+    @Attachment(value = "Browser Console Logs", type = "text/plain")
+    private String attachBrowserLogs(WebDriver driver) {
+        try {
+            return driver.manage().logs().get("browser")
+                .getAll().stream()
+                .map(entry -> entry.getLevel() + ": " + entry.getMessage())
+                .collect(Collectors.joining("\n"));
+        } catch (Exception e) {
+            return "Browser logs not available: " + e.getMessage();
+        }
+    }
+}
+```
+
+### Example: Generating and Viewing Allure Reports
+
+```bash
+# Run tests
+mvn clean test
+
+# Generate Allure report from results
+allure generate target/allure-results --clean -o target/allure-report
+
+# Open report in browser
+allure open target/allure-report
+
+# Or serve temporarily
+allure serve target/allure-results
+```
+
+---
+
+## Failure and Debugging (Layer 4)
+
+### Failure 1: System.out.println Everywhere
+
+**The Problem:**
+
+
+```java
+public class LoginPage extends BasePage {
+
+    public DashboardPage loginAs(String email, String password) {
+        System.out.println("Logging in as: " + email);
+        type(emailField, email);
+        System.out.println("Typed email");
+        type(passwordField, password);
+        System.out.println("Typed password");
+        click(loginButton);
+        System.out.println("Clicked login");
+        return new DashboardPage(driver);
+    }
+}
+```
+
+**What happens:** In parallel runs, output from Thread-1 and Thread-3 interleaves without any way to tell which test produced which line. No timestamps — you can't correlate with other events. No way to reduce verbosity for CI (where you only want errors) vs local debugging (where you want everything). And the output is permanently baked into the code.
+
+**The fix:**
+
+
+```java
+private static final Logger log = LoggerFactory.getLogger(LoginPage.class);
+
+public DashboardPage loginAs(String email, String password) {
+    log.info("Logging in as: {}", email);
+    type(emailField, email);
+    type(passwordField, password);
+    click(loginButton);
+    log.info("Login submitted");
+    return new DashboardPage(driver);
+}
+```
+
+Now: timestamps, thread names, log levels, configurable output. Set `level="ERROR"` in logback.xml for CI, `level="DEBUG"` for local troubleshooting.
+
+### Failure 2: No Screenshot on Failure
+
+**The Problem:** A test fails with `AssertionError: expected "Dashboard" but was "Login Page"`. Why was the user still on the login page? Was there an error message? A popup? A loading spinner? Without a screenshot, the SDET must reproduce the failure locally — which might not reproduce because it was a timing issue.
+
+**The fix — automatic screenshot in listener:**
+
+
+```java
+@Override
+public void onTestFailure(ITestResult result) {
+    WebDriver driver = getDriverFromTestInstance(result);
+    if (driver != null) {
+        ScreenshotUtils.captureAndAttach(driver);
+    }
+}
+```
+
+Now every failure in the Allure report includes a screenshot. The SDET sees the browser state at the exact moment of failure — an error message, a loading spinner, or a completely wrong page.
+
+### Failure 3: Allure Report Empty or Missing Steps
+
+**The Problem:** Allure report shows test names but no steps, no descriptions, no attachments.
+
+**Root causes:**
+1. **Missing AspectJ weaver** — Allure's `@Step` annotation requires the AspectJ agent. Without `-javaagent:aspectjweaver.jar` in the JVM arguments, `@Step` annotations are silently ignored.
+2. **Missing Allure listener** — `AllureTestNg` listener must be registered in `testng.xml` or via `@Listeners`.
+3. **Results directory misconfigured** — `allure.results.directory` doesn't match where the report generator looks.
+
+**The fix — verify all three:**
+
+
+```xml
+<!-- 1. AspectJ weaver in Surefire -->
+<argLine>-javaagent:${settings.localRepository}/org/aspectj/aspectjweaver/1.9.22/aspectjweaver-1.9.22.jar</argLine>
+
+<!-- 2. Listener registered -->
+<listener class-name="io.qameta.allure.testng.AllureTestNg"/>
+
+<!-- 3. Results directory configured -->
+<systemPropertyVariables>
+    <allure.results.directory>${project.build.directory}/allure-results</allure.results.directory>
+</systemPropertyVariables>
+```
+
+---
+
+## Engineering Judgment (Layer 5)
+
+### Choosing a Reporting Tool
+
+| Tool | Best For | Trade-offs |
+|------|----------|------------|
+| **Allure** | Team projects, CI integration, stakeholder dashboards | Requires AspectJ weaver setup, learning curve for annotations |
+| **ExtentReports** | Quick setup, standalone HTML file, simple projects | Less CI ecosystem integration, paid features for advanced use |
+| **TestNG default HTML** | Quick local runs, no setup needed | Ugly, minimal information, not stakeholder-friendly |
+| **Custom HTML** | Highly specific requirements, corporate branding | Maintenance burden — you're building a reporting framework |
+
+**Recommendation:** Start with Allure. The initial setup cost (AspectJ, listener registration) pays for itself in CI integration, screenshot attachments, step-level detail, and trend tracking. ExtentReports is a solid alternative if Allure's AspectJ requirement is problematic.
+
+### What to Log vs What to Report
+
+| Information | Log It | Report It |
+|-------------|--------|-----------|
+| Element locator resolution | Yes (DEBUG) | No — too detailed for stakeholders |
+| Test started/passed/failed | Yes (INFO) | Yes — core report data |
+| Screenshot on failure | Save to file (log path) | Yes — attach to report |
+| API request/response body | Yes (DEBUG) | Only on failure — attach to failed test |
+| Config values loaded | Yes (INFO at startup) | No — internal detail |
+| Retry attempts | Yes (WARN) | Yes — stakeholders should see flaky tests |
+
+### When to Add Custom Listeners vs Use @After Annotations
+
+| Mechanism | Use When |
+|-----------|----------|
+| **Listener** (`ITestListener`) | Behavior applies to ALL tests: screenshot on failure, log enrichment, report attachment. Register once, affects everything. |
+| **`@AfterMethod` in BaseTest** | Behavior is specific to one base class hierarchy (e.g., driver cleanup is BaseTest-specific). |
+| **`@AfterMethod` in test class** | Behavior is specific to one test class (e.g., deleting a particular test resource). |
+
+**Rule:** If you're about to add the same code to every `@AfterMethod`, extract it into a listener.
+
+---
+
+## Interview and Revision (Layer 6)
+
+### Fundamental Questions
+
+**Q1: How do you handle logging in your test framework?**
+
+**A:** I use SLF4J as the facade with Logback as the implementation. Every class has a private static `Logger` field. I use `INFO` for major actions (test started, login performed, driver created), `DEBUG` for detailed state (locator resolved, config value loaded), and `ERROR` for failures. For parallel execution, I use MDC to tag each log line with the test name so I can filter logs per test from interleaved output. Logback configuration has both console and file appenders, with rolling file retention of 7 days.
+
+**Q2: What reporting tool do you use and why?**
+
+**A:** Allure. Three reasons: (1) it integrates with TestNG natively via annotations — `@Step`, `@Description`, `@Severity`, `@Story` turn test code into living documentation. (2) Screenshots and attachments are first-class citizens — they appear inline in the test report. (3) CI integration — Jenkins, GitHub Actions, and GitLab CI all have Allure plugins that publish reports as build artifacts. The stakeholder dashboard shows pass/fail trends, severity distribution, and feature-level health without any manual effort.
+
+**Q3: How do you capture screenshots on test failure?**
+
+**A:** I use a TestNG `ITestListener` that captures a screenshot in `onTestFailure()`. The listener accesses the driver from the test instance, calls `((TakesScreenshot) driver).getScreenshotAs(OutputType.BYTES)`, and attaches it to the Allure report using `@Attachment`. The screenshot is also saved to a local file for backup. This is implemented once in the listener and applies to every test automatically — no test code touches screenshot logic.
+
+**Q4: What is MDC and why is it useful for parallel test execution?**
+
+**A:** MDC (Mapped Diagnostic Context) is a thread-local map that adds contextual data to every log message. In `@BeforeMethod`, I put the test name into MDC with `MDC.put("testName", method.getName())`. In the Logback pattern, `%X{testName}` includes this value. When 4 tests run in parallel, each log line is tagged with its test name. I can grep `shouldLoginSuccessfully` and see only that test's logs from a 10,000-line interleaved log file.
+
+
+
+
+| # | Front (Question) | Back (Answer) |
+|---|---|---|
+| 1 | SLF4J + Logback: what role does each play? | SLF4J is the facade (API/interface) — your code imports it. Logback is the implementation — it does the actual logging. Swap Logback for Log4j2 by changing the dependency, not the code. |
+| 2 | Why capture screenshots in a listener, not in `@AfterMethod`? | A listener applies to ALL tests automatically — register once, every test benefits. In `@AfterMethod`, you'd need to add screenshot logic in every base class or test class. Listeners keep test code focused on test logic. |
+| 3 | What does MDC.clear() in @AfterMethod prevent? | Thread pool reuse leaking context. If Thread-3 ran `testLogin` and MDC isn't cleared, the next test reusing Thread-3 will have `testLogin` in its log lines. `MDC.clear()` prevents stale context. |
+| 4 | Why is `@Step` sometimes missing from Allure reports? | The AspectJ weaver agent is not configured. Allure's `@Step` annotation requires `-javaagent:aspectjweaver.jar` in the JVM arguments (configured in Maven Surefire's `<argLine>`). Without it, `@Step` is silently ignored. |
+| 5 | What three artifacts should be captured on test failure? | (1) Screenshot — shows the visual browser state. (2) Page source — shows the HTML for debugging invisible elements. (3) Browser console logs — catches JavaScript errors that may have caused the failure. |
+
+### Mastery Checklist
+
+- [ ] Can configure SLF4J + Logback with console and file appenders
+- [ ] Can use appropriate log levels (ERROR, WARN, INFO, DEBUG) with clear rationale
+- [ ] Can set up MDC for thread-context logging in parallel execution
+- [ ] Can implement a screenshot-on-failure mechanism using TestNG `ITestListener`
+- [ ] Can configure Allure reporting with TestNG including AspectJ weaver setup
+- [ ] Can use Allure annotations (`@Step`, `@Description`, `@Severity`, `@Story`, `@Epic`)
+- [ ] Can attach screenshots, page source, and browser logs to Allure reports
+- [ ] Can generate and serve Allure reports from command line
+- [ ] Can explain the difference between logging (diagnostic) and reporting (stakeholder communication)
+- [ ] Can decide when to use a listener vs `@AfterMethod` for cross-cutting concerns
+
+---
+
+**Next:** Thread Safety And Resource Ownership | **Related:** Test Lifecycle And Fixtures
+
+*Last updated: *

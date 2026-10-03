@@ -1,0 +1,548 @@
+---
+title: "Axe-Core and Playwright Accessibility Testing"
+description: "What: axe-core is the industry-standard open-source accessibility testing engine maintained by Deque Systems. It analyzes the DOM against WCAG rules and reports violations with severity, affected elements, and remediation guidance. @axe-core/playwright is the official integration that runs axe scans within Playwright tests — combining the browser automation you already have with automated accessibility validation."
+summary: "SDET Engineering guide: Axe-Core and Playwright Accessibility Testing"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "advanced-quality-engineering"
+lesson: "accessibility-testing-axe-and-playwright-a11y"
+difficulty: "advanced"
+estimatedMinutes: 34
+prerequisites: []
+tags: ["SDET", "Quality Engineering", "Advanced"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/advanced-quality-engineering/accessibility-testing-axe-and-playwright-a11y"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Axe-Core and Playwright Accessibility Testing
+
+> **Module:** 09 — Advanced Quality Engineering / Accessibility Testing  
+> **Prerequisites:** Accessibility Testing, Web Automation Fundamentals  
+> **Mastery Target:** L2 (Guided) → L3 (Independent) — can integrate axe-core with Playwright, write targeted accessibility tests, interpret violations, and test keyboard navigation
+
+---
+
+## Quick Overview (Layer 1)
+
+**What:** axe-core is the industry-standard open-source accessibility testing engine maintained by Deque Systems. It analyzes the DOM against WCAG rules and reports violations with severity, affected elements, and remediation guidance. `@axe-core/playwright` is the official integration that runs axe scans within Playwright tests — combining the browser automation you already have with automated accessibility validation.
+
+**Why:** The Accessibility Testing overview explains *why* accessibility matters (legal, business, quality). This guide teaches *how* to implement it with tools you're already using. Playwright drives the browser; axe-core inspects the page. Together they catch ~30-40% of accessibility issues automatically — the repeatable checks that should run on every PR. The remaining 60% (semantics, user experience) requires manual testing, but automating the automatable part prevents regressions.
+
+**Where:** Every page in StayNest's user-facing application. Priority: login (first impression), search results (most-visited), booking form (most interactive), and booking confirmation (critical outcome). Run in CI on every PR to prevent new violations from being introduced.
+
+<KeyTakeaways>
+
+1. **axe-core checks ~80+ WCAG rules** including contrast ratios, missing alt text, form labels, ARIA roles, landmark regions, and heading hierarchy.
+2. Playwright + axe integration is a few lines of code: create an AxeBuilder, configure tags, call analyze(), assert zero violations.
+3. **Not all violations are equal.** Impact levels — critical, serious, moderate, minor — guide prioritization.
+4. Keyboard navigation testing (Tab order, Enter/Space activation, focus visibility) must be tested separately — axe doesn't test interactivity.
+5. Screen reader testing (VoiceOver, NVDA) remains manual but your automated suite prevents the regressions that would break screen reader users.
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation (Layer 2)
+
+### How axe-core Works
+
+```
+Page Load → axe-core Injection → DOM Analysis → Rule Evaluation → Results
+┌─────────────────────────────────────────────────────────────────────┐
+│  Browser (Playwright)                                               │
+│  ┌───────────────────────────────────┐                              │
+│  │  DOM                              │                              │
+│  │  ├── <html lang="en">  ✓ lang    │   axe-core Rules Engine      │
+│  │  ├── <img src="...">   ✗ no alt  │──→ Check 80+ WCAG rules     │
+│  │  ├── <input> (no label) ✗        │   ├── color-contrast         │
+│  │  ├── <button>Click</button> ✓    │   ├── image-alt              │
+│  │  └── <h1> → <h3>      ✗ skip    │   ├── label                  │
+│  └───────────────────────────────────┘   └── heading-order          │
+│                                                    │                │
+│  Results: { violations: [...], passes: [...],      │                │
+│             incomplete: [...], inapplicable: [...]} │                │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### WCAG Rule Tags in axe-core
+
+| Tag | What It Covers | When to Use |
+|-----|---------------|-------------|
+| `wcag2a` | WCAG 2.x Level A rules | Always — bare minimum |
+| `wcag2aa` | WCAG 2.x Level AA rules | Always — standard target |
+| `wcag2aaa` | WCAG 2.x Level AAA rules | Specialized apps only |
+| `wcag21a` | WCAG 2.1 Level A additions | Mobile-friendly apps |
+| `wcag21aa` | WCAG 2.1 Level AA additions | Mobile-friendly apps |
+| `best-practice` | Not WCAG-required but recommended | Optional, good to track |
+
+### axe-core Result Structure
+
+| Category | Meaning | Action |
+|----------|---------|--------|
+| **violations** | Rules that failed — definite issues | Fix these |
+| **passes** | Rules that passed | No action needed |
+| **incomplete** | Rules that need manual review | Review and decide |
+| **inapplicable** | Rules that don't apply to this page | Ignore |
+
+Each violation contains:
+
+| Field | Example | Use |
+|-------|---------|-----|
+| `id` | `color-contrast` | Rule identifier |
+| `impact` | `critical`, `serious`, `moderate`, `minor` | Prioritization |
+| `description` | "Elements must have sufficient color contrast" | What's wrong |
+| `helpUrl` | `https://dequeuniversity.com/rules/axe/...` | How to fix |
+| `nodes` | Array of affected DOM elements with selectors | Where to fix |
+
+---
+
+## Practical Implementation (Layer 3)
+
+### Project Setup
+
+
+```xml
+<!-- Maven dependencies for Playwright + axe-core -->
+<dependencies>
+    <dependency>
+        <groupId>com.microsoft.playwright</groupId>
+        <artifactId>playwright</artifactId>
+        <version>1.44.0</version>
+    </dependency>
+    <dependency>
+        <groupId>com.deque.html.axe-core</groupId>
+        <artifactId>playwright</artifactId>
+        <version>4.9.0</version>
+        <scope>test</scope>
+    </dependency>
+    <dependency>
+        <groupId>org.testng</groupId>
+        <artifactId>testng</artifactId>
+        <version>7.10.0</version>
+        <scope>test</scope>
+    </dependency>
+</dependencies>
+```
+
+### Accessibility Test Suite for StayNest
+
+
+```java
+import com.microsoft.playwright.*;
+import com.deque.html.axecore.playwright.AxeBuilder;
+import com.deque.html.axecore.results.AxeResults;
+import com.deque.html.axecore.results.Rule;
+import org.testng.annotations.*;
+import java.util.List;
+import static org.testng.Assert.*;
+
+/**
+ * Comprehensive accessibility test suite for StayNest.
+ * Runs axe-core scans against key pages with WCAG AA enforcement.
+ */
+public class StayNestAccessibilityTests {
+
+    private Playwright playwright;
+    private Browser browser;
+    private BrowserContext context;
+    private Page page;
+
+    // Tags to enforce: WCAG 2.1 Level A + AA
+    private static final List<String> WCAG_TAGS =
+        List.of("wcag2a", "wcag2aa", "wcag21a", "wcag21aa");
+
+    @BeforeClass
+    public void setup() {
+        playwright = Playwright.create();
+        browser = playwright.chromium().launch(
+            new BrowserType.LaunchOptions().setHeadless(true));
+        context = browser.newContext();
+        page = context.newPage();
+    }
+
+    // ── Full Page Scans ──
+
+    @Test(description = "Login page meets WCAG AA")
+    public void loginPage_meetsWcagAA() {
+        page.navigate("http://localhost:3000/login");
+        page.waitForLoadState(LoadState.NETWORKIDLE);
+
+        AxeResults results = new AxeBuilder(page)
+            .withTags(WCAG_TAGS)
+            .analyze();
+
+        assertNoViolations(results, "Login Page");
+    }
+
+    @Test(description = "Search results page meets WCAG AA")
+    public void searchResultsPage_meetsWcagAA() {
+        page.navigate("http://localhost:3000/hotels?city=NYC");
+        page.waitForLoadState(LoadState.NETWORKIDLE);
+
+        AxeResults results = new AxeBuilder(page)
+            .withTags(WCAG_TAGS)
+            .exclude(".third-party-map-widget")  // Can't control third-party a11y
+            .analyze();
+
+        assertNoViolations(results, "Search Results");
+    }
+
+    @Test(description = "Booking form meets WCAG AA")
+    public void bookingPage_meetsWcagAA() {
+        // Login first
+        loginAsGuest();
+        page.navigate("http://localhost:3000/hotels/1/book");
+        page.waitForLoadState(LoadState.NETWORKIDLE);
+
+        AxeResults results = new AxeBuilder(page)
+            .withTags(WCAG_TAGS)
+            .analyze();
+
+        assertNoViolations(results, "Booking Form");
+    }
+
+    // ── Targeted Element Scans ──
+
+    @Test(description = "Navigation menu is accessible")
+    public void navigationMenu_isAccessible() {
+        page.navigate("http://localhost:3000");
+        page.waitForLoadState(LoadState.NETWORKIDLE);
+
+        AxeResults results = new AxeBuilder(page)
+            .include("nav")                    // Scan only the nav element
+            .withTags(WCAG_TAGS)
+            .analyze();
+
+        assertNoViolations(results, "Navigation Menu");
+    }
+
+    @Test(description = "Search form has proper labels and ARIA")
+    public void searchForm_hasProperLabels() {
+        page.navigate("http://localhost:3000");
+        page.waitForLoadState(LoadState.NETWORKIDLE);
+
+        AxeResults results = new AxeBuilder(page)
+            .include("form[data-testid='search-form']")
+            .withTags(WCAG_TAGS)
+            .analyze();
+
+        assertNoViolations(results, "Search Form");
+    }
+
+    // ── Filtering Known Issues ──
+
+    @Test(description = "Home page — scan excluding known issues being fixed")
+    public void homePage_withKnownIssueExclusions() {
+        page.navigate("http://localhost:3000");
+        page.waitForLoadState(LoadState.NETWORKIDLE);
+
+        AxeResults results = new AxeBuilder(page)
+            .withTags(WCAG_TAGS)
+            .disableRules(List.of(
+                "color-contrast"  // Known: design team fixing in sprint 14
+            ))
+            .analyze();
+
+        assertNoViolations(results, "Home Page (excluding known issues)");
+    }
+
+    // ── Assertion Helper ──
+
+    private void assertNoViolations(AxeResults results, String pageName) {
+        List<Rule> violations = results.getViolations();
+        if (!violations.isEmpty()) {
+            StringBuilder report = new StringBuilder();
+            report.append(String.format(
+                "%n══ ACCESSIBILITY VIOLATIONS: %s (%d issues) ══%n",
+                pageName, violations.size()));
+
+            for (Rule v : violations) {
+                report.append(String.format(
+                    "  [%s] %s%n    Impact: %s%n    Help: %s%n    Elements: %d affected%n%n",
+                    v.getId(), v.getDescription(),
+                    v.getImpact(), v.getHelpUrl(),
+                    v.getNodes().size()));
+            }
+
+            fail(report.toString());
+        }
+    }
+
+    private void loginAsGuest() {
+        page.navigate("http://localhost:3000/login");
+        page.fill("[name=email]", "guest@staynest.com");
+        page.fill("[name=password]", "TestPass123!");
+        page.click("button[type=submit]");
+        page.waitForURL("**/dashboard");
+    }
+
+    @AfterClass
+    public void teardown() {
+        if (browser != null) browser.close();
+        if (playwright != null) playwright.close();
+    }
+}
+```
+
+### Keyboard Navigation Tests
+
+
+```java
+/**
+ * Tests keyboard-only navigation for critical StayNest flows.
+ * axe-core doesn't test interactive keyboard behavior — these tests do.
+ */
+public class KeyboardNavigationTests {
+
+    private Page page;
+    // ... setup omitted (same as above)
+
+    @Test(description = "All interactive elements reachable via Tab")
+    public void bookingForm_allElementsReachableByTab() {
+        page.navigate("http://localhost:3000/hotels/1/book");
+
+        List<String> expectedFocusOrder = List.of(
+            "input[name=checkIn]",
+            "input[name=checkOut]",
+            "select[name=guests]",
+            "input[name=specialRequests]",
+            "button[type=submit]"
+        );
+
+        for (String expectedSelector : expectedFocusOrder) {
+            page.keyboard().press("Tab");
+
+            boolean isFocused = (boolean) page.locator(expectedSelector)
+                .evaluate("el => el === document.activeElement");
+            assertTrue(isFocused,
+                "Expected Tab focus on " + expectedSelector);
+        }
+    }
+
+    @Test(description = "Focus is visible on all focused elements")
+    public void focusedElements_haveVisibleFocusIndicator() {
+        page.navigate("http://localhost:3000/login");
+
+        // Tab to email field
+        page.keyboard().press("Tab");
+
+        // Check that focused element has a visible focus style
+        String outlineStyle = (String) page.evaluate("""
+            () => {
+                const el = document.activeElement;
+                const styles = window.getComputedStyle(el);
+                return styles.outline + ' | ' + styles.boxShadow;
+            }
+        """);
+
+        // Focus indicator should not be "none" for both outline and box-shadow
+        assertFalse(
+            outlineStyle.contains("none") && !outlineStyle.contains("rgb"),
+            "Focused element has no visible focus indicator: " + outlineStyle);
+    }
+
+    @Test(description = "Escape key closes modal dialogs")
+    public void modal_closesOnEscape() {
+        page.navigate("http://localhost:3000/hotels/1");
+        page.click("[data-testid='view-photos']"); // Opens photo modal
+
+        // Verify modal is open
+        assertTrue(page.locator("[role=dialog]").isVisible());
+
+        // Press Escape
+        page.keyboard().press("Escape");
+
+        // Verify modal closed and focus returned to trigger
+        assertFalse(page.locator("[role=dialog]").isVisible());
+        boolean focusReturned = (boolean) page.locator("[data-testid='view-photos']")
+            .evaluate("el => el === document.activeElement");
+        assertTrue(focusReturned, "Focus should return to trigger after modal close");
+    }
+
+    @Test(description = "Form submission works with Enter key")
+    public void loginForm_submittableViaEnter() {
+        page.navigate("http://localhost:3000/login");
+        page.fill("[name=email]", "guest@staynest.com");
+        page.fill("[name=password]", "TestPass123!");
+
+        // Submit via Enter instead of clicking
+        page.keyboard().press("Enter");
+        page.waitForURL("**/dashboard", new Page.WaitForURLOptions()
+            .setTimeout(5000));
+
+        assertTrue(page.url().contains("dashboard"),
+            "Form should submit via Enter key");
+    }
+}
+```
+
+### Screen Reader Compatibility Checks
+
+
+```java
+/**
+ * Programmatic checks for screen reader compatibility.
+ * Not a substitute for manual screen reader testing, but catches
+ * common issues that would break screen reader navigation.
+ */
+public class ScreenReaderChecks {
+
+    public static void verifyLandmarkRegions(Page page) {
+        // Page should have main, navigation, and contentinfo landmarks
+        int mainCount = page.locator("main, [role=main]").count();
+        int navCount = page.locator("nav, [role=navigation]").count();
+
+        assertTrue(mainCount >= 1, "Page must have a <main> landmark");
+        assertTrue(navCount >= 1, "Page must have a <nav> landmark");
+    }
+
+    public static void verifyAriaLiveRegions(Page page) {
+        // Dynamic content areas should use aria-live for announcements
+        // e.g., search results count, form error messages
+        int liveRegions = page.locator("[aria-live]").count();
+        assertTrue(liveRegions >= 1,
+            "Page should have at least one aria-live region for dynamic updates");
+    }
+
+    public static void verifyPageTitle(Page page) {
+        String title = page.title();
+        assertNotNull(title, "Page must have a title");
+        assertFalse(title.isBlank(), "Page title must not be blank");
+        assertTrue(title.length() > 5,
+            "Page title should be descriptive: '" + title + "'");
+    }
+
+    public static void verifyLanguageAttribute(Page page) {
+        String lang = (String) page.evaluate(
+            "() => document.documentElement.getAttribute('lang')");
+        assertNotNull(lang, "HTML must have lang attribute");
+        assertFalse(lang.isBlank(), "lang attribute must not be empty");
+    }
+}
+```
+
+---
+
+## Failure and Debugging (Layer 4)
+
+### Failure 1: Axe Reports Color Contrast Violations on Hidden Elements
+
+**The Problem:** axe reports 15 color-contrast violations, but the elements are behind a dropdown that isn't open during the scan.
+
+**Root cause:** axe analyzes the full DOM, including elements that are technically in the DOM but visually hidden. If they lack `display:none` or `visibility:hidden` and instead use opacity or positioning hacks, axe sees them.
+
+**The fix:** Exclude elements that are not visible in the current state, or ensure hidden elements use proper CSS hiding:
+
+
+```java
+AxeResults results = new AxeBuilder(page)
+    .withTags(WCAG_TAGS)
+    .exclude("[aria-hidden=true]")      // Properly hidden elements
+    .exclude(".dropdown-content")        // Known hidden until open
+    .analyze();
+```
+
+Better fix: ensure the CSS properly hides dropdown content with `display: none` until opened — this fixes the root cause, not the test.
+
+### Failure 2: Axe Scan Returns Zero Violations AND Zero Passes
+
+**The Problem:** `results.getViolations()` is empty and `results.getPasses()` is also empty. The scan ran against an empty page.
+
+**Root cause:** The page hadn't finished loading or rendering when the scan ran. Single-page apps may show a blank loader before React/Angular renders content.
+
+**The fix:** Wait for a specific element that indicates the page is fully rendered:
+
+
+```java
+page.navigate("http://localhost:3000/hotels?city=NYC");
+page.waitForSelector("[data-testid='hotel-card']",
+    new Page.WaitForSelectorOptions().setTimeout(10000));
+// Now the content is rendered — safe to scan
+AxeResults results = new AxeBuilder(page).withTags(WCAG_TAGS).analyze();
+```
+
+---
+
+## Engineering Judgment (Layer 5)
+
+### Violation Severity Triage
+
+| Impact | Examples | Action | Timeline |
+|--------|----------|--------|----------|
+| **Critical** | No keyboard access to booking form, images with no alt text blocking content | Fix immediately — blocks users | Current sprint |
+| **Serious** | Color contrast below 4.5:1 on main content, form inputs without labels | Fix soon — significant barrier | Next sprint |
+| **Moderate** | Heading hierarchy skips level (h2 → h4), missing skip-to-content link | Schedule fix — inconvenience | Within quarter |
+| **Minor** | Redundant alt text on decorative images, minor ARIA improvements | Track and batch — low impact | Backlog |
+
+### When to Disable Rules vs Fix Violations
+
+Disable a rule when:
+- The violation is in a third-party component you can't modify (e.g., embedded map widget)
+- A known issue has an approved fix scheduled in a future sprint (document the tracking ticket)
+- The rule produces a false positive for your specific implementation
+
+Never disable a rule because:
+- "It's too hard to fix" — that's what makes it a real barrier for users
+- "Nobody complained" — disabled users often silently leave rather than complain
+- "We'll fix it later" without an actual tracking ticket and timeline
+
+### Recommended CI Strategy
+
+
+```yaml
+# Run a11y tests on every PR — block merge on critical/serious violations
+accessibility-test:
+  runs-on: ubuntu-latest
+  steps:
+    - uses: actions/checkout@v4
+    - name: Run Accessibility Tests
+      run: mvn test -Dtest=StayNestAccessibilityTests
+    - name: Upload Violation Report
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: a11y-violations
+        path: target/surefire-reports/
+```
+
+---
+
+## Interview and Revision (Layer 6)
+
+
+
+
+| # | Front | Back |
+|---|-------|------|
+| 1 | What is axe-core and what percentage of accessibility issues can it catch? | axe-core is Deque's open-source accessibility testing engine. It checks ~80+ WCAG rules and catches ~30-40% of accessibility issues (the automatable, structural ones). The rest requires manual screen reader testing |
+| 2 | What's the difference between `include()` and `exclude()` in AxeBuilder? | `include("selector")` scans only that element and its children. `exclude("selector")` skips that element from the scan. Use include for targeted scans, exclude for third-party components you can't control |
+| 3 | Why can't automated tools catch all accessibility issues? | Automated tools check syntax (is `alt` present?) not semantics (is the alt text meaningful?). They check structure (is there an `aria-label`?) not experience (does the screen reader flow make sense?). Semantic and experiential issues require human testing |
+| 4 | What keyboard interactions should accessibility tests verify? | Tab reaches all interactive elements in logical order, Enter/Space activates buttons and links, Escape closes modals (with focus return to trigger), arrow keys navigate within components (menus, tabs), and focus is always visible |
+| 5 | What are the four WCAG principles (POUR)? | Perceivable (content can be sensed — alt text, contrast), Operable (UI can be used — keyboard, no time traps), Understandable (content is clear — labels, errors), Robust (works with assistive tech — valid HTML, ARIA) |
+
+### Mastery Checklist
+
+- [ ] Can set up axe-core with Playwright in a Java project
+- [ ] Can write full-page and targeted-element accessibility scans
+- [ ] Can interpret axe results: violations, impact levels, affected nodes
+- [ ] Can filter known issues using `exclude()` and `disableRules()`
+- [ ] Can write keyboard navigation tests (Tab order, Enter/Space, Escape, focus visibility)
+- [ ] Can explain what automated tools catch vs what requires manual screen reader testing
+- [ ] Can prioritize violations by impact level and user effect
+
+---
+
+**Related:** Accessibility Testing
+
+*Last updated: *

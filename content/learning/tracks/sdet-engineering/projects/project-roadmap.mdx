@@ -1,0 +1,191 @@
+---
+title: "Project Roadmap"
+description: "Knowing theory is necessary but not sufficient. An interviewer who asks \"build a framework from scratch\" is testing whether you can make architectural decisions under pressure. These projects give you that experience before the interview, so your answers come from practice, not memorization."
+summary: "SDET Engineering guide: Project Roadmap"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "projects"
+lesson: "project-roadmap"
+difficulty: "intermediate"
+estimatedMinutes: 30
+prerequisites: []
+tags: ["SDET", "Projects", "Portfolio"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/projects/project-roadmap"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Project Roadmap
+
+> **Module:** 12 — Projects
+> **Prerequisites:** Completion of modules 01-11 (or concurrent progress)
+> **Purpose:** Build a portfolio of automation frameworks that demonstrate real SDET engineering skills
+
+---
+
+## Why Portfolio Projects Matter
+
+Knowing theory is necessary but not sufficient. An interviewer who asks "build a framework from scratch" is testing whether you can make architectural decisions under pressure. These projects give you that experience *before* the interview, so your answers come from practice, not memorization.
+
+Each project produces a working GitHub repository that you can:
+- Demo in interviews (screen-share and walk through the code)
+- Reference in behavioral answers ("I built a framework that handles...")
+- Use as a template for future roles
+
+---
+
+## Project Progression
+
+The projects are sequenced so that skills from earlier projects transfer to later ones. You don't need to complete all of them — but completing 1 through 4 gives you a strong portfolio.
+
+```
+Project 1: REST Assured API Framework        ─── Foundation ───
+    │                                         API testing, project structure,
+    │                                         test data management, CI basics
+    │
+    ├──▶ Project 2: Selenium Java Framework  ─── Web Layer ───
+    │       │                                 POM, parallel execution,
+    │       │                                 reporting, screenshot capture
+    │       │
+    │       └──▶ Project 4: Appium Java Framework ─── Mobile Layer ───
+    │               │                         Screen objects, gestures,
+    │               │                         cloud device grids
+    │               │
+    │               └──▶ Project 5: MobileWright Evaluation ─── Research ───
+    │                                         Tool evaluation methodology
+    │
+    └──▶ Project 3: Playwright TS Framework  ─── Modern Web ───
+            │                                 TypeScript, fixtures, traces,
+            │                                 API + UI in one framework
+            │
+            └──▶ Project 6: CI Pipeline      ─── Integration ───
+                                              Jenkins, Docker, orchestration
+```
+
+---
+
+## Project Overview
+
+| # | Project | Skills Demonstrated | Technologies | Estimated Time |
+| --- | --- | --- | --- | --- |
+| 1 | Rest Assured Framework | API testing, schema validation, DB validation, test data management | Java 21, REST Assured 5, TestNG, Jackson, Maven | 15-20 hours |
+| 2 | Selenium Java Framework | Web UI testing, POM, parallel execution, reporting, screenshot capture | Java 21, Selenium 4, TestNG, Maven, Allure | 20-25 hours |
+| 3 | Playwright Typescript Framework | Modern web testing, TypeScript, fixtures, API + UI testing, traces | TypeScript, Playwright, npm | 15-20 hours |
+| 4 | Appium Java Framework | Mobile testing, screen objects, gestures, cloud device grids | Java 21, Appium 2.x, TestNG, Maven | 20-25 hours |
+| 5 | Mobilewright Evaluation | Tool evaluation methodology, comparison analysis, decision documentation | MobileWright, Appium (for comparison) | 8-10 hours |
+| 6 | End To End Ci Pipeline | CI/CD, Docker, pipeline orchestration, reporting, notifications | Jenkins, Docker, Allure, Slack | 15-20 hours |
+
+**Total estimated time:** 95-120 hours (roughly 10-12 weeks at 10 hours/week)
+
+---
+
+## Recommended Order
+
+### Path A: Comprehensive (All 6 Projects)
+
+If you have 10-12 weeks and want the strongest portfolio:
+
+```
+Weeks 1-2:   Project 1 — REST Assured API Framework
+Weeks 3-5:   Project 2 — Selenium Java Framework
+Weeks 5-6:   Project 3 — Playwright TypeScript Framework
+Weeks 7-9:   Project 4 — Appium Java Framework
+Week 9:      Project 5 — MobileWright Evaluation
+Weeks 10-12: Project 6 — CI Pipeline
+```
+
+### Path B: Focused (3 Projects)
+
+If you have 6-8 weeks and want the highest-impact portfolio:
+
+```
+Weeks 1-2:   Project 1 — REST Assured API Framework
+Weeks 3-5:   Project 2 — Selenium Java Framework
+Weeks 6-8:   Project 6 — CI Pipeline
+```
+
+This path covers API + Web + CI, which is the most common SDET interview scope.
+
+### Path C: Modern Stack (3 Projects)
+
+If targeting companies that use TypeScript/Playwright:
+
+```
+Weeks 1-2:   Project 1 — REST Assured API Framework
+Weeks 3-5:   Project 3 — Playwright TypeScript Framework
+Weeks 6-8:   Project 6 — CI Pipeline
+```
+
+---
+
+## How Each Project Maps to Interview Questions
+
+| Interview Question | Project That Prepares You |
+| --- | --- |
+| "Design an API testing framework" | Project 1 (REST Assured) |
+| "How do you handle test data?" | Projects 1 and 2 (builders, unique data, cleanup) |
+| "Explain your Page Object pattern" | Project 2 (Selenium) or Project 3 (Playwright) |
+| "How do you run tests in parallel?" | Projects 2, 3, 4 (parallel across all layers) |
+| "How do you handle flaky tests?" | Projects 2 and 3 (waits, retries, isolation) |
+| "Set up a CI pipeline for tests" | Project 6 (Jenkins + Docker) |
+| "Compare two testing tools" | Project 5 (MobileWright evaluation) |
+| "Test a mobile app" | Project 4 (Appium) |
+| "Walk me through your framework architecture" | Any project (layered architecture, DI, config) |
+
+---
+
+## Presenting Projects in Interviews
+
+### The 3-Minute Framework Walkthrough
+
+When an interviewer says "tell me about a framework you've built," use this structure:
+
+1. **Context** (30 seconds): "I built an API testing framework for a hotel booking platform called StayNest. It has JWT auth, dynamic pricing, and a multi-step booking lifecycle."
+
+2. **Architecture** (60 seconds): "The framework has five layers: test layer, API client layer, model layer, config layer, and utilities. Tests call API client methods which handle serialization, auth tokens, and base URL configuration. I used the Builder pattern for test data and Factory pattern for creating authenticated clients."
+
+3. **Key Decisions** (60 seconds): "I chose REST Assured over plain HttpClient because it provides a fluent DSL that makes tests readable. I separated request/response models from test logic so that API contract changes require updating one class, not fifty tests. I used TestNG groups to separate smoke from regression so CI runs smoke on every push and full regression nightly."
+
+4. **Results** (30 seconds): "The framework has 35 tests covering auth, hotels, bookings, and search. They run in parallel in 45 seconds. The CI pipeline runs them in Docker, and Allure reports show pass rates and trends over time."
+
+### What NOT to Do
+
+- Don't say "I followed a tutorial" — even if you did, frame it as your decision-making process
+- Don't describe every class — pick the most interesting architectural decision
+- Don't memorize a script — understand your framework deeply enough to answer follow-ups
+- Don't claim features you didn't build — interviewers will drill into details
+
+### GitHub Repository Checklist
+
+Before sharing your project, ensure:
+
+- [ ] README has clear setup instructions (clone → install → run)
+- [ ] Code is clean and consistent (naming, formatting, no dead code)
+- [ ] Tests actually pass (run them before the interview)
+- [ ] Framework demonstrates at least 3 design patterns
+- [ ] CI pipeline (GitHub Actions or Jenkinsfile) is included
+- [ ] Commit history shows progressive development (not a single commit)
+
+---
+
+## Project Dependencies on StayNest
+
+All projects use StayNest as the system under test. This is intentional:
+
+- **Consistency:** You learn one domain deeply instead of switching contexts between projects
+- **Realism:** StayNest has real complexity (auth, multi-step flows, roles, dynamic data)
+- **Reusability:** API client code from Project 1 is reused in Projects 2-6 for test data setup
+- **Interview readiness:** You can answer any question about the system because you've tested it from every angle
+
+---
+
+**Related:** Framework Framework Architecture

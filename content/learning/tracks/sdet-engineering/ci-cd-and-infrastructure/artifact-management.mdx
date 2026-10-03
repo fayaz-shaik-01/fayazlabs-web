@@ -1,0 +1,501 @@
+---
+title: "Artifact Management"
+description: "What: Test artifacts are the outputs of a test run — reports (JUnit XML, Allure JSON), screenshots (on failure), videos (of UI tests), logs (framework and application), and coverage reports. Artifact management is the practice of capturing, storing, publishing, and retaining these artifacts so they're accessible, actionable, and don't consume infinite disk space."
+summary: "SDET Engineering guide: Artifact Management"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "ci-cd-and-infrastructure"
+lesson: "artifact-management"
+difficulty: "intermediate"
+estimatedMinutes: 31
+prerequisites: []
+tags: ["SDET", "CI/CD", "Jenkins", "Docker"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/ci-cd-and-infrastructure/artifact-management"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Artifact Management
+
+> **Module:** 08 — CI/CD and Infrastructure > Artifact Management  
+> **Prerequisites:** Test Orchestration, Pipeline As Code, Framework Logging And Reporting  
+> **Mastery Target:** L3 (Independent) → L4 (Engineering Judgment)
+
+---
+
+## Quick Overview (Layer 1)
+
+**What:** Test artifacts are the outputs of a test run — reports (JUnit XML, Allure JSON), screenshots (on failure), videos (of UI tests), logs (framework and application), and coverage reports. Artifact management is the practice of capturing, storing, publishing, and retaining these artifacts so they're accessible, actionable, and don't consume infinite disk space.
+
+**Why it matters:** A test fails in the nightly regression. Without artifacts, you know *that* it failed. With artifacts, you have the Allure report (what assertion failed), the screenshot (what the page looked like), the log file (every step the framework took), and a link in Slack. The difference is 30 seconds to diagnose vs 2 hours to reproduce.
+
+**Where you encounter it:** Every Jenkins build page that shows "Allure Report." Every failure email with a screenshot attachment. Every discussion where the PM asks "what's our test pass rate trend this sprint?"
+
+<MentalModel>
+
+Think of artifact management as **medical recordkeeping**. After every patient visit (test run), the hospital records vitals (JUnit XML), takes X-rays (screenshots), writes clinical notes (logs), and files them in the patient chart (artifact storage). Old records are archived or purged per retention policy. Without records, every doctor's visit starts from scratch. With records, diagnosis is fast and historical trends reveal patterns.
+
+</MentalModel>
+
+
+<KeyTakeaways>
+
+1. **Capture artifacts in `post { always }`, not in test code** — artifacts should be collected regardless of pass/fail, and the pipeline is the right place for this, not individual tests.
+2. **Allure + JUnit XML is the standard combination** — JUnit XML for Jenkins' built-in test trend; Allure for rich, interactive reports with screenshots and steps.
+3. **Screenshots on failure are non-negotiable** — attach them to the Allure report via listeners, not manual code in each test.
+4. **Retention policies prevent disk exhaustion** — keep detailed artifacts for 30 days, trends forever. Jenkins `buildDiscarder` handles build-level retention.
+5. **Historical trends are more valuable than individual runs** — a single failure might be a flake; a failure rate increasing from 2% to 8% over two weeks is a systemic problem.
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation (Layer 2)
+
+### Types of Test Artifacts
+
+| Artifact | Format | Purpose | When Captured |
+|----------|--------|---------|---------------|
+| JUnit XML reports | `.xml` | Test results (pass/fail/skip/duration) — Jenkins native | After `mvn test` |
+| Allure results | `.json` | Rich results with steps, attachments, labels | During test execution |
+| Screenshots | `.png` | Visual state at failure point | On test failure (listener) |
+| Videos | `.mp4` | Full test execution recording | During UI test (Selenium) |
+| Framework logs | `.log` | Detailed execution trace | Continuously during run |
+| Application logs | `.log` | Server-side behavior during test | Collected post-run |
+| Coverage reports | `.xml`/`.html` | Code coverage data | After `mvn test` with JaCoCo |
+
+### Artifact Lifecycle
+
+```
+Test Run → Capture → Store → Publish → Analyze → Retain/Purge
+                                 │
+                    ┌────────────┼────────────┐
+                    ▼            ▼            ▼
+              Allure Report  Jenkins Build  Slack Link
+              (interactive)  (archived)     (notification)
+```
+
+1. **Capture:** Tests produce raw outputs (XML, JSON, screenshots)
+2. **Store:** Jenkins archives them as build artifacts; optionally uploads to S3
+3. **Publish:** Allure plugin generates interactive report; JUnit plugin shows trends
+4. **Analyze:** Team reviews failures, tracks trends, identifies flaky tests
+5. **Retain/Purge:** Old builds are discarded per retention policy; trends persist
+
+### Report Publishing: JUnit vs Allure
+
+**JUnit (built into Jenkins):**
+- Reads `**/surefire-reports/*.xml`
+- Shows pass/fail/skip counts and test duration
+- Provides trend graphs across builds
+- No screenshots, no steps, no attachments
+
+**Allure (plugin required):**
+- Reads `target/allure-results/*.json`
+- Interactive report with expandable test steps
+- Screenshots and logs attached inline
+- Categories (product defects vs test defects)
+- Historical trend, retries, flaky test detection
+- Linkable — share a URL to a specific failure
+
+**Use both:** JUnit for Jenkins dashboard trends; Allure for detailed failure investigation.
+
+### Screenshot Capture Strategy
+
+Screenshots should be captured automatically, not manually in each test:
+
+
+```java
+/**
+ * TestNG listener that captures screenshots on test failure
+ * and attaches them to the Allure report.
+ */
+public class ScreenshotListener implements ITestListener {
+    
+    @Override
+    public void onTestFailure(ITestResult result) {
+        WebDriver driver = DriverManager.getDriver();
+        if (driver == null) return;
+        
+        byte[] screenshot = ((TakesScreenshot) driver)
+            .getScreenshotAs(OutputType.BYTES);
+        
+        Allure.addAttachment(
+            "Screenshot on failure - " + result.getName(),
+            "image/png",
+            new ByteArrayInputStream(screenshot),
+            ".png"
+        );
+    }
+}
+```
+
+This listener is registered once (in `testng.xml` or via `@Listeners`) — every test failure automatically gets a screenshot attached to its Allure report entry.
+
+---
+
+## Practical Implementation (Layer 3)
+
+### Example 1: Jenkins Pipeline with Complete Artifact Management
+
+
+```groovy
+pipeline {
+    agent { label 'linux' }
+
+    tools {
+        maven 'Maven-3.9'
+        jdk 'JDK-17'
+    }
+
+    environment {
+        API_KEY = credentials('staynest-api-key')
+    }
+
+    options {
+        timeout(time: 45, unit: 'MINUTES')
+        timestamps()
+        // Keep last 30 builds; keep artifacts for last 10
+        buildDiscarder(logRotator(
+            numToKeepStr: '30',
+            artifactNumToKeepStr: '10'
+        ))
+    }
+
+    stages {
+        stage('Checkout & Build') {
+            steps {
+                checkout scm
+                sh 'mvn clean compile -DskipTests'
+            }
+        }
+
+        stage('Run Tests') {
+            steps {
+                sh """
+                    mvn test \\
+                        -Denv=staging \\
+                        -Dapi.key=${API_KEY} \\
+                        -Dsurefire.suiteXmlFiles=src/test/resources/suites/regression.xml
+                """
+            }
+        }
+    }
+
+    post {
+        always {
+            // 1. JUnit XML — Jenkins test trend
+            junit testResults: '**/target/surefire-reports/*.xml',
+                  allowEmptyResults: true
+
+            // 2. Allure report — interactive failure analysis
+            allure includeProperties: false,
+                   jdk: 'JDK-17',
+                   results: Path: 'Target/Allure Results'
+
+            // 3. Archive raw artifacts — screenshots, logs
+            archiveArtifacts artifacts: '**/target/surefire-reports/**',
+                             allowEmptyArchive: true
+            archiveArtifacts artifacts: '**/target/logs/**',
+                             allowEmptyArchive: true
+            archiveArtifacts artifacts: '**/target/screenshots/**',
+                             allowEmptyArchive: true
+
+            // 4. HTML report (if using ExtentReports or custom HTML)
+            publishHTML(target: [
+                reportDir: 'target/extent-reports',
+                reportFiles: 'index.html',
+                reportName: 'Extent Report',
+                keepAll: true,
+                alwaysLinkToLastBuild: true,
+                allowMissing: true
+            ])
+
+            // 5. Clean workspace
+            cleanWs()
+        }
+    }
+}
+```
+
+### Example 2: Allure Report Configuration
+
+Allure uses annotations in test code to enrich reports:
+
+
+```java
+@Epic("Booking Management")
+@Feature("Create Booking")
+@Story("Guest creates a new booking")
+@Severity(SeverityLevel.CRITICAL)
+public class BookingApiTest {
+
+    @Test(groups = "smoke")
+    @Description("Verify that an authenticated guest can create a booking for an available property")
+    public void shouldCreateBookingSuccessfully() {
+        
+        String userId = step("Create test user", () -> {
+            return apiClient.createUser(TestDataFactory.randomUser());
+        });
+        
+        String propertyId = step("Find available property", () -> {
+            return apiClient.getAvailableProperty("Tokyo", "2025-03-01", "2025-03-05");
+        });
+        
+        Response response = step("Create booking", () -> {
+            BookingRequest booking = BookingRequest.builder()
+                .propertyId(propertyId)
+                .checkIn("2025-03-01")
+                .checkOut("2025-03-05")
+                .guests(2)
+                .build();
+            return apiClient.createBooking(userId, booking);
+        });
+        
+        step("Verify booking created", () -> {
+            assertThat(response.statusCode()).isEqualTo(201);
+            assertThat(response.jsonPath().getString("status")).isEqualTo("CONFIRMED");
+        });
+    }
+    
+    @Attachment(value = "API Response", type = "application/json")
+    private String attachResponse(Response response) {
+        return response.asPrettyString();
+    }
+}
+```
+
+### Example 3: Artifact Upload to S3 for Long-Term Storage
+
+
+```groovy
+// In Jenkins pipeline — upload artifacts to S3 for long-term retention
+post {
+    always {
+        // Publish reports locally first
+        allure results: Path: 'Target/Allure Results'
+        junit '**/target/surefire-reports/*.xml'
+        
+        // Upload to S3 for long-term storage
+        // Requires AWS credentials and S3 plugin
+        script {
+            def buildDate = new Date().format('yyyy-MM-dd')
+            def s3Path = "test-reports/staynest/${buildDate}/build-${BUILD_NUMBER}"
+            
+            withAWS(credentials: 'aws-s3-credentials', region: 'us-east-1') {
+                s3Upload(
+                    bucket: 'staynest-test-artifacts',
+                    path: "${s3Path}/allure/",
+                    includePathPattern: 'target/allure-results/**'
+                )
+                s3Upload(
+                    bucket: 'staynest-test-artifacts',
+                    path: "${s3Path}/screenshots/",
+                    includePathPattern: 'target/screenshots/**'
+                )
+            }
+        }
+    }
+}
+```
+
+---
+
+## Failure and Debugging (Layer 4)
+
+### Failure 1: Allure Report Shows No Test Results
+
+**The Problem:** Allure report generates but shows "No test results" — empty report.
+
+**Root cause possibilities:**
+1. Allure results directory is wrong — tests write to `target/allure-results` but the pipeline reads from `allure-results`
+2. Allure listener isn't configured — tests run but don't produce Allure JSON files
+3. `mvn clean` in a later stage deletes the results before Allure reads them
+
+**Diagnostic steps:**
+
+
+```groovy
+stage('Debug Allure') {
+    steps {
+        sh 'ls -la target/allure-results/ || echo "Directory not found"'
+        sh 'find . -name "*.json" -path "*/allure-results/*" | head -10'
+    }
+}
+```
+
+**The fix — verify Allure dependency and path:**
+
+
+```xml
+<!-- pom.xml — ensure Allure listener is configured -->
+<dependency>
+    <groupId>io.qameta.allure</groupId>
+    <artifactId>allure-testng</artifactId>
+    <version>2.25.0</version>
+</dependency>
+```
+
+
+```groovy
+// Ensure path matches exactly
+allure results: Path: 'Target/Allure Results'
+```
+
+### Failure 2: Jenkins Disk Full from Accumulated Artifacts
+
+**The Problem:** Jenkins master disk fills up. Builds fail with "No space left on device."
+
+**Root cause:** Each build stores screenshots (5-50MB), logs (10MB), and reports. With 50 builds/day and no cleanup, that's 1-3 GB/day.
+
+**The fix — retention policies:**
+
+
+```groovy
+options {
+    buildDiscarder(logRotator(
+        numToKeepStr: '30',          // Keep last 30 builds
+        artifactNumToKeepStr: '10',  // Keep artifacts for last 10 only
+        daysToKeepStr: '90'          // Delete builds older than 90 days
+    ))
+}
+```
+
+**Additional cleanup — scheduled job:**
+
+
+```groovy
+// Separate Jenkins job — runs weekly to clean old artifacts
+pipeline {
+    agent { label 'master' }
+    triggers { cron('H 3 * * 0') }  // Sunday 3 AM
+    stages {
+        stage('Cleanup') {
+            steps {
+                sh 'docker system prune -f --volumes'
+                sh 'find /var/jenkins_home/jobs/*/builds/*/archive -mtime +30 -delete'
+            }
+        }
+    }
+}
+```
+
+### Failure 3: Screenshots Not Attached to Allure Report
+
+**The Problem:** Tests fail, but the Allure report shows failures without screenshots.
+
+**Root cause:** The screenshot listener isn't registered, or the WebDriver is already closed by the time the listener runs.
+
+**The fix — ensure listener registration and driver availability:**
+
+
+```xml
+<!-- testng.xml -->
+<suite name="Suite">
+    <listeners>
+        <listener class-name="com.staynest.listeners.ScreenshotListener"/>
+    </listeners>
+    <!-- ... -->
+</suite>
+```
+
+
+```java
+// Ensure driver is still available during onTestFailure
+// Quit the driver AFTER the listener captures the screenshot
+@Override
+public void onTestFailure(ITestResult result) {
+    WebDriver driver = DriverManager.getDriver();
+    if (driver != null) {
+        captureScreenshot(driver, result.getName());
+    }
+    // Driver.quit() happens later in @AfterMethod, not here
+}
+```
+
+---
+
+## Engineering Judgment (Layer 5)
+
+### What to Archive vs What to Generate on Demand
+
+| Artifact | Archive? | Why |
+|----------|----------|-----|
+| JUnit XML | Yes | Small files, needed for trend analysis |
+| Allure results (JSON) | Yes | Enables historical comparison and re-generation |
+| Allure HTML report | No | Generate on demand from JSON — it's large and easily regenerated |
+| Screenshots | Yes (30 days) | Critical for debugging failures, moderate size |
+| Videos | Conditional | Large files — archive only for failing tests |
+| Full logs | Yes (7-14 days) | Needed for debugging, but large |
+| Coverage reports | Yes | Track coverage trends over time |
+
+### Report Tool Comparison
+
+| Tool | Pros | Cons | Best For |
+|------|------|------|----------|
+| Allure | Rich UI, steps, attachments, trends, categories | Requires plugin + dependencies | Primary test reporting for SDET teams |
+| JUnit (Jenkins native) | Zero setup, built-in trends | No screenshots, no steps, minimal detail | Basic pass/fail tracking, trend graphs |
+| ExtentReports | Clean HTML, good for stakeholders | Java-only, less CI integration | Stakeholder-facing reports |
+| HTML Publisher | Any HTML report | No interactivity, no trends | Custom or legacy reports |
+
+### Retention Policy Guidelines
+
+| Environment | Builds Kept | Artifact Retention | Trend Data |
+|------------|-------------|-------------------|------------|
+| PR builds | Last 5 | 3 days | Not needed |
+| Main branch | Last 30 | 30 days | Forever |
+| Nightly regression | Last 90 | 14 days | Forever |
+| Release validation | All | 1 year | Forever |
+
+---
+
+## Interview and Revision (Layer 6)
+
+### Fundamental Questions
+
+**Q1: How do you manage test artifacts in your CI pipeline?**
+
+**A:** In my Jenkins pipeline's `post { always }` block, I capture three categories of artifacts. First, JUnit XML reports via the `junit` step — this feeds Jenkins' built-in test trend graphs. Second, Allure results via the `allure` step — this generates an interactive report with test steps, screenshots, and failure categories. Third, raw artifacts (screenshots, logs) via `archiveArtifacts` for ad-hoc investigation. I configure retention policies with `buildDiscarder` to keep the last 30 builds' metadata but only 10 builds' worth of large artifacts, preventing disk exhaustion.
+
+**Q2: How do you capture screenshots on test failure?**
+
+**A:** I use a TestNG `ITestListener` that implements `onTestFailure()`. When a test fails, the listener grabs the WebDriver from `DriverManager`, takes a screenshot as bytes, and attaches it to the Allure report via `Allure.addAttachment()`. The listener is registered once in `testng.xml` — it applies to every test automatically. The key detail is that the driver must still be alive when the listener runs, so `driver.quit()` happens in `@AfterMethod`, after the listener has captured the screenshot.
+
+**Q3: How do you track test pass/fail trends over time?**
+
+**A:** JUnit XML reports feed Jenkins' built-in test result trend, which shows pass/fail/skip counts across builds as a graph. Allure provides its own trend when you configure it to retain historical data — it shows pass rate, duration, and categories over time. For deeper analysis, I'd export test results to a database or observability platform (Grafana) where I can build dashboards showing flaky test rates, slowest tests, and pass rate by feature area. The trend is often more important than any single run — a gradually declining pass rate signals a systemic problem.
+
+
+
+
+| # | Front (Question) | Back (Answer) |
+|---|---|---|
+| 1 | JUnit reports vs Allure reports — when to use which? | Both. JUnit for Jenkins trend graphs (built-in, zero config). Allure for detailed failure analysis (steps, screenshots, categories). They complement, not replace, each other. |
+| 2 | Why capture artifacts in `post { always }`? | `always` runs regardless of test outcome — pass, fail, or error. Artifacts from failed runs are the most valuable. Capturing in stages risks missing them on failure. |
+| 3 | Why set `artifactNumToKeepStr` lower than `numToKeepStr`? | Build metadata (pass/fail counts, trends) is tiny; artifacts (screenshots, logs) are large. Keep trends for 30+ builds, but only store heavy artifacts for 10. |
+| 4 | How are screenshots attached to Allure? | A TestNG `ITestListener.onTestFailure()` captures the screenshot via `TakesScreenshot` and attaches it with `Allure.addAttachment()`. Registered globally in `testng.xml`. |
+| 5 | What is artifact retention? | A policy defining how long artifacts are stored before automatic deletion. Prevents CI disk exhaustion while preserving recent data for debugging. |
+
+### Mastery Checklist
+
+- [ ] Can configure JUnit report publishing and Allure report generation in Jenkins
+- [ ] Can implement automatic screenshot capture on failure via TestNG listeners
+- [ ] Can set up artifact archiving with appropriate retention policies
+- [ ] Can diagnose missing reports (wrong paths, missing dependencies, timing issues)
+- [ ] Can design a retention strategy balancing disk usage and debugging needs
+- [ ] Can explain the difference between archiving raw artifacts vs publishing processed reports
+
+---
+
+**Next:** Notifications And Alerting | **Related:** Test Orchestration
+
+*Last updated: *

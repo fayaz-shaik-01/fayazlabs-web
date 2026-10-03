@@ -1,0 +1,1002 @@
+---
+title: "Types and Interfaces"
+description: "What: TypeScript's type system goes far beyond simple annotations like : string. It includes interfaces (shape definitions for objects), type aliases, union and intersection types, generics, utility types, and type guards. These features let you model your test automation domain precisely — from page object shapes to API response structures."
+summary: "SDET Engineering guide: Types and Interfaces"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "typescript"
+lesson: "types-and-interfaces"
+difficulty: "intermediate"
+estimatedMinutes: 65
+prerequisites: []
+tags: ["SDET", "TypeScript", "Programming"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/typescript/types-and-interfaces"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Types and Interfaces
+
+> **Module:** 01 — Programming Foundations / TypeScript  
+> **Prerequisites:** Language Fundamentals  
+> **Mastery Target:** L3 (independent — define types, interfaces, and generics for test frameworks without guidance)
+
+---
+
+## Quick Overview (Layer 1)
+
+**What:** TypeScript's type system goes far beyond simple annotations like `: string`. It includes interfaces (shape definitions for objects), type aliases, union and intersection types, generics, utility types, and type guards. These features let you model your test automation domain precisely — from page object shapes to API response structures.
+
+**Why:** In Java, you define types with classes and interfaces — it's verbose but unambiguous. TypeScript's type system is *structural* (shape-based) rather than *nominal* (name-based), which means it's more flexible but requires a different mental model. Mastering types is what separates "TypeScript that happens to compile" from "TypeScript that catches bugs at design time."
+
+**Where:** Page object interfaces, test data shapes, API response types, Playwright fixture types, configuration objects, custom assertion helpers, and shared utility types across your test framework.
+
+<MentalModel>
+
+In Java, two classes with identical fields are *different types* — `UserDTO` and `PersonDTO` are incompatible even if they both have `String name` and `int age`. You must explicitly implement an interface or extend a class.
+
+</MentalModel>
+
+
+In TypeScript, types are **structural** — if an object has the right *shape* (properties and their types), it satisfies the type. No `implements` keyword needed:
+
+```
+Java (Nominal):      "Are you a UserDTO? Show me your class name."
+TypeScript (Structural): "Do you have a name: string and age: number? Good enough."
+```
+
+This is a fundamental shift. You'll find it liberating (less boilerplate) and occasionally surprising (objects can satisfy types you never intended).
+
+<KeyTakeaways>
+
+1. **Interfaces define object shapes** — use them for page objects, test data, API responses, and config objects. They're your primary modeling tool.
+2. **Union types (`string | number`) replace method overloading** — where Java uses multiple method signatures, TypeScript uses one parameter with a union type.
+3. **Generics work like Java generics** — `Array<T>`, `Promise<T>`, `Map<K, V>`. The syntax and concepts transfer directly.
+4. **Utility types save boilerplate** — `Partial<T>`, `Pick<T, K>`, `Omit<T, K>` transform existing types without redefining them.
+5. **Type guards narrow types at runtime** — `typeof`, `instanceof`, `in`, and custom guards let you safely handle union types.
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation (Layer 2)
+
+### Type Annotations and Type Inference
+
+TypeScript can infer types from context, but explicit annotations serve as documentation:
+
+
+```typescript
+// Inference — compiler figures out the type
+const name = "loginTest";                  // inferred: string
+const timeout = 30000;                     // inferred: number (actually literal type 30000 with const)
+const results = [1, 2, 3];                 // inferred: number[]
+
+// Explicit annotation — you declare the type
+let statusCode: number;                    // necessary: no initializer to infer from
+const baseUrl: string = getBaseUrl();      // optional but documents intent
+
+// Function signatures — ALWAYS annotate parameters and return type
+function add(a: number, b: number): number {
+    return a + b;
+}
+
+// Return type inference — works but explicit is better for public functions
+function add2(a: number, b: number) {
+    return a + b;                          // inferred return type: number
+}
+```
+
+**Java comparison:** Java requires explicit types everywhere (until `var` in Java 10). TypeScript infers aggressively but encourages explicit annotations on function boundaries — the same places where Java documentation (Javadoc) matters most.
+
+### Interfaces: Defining Object Shapes
+
+Interfaces are TypeScript's primary tool for defining the structure of objects. Think of them as Java interfaces with only getter/setter signatures — they describe *shape*, not *behavior*.
+
+
+```typescript
+// Basic interface
+interface TestResult {
+    name: string;
+    status: "pass" | "fail" | "skip";    // literal union type — not just any string
+    durationMs: number;
+}
+
+// Using the interface — structural match is all that's needed
+const result: TestResult = {
+    name: "loginTest",
+    status: "pass",
+    durationMs: 1200,
+};
+
+// Optional properties — marked with ?
+interface UserCredentials {
+    email: string;
+    password: string;
+    mfaCode?: string;                    // optional — may or may not be present
+}
+
+const basicLogin: UserCredentials = { email: "a@b.com", password: "pass" };      // OK
+const mfaLogin: UserCredentials = { email: "a@b.com", password: "pass", mfaCode: "123456" }; // OK
+
+// Readonly properties — cannot be modified after creation
+interface PageLocators {
+    readonly loginButton: string;
+    readonly emailInput: string;
+    readonly passwordInput: string;
+}
+
+const locators: PageLocators = {
+    loginButton: "#login-btn",
+    emailInput: "#email",
+    passwordInput: "#password",
+};
+// locators.loginButton = "#new-btn";    // ERROR: Cannot assign to 'loginButton'
+
+// Extending interfaces (like Java's interface extends)
+interface TimedTestResult extends TestResult {
+    startTime: Date;
+    endTime: Date;
+}
+
+// Index signatures — when you don't know all property names ahead of time
+interface EnvironmentConfig {
+    baseUrl: string;
+    timeout: number;
+    [key: string]: string | number;      // allow any additional string/number properties
+}
+```
+
+**Structural typing in action:**
+
+
+```typescript
+interface HasName {
+    name: string;
+}
+
+function printName(item: HasName): void {
+    console.log(item.name);
+}
+
+// No "implements HasName" needed — any object with a name: string works
+const testResult = { name: "loginTest", status: "pass", durationMs: 1200 };
+printName(testResult);    // OK — testResult has a name: string property
+
+const user = { name: "Alice", age: 30 };
+printName(user);          // OK — user has a name: string property
+```
+
+### Type Aliases vs. Interfaces
+
+Both define types, but they have different strengths:
+
+
+```typescript
+// Type alias — can represent ANY type (primitives, unions, tuples, etc.)
+type StatusCode = number;
+type TestStatus = "pass" | "fail" | "skip";
+type StringOrNumber = string | number;
+type TestPair = [string, TestStatus];         // tuple type
+
+// Interface — specifically for object shapes
+interface TestConfig {
+    baseUrl: string;
+    timeout: number;
+}
+
+// Both can define object shapes:
+type TestConfigType = {
+    baseUrl: string;
+    timeout: number;
+};
+
+// Key difference 1: interfaces can be extended/merged; type aliases cannot
+interface Animal {
+    name: string;
+}
+interface Animal {                 // Declaration merging — adds to existing interface
+    sound: string;
+}
+// Animal now has both name and sound
+
+// type Animal = { legs: number };  // ERROR if Animal type alias already exists
+
+// Key difference 2: type aliases can represent unions; interfaces cannot
+type ID = string | number;         // union — no interface equivalent
+type Response = SuccessResponse | ErrorResponse;  // discriminated union
+```
+
+**When to use each:**
+
+| Use Case | Prefer | Why |
+|---|---|---|
+| Object shapes (page objects, configs) | `interface` | Extendable, mergeable, clear intent |
+| Union types (`"pass" | "fail"`) | `type` | Interfaces can't express unions |
+| Primitive aliases (`type ID = string`) | `type` | Interfaces can't alias primitives |
+| Function types | `type` | Cleaner syntax: `type Handler = (event: Event) => void` |
+| Library/framework APIs | `interface` | Consumers can extend via declaration merging |
+
+**Rule of thumb:** Use `interface` for objects, `type` for everything else.
+
+### Union Types, Intersection Types, and Literal Types
+
+
+```typescript
+// Union type — "either A or B" (replaces Java method overloading)
+type ID = string | number;
+
+function findUser(id: ID): void {
+    if (typeof id === "string") {
+        console.log(`Searching by email: ${id}`);
+    } else {
+        console.log(`Searching by ID: ${id}`);
+    }
+}
+findUser("alice@example.com");   // Searching by email: alice@example.com
+findUser(42);                    // Searching by ID: 42
+
+// Literal types — exact values as types
+type Browser = "chromium" | "firefox" | "webkit";
+type HttpMethod = "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
+
+function launchBrowser(browser: Browser): void {
+    console.log(`Launching ${browser}`);
+}
+launchBrowser("chromium");       // OK
+// launchBrowser("safari");      // ERROR: "safari" is not assignable to Browser
+
+// Intersection type — "A AND B combined" (like implementing multiple interfaces in Java)
+interface HasTimestamp {
+    createdAt: Date;
+    updatedAt: Date;
+}
+
+interface HasAuthor {
+    authorId: string;
+    authorName: string;
+}
+
+type AuditedRecord = HasTimestamp & HasAuthor;
+// AuditedRecord has ALL properties from both interfaces
+
+const record: AuditedRecord = {
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    authorId: "user-123",
+    authorName: "Alice",
+};
+
+// Discriminated unions — the TypeScript equivalent of Java sealed classes + pattern matching
+interface SuccessResponse {
+    status: "success";                 // literal type — the discriminant
+    data: unknown;
+}
+
+interface ErrorResponse {
+    status: "error";                   // literal type — the discriminant
+    errorCode: number;
+    message: string;
+}
+
+type ApiResponse = SuccessResponse | ErrorResponse;
+
+function handleResponse(response: ApiResponse): void {
+    switch (response.status) {
+        case "success":
+            console.log("Data:", response.data);     // TS knows this is SuccessResponse
+            break;
+        case "error":
+            console.log(`Error ${response.errorCode}: ${response.message}`);  // TS knows this is ErrorResponse
+            break;
+    }
+}
+```
+
+### Generics
+
+Generics in TypeScript work almost identically to Java generics. If you understand `List<T>` and `Map<K, V>` in Java, you understand TypeScript generics:
+
+
+```typescript
+// Generic function — same concept as Java's <T> T identity(T value)
+function identity<T>(value: T): T {
+    return value;
+}
+const str = identity("hello");     // inferred: identity<string>("hello") → string
+const num = identity(42);          // inferred: identity<number>(42) → number
+
+// Generic interface — like Java's Comparable<T> or List<T>
+interface ApiResponse<T> {
+    status: number;
+    data: T;
+    timestamp: Date;
+}
+
+// Usage with specific types
+const userResponse: ApiResponse<{ name: string; email: string }> = {
+    status: 200,
+    data: { name: "Alice", email: "alice@example.com" },
+    timestamp: new Date(),
+};
+
+const listResponse: ApiResponse<string[]> = {
+    status: 200,
+    data: ["item1", "item2"],
+    timestamp: new Date(),
+};
+
+// Generic constraints — like Java's <T extends Comparable<T>>
+interface HasId {
+    id: string | number;
+}
+
+function findById<T extends HasId>(items: T[], id: string | number): T | undefined {
+    return items.find(item => item.id === id);
+}
+
+const users = [
+    { id: 1, name: "Alice" },
+    { id: 2, name: "Bob" },
+];
+const found = findById(users, 1);   // inferred: { id: number; name: string } | undefined
+
+// Multiple generic parameters
+function mapEntries<K extends string, V>(
+    obj: Record<K, V>,
+    transform: (value: V, key: K) => V
+): Record<K, V> {
+    const result = {} as Record<K, V>;
+    for (const key in obj) {
+        result[key] = transform(obj[key], key);
+    }
+    return result;
+}
+```
+
+### Utility Types
+
+TypeScript provides built-in types that *transform* other types. These are your power tools — they eliminate massive amounts of boilerplate:
+
+
+```typescript
+interface User {
+    id: number;
+    name: string;
+    email: string;
+    role: "admin" | "user" | "viewer";
+    createdAt: Date;
+}
+
+// Partial<T> — makes ALL properties optional
+// Use case: update functions where you only change some fields
+type UserUpdate = Partial<User>;
+// { id?: number; name?: string; email?: string; role?: ...; createdAt?: Date }
+
+function updateUser(id: number, updates: Partial<User>): void {
+    console.log(`Updating user ${id} with`, updates);
+}
+updateUser(1, { name: "New Name" });         // only updating name — OK
+updateUser(1, { role: "admin" });            // only updating role — OK
+
+// Required<T> — makes ALL properties required (opposite of Partial)
+type CompleteUser = Required<UserUpdate>;     // back to all required
+
+// Pick<T, K> — select specific properties
+// Use case: API responses that return a subset of fields
+type UserSummary = Pick<User, "id" | "name" | "role">;
+// { id: number; name: string; role: "admin" | "user" | "viewer" }
+
+// Omit<T, K> — exclude specific properties (opposite of Pick)
+// Use case: create payloads that don't include server-generated fields
+type CreateUserPayload = Omit<User, "id" | "createdAt">;
+// { name: string; email: string; role: "admin" | "user" | "viewer" }
+
+// Record<K, V> — object type with specific key and value types
+// Use case: configuration maps, test data dictionaries
+type BrowserConfig = Record<string, { headless: boolean; slowMo: number }>;
+const configs: BrowserConfig = {
+    chromium: { headless: true, slowMo: 0 },
+    firefox: { headless: false, slowMo: 100 },
+};
+
+// Readonly<T> — makes ALL properties readonly
+type FrozenUser = Readonly<User>;
+// All properties become readonly — like Java's unmodifiable record
+
+// Combining utility types
+type UserWithOptionalEmail = Omit<User, "email"> & { email?: string };
+```
+
+**Java comparison:**
+- `Partial<T>` → No direct equivalent; in Java you'd create a separate `UserUpdateRequest` class
+- `Pick<T, K>` → No direct equivalent; in Java you'd create `UserSummaryDTO`
+- `Record<K, V>` → `Map<K, V>` but for object types (compile-time keys)
+- `Readonly<T>` → `Collections.unmodifiableMap()` or Java records
+
+### Type Guards
+
+Type guards let you narrow a union type to a specific type at runtime. Think of them as pattern matching:
+
+
+```typescript
+// typeof — works for primitives
+function processId(id: string | number): string {
+    if (typeof id === "string") {
+        return id.toUpperCase();           // TS knows id is string here
+    }
+    return id.toFixed(0);                  // TS knows id is number here
+}
+
+// instanceof — works for classes
+class ApiError extends Error {
+    constructor(public statusCode: number, message: string) {
+        super(message);
+    }
+}
+
+function handleError(error: unknown): string {
+    if (error instanceof ApiError) {
+        return `API Error ${error.statusCode}: ${error.message}`;  // TS knows it's ApiError
+    }
+    if (error instanceof Error) {
+        return `Error: ${error.message}`;       // TS knows it's Error
+    }
+    return `Unknown error: ${String(error)}`;
+}
+
+// "in" operator — checks if a property exists on an object
+interface SuccessResult {
+    data: unknown;
+    status: "success";
+}
+
+interface ErrorResult {
+    error: string;
+    status: "error";
+}
+
+type Result = SuccessResult | ErrorResult;
+
+function processResult(result: Result): void {
+    if ("data" in result) {
+        console.log("Success:", result.data);     // TS narrows to SuccessResult
+    } else {
+        console.log("Error:", result.error);      // TS narrows to ErrorResult
+    }
+}
+
+// Custom type guard — a function that returns "x is Type"
+interface PageObjectWithInit {
+    init(): Promise<void>;
+    selector: string;
+}
+
+function isInitializablePage(obj: unknown): obj is PageObjectWithInit {
+    return (
+        typeof obj === "object" &&
+        obj !== null &&
+        "init" in obj &&
+        "selector" in obj &&
+        typeof (obj as any).init === "function"
+    );
+}
+
+// Usage
+function setupPage(page: unknown): void {
+    if (isInitializablePage(page)) {
+        page.init();      // TS now knows page is PageObjectWithInit
+        console.log(page.selector);
+    }
+}
+```
+
+### Enums vs. Union Literal Types
+
+Java developers reach for enums instinctively. In TypeScript, union literal types are usually the better choice:
+
+
+```typescript
+// TypeScript enum (Java-like)
+enum TestStatus {
+    Pass = "PASS",
+    Fail = "FAIL",
+    Skip = "SKIP",
+}
+
+// Union literal type (TypeScript-idiomatic)
+type TestStatusLiteral = "PASS" | "FAIL" | "SKIP";
+
+// Both provide type safety:
+function reportStatus(status: TestStatusLiteral): void {
+    console.log(`Status: ${status}`);
+}
+reportStatus("PASS");           // OK
+// reportStatus("INVALID");     // ERROR: not assignable
+
+// Why prefer union literals over enums:
+
+// 1. Enums generate runtime JavaScript code — they're not just types
+// console.log(TestStatus.Pass);    → compiles to actual JS object lookup
+
+// 2. Union literals are "erased" at compile time — zero runtime cost
+// "PASS" | "FAIL" | "SKIP" → just plain strings at runtime
+
+// 3. Enums have surprising behavior with numeric values
+enum Direction {
+    Up = 0,
+    Down = 1,
+}
+const d: Direction = 999;       // NO ERROR — numeric enums accept any number!
+
+// 4. Union literals work naturally with data from APIs
+// API returns { status: "PASS" } — this is directly a TestStatusLiteral
+// With enums, you'd need to map: TestStatus[apiResponse.status]
+
+// When enums ARE appropriate:
+// - You need reverse mapping: Direction[0] → "Up"
+// - You're modeling bitwise flags (rare in test automation)
+// - Team convention or interop with code that expects enum objects
+```
+
+**Rule of thumb:** Default to union literal types. Use enums only when you need runtime features (reverse mapping, iteration over values).
+
+---
+
+## Practical Implementation (Layer 3)
+
+### Example 1: Type-Safe Page Object Model in Playwright
+
+This example shows how interfaces and types create a strongly-typed page object that catches errors at compile time:
+
+
+```typescript
+import { Page, Locator } from "@playwright/test";
+
+// Define the shape of page elements
+interface LoginPageLocators {
+    readonly emailInput: Locator;
+    readonly passwordInput: Locator;
+    readonly loginButton: Locator;
+    readonly errorMessage: Locator;
+    readonly rememberMeCheckbox: Locator;
+}
+
+// Define what credentials look like
+interface LoginCredentials {
+    email: string;
+    password: string;
+    rememberMe?: boolean;
+}
+
+// Define possible login outcomes
+type LoginOutcome =
+    | { success: true; redirectUrl: string }
+    | { success: false; errorText: string };
+
+class LoginPage {
+    private readonly locators: LoginPageLocators;
+
+    constructor(private readonly page: Page) {
+        // All locators defined in one place — easy to maintain
+        this.locators = {
+            emailInput: page.getByLabel("Email"),
+            passwordInput: page.getByLabel("Password"),
+            loginButton: page.getByRole("button", { name: "Sign In" }),
+            errorMessage: page.getByTestId("login-error"),
+            rememberMeCheckbox: page.getByLabel("Remember me"),
+        };
+    }
+
+    async login(credentials: LoginCredentials): Promise<LoginOutcome> {
+        const { email, password, rememberMe } = credentials;
+
+        await this.locators.emailInput.fill(email);
+        await this.locators.passwordInput.fill(password);
+
+        if (rememberMe) {
+            await this.locators.rememberMeCheckbox.check();
+        }
+
+        await this.locators.loginButton.click();
+
+        // Wait for either success (navigation) or error (error message appears)
+        const errorVisible = await this.locators.errorMessage.isVisible()
+            .catch(() => false);
+
+        if (errorVisible) {
+            const errorText = await this.locators.errorMessage.textContent() ?? "Unknown error";
+            return { success: false, errorText };
+        }
+
+        return { success: true, redirectUrl: this.page.url() };
+    }
+}
+
+// Usage in a test:
+// const loginPage = new LoginPage(page);
+// const result = await loginPage.login({ email: "test@example.com", password: "pass" });
+// if (result.success) {
+//     expect(result.redirectUrl).toContain("/dashboard");
+// } else {
+//     // TS knows result has errorText here
+//     expect(result.errorText).toContain("Invalid credentials");
+// }
+```
+
+**What the types buy you:**
+- `LoginCredentials` — prevents passing `{ username: "..." }` when `email` is expected.
+- `LoginOutcome` discriminated union — forces you to check `success` before accessing `redirectUrl` or `errorText`.
+- `readonly` locators — prevents accidental reassignment of locators mid-test.
+
+### Example 2: Generic API Response Handler
+
+A generic utility that wraps API calls with proper typing:
+
+
+```typescript
+// Generic API response type
+interface ApiResponse<T> {
+    status: number;
+    data: T;
+    headers: Record<string, string>;
+}
+
+interface ApiError {
+    status: number;
+    message: string;
+    code: string;
+}
+
+type ApiResult<T> = { ok: true; response: ApiResponse<T> } | { ok: false; error: ApiError };
+
+// Generic function that fetches and types the response
+async function fetchApi<T>(
+    url: string,
+    options?: {
+        method?: "GET" | "POST" | "PUT" | "DELETE";
+        body?: unknown;
+        headers?: Record<string, string>;
+    }
+): Promise<ApiResult<T>> {
+    try {
+        const response = await fetch(url, {
+            method: options?.method ?? "GET",
+            headers: {
+                "Content-Type": "application/json",
+                ...options?.headers,
+            },
+            body: options?.body ? JSON.stringify(options.body) : undefined,
+        });
+
+        if (!response.ok) {
+            const errorBody = await response.json().catch(() => ({}));
+            return {
+                ok: false,
+                error: {
+                    status: response.status,
+                    message: errorBody.message ?? "Request failed",
+                    code: errorBody.code ?? "UNKNOWN",
+                },
+            };
+        }
+
+        const data = (await response.json()) as T;
+        const headers: Record<string, string> = {};
+        response.headers.forEach((value, key) => {
+            headers[key] = value;
+        });
+
+        return {
+            ok: true,
+            response: { status: response.status, data, headers },
+        };
+    } catch (err) {
+        return {
+            ok: false,
+            error: {
+                status: 0,
+                message: err instanceof Error ? err.message : "Network error",
+                code: "NETWORK_ERROR",
+            },
+        };
+    }
+}
+
+// Usage — the generic parameter provides type safety on the result
+interface UserData {
+    id: number;
+    name: string;
+    email: string;
+}
+
+async function testUserApi(): Promise<void> {
+    const result = await fetchApi<UserData>("/api/users/1");
+
+    if (result.ok) {
+        // TS knows result.response.data is UserData
+        console.log(result.response.data.name);
+        console.log(result.response.data.email);
+    } else {
+        // TS knows result.error is ApiError
+        console.log(`Failed: ${result.error.message}`);
+    }
+}
+```
+
+---
+
+## Failure and Debugging (Layer 4)
+
+### Mistake 1: Excess Property Checks Only Apply to Object Literals
+
+**Broken code:**
+
+```typescript
+interface TestConfig {
+    baseUrl: string;
+    timeout: number;
+}
+
+// Direct object literal — TypeScript catches extra properties
+// const config: TestConfig = {
+//     baseUrl: "https://example.com",
+//     timeout: 30000,
+//     retries: 3,                      // ERROR: 'retries' does not exist in type 'TestConfig'
+// };
+
+// But via a variable — NO error (this surprises Java developers)
+const fullConfig = {
+    baseUrl: "https://example.com",
+    timeout: 30000,
+    retries: 3,
+};
+const config: TestConfig = fullConfig;   // OK! Extra properties are silently accepted
+```
+
+**Why it happens:** TypeScript's structural typing says "if it has the required properties, it's compatible." Excess property checks are a special lint-like feature that only applies to *object literals directly assigned to a typed target*. Once the literal is stored in a variable, it becomes a wider type.
+
+**Fix — when you need strict shape checking:**
+
+```typescript
+// Option 1: Use satisfies (TypeScript 4.9+) — checks AND preserves the literal type
+const config = {
+    baseUrl: "https://example.com",
+    timeout: 30000,
+    // retries: 3,                       // ERROR with satisfies
+} satisfies TestConfig;
+
+// Option 2: Annotate the variable directly
+const config2: TestConfig = {
+    baseUrl: "https://example.com",
+    timeout: 30000,
+    // retries: 3,                       // ERROR
+};
+```
+
+---
+
+### Mistake 2: Forgetting to Handle `undefined` from Optional Properties
+
+**Broken code:**
+
+```typescript
+interface TestData {
+    username: string;
+    password: string;
+    mfaCode?: string;           // optional
+}
+
+function loginWithMfa(data: TestData): void {
+    // BUG: mfaCode might be undefined
+    const uppercaseMfa = data.mfaCode.toUpperCase();    // ERROR if strictNullChecks is on
+    // Runtime: TypeError: Cannot read properties of undefined (reading 'toUpperCase')
+}
+```
+
+**Diagnostic steps:**
+1. Check if the property is marked `?` (optional) in the interface.
+2. Hover over the variable in your IDE — does the type include `undefined`?
+
+**Fix:**
+
+```typescript
+function loginWithMfa(data: TestData): void {
+    // Option 1: Guard clause
+    if (data.mfaCode === undefined) {
+        console.log("No MFA code provided, skipping MFA step");
+        return;
+    }
+    const uppercaseMfa = data.mfaCode.toUpperCase();    // TS knows it's string here
+
+    // Option 2: Optional chaining + nullish coalescing
+    const uppercaseMfa2 = data.mfaCode?.toUpperCase() ?? "NO_MFA";
+
+    // Option 3: Non-null assertion (ONLY when you're certain — avoid in general)
+    // const uppercaseMfa3 = data.mfaCode!.toUpperCase();  // dangerous — skips the check
+}
+```
+
+<BestPractice>
+
+**Prevention:** Always enable `strictNullChecks` (part of `strict: true`). The compiler will force you to handle optional/nullable properties.
+
+</BestPractice>
+
+
+---
+
+### Mistake 3: Using Enums When Union Literals Are Safer
+
+**Broken code:**
+
+```typescript
+// Numeric enum — accepts ANY number
+enum Priority {
+    Low = 0,
+    Medium = 1,
+    High = 2,
+}
+
+const p: Priority = 999;          // NO ERROR — this compiles fine!
+console.log(p);                    // 999
+
+// String enum is safer but still has overhead
+enum Status {
+    Active = "ACTIVE",
+    Inactive = "INACTIVE",
+}
+
+// Enums generate runtime code:
+// var Status;
+// (function (Status) {
+//     Status["Active"] = "ACTIVE";
+//     Status["Inactive"] = "INACTIVE";
+// })(Status || (Status = {}));
+```
+
+**Fix:**
+
+```typescript
+// Union literal — zero runtime cost, fully type-safe
+type Priority = "low" | "medium" | "high";
+type Status = "ACTIVE" | "INACTIVE";
+
+const p: Priority = "low";          // OK
+// const p2: Priority = "extreme";  // ERROR: not assignable
+
+// If you need the values as a runtime array (for iteration/validation):
+const PRIORITIES = ["low", "medium", "high"] as const;
+type Priority2 = typeof PRIORITIES[number];    // "low" | "medium" | "high"
+
+// Now you can iterate AND have type safety
+for (const priority of PRIORITIES) {
+    console.log(priority);           // type: "low" | "medium" | "high"
+}
+```
+
+---
+
+## Engineering Judgment (Layer 5)
+
+### Interface vs. Type Alias — Decision Framework
+
+| Factor | Interface | Type Alias |
+|---|---|---|
+| Object shapes | **Preferred** — clear intent | Works but less conventional |
+| Union types | Cannot express | **Required** |
+| Primitive aliases | Cannot express | **Required** |
+| Declaration merging (augmenting) | **Supported** | Not supported |
+| Extends/inheritance | `extends` keyword | Intersection (`&`) |
+| Computed properties | Not supported | **Supported** via mapped types |
+| Error messages | Often clearer | Can be opaque for complex types |
+| Library APIs | **Preferred** — consumers can augment | Sealed — consumers cannot extend |
+
+### When to Use Generics vs. Union Types vs. Overloads
+
+
+```typescript
+// Use GENERICS when: the output type depends on the input type
+function first<T>(items: T[]): T | undefined {
+    return items[0];
+}
+// The return type adapts: first<string>([...]) returns string | undefined
+
+// Use UNION TYPES when: the parameter accepts a fixed set of types
+function format(value: string | number | boolean): string {
+    return String(value);
+}
+
+// Use OVERLOADS when: different input types produce DIFFERENT output types
+// and generics can't express the relationship
+function parse(input: string): object;
+function parse(input: Buffer): object;
+function parse(input: string | Buffer): object {
+    if (typeof input === "string") {
+        return JSON.parse(input);
+    }
+    return JSON.parse(input.toString());
+}
+```
+
+### How Much Typing Is Too Much?
+
+| Signal | Action |
+|---|---|
+| You're writing `as any` to make things compile | Stop — you're hiding a real type problem |
+| You're spending more time on types than on test logic | Simplify — use `unknown` and narrow, or accept a broader type |
+| Every function has 5+ generic parameters | Refactor — extract intermediate types, simplify the API |
+| You have utility types nested 4 levels deep | Refactor — create named intermediate types for readability |
+| Your page object interface has 50+ properties | Split into sub-interfaces: `LoginPageLocators`, `LoginPageActions` |
+
+**Automation-specific guidance:** In test frameworks, types should *help* you — catch typos in locator names, enforce valid test data shapes, prevent missing `await` calls. If types are slowing you down without catching real bugs, you've over-typed. The sweet spot: interfaces for page objects, types for test data and API responses, generics for shared utilities.
+
+---
+
+## Interview and Revision (Layer 6)
+
+### Fundamental Questions
+
+**Q1: What is structural typing and how does it differ from Java's nominal typing?**
+> Structural typing checks type compatibility based on the *shape* of data (property names and types), not the declared type name. In Java, `class A { String name; }` and `class B { String name; }` are incompatible even with identical fields. In TypeScript, any object with `{ name: string }` satisfies an interface requiring `name: string`, regardless of where the object came from. This means you get polymorphism without explicit `implements`.
+
+**Q2: When would you use `Partial<T>` in a test automation framework?**
+> `Partial<T>` is ideal for update operations and test data builders. For example, a `updateUser(id, Partial<User>)` function lets you pass only the fields you want to change. In test data factories, `createTestUser(overrides: Partial<User>)` lets each test specify only the fields relevant to that test while defaults fill the rest.
+
+**Q3: Explain discriminated unions and give a test automation example.**
+> A discriminated union is a union of types that share a common property (the "discriminant") with literal types. Example: `type TestOutcome = { status: "pass"; duration: number } | { status: "fail"; error: string }`. By checking `outcome.status`, TypeScript narrows the type and gives you access to the correct properties. This is used for API responses, test results, and any scenario with multiple possible outcomes.
+
+**Q4: Why are union literal types generally preferred over enums in TypeScript?**
+> Union literals (`"GET" | "POST" | "PUT"`) have zero runtime cost (erased at compile time), are fully type-safe, work naturally with data from JSON APIs, and don't generate extra JavaScript code. Numeric enums accept any number (a type-safety hole). String enums are safe but generate unnecessary runtime objects. The only advantages of enums are reverse mapping and runtime enumeration of values.
+
+**Q5: What is a custom type guard and when would you write one?**
+> A custom type guard is a function that returns `parameterName is Type` — it tells TypeScript's compiler how to narrow a type based on runtime checks. You write one when `typeof` and `instanceof` aren't sufficient — for example, checking if an unknown API response conforms to a specific interface: `function isUserResponse(data: unknown): data is UserResponse { ... }`. This is common when validating untyped external data in test setup.
+
+### Scenario Questions
+
+**S1:** *"Your team's Playwright page objects use `any` for the `page` constructor parameter because 'it's easier.' What problems will this cause and how do you fix it?"*
+
+> Using `any` disables all type checking on the `page` object — calling non-existent methods, passing wrong argument types, and missing `await` on async methods will all compile without errors. Fix: import and use `import { Page } from '@playwright/test'` as the parameter type. This gives you autocomplete, compile-time error checking, and documentation-on-hover for every Playwright method.
+
+**S2:** *"You need to create test data for 8 different test scenarios. Each scenario needs a User object with slightly different fields. How do you avoid duplicating the User definition 8 times?"*
+
+> Define one `interface User` with all fields. Create a factory function: `function createUser(overrides: Partial<User>): User` that merges overrides into defaults. Each test calls `createUser({ role: "admin" })` or `createUser({ email: "blocked@spam.com", isActive: false })`. Only the test-relevant fields are specified; everything else gets sensible defaults. This uses `Partial<T>` and the spread operator.
+
+
+
+
+| # | Front (Question) | Back (Answer) |
+|---|---|---|
+| 1 | What is the difference between `interface` and `type` in TypeScript? | Interfaces are for object shapes (extendable, mergeable). Type aliases work for any type (unions, primitives, tuples). Use `interface` for objects, `type` for everything else. |
+| 2 | What does `Partial<User>` produce? | A type where all properties of `User` are optional (`?`). |
+| 3 | What does `Pick<User, "id" \| "name">` produce? | A type with only the `id` and `name` properties from `User`. |
+| 4 | How does `typeof` work as a type guard? | In a conditional, `typeof x === "string"` narrows `x` to `string` in that branch. Works for `"string"`, `"number"`, `"boolean"`, `"object"`, `"function"`, `"undefined"`. |
+| 5 | What is a discriminated union? | A union of types sharing a common literal-typed property (discriminant). TypeScript narrows the type by checking the discriminant value. |
+
+### Mastery Checklist
+
+- [ ] I can define interfaces with optional, readonly, and index-signature properties
+- [ ] I can explain structural typing and why extra properties don't cause errors (except on object literals)
+- [ ] I know when to use `interface` vs `type` and can justify the choice
+- [ ] I can create and consume union types and discriminated unions
+- [ ] I can write generic functions and interfaces with constraints
+- [ ] I can use `Partial<T>`, `Pick<T, K>`, `Omit<T, K>`, `Record<K, V>`, and `Readonly<T>`
+- [ ] I can write type guards using `typeof`, `instanceof`, `in`, and custom guard functions
+- [ ] I can explain why union literal types are preferred over enums
+- [ ] I can create a type-safe page object model with proper interfaces
+- [ ] I can build a generic API response handler with discriminated union results
+
+---
+
+> **Next:** Promises And Async Await — the event loop, Promises, async/await, and why every Playwright call needs `await`  
+> **Related:** Language Fundamentals — variables, functions, and basic TypeScript syntax

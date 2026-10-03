@@ -1,0 +1,708 @@
+---
+title: "API Performance Basics"
+description: "What: API performance testing, from an SDET perspective, means adding response time awareness to your existing API tests. This isn't full-scale load testing or capacity planning — it's the practical overlap between functional testing and performance: asserting response times against SLA thresholds, spotting performance red flags in your test results, and running simple concurrent load tests to verify the API handles expected traffic."
+summary: "SDET Engineering guide: API Performance Basics"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "api-automation"
+lesson: "api-performance-basics"
+difficulty: "intermediate"
+estimatedMinutes: 45
+prerequisites: []
+tags: ["SDET", "API", "REST", "Testing"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/api-automation/api-performance-basics"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# API Performance Basics
+
+> **Module:** 04 — API Automation  
+> **Prerequisites:** Http And Rest Fundamentals, Service Integration Testing  
+> **Mastery Target:** L2 (Guided) → L3 (Independent) — can add response time assertions to functional tests, identify performance red flags, and conduct basic load testing. Not full performance engineering.
+
+---
+
+## Quick Overview (Layer 1)
+
+**What:** API performance testing, from an SDET perspective, means adding response time awareness to your existing API tests. This isn't full-scale load testing or capacity planning — it's the practical overlap between functional testing and performance: asserting response times against SLA thresholds, spotting performance red flags in your test results, and running simple concurrent load tests to verify the API handles expected traffic.
+
+**Why:** An API that returns the correct data in 12 seconds is broken, even if every assertion passes. Your functional tests already hit every endpoint — adding a response time check costs almost nothing and catches performance regressions before they reach production. You've probably encountered a test that passes but "feels slow" — without response time assertions, slowness is invisible. An SDET who catches "this endpoint got 3x slower after the last deployment" earns enormous credibility with the development team.
+
+**Where:** In your existing REST Assured tests (response time assertions), in CI pipelines (tracking response time trends), in pre-release validation (basic load tests), and in bug reports ("this endpoint takes 4 seconds; SLA is 500ms" is much more actionable than "the app is slow").
+
+<MentalModel>
+
+Think of API performance testing as **adding a stopwatch to your existing tests**. You're already checking that the restaurant (API) serves the right dish (correct response). Now you're also noting how long it took to arrive. If your meal usually arrives in 2 minutes but today it took 15, something is wrong in the kitchen — even if the food is perfect. You don't need to be a kitchen inspector (performance engineer) to notice the delay and report it.
+
+</MentalModel>
+
+
+<KeyTakeaways>
+
+1. Response time assertions are the lowest-effort, highest-value performance check. One line in your existing test catches regressions.
+2. SLA thresholds should come from product requirements, not arbitrary numbers. If there's no SLA, start with "2x the observed average" as a baseline.
+3. Performance red flags in functional tests (slow responses, timeouts, N+1 queries) are early warnings of production problems.
+4. Basic load testing (concurrent API calls) validates that the API handles expected traffic — not that it can handle Black Friday.
+5. Full performance engineering (JMeter, Gatling, k6) is a separate discipline. SDETs should know these tools exist and when to escalate.
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation (Layer 2)
+
+### Response Time Anatomy
+
+An API response time consists of multiple components:
+
+```
+Total Response Time = Network Latency + Server Processing + Database Queries + External Calls + Serialization
+```
+
+| Component | What It Is | Typical Time | Where to Investigate |
+|-----------|-----------|-------------|---------------------|
+| **Network latency** | Time for request to travel to server and back | 1-50ms (same datacenter), 50-300ms (cross-region) | Ping, traceroute |
+| **Server processing** | Application logic (validation, business rules) | 5-50ms | Application logs, profiler |
+| **Database queries** | SQL execution + result transfer | 1-100ms per query | Slow query log, EXPLAIN |
+| **External calls** | Calls to other services (Stripe, email, etc.) | 50-500ms | External service monitoring |
+| **Serialization** | Converting objects to JSON | 1-10ms | Usually negligible unless large payloads |
+
+### Performance Metrics You Should Know
+
+| Metric | Definition | Example | SDET Relevance |
+|--------|-----------|---------|----------------|
+| **Response time (latency)** | Time from request sent to response received | 250ms | Assert in functional tests |
+| **Throughput** | Requests processed per second | 500 req/s | Basic load test measurement |
+| **P50 (median)** | 50th percentile response time | 200ms | "Typical" user experience |
+| **P95** | 95th percentile response time | 800ms | "Most users" experience |
+| **P99** | 99th percentile response time | 2000ms | "Worst case" for normal traffic |
+| **Error rate** | Percentage of requests that return errors | 0.1% | Should stay near 0% under load |
+
+**Why percentiles matter more than averages:**
+
+```
+Scenario: 100 requests
+  99 requests: 100ms each
+   1 request:  10,000ms (timeout)
+
+Average response time: 199ms  ← Looks fine!
+P99 response time:    10,000ms ← Reveals the problem
+
+The average hides the outlier. P95 and P99 expose it.
+```
+
+### Common Performance Problems SDETs Catch
+
+| Red Flag | What It Indicates | How You Spot It |
+|----------|------------------|-----------------|
+| Response time > 2 seconds | Something is fundamentally wrong | Response time assertion fails |
+| Response time increases with data volume | Missing database index or unoptimized query | Run test with 10 hotels, then 1000; compare times |
+| First request is slow, subsequent are fast | Cold start / cache warming issue | Log response times in test suite; first one is 5x slower |
+| Response time varies wildly (100ms-3000ms) | Resource contention, GC pauses, or external service latency | Inconsistent response time assertion failures |
+| GET endpoint is as slow as POST | Endpoint does unnecessary work (audit logging, recalculation) | Compare GET and POST response times |
+
+### The N+1 Query Problem
+
+The most common performance bug SDETs catch:
+
+```
+Scenario: GET /admin/hotels returns 50 hotels
+  Efficient (1 query):   SELECT * FROM hotels WHERE owner_id = 1  → 50ms
+  N+1 (51 queries):      SELECT * FROM hotels WHERE owner_id = 1  → 50ms
+                          SELECT * FROM contact_info WHERE hotel_id = 1  → 5ms
+                          SELECT * FROM contact_info WHERE hotel_id = 2  → 5ms
+                          ...49 more queries...                          → 245ms
+                          Total: 295ms
+
+With 500 hotels, efficient = 50ms, N+1 = 2550ms
+```
+
+**How to detect in API tests:** If response time scales linearly with the number of results, it's likely an N+1 query. Create 10 hotels, measure response time. Create 100 hotels, measure again. If time increased 10x, it's N+1.
+
+---
+
+## Practical Implementation (Layer 3)
+
+### Adding Response Time Assertions to Existing Tests
+
+
+```java
+import io.restassured.response.Response;
+import org.testng.annotations.Test;
+import static io.restassured.RestAssured.*;
+import static org.hamcrest.Matchers.*;
+import java.util.concurrent.TimeUnit;
+
+/**
+ * Demonstrates adding response time assertions to functional tests.
+ * These assertions cost nothing — they use the existing request/response.
+ */
+public class ResponseTimeAssertionTests {
+
+    private String guestToken = AuthFactory.guest().getAccessToken();
+    private String managerToken = AuthFactory.manager().getAccessToken();
+
+    /**
+     * Basic response time assertion.
+     * One line addition to any existing test.
+     */
+    @Test
+    public void loginResponseTime_underSLA() {
+        given()
+            .contentType("application/json")
+            .body("{\"email\":\"guest@staynest.com\",\"password\":\"pass123\"}")
+        .when()
+            .post("/auth/login")
+        .then()
+            .statusCode(200)
+            .time(lessThan(2000L));  // Must respond within 2 seconds
+    }
+
+    /**
+     * Different SLA thresholds for different endpoint types.
+     * Reads should be faster than writes.
+     */
+    @Test
+    public void getProfile_fastResponse() {
+        given()
+            .header("Authorization", "Bearer " + guestToken)
+        .when()
+            .get("/users/profile")
+        .then()
+            .statusCode(200)
+            .time(lessThan(500L));   // Read operation: 500ms SLA
+    }
+
+    @Test
+    public void hotelSearch_acceptableResponseTime() {
+        given()
+            .contentType("application/json")
+            .body("""
+                {
+                    "city": "New York",
+                    "startDate": "2025-06-01",
+                    "endDate": "2025-06-05",
+                    "roomsCount": 1,
+                    "page": 0,
+                    "size": 10
+                }
+                """)
+        .when()
+            .post("/hotels/search")
+        .then()
+            .statusCode(200)
+            .time(lessThan(3000L));  // Search may be slower: 3s SLA
+    }
+
+    /**
+     * Extract response time for logging and trend tracking.
+     */
+    @Test
+    public void trackResponseTimeForReporting() {
+        Response response = given()
+            .header("Authorization", "Bearer " + guestToken)
+        .when()
+            .get("/users/profile")
+        .then()
+            .statusCode(200)
+            .extract().response();
+
+        long responseTimeMs = response.getTime();
+        long responseTimeSec = response.getTimeIn(TimeUnit.SECONDS);
+
+        System.out.println("Profile endpoint: " + responseTimeMs + "ms");
+
+        // Soft assertion — log a warning instead of failing
+        if (responseTimeMs > 1000) {
+            System.err.println("WARNING: Profile response time exceeded 1s: "
+                + responseTimeMs + "ms");
+        }
+    }
+}
+```
+
+### Response Time Baseline Capture
+
+
+```java
+import java.util.*;
+
+/**
+ * Captures response time baselines for all major endpoints.
+ * Run this once to establish SLA baselines, then assert against them.
+ * 
+ * Output: a map of endpoint → average response time
+ * Use the averages (+ buffer) as SLA thresholds in functional tests.
+ */
+public class ResponseTimeBaseline {
+
+    private static final int SAMPLE_SIZE = 10;
+    private static final double SLA_MULTIPLIER = 2.0;  // 2x average as SLA
+
+    /**
+     * Measure and report baseline response times for key endpoints.
+     */
+    public static void captureBaselines() {
+        String guestToken = AuthFactory.guest().getAccessToken();
+        String managerToken = AuthFactory.manager().getAccessToken();
+
+        Map<String, Long> baselines = new LinkedHashMap<>();
+
+        // Measure each endpoint
+        baselines.put("POST /auth/login", measureEndpoint(() ->
+            given()
+                .contentType("application/json")
+                .body("{\"email\":\"guest@staynest.com\",\"password\":\"pass123\"}")
+            .when()
+                .post("/auth/login")
+            .then()
+                .statusCode(200)
+                .extract().response().getTime()
+        ));
+
+        baselines.put("GET /users/profile", measureEndpoint(() ->
+            given()
+                .header("Authorization", "Bearer " + guestToken)
+            .when()
+                .get("/users/profile")
+            .then()
+                .statusCode(200)
+                .extract().response().getTime()
+        ));
+
+        baselines.put("GET /admin/hotels", measureEndpoint(() ->
+            given()
+                .header("Authorization", "Bearer " + managerToken)
+            .when()
+                .get("/admin/hotels")
+            .then()
+                .statusCode(200)
+                .extract().response().getTime()
+        ));
+
+        // Report baselines
+        System.out.println("=== Response Time Baselines ===");
+        baselines.forEach((endpoint, avgMs) -> {
+            long sla = (long) (avgMs * SLA_MULTIPLIER);
+            System.out.printf("%-30s avg: %4dms  suggested SLA: %4dms%n",
+                endpoint, avgMs, sla);
+        });
+    }
+
+    /**
+     * Run an endpoint multiple times and return the average response time.
+     * Discards the first call (cold start) to avoid skewing the average.
+     */
+    private static long measureEndpoint(java.util.function.Supplier<Long> call) {
+        // Warm-up call (discard)
+        call.get();
+
+        // Measure
+        List<Long> times = new ArrayList<>();
+        for (int i = 0; i < SAMPLE_SIZE; i++) {
+            times.add(call.get());
+        }
+
+        // Calculate average (excluding outliers)
+        Collections.sort(times);
+        // Remove top and bottom 10%
+        int trimCount = times.size() / 10;
+        List<Long> trimmed = times.subList(trimCount, times.size() - trimCount);
+
+        return (long) trimmed.stream().mapToLong(Long::valueOf).average().orElse(0);
+    }
+}
+```
+
+### Simple Concurrent Load Test
+
+
+```java
+import java.util.concurrent.*;
+import java.util.stream.*;
+import java.util.*;
+
+/**
+ * Basic concurrent load test using CompletableFuture.
+ * Tests that the API handles expected concurrent traffic
+ * without errors or severe degradation.
+ *
+ * This is NOT a replacement for JMeter/Gatling — it's a
+ * smoke test for concurrency issues that functional tests miss.
+ */
+public class BasicLoadTest {
+
+    private static final int CONCURRENT_USERS = 20;
+    private static final int REQUESTS_PER_USER = 5;
+
+    /**
+     * Send concurrent requests to the search endpoint.
+     * Verify: all succeed, response times stay reasonable.
+     */
+    @Test
+    public void hotelSearch_handlesConcurrentRequests() throws Exception {
+        ExecutorService executor = Executors.newFixedThreadPool(CONCURRENT_USERS);
+        List<CompletableFuture<RequestResult>> futures = new ArrayList<>();
+
+        // Launch concurrent requests
+        for (int i = 0; i < CONCURRENT_USERS * REQUESTS_PER_USER; i++) {
+            CompletableFuture<RequestResult> future = CompletableFuture.supplyAsync(() -> {
+                long start = System.currentTimeMillis();
+                try {
+                    Response response = given()
+                        .contentType("application/json")
+                        .body("""
+                            {
+                                "city": "New York",
+                                "startDate": "2025-06-01",
+                                "endDate": "2025-06-05",
+                                "roomsCount": 1
+                            }
+                            """)
+                    .when()
+                        .post("/hotels/search")
+                    .then()
+                        .extract().response();
+
+                    long elapsed = System.currentTimeMillis() - start;
+                    return new RequestResult(
+                        response.statusCode(), elapsed, null);
+                } catch (Exception e) {
+                    long elapsed = System.currentTimeMillis() - start;
+                    return new RequestResult(-1, elapsed, e.getMessage());
+                }
+            }, executor);
+
+            futures.add(future);
+        }
+
+        // Collect results
+        List<RequestResult> results = futures.stream()
+            .map(CompletableFuture::join)
+            .collect(Collectors.toList());
+
+        executor.shutdown();
+
+        // Analyze results
+        long totalRequests = results.size();
+        long successCount = results.stream()
+            .filter(r -> r.statusCode == 200).count();
+        long errorCount = totalRequests - successCount;
+        double errorRate = (double) errorCount / totalRequests * 100;
+
+        List<Long> responseTimes = results.stream()
+            .map(r -> r.responseTimeMs)
+            .sorted()
+            .collect(Collectors.toList());
+
+        long p50 = responseTimes.get((int) (totalRequests * 0.50));
+        long p95 = responseTimes.get((int) (totalRequests * 0.95));
+        long p99 = responseTimes.get((int) (totalRequests * 0.99));
+        long max = responseTimes.get(responseTimes.size() - 1);
+
+        // Report
+        System.out.printf("""
+            === Load Test Results ===
+            Total Requests: %d
+            Success:        %d (%.1f%%)
+            Errors:         %d (%.1f%%)
+            Response Times:
+              P50:  %dms
+              P95:  %dms
+              P99:  %dms
+              Max:  %dms
+            """, totalRequests, successCount, 100 - errorRate,
+            errorCount, errorRate, p50, p95, p99, max);
+
+        // Assertions
+        assertTrue(errorRate < 1.0,
+            "Error rate should be below 1%, was " + errorRate + "%");
+        assertTrue(p95 < 5000,
+            "P95 response time should be under 5s, was " + p95 + "ms");
+    }
+
+    record RequestResult(int statusCode, long responseTimeMs, String error) {}
+}
+```
+
+### Performance Regression Detection
+
+
+```java
+/**
+ * Detects performance regressions by comparing current response times
+ * against stored baselines. Integrate into CI pipeline.
+ */
+public class PerformanceRegressionCheck {
+
+    // Baselines stored from a known-good state (could be a file or DB)
+    private static final Map<String, Long> BASELINES = Map.of(
+        "POST /auth/login", 300L,
+        "GET /users/profile", 150L,
+        "POST /hotels/search", 800L,
+        "POST /bookings/init", 500L
+    );
+
+    // Allow 50% degradation before flagging as regression
+    private static final double REGRESSION_THRESHOLD = 1.5;
+
+    @Test
+    public void checkForPerformanceRegressions() {
+        String guestToken = AuthFactory.guest().getAccessToken();
+        Map<String, String> regressions = new LinkedHashMap<>();
+
+        // Measure current response times
+        long loginTime = given()
+            .contentType("application/json")
+            .body("{\"email\":\"guest@staynest.com\",\"password\":\"pass123\"}")
+        .when()
+            .post("/auth/login")
+        .then()
+            .extract().response().getTime();
+
+        checkRegression("POST /auth/login", loginTime, regressions);
+
+        long profileTime = given()
+            .header("Authorization", "Bearer " + guestToken)
+        .when()
+            .get("/users/profile")
+        .then()
+            .extract().response().getTime();
+
+        checkRegression("GET /users/profile", profileTime, regressions);
+
+        // Report regressions
+        if (!regressions.isEmpty()) {
+            StringBuilder report = new StringBuilder("PERFORMANCE REGRESSIONS:\n");
+            regressions.forEach((endpoint, detail) ->
+                report.append("  ").append(endpoint).append(": ").append(detail).append("\n"));
+            fail(report.toString());
+        }
+    }
+
+    private void checkRegression(String endpoint, long currentMs,
+                                  Map<String, String> regressions) {
+        Long baseline = BASELINES.get(endpoint);
+        if (baseline != null && currentMs > baseline * REGRESSION_THRESHOLD) {
+            regressions.put(endpoint, String.format(
+                "baseline=%dms, current=%dms (%.1fx slower)",
+                baseline, currentMs, (double) currentMs / baseline));
+        }
+    }
+}
+```
+
+---
+
+## Failure and Debugging (Layer 4)
+
+### Failure 1: Response Time Assertion Fails Intermittently
+
+**The Problem:**
+
+
+```java
+.then()
+    .statusCode(200)
+    .time(lessThan(500L));  // Passes 90% of the time, fails 10%
+```
+
+**Root cause:** Response times are inherently variable. Network jitter, garbage collection, database connection pool warm-up, and server load all cause occasional spikes. A threshold that's too tight catches noise, not regressions.
+
+**The fix:** Use a generous threshold (2-3x expected average) and run multiple samples:
+
+
+```java
+// Option 1: Higher threshold (catches real regressions, ignores noise)
+.time(lessThan(2000L));  // Instead of 500ms
+
+// Option 2: Soft assertion with warning
+long time = response.getTime();
+if (time > 500) {
+    System.err.println("WARNING: Response time " + time + "ms exceeds 500ms target");
+}
+// Only fail on severe regression
+assertTrue(time < 5000, "Response time catastrophic: " + time + "ms");
+```
+
+### Failure 2: Load Test Overwhelms the Test Environment
+
+**The Problem:**
+
+```
+100 concurrent requests → 50% return 503 Service Unavailable
+Test reports: "ERROR RATE: 50%!"
+```
+
+**Root cause:** The test environment (local Docker, small CI server) can't handle the load. The test is valid — but the environment isn't sized for load testing. 100 concurrent requests is a lot for a single Docker container.
+
+**The fix:** Calibrate load to the environment:
+
+
+```java
+// For local/CI: low concurrency, testing "does it work under modest load?"
+private static final int CONCURRENT_USERS = 5;   // Not 100
+
+// For a dedicated perf environment: higher concurrency
+private static final int CONCURRENT_USERS = 50;
+
+// For production-like load: use proper tools (JMeter, Gatling, k6)
+```
+
+### Failure 3: First Request Is Always Slow (Cold Start)
+
+**The Problem:** The first API call in the test suite takes 3 seconds. All subsequent calls take 200ms. The first test fails the response time assertion.
+
+**Root cause:** Cold start: the first request triggers JVM warm-up, database connection pool initialization, cache priming, and potentially class loading. Subsequent requests benefit from warm caches and open connections.
+
+**The fix:** Add a warm-up call before performance assertions:
+
+
+```java
+@BeforeClass
+public void warmUp() {
+    // Warm-up calls — don't assert response time on these
+    given()
+        .contentType("application/json")
+        .body("{\"email\":\"guest@staynest.com\",\"password\":\"pass123\"}")
+    .when()
+        .post("/auth/login");  // Warms up auth path
+
+    given()
+        .contentType("application/json")
+        .body("{\"city\":\"X\",\"startDate\":\"2025-06-01\","
+            + "\"endDate\":\"2025-06-05\",\"roomsCount\":1}")
+    .when()
+        .post("/hotels/search");  // Warms up search path
+}
+```
+
+---
+
+## Engineering Judgment (Layer 5)
+
+### Where Performance Testing Fits in the SDET Role
+
+| Activity | SDET's Role | Dedicated Perf Engineer's Role |
+|----------|-------------|-------------------------------|
+| Response time assertions in functional tests | **Own this** — add to existing tests | Uses these as smoke checks |
+| Performance regression detection in CI | **Own this** — set up baseline comparison | Defines thresholds and baselines |
+| Basic load testing (20-50 concurrent users) | **Own this** — validate under modest load | Designs comprehensive load profiles |
+| Capacity planning (how many users can the system handle?) | **Escalate** — not your job | Owns this analysis |
+| Stress testing (push to failure) | **Assist** — run tests, report results | Designs the test, interprets results |
+| Production performance monitoring | **Consume** — use dashboards to inform test design | Sets up monitoring and alerting |
+
+### Performance Testing Tool Landscape
+
+| Tool | Type | Language | Best For | SDET Should Know |
+|------|------|----------|----------|-------------------|
+| **REST Assured `.time()`** | Response time assertion | Java | Adding perf checks to functional tests | **Yes — use daily** |
+| **JMeter** | Load/stress testing | GUI + Java | Traditional load testing, complex scenarios | Conceptual — can run existing scripts |
+| **Gatling** | Load/stress testing | Scala/Java | Developer-friendly load testing, CI-integrated | Conceptual — growing in popularity |
+| **k6** | Load/stress testing | JavaScript | Modern, developer-centric load testing | Conceptual — easy scripting, good for SDETs |
+| **Locust** | Load/stress testing | Python | Python teams, simple load profiles | Conceptual — if team uses Python |
+| **Artillery** | Load/stress testing | YAML/JS | Quick and simple load tests | Conceptual — easy to set up |
+
+**Recommendation for SDETs:** Master REST Assured's response time assertions (you already use REST Assured). Learn k6 conceptually — it's the most SDET-friendly load testing tool. Know that JMeter and Gatling exist for when you need to run team-owned load test scripts.
+
+### Response Time Thresholds: What's Reasonable?
+
+| Endpoint Type | Typical SLA | StayNest Suggestion | Notes |
+|---------------|-------------|---------------------|-------|
+| Auth (login) | 500ms-1s | 1000ms | Password hashing is intentionally slow |
+| Simple read (profile) | 100-300ms | 500ms | Should be fast — single DB query |
+| Search with filters | 500ms-2s | 3000ms | Complex query, may join multiple tables |
+| Create (booking init) | 300ms-1s | 2000ms | Writes, inventory checks, transaction |
+| Delete | 200-500ms | 1000ms | Cascade deletes may be slower |
+| File upload | 2-10s | N/A | Depends on file size |
+
+**Important:** These are guidelines, not rules. Measure your actual baselines and set thresholds relative to them. A 300ms endpoint doesn't need a 3000ms SLA — set it at 600-900ms.
+
+### Hard vs Soft Performance Assertions
+
+| Type | What Happens on Failure | When to Use |
+|------|------------------------|-------------|
+| **Hard assertion** (test fails) | Build goes red; blocks deployment | Critical SLAs, endpoints with contractual obligations |
+| **Soft assertion** (warning logged) | Build stays green; warning in report | Non-critical endpoints, baseline tracking, trend monitoring |
+| **Trend tracking** (no assertion) | Response times logged for dashboards | All endpoints — for historical analysis |
+
+
+```java
+// Hard assertion — fails the test
+.time(lessThan(2000L));
+
+// Soft assertion — logs warning, doesn't fail
+long time = response.getTime();
+softAssert.assertTrue(time < 1000,
+    "Profile response time " + time + "ms exceeds 1s soft target");
+
+// Trend tracking — always log, never fail
+System.out.println("PERF|" + endpoint + "|" + time + "ms|" + timestamp);
+```
+
+---
+
+## Interview and Revision (Layer 6)
+
+### Fundamental Questions
+
+**Q1: How do you incorporate performance testing into your API test automation?**
+
+**A:** I add performance awareness at three levels: (1) **Response time assertions** in every functional test — one line (`time(lessThan(2000L))`) that catches regressions for free. (2) **Baseline comparison** in CI — I capture response time baselines from a known-good state and flag any endpoint that degrades beyond 50% of its baseline. (3) **Basic concurrent load tests** — a simple CompletableFuture-based test that sends 20-50 concurrent requests and verifies error rate stays below 1% and P95 stays under 5 seconds. For serious load testing (capacity planning, stress testing), I escalate to the performance engineering team or use dedicated tools like k6 or Gatling.
+
+**Q2: What's the difference between P50, P95, and P99?**
+
+**A:** These are percentile metrics for response time. P50 (median) is the response time below which 50% of requests complete — it represents the "typical" experience. P95 means 95% of requests are faster — it represents the "most users" experience. P99 means 99% are faster — it catches the worst-case scenarios for normal traffic. I focus on P95 for SLA assertions because the average can hide outliers: if 99 requests take 100ms and 1 takes 10 seconds, the average is 199ms (looks fine) but the P99 is 10,000ms (reveals the problem). P95 balances between catching real issues and ignoring rare noise.
+
+**Q3: What's an N+1 query problem and how would you detect it in API testing?**
+
+**A:** An N+1 query happens when the application fetches a list of N items with one query, then runs a separate query for each item's related data — resulting in N+1 queries total instead of 1-2. I detect it by measuring response time scaling: I create 10 hotels, measure `GET /admin/hotels` response time, then create 100 hotels and measure again. If the time scales linearly (10x more data → 10x slower), it's likely N+1. With efficient queries (JOINs or batch loading), more data should increase response time sub-linearly. If I suspect N+1, I check the application logs for query counts or ask the developer to examine the ORM's query generation.
+
+### Scenario-Based Questions
+
+**S1: "The login endpoint used to respond in 200ms. After a deployment, it takes 800ms. All functional tests pass. How do you investigate?"**
+
+**A:** (1) Confirm the regression is consistent — run the endpoint 10 times and average to eliminate noise. (2) Check what changed in the deployment — the diff might reveal: added password hashing iterations (intentional slowdown for security), new audit logging, additional database queries, or a new middleware layer. (3) Check if it's endpoint-specific — if ALL endpoints slowed down, it's infrastructure (CPU, memory, database). If only login, it's code-specific. (4) Check database queries — login involves user lookup and token generation; a missing index on the email column would cause linear scan. (5) Report with data: "Login endpoint P95 increased from 200ms to 800ms (4x) between build 123 and 124. Other endpoints unaffected. Likely caused by [specific change]."
+
+**S2: "A teammate says 'response time assertions make tests flaky.' How do you respond?"**
+
+**A:** They're right if the thresholds are too tight. A 500ms assertion on an endpoint that normally takes 400ms will flake whenever there's a GC pause or network hiccup. The solution isn't removing the assertion — it's setting the right threshold. I use 2-3x the measured baseline: if the endpoint averages 200ms, I assert at 500-600ms. This ignores normal variance but catches real regressions (e.g., a missing index that makes it 2 seconds). For extra protection, I can make it a soft assertion that logs a warning instead of failing the build. The goal is catching the jump from 200ms to 2000ms, not from 200ms to 250ms.
+
+
+
+
+| # | Front (Question) | Back (Answer) |
+|---|---|---|
+| 1 | How do you add a response time assertion in REST Assured? | `.time(lessThan(2000L))` — asserts the response was received within 2000 milliseconds. Add after `.statusCode()` in the `then()` block. |
+| 2 | Why discard the first request when measuring baselines? | Cold start: the first request triggers JVM warm-up, connection pool initialization, and cache priming. It's not representative of steady-state performance. |
+| 3 | What does P95 mean? | The 95th percentile response time — 95% of requests completed faster than this value. It represents the "most users" experience and catches outliers that averages hide. |
+| 4 | How do you detect N+1 query problems in API tests? | Measure response time with increasing data volume (10 items, 100 items, 1000 items). If response time scales linearly with data volume, it's likely N+1. Efficient queries scale sub-linearly. |
+| 5 | REST Assured `.time()` vs JMeter/Gatling/k6? | `.time()` adds perf checks to existing functional tests — free and easy. JMeter/Gatling/k6 are dedicated load testing tools for simulating many concurrent users. SDETs should master `.time()` and know when to escalate to dedicated tools. |
+
+### Mastery Checklist
+
+- [ ] Can add response time assertions to any REST Assured test
+- [ ] Can capture baseline response times and calculate appropriate SLA thresholds
+- [ ] Can write a basic concurrent load test using CompletableFuture
+- [ ] Can explain P50, P95, P99 and why percentiles matter more than averages
+- [ ] Can detect N+1 query problems through response time scaling analysis
+- [ ] Can distinguish between SDET performance responsibilities and dedicated perf engineering
+- [ ] Can set up warm-up calls to avoid cold-start false failures
+- [ ] Can articulate the trade-off between hard and soft performance assertions
+
+---
+
+**Related:** Api Test Data And Cleanup, Http And Rest Fundamentals
+
+*Last updated: *

@@ -1,0 +1,537 @@
+---
+title: "Project: Playwright + TypeScript Framework"
+description: "Build a modern test automation framework using Playwright and TypeScript for the StayNest web application. This project demonstrates the contemporary alternative to Selenium — auto-waits, built-in parallelism, trace viewer debugging, and combined API + UI testing in a single framework."
+summary: "SDET Engineering guide: Project: Playwright + TypeScript Framework"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "projects"
+lesson: "playwright-typescript-framework"
+difficulty: "intermediate"
+estimatedMinutes: 34
+prerequisites: []
+tags: ["SDET", "Projects", "Portfolio"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/projects/playwright-typescript-framework"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Project: Playwright + TypeScript Framework
+
+> **Module:** 12 — Projects
+> **Prerequisites:** Project Roadmap, Page And Screen Objects, Parallel Execution
+> **Estimated Time:** 15-20 hours
+> **Difficulty:** Intermediate
+
+---
+
+## Project Description
+
+Build a modern test automation framework using Playwright and TypeScript for the StayNest web application. This project demonstrates the contemporary alternative to Selenium — auto-waits, built-in parallelism, trace viewer debugging, and combined API + UI testing in a single framework.
+
+**Why Playwright alongside Selenium?** Many companies are migrating to Playwright. Having both in your portfolio shows adaptability and lets you compare trade-offs in interviews ("I've used both — here's when I'd choose each one").
+
+**System under test:** StayNest React web client (`http://localhost:5173`) and API (`http://localhost:8080/api/v1`)
+
+---
+
+## Tech Stack
+
+| Component | Technology | Purpose |
+| --- | --- | --- |
+| Language | TypeScript | Type-safe test code |
+| Test Framework | Playwright Test | Runner, assertions, parallelism |
+| Browser Automation | Playwright | Chromium, Firefox, WebKit |
+| API Testing | Playwright `request` context | Built-in HTTP client |
+| Reporting | Playwright HTML Reporter | Built-in HTML reports |
+| Trace Viewer | Playwright Traces | Post-mortem debugging |
+| Package Manager | npm | Dependency management |
+
+---
+
+## Framework Architecture
+
+```
+┌───────────────────────────────────────────────┐
+│  Test Layer (.spec.ts files)                  │
+│  login.spec.ts, search.spec.ts, booking.spec │
+│  - Uses page objects via fixtures             │
+│  - Combines API setup + UI verification       │
+│  - Playwright auto-waits (no explicit waits)  │
+├───────────────────────────────────────────────┤
+│  Page Object Layer                            │
+│  LoginPage, HomePage, HotelDetailPage,        │
+│  BookingPage, MyBookingsPage                  │
+│  - Accepts Playwright Page in constructor     │
+│  - Returns Locator objects (lazy evaluation)  │
+│  - Methods are async (Playwright is async)    │
+├───────────────────────────────────────────────┤
+│  Fixture Layer                                │
+│  fixtures.ts (custom test fixtures)           │
+│  - Provides page objects to tests via DI      │
+│  - Handles auth state (storageState)          │
+│  - Manages API client for test data setup     │
+├───────────────────────────────────────────────┤
+│  API Helper Layer                             │
+│  ApiHelper class                              │
+│  - Creates test data via API (users, hotels)  │
+│  - Generates auth tokens                      │
+│  - Shared between API-only and UI tests       │
+├───────────────────────────────────────────────┤
+│  Config Layer                                 │
+│  playwright.config.ts                         │
+│  - Base URL, timeouts, retries                │
+│  - Multi-browser projects (Chromium, FF, WK)  │
+│  - CI vs local configuration                  │
+└───────────────────────────────────────────────┘
+```
+
+---
+
+## Project Structure
+
+```
+staynest-playwright-framework/
+├── package.json
+├── tsconfig.json
+├── playwright.config.ts
+├── README.md
+├── src/
+│   ├── pages/
+│   │   ├── LoginPage.ts
+│   │   ├── HomePage.ts
+│   │   ├── HotelDetailPage.ts
+│   │   ├── BookingPage.ts
+│   │   ├── MyBookingsPage.ts
+│   │   └── ProfilePage.ts
+│   ├── components/
+│   │   ├── Navbar.ts
+│   │   ├── SearchBar.ts
+│   │   └── HotelCard.ts
+│   ├── api/
+│   │   └── ApiHelper.ts
+│   ├── fixtures/
+│   │   └── fixtures.ts
+│   └── utils/
+│       └── TestDataGenerator.ts
+├── tests/
+│   ├── ui/
+│   │   ├── login.spec.ts
+│   │   ├── search.spec.ts
+│   │   ├── booking.spec.ts
+│   │   ├── profile.spec.ts
+│   │   └── navigation.spec.ts
+│   └── api/
+│       ├── auth.spec.ts
+│       ├── hotels.spec.ts
+│       └── bookings.spec.ts
+├── .github/
+│   └── workflows/
+│       └── test.yml
+└── test-results/
+```
+
+---
+
+## Implementation Milestones
+
+### Milestone 1: Project Setup (2 hours)
+
+**Objectives:** Initialize Playwright project, configure TypeScript, write first test.
+
+
+```bash
+# Initialize project
+mkdir staynest-playwright-framework && cd staynest-playwright-framework
+npm init -y
+npm init playwright@latest
+# Select: TypeScript, tests folder, GitHub Actions workflow, install browsers
+```
+
+
+```typescript
+// playwright.config.ts
+import { defineConfig, devices } from '@playwright/test';
+
+export default defineConfig({
+  testDir: './tests',
+  fullyParallel: true,
+  forbidOnly: !!process.env.CI,
+  retries: process.env.CI ? 2 : 0,
+  workers: process.env.CI ? 2 : undefined,
+  reporter: [
+    ['html', { open: 'never' }],
+    ['list'],
+  ],
+  use: {
+    baseURL: process.env.BASE_URL || 'http://localhost:5173',
+    trace: 'on-first-retry',
+    screenshot: 'only-on-failure',
+    video: 'on-first-retry',
+  },
+  projects: [
+    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+    { name: 'firefox', use: { ...devices['Desktop Firefox'] } },
+    { name: 'webkit', use: { ...devices['Desktop Safari'] } },
+  ],
+  webServer: {
+    command: 'echo "Ensure StayNest is running on localhost:5173"',
+    url: 'http://localhost:5173',
+    reuseExistingServer: true,
+  },
+});
+```
+
+**Success criteria:**
+- [ ] `npx playwright test --project=chromium` runs without errors
+- [ ] Example test opens StayNest and verifies the page title
+
+### Milestone 2: First Real Test and Page Objects (4 hours)
+
+**Objectives:** LoginPage POM, login test, understand Playwright's auto-wait.
+
+
+```typescript
+// src/pages/LoginPage.ts
+import { Page, Locator } from '@playwright/test';
+
+export class LoginPage {
+  readonly page: Page;
+  readonly emailInput: Locator;
+  readonly passwordInput: Locator;
+  readonly loginButton: Locator;
+  readonly errorMessage: Locator;
+
+  constructor(page: Page) {
+    this.page = page;
+    this.emailInput = page.getByTestId('email-input');
+    this.passwordInput = page.getByTestId('password-input');
+    this.loginButton = page.getByTestId('login-button');
+    this.errorMessage = page.getByTestId('error-message');
+  }
+
+  async goto() {
+    await this.page.goto('/login');
+  }
+
+  async login(email: string, password: string) {
+    await this.emailInput.fill(email);
+    await this.passwordInput.fill(password);
+    await this.loginButton.click();
+  }
+
+  async getErrorText(): Promise<string> {
+    return await this.errorMessage.textContent() ?? '';
+  }
+}
+
+// src/pages/HomePage.ts
+import { Page, Locator } from '@playwright/test';
+
+export class HomePage {
+  readonly page: Page;
+  readonly userName: Locator;
+  readonly searchBar: Locator;
+  readonly hotelCards: Locator;
+
+  constructor(page: Page) {
+    this.page = page;
+    this.userName = page.getByTestId('user-name');
+    this.searchBar = page.getByTestId('search-bar');
+    this.hotelCards = page.getByTestId('hotel-card');
+  }
+
+  async getUserName(): Promise<string> {
+    return await this.userName.textContent() ?? '';
+  }
+
+  async getHotelCardCount(): Promise<number> {
+    return await this.hotelCards.count();
+  }
+}
+```
+
+
+```typescript
+// tests/ui/login.spec.ts
+import { test, expect } from '@playwright/test';
+import { LoginPage } from '../../src/pages/LoginPage';
+import { HomePage } from '../../src/pages/HomePage';
+
+test.describe('Login', () => {
+  test('should login with valid credentials', async ({ page }) => {
+    const loginPage = new LoginPage(page);
+    const homePage = new HomePage(page);
+
+    await loginPage.goto();
+    await loginPage.login('testuser@staynest.com', 'password123');
+
+    await expect(homePage.userName).toBeVisible();
+    const name = await homePage.getUserName();
+    expect(name).not.toBe('');
+  });
+
+  test('should show error for invalid credentials', async ({ page }) => {
+    const loginPage = new LoginPage(page);
+
+    await loginPage.goto();
+    await loginPage.login('wrong@email.com', 'wrongpassword');
+
+    await expect(loginPage.errorMessage).toBeVisible();
+    const errorText = await loginPage.getErrorText();
+    expect(errorText).toContain('Invalid');
+  });
+});
+```
+
+**Success criteria:**
+- [ ] Login tests pass using Page Objects
+- [ ] No explicit waits in tests — Playwright's auto-wait handles timing
+- [ ] Page objects use `getByTestId()` locator strategy
+
+### Milestone 3: Custom Fixtures and Auth State (3 hours)
+
+**Objectives:** DI-style fixtures for page objects, reusable auth state.
+
+
+```typescript
+// src/fixtures/fixtures.ts
+import { test as base } from '@playwright/test';
+import { LoginPage } from '../pages/LoginPage';
+import { HomePage } from '../pages/HomePage';
+import { HotelDetailPage } from '../pages/HotelDetailPage';
+import { ApiHelper } from '../api/ApiHelper';
+
+type StayNestFixtures = {
+  loginPage: LoginPage;
+  homePage: HomePage;
+  hotelDetailPage: HotelDetailPage;
+  apiHelper: ApiHelper;
+  authenticatedPage: void; // logs in before test
+};
+
+export const test = base.extend<StayNestFixtures>({
+  loginPage: async ({ page }, use) => {
+    await use(new LoginPage(page));
+  },
+
+  homePage: async ({ page }, use) => {
+    await use(new HomePage(page));
+  },
+
+  hotelDetailPage: async ({ page }, use) => {
+    await use(new HotelDetailPage(page));
+  },
+
+  apiHelper: async ({ request }, use) => {
+    await use(new ApiHelper(request));
+  },
+
+  authenticatedPage: async ({ page }, use) => {
+    // Create user via API and login via UI
+    const loginPage = new LoginPage(page);
+    await loginPage.goto();
+    await loginPage.login('testuser@staynest.com', 'password123');
+    await page.waitForURL('/');
+    await use();
+  },
+});
+
+export { expect } from '@playwright/test';
+```
+
+**Success criteria:**
+- [ ] Tests use custom fixtures instead of constructing page objects manually
+- [ ] Auth state is reusable across tests in the same file
+
+### Milestone 4: API + UI Combined Testing (3 hours)
+
+**Objectives:** Use Playwright's built-in `request` context for API testing alongside UI tests.
+
+
+```typescript
+// src/api/ApiHelper.ts
+import { APIRequestContext } from '@playwright/test';
+
+export class ApiHelper {
+  private request: APIRequestContext;
+  private baseUrl = process.env.API_URL || 'http://localhost:8080/api/v1';
+
+  constructor(request: APIRequestContext) {
+    this.request = request;
+  }
+
+  async signup(email: string, password: string, name: string): Promise<void> {
+    const response = await this.request.post(`${this.baseUrl}/auth/signup`, {
+      data: { email, password, name, roles: ['GUEST'] },
+    });
+    if (response.status() !== 201) {
+      throw new Error(`Signup failed: ${response.status()}`);
+    }
+  }
+
+  async login(email: string, password: string): Promise<string> {
+    const response = await this.request.post(`${this.baseUrl}/auth/login`, {
+      data: { email, password },
+    });
+    const body = await response.json();
+    return body.data.accessToken;
+  }
+
+  async createHotelAndActivate(token: string, name: string, city: string): Promise<number> {
+    const createResponse = await this.request.post(`${this.baseUrl}/admin/hotels`, {
+      headers: { Authorization: `Bearer ${token}` },
+      data: { name, city },
+    });
+    const hotel = await createResponse.json();
+    const hotelId = hotel.data.id;
+
+    await this.request.patch(`${this.baseUrl}/admin/hotels/${hotelId}/activate`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    return hotelId;
+  }
+}
+
+// tests/ui/booking.spec.ts — API setup + UI verification
+import { test, expect } from '../../src/fixtures/fixtures';
+
+test.describe('Booking Flow', () => {
+  test('should complete booking via UI with API-created test data', async ({
+    page, apiHelper, loginPage, homePage
+  }) => {
+    // API: create test data
+    const email = `booking-test-${Date.now()}@test.com`;
+    await apiHelper.signup(email, 'password123', 'Booking Tester');
+    const managerToken = await apiHelper.login('manager@test.com', 'password123');
+    const hotelId = await apiHelper.createHotelAndActivate(
+      managerToken, 'Test Hotel', 'New York'
+    );
+
+    // UI: login and book
+    await loginPage.goto();
+    await loginPage.login(email, 'password123');
+    await expect(homePage.userName).toBeVisible();
+
+    // Search and book through UI...
+  });
+});
+```
+
+**Success criteria:**
+- [ ] API helper creates test data before UI tests execute
+- [ ] Standalone API tests exist alongside UI tests
+- [ ] Tests can mix API setup with UI verification in a single test
+
+### Milestone 5: Traces and Debugging (2 hours)
+
+**Objectives:** Configure trace collection, learn to debug failures using Trace Viewer.
+
+
+```typescript
+// Update playwright.config.ts for detailed traces
+use: {
+  trace: 'on-first-retry',    // Collect trace on first retry of a failing test
+  screenshot: 'only-on-failure',
+  video: 'on-first-retry',
+},
+```
+
+```bash
+# View trace after a failure
+npx playwright show-trace test-results/login-should-login/trace.zip
+
+# This opens an interactive timeline showing:
+# - Every action (click, fill, navigate)
+# - Network requests and responses
+# - DOM snapshots at each step
+# - Console logs
+```
+
+**Success criteria:**
+- [ ] Traces are collected for failing tests
+- [ ] You can open Trace Viewer and identify the exact action that failed
+- [ ] Screenshots and videos are attached to the HTML report
+
+### Milestone 6: CI Integration (2 hours)
+
+**Objectives:** GitHub Actions workflow running tests in all three browsers.
+
+
+```yaml
+# .github/workflows/test.yml
+name: Playwright Tests
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install dependencies
+        run: npm ci
+      - name: Install Playwright Browsers
+        run: npx playwright install --with-deps
+      - name: Start StayNest
+        run: docker compose up -d
+      - name: Wait for backend
+        run: npx wait-on http://localhost:5173 --timeout 60000
+      - name: Run tests
+        run: npx playwright test
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report
+          path: playwright-report/
+```
+
+**Success criteria:**
+- [ ] Tests run in Chromium, Firefox, and WebKit in CI
+- [ ] HTML report is available as a downloadable artifact
+- [ ] Pipeline completes in under 5 minutes
+
+---
+
+## Tests to Write
+
+| Spec File | Test | Priority | Description |
+| --- | --- | --- | --- |
+| login.spec.ts | should login with valid credentials | P0 | Login → verify home |
+| login.spec.ts | should show error for invalid credentials | P0 | Wrong password → error |
+| search.spec.ts | should search hotels by city | P0 | Search → verify results |
+| search.spec.ts | should navigate to hotel detail | P0 | Click hotel → detail page |
+| booking.spec.ts | should complete booking flow | P0 | Full booking through UI |
+| booking.spec.ts | should show booking in my bookings | P1 | Verify booking history |
+| profile.spec.ts | should display user profile | P1 | Navigate to profile |
+| auth.spec.ts (API) | should signup and login via API | P0 | API-only auth tests |
+| hotels.spec.ts (API) | should create and search hotels | P0 | API-only hotel tests |
+| bookings.spec.ts (API) | should complete booking lifecycle | P0 | API-only booking lifecycle |
+
+---
+
+## Playwright vs Selenium: Interview Talking Points
+
+| Aspect | Playwright | Selenium |
+| --- | --- | --- |
+| Auto-waiting | Built-in, no explicit waits needed | Requires explicit WebDriverWait |
+| Parallelism | Built-in worker processes | Requires TestNG/JUnit parallel config |
+| Multi-browser | Chromium, Firefox, WebKit in one run | Requires separate driver management |
+| Debugging | Trace Viewer, codegen, inspector | Screenshot + logs |
+| API testing | Built-in `request` context | Requires separate library (REST Assured) |
+| Language | TypeScript/JavaScript (also Java, Python, C#) | Java, Python, C#, Ruby, JavaScript |
+| Maturity | Newer (2020), rapidly evolving | Mature (2004), stable ecosystem |
+
+---
+
+**Related:** Project Roadmap

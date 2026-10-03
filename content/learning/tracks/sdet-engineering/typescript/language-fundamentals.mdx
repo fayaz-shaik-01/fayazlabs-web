@@ -1,0 +1,817 @@
+---
+title: "TypeScript Language Fundamentals"
+description: "What: TypeScript is a statically-typed superset of JavaScript — every valid JS file is valid TS, but TS adds a type system that catches errors at compile time. This module covers the language primitives: variables, data types, functions, operators, control flow, and basic data structures."
+summary: "SDET Engineering guide: TypeScript Language Fundamentals"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "typescript"
+lesson: "language-fundamentals"
+difficulty: "intermediate"
+estimatedMinutes: 52
+prerequisites: []
+tags: ["SDET", "TypeScript", "Programming"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/typescript/language-fundamentals"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# TypeScript Language Fundamentals
+
+> **Module:** 01 — Programming Foundations / TypeScript  
+> **Prerequisites:** Java Syntax And Control Flow (you should already be comfortable with variables, loops, and functions in Java)  
+> **Mastery Target:** L3 (independent — write TypeScript functions, tests, and debug type errors without guidance)
+
+---
+
+## Quick Overview (Layer 1)
+
+**What:** TypeScript is a statically-typed superset of JavaScript — every valid JS file is valid TS, but TS adds a type system that catches errors at compile time. This module covers the language primitives: variables, data types, functions, operators, control flow, and basic data structures.
+
+**Why:** Playwright is written in TypeScript, and every modern test framework in the JS ecosystem uses it. As a Java SDET, you already know *what* variables, functions, and loops do — this module teaches you *how TypeScript spells them*, where it differs from Java, and what traps await a Java developer writing TS for the first time.
+
+**Where:** Every `.ts` file you write — page objects, test specs, utility functions, configuration files, custom fixtures.
+
+<MentalModel>
+
+Think of TypeScript as sitting between Java and JavaScript:
+
+</MentalModel>
+
+
+| Dimension | Java | TypeScript | JavaScript |
+|---|---|---|---|
+| Type checking | Compile-time, strict | Compile-time, configurable strictness | Runtime only |
+| Type annotations | Required everywhere | Optional (inferred when possible) | None |
+| Compilation target | JVM bytecode | JavaScript (runs in Node.js or browser) |  Interpreted directly |
+| OOP model | Class-based, everything is a class | Class-based + structural typing + functions as first-class | Prototype-based |
+| Null safety | `NullPointerException` at runtime | `strictNullChecks` catches at compile time | `undefined` / `null` everywhere |
+
+You already understand *why* types matter. TypeScript just lets you express types more flexibly than Java — union types, literal types, structural typing — while writing less boilerplate.
+
+<KeyTakeaways>
+
+1. **`let` and `const` replace Java's variable declarations** — `const` is your default (like `final`), `let` for reassignment, never `var`.
+2. **TypeScript infers types aggressively** — you rarely need to write `: string` when the compiler can figure it out. But explicit types on function signatures are good practice.
+3. **`===` is your `==`** — always use strict equality. JavaScript's `==` does type coercion that will surprise you.
+4. **Functions are values** — you can assign them to variables, pass them as arguments, and return them. Arrow functions (`=>`) are the idiomatic form.
+5. **`null` and `undefined` are separate types** — unlike Java's single `null`, TypeScript distinguishes between "explicitly nothing" (`null`) and "not yet assigned" (`undefined`).
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation (Layer 2)
+
+### Variables: let, const, and var
+
+In Java, you declare variables with a type: `String name = "hello";`. In TypeScript, you declare with a keyword and the type is inferred or annotated:
+
+
+```typescript
+// const — cannot be reassigned (like Java's final)
+const baseUrl = "https://api.example.com";   // inferred as string
+const maxRetries = 3;                         // inferred as number
+// baseUrl = "other";  // ERROR: Cannot assign to 'const' variable
+
+// let — can be reassigned
+let retryCount = 0;                           // inferred as number
+retryCount = 1;                               // OK
+
+// Explicit type annotation (optional when initializing)
+let statusCode: number;                       // declared but not assigned
+statusCode = 200;                             // assigned later
+
+// var — function-scoped, NOT block-scoped. NEVER use this.
+// var leaky = "I escape blocks";  // hoisted to function scope — leads to bugs
+```
+
+**The `var` trap for Java developers:**
+In Java, all variables are block-scoped. In JavaScript/TypeScript, `var` is *function-scoped* — it ignores `if`/`for` blocks entirely. This is a legacy behavior. Always use `const` or `let`.
+
+
+```typescript
+// Dangerous: var leaks out of blocks
+function demonstrateVar() {
+    if (true) {
+        var leaked = "I'm visible outside the if block";
+        let contained = "I stay inside the if block";
+    }
+    console.log(leaked);      // "I'm visible outside the if block" — surprising!
+    // console.log(contained); // ERROR: contained is not defined — correct behavior
+}
+```
+
+**Rule of thumb:** Use `const` by default. Switch to `let` only when you need reassignment. Never use `var`.
+
+### Data Types
+
+TypeScript's type system is richer and more flexible than Java's:
+
+| TypeScript Type | Java Equivalent | Notes |
+|---|---|---|
+| `string` | `String` | Lowercase `string` (primitive type), not `String` (the wrapper) |
+| `number` | `int` / `double` | One type for all numbers — no int vs float vs double distinction |
+| `boolean` | `boolean` | Same concept |
+| `null` | `null` | An explicit "nothing" value — it's its own type in TS |
+| `undefined` | No equivalent | "Not yet assigned" — default for uninitialized variables |
+| `any` | `Object` (loosely) | Disables type checking — avoid in production code |
+| `unknown` | No equivalent | Type-safe version of `any` — must narrow before use |
+| `void` | `void` | Function returns nothing |
+| `never` | No equivalent | Function never returns (throws or infinite loop) |
+
+
+```typescript
+// Primitives
+const name: string = "Playwright Test";
+const timeout: number = 30000;          // milliseconds — no int/long distinction
+const isHeadless: boolean = true;
+const nothing: null = null;
+const notSet: undefined = undefined;
+
+// Arrays — two equivalent syntaxes
+const browsers: string[] = ["chromium", "firefox", "webkit"];
+const ports: Array<number> = [3000, 8080, 9090];
+
+// any — disables type checking (AVOID)
+let config: any = { timeout: 30 };
+config = "now I'm a string";           // no error — type safety gone
+config.nonExistent.deep.access;        // no compile error — crashes at runtime
+
+// unknown — safe alternative to any (PREFER)
+let response: unknown = await fetchData();
+// response.data;                       // ERROR: Object is of type 'unknown'
+if (typeof response === "object" && response !== null) {
+    // Now TypeScript knows response is an object — you can narrow further
+}
+```
+
+**Why `unknown` over `any`:** Think of `any` as "I give up on type safety" and `unknown` as "I don't know the type *yet* but I'll figure it out before using it." In test automation, API responses are a common `unknown` — you fetch data, then validate its shape before using it.
+
+### Functions
+
+TypeScript functions come in several forms. Java developers: the biggest shift is that **functions are values** — they can be stored in variables, passed as arguments, and returned from other functions.
+
+
+```typescript
+// Named function (closest to Java methods)
+function calculateRetryDelay(attempt: number, baseDelay: number): number {
+    return baseDelay * Math.pow(2, attempt);   // exponential backoff
+}
+
+// Arrow function (preferred for short functions and callbacks)
+const calculateRetryDelay2 = (attempt: number, baseDelay: number): number => {
+    return baseDelay * Math.pow(2, attempt);
+};
+
+// Arrow function — implicit return (single expression)
+const double = (n: number): number => n * 2;
+
+// Optional parameters (like Java's method overloading, but simpler)
+function log(message: string, level?: string): void {
+    const prefix = level ?? "INFO";    // ?? is "nullish coalescing" — default if null/undefined
+    console.log(`[${prefix}] ${message}`);
+}
+log("Test started");            // [INFO] Test started
+log("Test failed", "ERROR");    // [ERROR] Test failed
+
+// Default parameters
+function createConfig(baseUrl: string, timeout: number = 30000): object {
+    return { baseUrl, timeout };
+}
+createConfig("https://api.example.com");           // { baseUrl: "...", timeout: 30000 }
+createConfig("https://api.example.com", 60000);    // { baseUrl: "...", timeout: 60000 }
+
+// Rest parameters (like Java's varargs)
+function logAll(prefix: string, ...messages: string[]): void {
+    messages.forEach(msg => console.log(`${prefix}: ${msg}`));
+}
+logAll("TEST", "step 1", "step 2", "step 3");
+```
+
+**Java developer note:** There's no method overloading in TypeScript the way Java does it. Instead, you use optional parameters, default parameters, or union types. TypeScript *does* have overload signatures, but they work differently — covered in Types And Interfaces.
+
+### Template Literals
+
+Java has `String.format()` and text blocks. TypeScript uses **template literals** — backtick strings with embedded expressions:
+
+
+```typescript
+const testName = "loginTest";
+const duration = 1.234;
+const status = "PASS";
+
+// Template literal — backticks with ${expression}
+const summary = `Test "${testName}" ${status} in ${duration.toFixed(2)}s`;
+// → Test "loginTest" PASS in 1.23s
+
+// Multi-line (no need for \n or text blocks)
+const report = `
+  ═══════════════════════════
+  Test: ${testName}
+  Status: ${status}
+  Duration: ${duration}s
+  ═══════════════════════════
+`;
+
+// Expressions inside ${}
+const message = `Retry in ${Math.pow(2, 3) * 1000}ms`;  // "Retry in 8000ms"
+```
+
+### Destructuring and Spread
+
+These are patterns you'll use *constantly* in Playwright test code. Java has no equivalent.
+
+
+```typescript
+// Object destructuring — extract properties into variables
+const config = { baseUrl: "https://example.com", timeout: 30000, headless: true };
+const { baseUrl, timeout } = config;         // creates two variables
+console.log(baseUrl);                        // "https://example.com"
+
+// Rename during destructuring
+const { baseUrl: url, timeout: ms } = config;
+console.log(url);                            // "https://example.com"
+
+// Array destructuring
+const [first, second, ...rest] = [1, 2, 3, 4, 5];
+console.log(first);  // 1
+console.log(rest);   // [3, 4, 5]
+
+// Spread operator — shallow copy + merge objects
+const defaults = { timeout: 30000, headless: true, retries: 0 };
+const overrides = { timeout: 60000, retries: 2 };
+const merged = { ...defaults, ...overrides };
+// { timeout: 60000, headless: true, retries: 2 }  — later spread wins
+
+// Spread with arrays
+const baseTests = ["login", "logout"];
+const allTests = [...baseTests, "checkout", "search"];
+// ["login", "logout", "checkout", "search"]
+```
+
+**In Playwright:** You'll see destructuring everywhere — `const { page, context } = await browser.newContext()`, fixture parameters like `({ page, request }, use) => { ... }`.
+
+### Control Flow
+
+Control flow in TypeScript works almost identically to Java. The syntax differences are minor:
+
+
+```typescript
+// if / else — same as Java
+const statusCode = 404;
+if (statusCode >= 200 && statusCode < 300) {
+    console.log("Success");
+} else if (statusCode === 404) {
+    console.log("Not found");
+} else {
+    console.log(`Error: ${statusCode}`);
+}
+
+// Ternary — same as Java
+const result = statusCode === 200 ? "PASS" : "FAIL";
+
+// for loop — same as Java
+for (let i = 0; i < 5; i++) {
+    console.log(`Attempt ${i + 1}`);
+}
+
+// for...of — like Java's enhanced for-each (iterates VALUES)
+const browsers = ["chromium", "firefox", "webkit"];
+for (const browser of browsers) {
+    console.log(`Testing on ${browser}`);
+}
+
+// for...in — iterates KEYS/INDICES (rarely use for arrays, useful for objects)
+const config2 = { baseUrl: "https://example.com", timeout: 30000 };
+for (const key in config2) {
+    console.log(`${key}: ${config2[key as keyof typeof config2]}`);
+}
+
+// while and do-while — same as Java
+let attempts = 0;
+while (attempts < 3) {
+    attempts++;
+}
+
+// switch — same structure, but also works with strings natively
+const env = "staging";
+switch (env) {
+    case "dev":
+        console.log("Development");
+        break;
+    case "staging":
+        console.log("Staging");
+        break;
+    case "prod":
+        console.log("Production");
+        break;
+    default:
+        console.log("Unknown environment");
+}
+```
+
+### Differences from Java: Truthy/Falsy and Type Coercion
+
+This is where Java developers get bitten. JavaScript (and by extension TypeScript) has **truthy/falsy** evaluation — values other than `boolean` are implicitly converted to `true` or `false` in boolean contexts.
+
+
+```typescript
+// Falsy values (evaluate to false in boolean context):
+// false, 0, -0, 0n, "", null, undefined, NaN
+
+// Truthy: EVERYTHING ELSE (including "0", "false", [], {}, empty objects/arrays!)
+
+// Java developer trap: empty arrays and objects are TRUTHY
+if ([]) console.log("Empty array is truthy!");     // THIS PRINTS
+if ({}) console.log("Empty object is truthy!");    // THIS PRINTS
+if ("") console.log("Empty string is falsy");      // does NOT print
+if (0) console.log("Zero is falsy");               // does NOT print
+
+// === vs == (strict vs loose equality)
+console.log(1 === 1);          // true  — same type, same value
+console.log(1 === "1");        // false — different types (COMPILE ERROR in strict TS)
+console.log(1 == "1");         // true  — JS coerces string to number (NEVER DO THIS)
+console.log(null == undefined); // true  — special case in loose equality
+console.log(null === undefined); // false — different types
+
+// RULE: Always use === and !==. Never use == or !=.
+
+// Nullish coalescing (??) vs logical OR (||)
+const input1 = 0;
+const withOr = input1 || 10;        // 10 — because 0 is falsy!
+const withNullish = input1 ?? 10;   // 0  — ?? only triggers on null/undefined
+
+// This matters in test automation: a timeout of 0 (meaning "no timeout") 
+// would be incorrectly overridden by || but correctly preserved by ??
+```
+
+**Critical rule for Java developers:** `===` is your new `==` for primitives. `==` in JavaScript performs type coercion and will produce bizarre results. TypeScript in strict mode will catch some `==` misuses, but make `===` a muscle-memory habit.
+
+### Arrays and Objects
+
+Arrays and objects are JavaScript's fundamental data structures — think of them as `ArrayList` and `Map`/POJO combined:
+
+
+```typescript
+// Arrays — dynamic, typed
+const testNames: string[] = ["login", "checkout", "search"];
+testNames.push("logout");                     // add to end
+testNames.splice(1, 1);                       // remove 1 element at index 1
+const hasLogin = testNames.includes("login"); // like Java's contains()
+const count = testNames.length;               // property, not method — no ()
+
+// Common array methods (functional style — like Java streams)
+const durations = [1200, 3400, 800, 5600, 2100];
+const slow = durations.filter(d => d > 2000);           // [3400, 5600, 2100]
+const doubled = durations.map(d => d * 2);               // [2400, 6800, ...]
+const total = durations.reduce((sum, d) => sum + d, 0); // 13100
+const hasSlowTest = durations.some(d => d > 5000);       // true
+const allFast = durations.every(d => d < 1000);          // false
+
+// Objects — key-value pairs (like a Map<String, ?> but more flexible)
+const testResult = {
+    name: "loginTest",
+    status: "PASS",
+    durationMs: 1200,
+    tags: ["smoke", "regression"],
+};
+
+// Access patterns
+console.log(testResult.name);            // dot notation
+console.log(testResult["status"]);       // bracket notation (needed for dynamic keys)
+
+// Optional chaining — safe navigation (like Java's Optional or null checks)
+const user = { profile: { name: "Alice", address: undefined as any } };
+const city = user?.profile?.address?.city;     // undefined — no error
+// Java equivalent: Optional.ofNullable(user).map(u -> u.getProfile()).map(p -> p.getAddress()).map(a -> a.getCity()).orElse(null)
+// TS is much cleaner here
+```
+
+---
+
+## Practical Implementation (Layer 3)
+
+### Example 1: Test Configuration Builder
+
+A function that builds a test configuration object from environment variables with defaults and validation — demonstrating `const`, destructuring, template literals, nullish coalescing, and type annotations.
+
+
+```typescript
+interface TestConfig {
+    baseUrl: string;
+    timeout: number;
+    headless: boolean;
+    retries: number;
+    browser: "chromium" | "firefox" | "webkit";
+}
+
+function buildTestConfig(overrides: Partial<TestConfig> = {}): TestConfig {
+    // Read from environment variables with fallbacks
+    const envBaseUrl = process.env.BASE_URL ?? "http://localhost:3000";
+    const envTimeout = Number(process.env.TIMEOUT) || 30000;
+    const envHeadless = process.env.HEADLESS !== "false";  // default true unless explicitly "false"
+
+    // Merge defaults with environment, then with explicit overrides
+    const defaults: TestConfig = {
+        baseUrl: envBaseUrl,
+        timeout: envTimeout,
+        headless: envHeadless,
+        retries: 0,
+        browser: "chromium",
+    };
+
+    const config: TestConfig = { ...defaults, ...overrides };
+
+    // Validate
+    if (config.timeout <= 0) {
+        throw new Error(`Invalid timeout: ${config.timeout}. Must be positive.`);
+    }
+    if (!config.baseUrl.startsWith("http")) {
+        throw new Error(`Invalid baseUrl: "${config.baseUrl}". Must start with http.`);
+    }
+
+    return config;
+}
+
+// Usage
+const config = buildTestConfig({ retries: 2, browser: "firefox" });
+console.log(`Running on ${config.browser} with ${config.timeout}ms timeout`);
+// → Running on firefox with 30000ms timeout
+```
+
+**Line-by-line notes:**
+- **`Partial<TestConfig>`:** Makes all properties optional — covered in Types And Interfaces. For now, understand it means "some or none of these fields."
+- **`Number(process.env.TIMEOUT) || 30000`:** Converts string env var to number. `||` falls back to 30000 if the result is `NaN` (which is falsy).
+- **`{ ...defaults, ...overrides }`:** Spread merge — overrides' properties replace defaults' properties.
+
+---
+
+### Example 2: Test Result Aggregator
+
+A function that processes test results using array methods — demonstrating `filter`, `map`, `reduce`, and template literals in a realistic test automation context.
+
+
+```typescript
+interface TestResult {
+    name: string;
+    status: "pass" | "fail" | "skip";
+    durationMs: number;
+    errorMessage?: string;   // optional — only present for failures
+}
+
+function generateSummary(results: TestResult[]): string {
+    if (results.length === 0) {
+        return "No test results to summarize.";
+    }
+
+    const passed = results.filter(r => r.status === "pass");
+    const failed = results.filter(r => r.status === "fail");
+    const skipped = results.filter(r => r.status === "skip");
+    const totalDuration = results.reduce((sum, r) => sum + r.durationMs, 0);
+    const passRate = ((passed.length / results.length) * 100).toFixed(1);
+
+    let summary = `
+═══════════════════════════════════════
+           TEST EXECUTION SUMMARY
+═══════════════════════════════════════
+  Total Tests : ${results.length}
+  Passed      : ${passed.length}
+  Failed      : ${failed.length}
+  Skipped     : ${skipped.length}
+  Pass Rate   : ${passRate}%
+  Duration    : ${(totalDuration / 1000).toFixed(2)} seconds
+───────────────────────────────────────`;
+
+    if (failed.length > 0) {
+        summary += "\n  Failed Tests:";
+        failed.forEach((test, index) => {
+            summary += `\n    ${index + 1}. ${test.name}`;
+            if (test.errorMessage) {
+                summary += ` — ${test.errorMessage}`;
+            }
+        });
+        summary += "\n───────────────────────────────────────";
+    }
+
+    const verdict = failed.length === 0 ? "PASS" : "FAIL";
+    summary += `\n  Verdict     : ${verdict}`;
+    summary += "\n═══════════════════════════════════════";
+
+    return summary;
+}
+
+// Usage
+const results: TestResult[] = [
+    { name: "testLogin", status: "pass", durationMs: 1200 },
+    { name: "testSearch", status: "pass", durationMs: 3400 },
+    { name: "testCheckout", status: "fail", durationMs: 5600, errorMessage: "Timeout waiting for payment" },
+    { name: "testProfile", status: "pass", durationMs: 800 },
+    { name: "testLogout", status: "skip", durationMs: 0 },
+];
+
+console.log(generateSummary(results));
+```
+
+### Example 3: Simple Playwright Test Structure Walkthrough
+
+This shows how the fundamentals map to a real Playwright test file — not the Playwright API itself, but how variables, functions, destructuring, and template literals come together:
+
+
+```typescript
+// test file: tests/login.spec.ts
+import { test, expect } from "@playwright/test";
+
+// const — test data that shouldn't be reassigned
+const VALID_USER = {
+    email: "testuser@example.com",
+    password: "SecurePass123!",
+};
+
+// Destructuring in the test function parameter — Playwright provides { page }
+test("should login with valid credentials", async ({ page }) => {
+    // Template literal for dynamic URL
+    const loginUrl = `${process.env.BASE_URL ?? "http://localhost:3000"}/login`;
+
+    // await — every Playwright action is async (covered in promises-and-async-await)
+    await page.goto(loginUrl);
+
+    // Destructuring test data
+    const { email, password } = VALID_USER;
+    await page.getByLabel("Email").fill(email);
+    await page.getByLabel("Password").fill(password);
+    await page.getByRole("button", { name: "Sign In" }).click();
+
+    // Assertion with template literal for error message
+    const welcomeText = await page.getByTestId("welcome-message").textContent();
+    expect(welcomeText).toContain("Welcome");
+});
+
+// Arrow function as test body — this is the standard Playwright pattern
+test("should show error for invalid credentials", async ({ page }) => {
+    await page.goto("/login");
+    await page.getByLabel("Email").fill("wrong@example.com");
+    await page.getByLabel("Password").fill("wrongpassword");
+    await page.getByRole("button", { name: "Sign In" }).click();
+
+    // expect().toBeVisible() — Playwright's auto-waiting assertion
+    await expect(page.getByText("Invalid email or password")).toBeVisible();
+});
+```
+
+**What to notice here:**
+- **`async ({ page }) =>`** — destructuring + arrow function + async (three fundamentals in one line).
+- **`const` everywhere** — test data, URLs, extracted values are all `const`. You rarely need `let` in test code.
+- **Template literals** — for building URLs and messages.
+- **No semicolons after `test(...)`** — the test call is a complete statement; the arrow function is its argument.
+
+---
+
+## Failure and Debugging (Layer 4)
+
+### Mistake 1: Using `==` Instead of `===`
+
+**Broken code:**
+
+```typescript
+function isSuccessStatus(code: number | string): boolean {
+    return code == 200;   // BUG: loose equality does type coercion
+}
+
+// These all return true — which is wrong for string inputs:
+console.log(isSuccessStatus(200));     // true ✓
+console.log(isSuccessStatus("200"));   // true ✗ — should arguably be false for a string
+```
+
+**Why it's dangerous:** In a Playwright test, you might read a status code from a page element as a string (`textContent()` returns `string | null`). With `==`, `"200" == 200` is `true`, masking the fact that your code isn't handling types properly. The test passes but your logic is wrong.
+
+**Fix:**
+
+```typescript
+function isSuccessStatus(code: number): boolean {
+    return code === 200;   // strict equality, type-safe
+}
+
+// If the input might be a string, convert explicitly:
+function isSuccessStatusFromText(text: string): boolean {
+    const code = parseInt(text, 10);   // explicit conversion
+    return code >= 200 && code < 300;
+}
+```
+
+<BestPractice>
+
+**Prevention:** Enable the `eqeqeq` ESLint rule to flag all `==` and `!=` usage.
+
+</BestPractice>
+
+
+---
+
+### Mistake 2: Truthy/Falsy Traps with `||` Default Values
+
+**Broken code:**
+
+```typescript
+function getTimeout(config: { timeout?: number }): number {
+    return config.timeout || 30000;   // BUG: 0 is falsy!
+}
+
+// Scenario: user explicitly sets timeout to 0 (meaning "no timeout")
+const result = getTimeout({ timeout: 0 });
+console.log(result);   // 30000 — WRONG! User wanted 0.
+
+// Same trap with empty strings:
+function getLabel(text?: string): string {
+    return text || "Default Label";
+}
+console.log(getLabel(""));   // "Default Label" — user wanted empty string
+```
+
+**Diagnostic steps:**
+1. If a default value is being applied when it shouldn't be, check if the real value is falsy (0, "", false).
+2. Replace `||` with `??` and see if the behavior changes.
+
+**Fix:**
+
+```typescript
+function getTimeout(config: { timeout?: number }): number {
+    return config.timeout ?? 30000;   // ?? only triggers on null/undefined, not 0
+}
+
+console.log(getTimeout({ timeout: 0 }));     // 0 ✓
+console.log(getTimeout({ timeout: 5000 }));  // 5000 ✓
+console.log(getTimeout({}));                  // 30000 ✓
+```
+
+<BestPractice>
+
+**Prevention:** Default rule — use `??` for defaults, use `||` only when you intentionally want to replace *all* falsy values.
+
+</BestPractice>
+
+
+---
+
+### Mistake 3: Mutating `const` Objects (Java Developer Surprise)
+
+**Broken code:**
+
+```typescript
+const testConfig = {
+    baseUrl: "https://staging.example.com",
+    timeout: 30000,
+};
+
+// Java developer thinks: "It's const, so it's immutable"
+testConfig.timeout = 60000;        // NO ERROR — const only prevents reassignment!
+console.log(testConfig.timeout);   // 60000
+
+// What const DOES prevent:
+// testConfig = { baseUrl: "other", timeout: 0 };  // ERROR: Cannot assign to 'testConfig'
+```
+
+**Why this surprises Java developers:** In Java, `final` on a reference variable prevents reassignment AND the convention is to make final objects truly immutable. In TypeScript, `const` *only* prevents reassignment of the variable — the object's properties are still mutable.
+
+**Fix — use `as const` or `Object.freeze` for true immutability:**
+
+```typescript
+// Option 1: as const — TypeScript compile-time immutability
+const testConfig1 = {
+    baseUrl: "https://staging.example.com",
+    timeout: 30000,
+} as const;
+// testConfig1.timeout = 60000;  // ERROR: Cannot assign to 'timeout' because it is a read-only property
+
+// Option 2: Object.freeze — runtime immutability (shallow)
+const testConfig2 = Object.freeze({
+    baseUrl: "https://staging.example.com",
+    timeout: 30000,
+});
+// testConfig2.timeout = 60000;  // ERROR in strict mode, silently ignored otherwise
+
+// Option 3: Readonly<T> type — covered in types-and-interfaces
+```
+
+---
+
+## Engineering Judgment (Layer 5)
+
+### When to Annotate Types Explicitly vs. Let Inference Work
+
+| Scenario | Annotate? | Why |
+|---|---|---|
+| Function parameters | **Yes** | Callers need to know what to pass; inference can't help here |
+| Function return types | **Yes** (recommended) | Documents intent; catches accidental return type changes |
+| `const` with a literal value | **No** | `const x = 5` is clearly a number — annotation is noise |
+| Variables assigned from function calls | **Depends** | If the return type is obvious from the function name, skip annotation. If it's not, annotate. |
+| Destructured values | **Rarely** | `const { name, age } = person;` — types flow from `person`'s type |
+| Public API (exported functions/classes) | **Yes** | Explicit types serve as documentation for consumers |
+
+### `for...of` vs. `.forEach()` vs. `.map()` / `.filter()` / `.reduce()`
+
+| Method | Use When | Avoid When |
+|---|---|---|
+| `for...of` | You need `break`, `continue`, or `await` inside the loop | You're transforming data — use `.map()` instead |
+| `.forEach()` | Simple side effects (logging, pushing to external array) | You need to return a value or use `break`/`await` |
+| `.map()` | Transforming each element to a new form | Side effects — `.map()` is for transformation, not mutation |
+| `.filter()` | Selecting a subset | Complex conditions — extract a named function for readability |
+| `.reduce()` | Aggregating to a single value (sum, grouping) | The reducer logic is complex — use a `for...of` loop instead |
+
+**Automation-specific guidance:** In Playwright tests, prefer `for...of` when iterating over page elements because you need `await` inside the loop:
+
+
+```typescript
+// CORRECT: for...of with await
+const items = await page.getByRole("listitem").all();
+for (const item of items) {
+    await expect(item).toBeVisible();
+}
+
+// WRONG: forEach doesn't properly await
+// items.forEach(async (item) => {
+//     await expect(item).toBeVisible();  // These run in parallel, not sequentially!
+// });
+```
+
+### TypeScript Strict Mode — Always Enable It
+
+In `tsconfig.json`, the `strict` flag enables a set of checks. For a Java developer, these checks bring TypeScript closer to the safety you're used to:
+
+| Strict Check | What It Catches | Java Equivalent |
+|---|---|---|
+| `strictNullChecks` | Using possibly-null value without check | Like if Java warned about every potential NPE |
+| `noImplicitAny` | Variables/params without type info default to `any` | Like requiring explicit types everywhere |
+| `strictPropertyInitialization` | Class properties not initialized in constructor | Java compiler already does this |
+| `noImplicitReturns` | Function paths that don't return a value | Java compiler already does this |
+
+**Recommendation:** Always set `"strict": true` in `tsconfig.json`. It's the TypeScript equivalent of compiling Java with `-Xlint:all`.
+
+---
+
+## Interview and Revision (Layer 6)
+
+### Fundamental Questions
+
+**Q1: What are the differences between `let`, `const`, and `var` in TypeScript?**
+> `const` prevents reassignment (like Java's `final`). `let` allows reassignment and is block-scoped. `var` is function-scoped (ignores block boundaries) and is hoisted — it's a legacy JavaScript construct that should never be used. Both `let` and `const` are block-scoped, matching Java's scoping behavior.
+
+**Q2: Explain the difference between `===` and `==` in JavaScript/TypeScript.**
+> `===` (strict equality) compares both value and type — `1 === "1"` is `false`. `==` (loose equality) performs type coercion before comparing — `1 == "1"` is `true` because the string is converted to a number. Always use `===` to avoid surprising coercion behavior. TypeScript's type system can catch some `==` misuses at compile time, but `===` is the universal best practice.
+
+**Q3: What is the difference between `null` and `undefined` in TypeScript?**
+> `undefined` means "a variable has been declared but not assigned a value" — it's the default state. `null` means "a value has been explicitly set to nothing" — it's intentional. In practice: function parameters that weren't passed are `undefined`, while a database query returning no result might return `null`. TypeScript treats them as distinct types when `strictNullChecks` is enabled.
+
+**Q4: What are truthy and falsy values? How do they affect test automation?**
+> Falsy values are: `false`, `0`, `-0`, `0n`, `""`, `null`, `undefined`, `NaN`. Everything else is truthy (including empty arrays `[]` and objects `{}`). In test automation, this matters when checking if a value "exists" — `if (element.textContent())` will be falsy for empty strings. Use explicit comparisons: `if (text !== null && text !== "")` or the nullish coalescing operator `??`.
+
+**Q5: Why should Java developers prefer `??` over `||` for default values in TypeScript?**
+> `||` returns the right-hand side for any falsy left-hand value (0, "", false, null, undefined). `??` (nullish coalescing) returns the right-hand side *only* for `null` or `undefined`. In test automation, a timeout of `0` or an empty string `""` might be intentional values — `||` would incorrectly override them, while `??` preserves them. Use `??` when you specifically want to handle "missing" values; use `||` only when you want to replace all falsy values.
+
+### Scenario Questions
+
+**S1:** *"You're migrating a Java Selenium test suite to TypeScript Playwright. Your colleague declares all variables with `let` because 'that's the TypeScript equivalent of Java variables.' What advice do you give?"*
+
+> Default to `const` instead. In test code, most values are assigned once — test data, locators, extracted text, configuration values. Using `const` communicates "this doesn't change" to the reader and prevents accidental reassignment. Only use `let` when you genuinely need to reassign (loop counters, accumulators, retry state). This mirrors functional programming principles and makes test code more predictable.
+
+**S2:** *"A Playwright test is checking `if (await page.textContent('.status'))` to verify an element has text. The test fails when the status text is '0'. Why?"*
+
+> The string `"0"` is truthy in JavaScript (only empty string `""` is falsy), so this actually works for `"0"`. However, if they were checking a *number* (e.g., after `parseInt`), then `0` would be falsy. The broader issue: using truthy/falsy checks for existence is fragile. Better: `const text = await page.textContent('.status'); expect(text).not.toBeNull();` — explicit null check instead of relying on truthiness.
+
+
+
+
+| # | Front (Question) | Back (Answer) |
+|---|---|---|
+| 1 | What are the falsy values in JavaScript/TypeScript? | `false`, `0`, `-0`, `0n`, `""`, `null`, `undefined`, `NaN` |
+| 2 | `const obj = { a: 1 }; obj.a = 2;` — does this error? | No. `const` prevents reassignment of the variable, not mutation of properties. Use `as const` or `Object.freeze` for immutability. |
+| 3 | What does `??` do and how does it differ from `||`? | `??` returns the right side only for `null`/`undefined`. `||` returns the right side for any falsy value (0, "", false, etc.). |
+| 4 | What's the TypeScript equivalent of Java's `String.format`? | Template literals: `` `Hello ${name}, you have ${'{'}count{'}'} items` `` |
+| 5 | `for...of` vs `for...in` — which iterates values? | `for...of` iterates values (like Java's for-each). `for...in` iterates keys/indices. |
+
+### Mastery Checklist
+
+- [ ] I can declare variables with `const` and `let` and explain why `var` should be avoided
+- [ ] I know all the TypeScript primitive types and their Java equivalents
+- [ ] I always use `===` / `!==` and can explain the dangers of `==`
+- [ ] I can write named functions, arrow functions, and use optional/default/rest parameters
+- [ ] I can use template literals, destructuring, and spread operators fluently
+- [ ] I can list all falsy values and explain the `??` vs `||` difference
+- [ ] I understand that `const` doesn't make objects immutable and know how to achieve true immutability
+- [ ] I can use `filter`, `map`, `reduce` on arrays and know when `for...of` is better
+- [ ] I can read a Playwright test file and identify which TypeScript fundamentals are in use
+- [ ] I can set up `tsconfig.json` with `strict: true` and explain what each strict check does
+
+---
+
+> **Next:** Types And Interfaces — type annotations, interfaces, generics, and utility types  
+> **Related:** Java Syntax And Control Flow — compare Java and TypeScript syntax side by side

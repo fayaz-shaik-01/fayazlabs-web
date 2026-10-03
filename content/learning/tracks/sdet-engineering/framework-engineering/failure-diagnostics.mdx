@@ -1,0 +1,555 @@
+---
+title: "Failure Diagnostics"
+description: "What: Failure diagnostics is the framework's ability to tell you why a test failed, not just that it failed. It means automatically collecting actionable evidence — screenshots, page source, browser console logs, network activity, video recordings — at the moment of failure, so that debugging starts with data instead of guesswork."
+summary: "SDET Engineering guide: Failure Diagnostics"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "framework-engineering"
+lesson: "failure-diagnostics"
+difficulty: "intermediate"
+estimatedMinutes: 35
+prerequisites: []
+tags: ["SDET", "Framework", "Architecture"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/framework-engineering/failure-diagnostics"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Failure Diagnostics
+
+> **Module:** 03 — Framework Engineering > Failure Diagnostics  
+> **Prerequisites:** Framework Architecture, Test Lifecycle And Fixtures, Retries And Timeouts  
+> **Mastery Target:** L3 (Independent) → L4 (Engineering Judgment)
+
+---
+
+## Quick Overview (Layer 1)
+
+**What:** Failure diagnostics is the framework's ability to tell you *why* a test failed, not just *that* it failed. It means automatically collecting actionable evidence — screenshots, page source, browser console logs, network activity, video recordings — at the moment of failure, so that debugging starts with data instead of guesswork.
+
+**Why it matters:** A test that fails with `AssertionError: expected "Confirmed" but was "Pending"` tells you almost nothing. Was the page still loading? Was there a JavaScript error? Did the API return a 500? Was the element even visible? Without diagnostics, you spend 30 minutes reproducing the failure locally, only to find it was a transient server error. With diagnostics, you look at the screenshot, check the console logs, see the 500 response, and know the root cause in 2 minutes.
+
+**Where you encounter it:** TestNG listeners (`ITestListener`), JUnit 5 extensions (`TestWatcher`), CI artifact collection, Allure/ExtentReports attachments, Selenium screenshot capture, browser DevTools protocol for console and network logs, video recording with tools like Selenoid or BrowserStack.
+
+<MentalModel>
+
+Think of failure diagnostics like a **black box flight recorder** on an airplane. When a test crashes, you don't want a single line saying "flight failed." You want the altitude, speed, heading, engine readings, cockpit audio, and radar data from the final 30 seconds. The framework's diagnostic system is that black box — it captures everything relevant at the moment of failure so you can reconstruct what happened without re-flying the plane.
+
+</MentalModel>
+
+
+<KeyTakeaways>
+
+1. **Capture diagnostics before teardown** — take the screenshot while the browser is still open and on the failed page, not after `driver.quit()`.
+2. **Automate diagnostic collection via listeners** — never rely on developers manually adding screenshot code to each test. A single `ITestListener` handles every test automatically.
+3. **Classify failures by type** — element not found, timeout, assertion failure, and infrastructure error all have different root causes and different fix strategies.
+4. **Retries are for infrastructure failures; investigation is for real failures** — classify first, then decide whether to retry or debug.
+5. **Diagnostic data must be linked to the specific failed test** — a screenshot named `screenshot.png` is useless. A screenshot named `LoginTest_shouldRejectInvalidPassword_2025-07-22_14-30-05.png` tells you exactly where to look.
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation (Layer 2)
+
+### What the Framework Should Capture on Failure
+
+Every piece of diagnostic data answers a different debugging question:
+
+| Diagnostic | What It Answers | When It's Most Useful |
+|-----------|----------------|----------------------|
+| **Screenshot** | What was on screen at the moment of failure? | UI assertion failures, wrong page state |
+| **Page source (HTML)** | What was the actual DOM? | Element not found (is the locator wrong, or is the element missing?) |
+| **Browser console logs** | Were there JavaScript errors? | UI rendering issues, AJAX failures, uncaught exceptions |
+| **Network logs (HAR)** | What HTTP requests were made? What responses came back? | API returned 500, request never sent, timeout on backend |
+| **Video recording** | What sequence of actions led to the failure? | Timing issues, race conditions, tests that fail mid-flow |
+| **Test context** | Which user, environment, browser, test data? | Reproducing the failure with the same conditions |
+
+**The minimum viable diagnostic set:** Screenshot + page source + console logs. These three cover 80% of debugging needs with minimal implementation effort.
+
+### Custom Failure Hooks
+
+Test frameworks provide lifecycle hooks that fire when a test fails. This is where diagnostic collection belongs — not in each test method.
+
+**TestNG: ITestListener**
+
+TestNG's `ITestListener` interface provides `onTestFailure(ITestResult result)`, which fires immediately after a test method throws an exception but before `@AfterMethod` runs. This is the perfect moment to capture diagnostics: the browser is still open, on the page where failure occurred, with all state intact.
+
+**JUnit 5: TestWatcher extension**
+
+JUnit 5's `TestWatcher` interface provides `testFailed(ExtensionContext context, Throwable cause)`, which serves the same purpose. Register it as an extension to capture diagnostics on every failure.
+
+**The execution order matters:**
+
+```
+@BeforeMethod       → set up driver, navigate to page
+  @Test             → test steps and assertions
+  [TEST FAILS]      → exception thrown
+  ITestListener.onTestFailure()  → capture screenshot, logs, page source (driver still open)
+@AfterMethod        → quit driver, clean up resources
+```
+
+If you capture the screenshot in `@AfterMethod` instead of the listener, you risk capturing it *after* some cleanup has already occurred — or after the driver has been quit.
+
+### Error Classification
+
+Not all failures are equal. Classifying the error type determines the correct response:
+
+**Element Not Found (`NoSuchElementException`):**
+- The locator is wrong (typo, element ID changed after a deploy)
+- The element hasn't loaded yet (missing explicit wait)
+- The page is in an unexpected state (wrong page, modal blocking)
+- **Action:** Check screenshot and page source. Fix locator or add wait.
+
+**Timeout (`TimeoutException`):**
+- The element never appeared within the wait duration
+- The page load exceeded the timeout
+- A backend API is slow or down
+- **Action:** Check network logs. If backend is slow, increase timeout or investigate API. If element never appears, check page source for DOM state.
+
+**Assertion Failure (`AssertionError`):**
+- The test's expected value doesn't match the actual value
+- Could be a real bug, a data issue, or a timing issue (stale data)
+- **Action:** Check screenshot for visual state. Check network logs for API response data.
+
+**Infrastructure Error (`WebDriverException`, `SessionNotCreatedException`):**
+- Selenium Grid node crashed, browser failed to start, network connectivity lost
+- **Action:** Retry is appropriate. Check CI machine resources (memory, disk).
+
+**Stale Element (`StaleElementReferenceException`):**
+- The DOM changed between finding the element and interacting with it
+- **Action:** Re-find the element. Consider if the page has a dynamic refresh.
+
+### Retry vs Investigate Decision Matrix
+
+| Failure Type | Retry? | Investigate? | Why |
+|-------------|--------|-------------|-----|
+| Infrastructure (Grid crash, browser OOM) | Yes (up to 2x) | Only if recurring | Transient issue outside test control |
+| Timeout on a normally fast element | No | Yes | Likely a real performance regression or missing wait |
+| Assertion failure with correct page state | No | Yes | Real application bug — the feature is broken |
+| Element not found after deploy | No | Yes | Locator changed — update page object |
+| Stale element in a dynamic SPA | Maybe (1x) | Yes if frequent | Test design issue — needs re-find strategy |
+| Network error during API test | Yes (with backoff) | If rate > 5% | Transient network issues are normal |
+
+### Failure Aggregation
+
+When 50 tests fail, many have the same root cause. Without aggregation, you investigate 50 separate failures only to discover they all failed because the login page changed a button ID.
+
+**Aggregation strategies:**
+- **Group by exception type and message:** All `NoSuchElementException` on `By.id("login-btn")` are one issue.
+- **Group by page/component:** All failures in `LoginPage` methods are likely one root cause.
+- **Group by error category:** Separate infrastructure errors from application bugs from test design issues.
+
+---
+
+## Practical Implementation (Layer 3)
+
+### Example 1: TestNG Listener for Full Diagnostics on Failure
+
+
+```java
+import org.openqa.selenium.OutputType;
+import org.openqa.selenium.TakesScreenshot;
+import org.openqa.selenium.WebDriver;
+import org.openqa.selenium.logging.LogEntry;
+import org.openqa.selenium.logging.LogType;
+import org.testng.ITestListener;
+import org.testng.ITestResult;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.List;
+
+/**
+ * Captures full diagnostic data on every test failure:
+ * - Screenshot (PNG)
+ * - Page source (HTML)
+ * - Browser console logs (TXT)
+ *
+ * Register in testng.xml:
+ *   <listener class-name="com.company.automation.listeners.FailureDiagnosticsListener"/>
+ *
+ * Diagnostics are saved to target/diagnostics/{TestClass}_{method}_{timestamp}/
+ */
+public class FailureDiagnosticsListener implements ITestListener {
+
+    private static final Logger log = LoggerFactory.getLogger(FailureDiagnosticsListener.class);
+    private static final String DIAGNOSTICS_DIR = "target/diagnostics";
+    private static final DateTimeFormatter TIMESTAMP_FORMAT =
+        DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss");
+
+    @Override
+    public void onTestFailure(ITestResult result) {
+        WebDriver driver = getDriverFromResult(result);
+        if (driver == null) {
+            log.warn("No driver available for diagnostics: {}", result.getName());
+            return;
+        }
+
+        String testId = buildTestId(result);
+        Path diagnosticsPath = createDiagnosticsDir(testId);
+
+        captureScreenshot(driver, diagnosticsPath, testId);
+        capturePageSource(driver, diagnosticsPath, testId);
+        captureConsoleLogs(driver, diagnosticsPath, testId);
+        logFailureSummary(result, testId);
+    }
+
+    private void captureScreenshot(WebDriver driver, Path dir, String testId) {
+        try {
+            File screenshot = ((TakesScreenshot) driver).getScreenshotAs(OutputType.FILE);
+            Path destination = dir.resolve(testId + ".png");
+            Files.copy(screenshot.toPath(), destination);
+            log.info("Screenshot saved: {}", destination);
+        } catch (Exception e) {
+            log.error("Failed to capture screenshot for {}: {}", testId, e.getMessage());
+        }
+    }
+
+    private void capturePageSource(WebDriver driver, Path dir, String testId) {
+        try {
+            String pageSource = driver.getPageSource();
+            Path destination = dir.resolve(testId + "_page.html");
+            Files.writeString(destination, pageSource);
+            log.info("Page source saved: {}", destination);
+        } catch (Exception e) {
+            log.error("Failed to capture page source for {}: {}", testId, e.getMessage());
+        }
+    }
+
+    private void captureConsoleLogs(WebDriver driver, Path dir, String testId) {
+        try {
+            List<LogEntry> logs = driver.manage().logs().get(LogType.BROWSER).getAll();
+            if (!logs.isEmpty()) {
+                StringBuilder sb = new StringBuilder();
+                for (LogEntry entry : logs) {
+                    sb.append(String.format("[%s] %s%n", entry.getLevel(), entry.getMessage()));
+                }
+                Path destination = dir.resolve(testId + "_console.txt");
+                Files.writeString(destination, sb.toString());
+                log.info("Console logs saved ({} entries): {}", logs.size(), destination);
+            }
+        } catch (Exception e) {
+            log.warn("Could not capture console logs for {}: {}", testId, e.getMessage());
+        }
+    }
+
+    private void logFailureSummary(ITestResult result, String testId) {
+        Throwable cause = result.getThrowable();
+        String errorType = cause != null ? cause.getClass().getSimpleName() : "Unknown";
+        String errorMsg = cause != null ? cause.getMessage() : "No message";
+        long durationMs = result.getEndMillis() - result.getStartMillis();
+
+        log.error("FAILURE SUMMARY | Test: {} | Error: {} | Message: {} | Duration: {}ms",
+            testId, errorType, errorMsg, durationMs);
+    }
+
+    private String buildTestId(ITestResult result) {
+        String className = result.getTestClass().getRealClass().getSimpleName();
+        String methodName = result.getMethod().getMethodName();
+        String timestamp = LocalDateTime.now().format(TIMESTAMP_FORMAT);
+        return className + "_" + methodName + "_" + timestamp;
+    }
+
+    private Path createDiagnosticsDir(String testId) {
+        try {
+            Path dir = Path.of(DIAGNOSTICS_DIR, testId);
+            Files.createDirectories(dir);
+            return dir;
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to create diagnostics directory", e);
+        }
+    }
+
+    private WebDriver getDriverFromResult(ITestResult result) {
+        // Access the driver through the DriverManager (ThreadLocal)
+        // This works because the listener runs on the same thread as the test
+        return DriverManager.getDriver();
+    }
+}
+```
+
+### Example 2: Error Classifier Utility
+
+
+```java
+import org.openqa.selenium.NoSuchElementException;
+import org.openqa.selenium.StaleElementReferenceException;
+import org.openqa.selenium.TimeoutException;
+import org.openqa.selenium.WebDriverException;
+
+/**
+ * Classifies test failures by type to determine the correct response:
+ * retry (infrastructure) vs investigate (application bug) vs fix (test design).
+ */
+public class ErrorClassifier {
+
+    public enum FailureCategory {
+        ELEMENT_NOT_FOUND,   // Locator issue or missing wait
+        TIMEOUT,             // Slow page/element or backend issue
+        ASSERTION_FAILURE,   // Real bug or wrong expected value
+        STALE_ELEMENT,       // DOM changed between find and interaction
+        INFRASTRUCTURE,      // Grid crash, browser OOM, session lost
+        UNKNOWN              // Catch-all
+    }
+
+    public static FailureCategory classify(Throwable cause) {
+        if (cause == null) return FailureCategory.UNKNOWN;
+
+        if (cause instanceof NoSuchElementException) {
+            return FailureCategory.ELEMENT_NOT_FOUND;
+        }
+        if (cause instanceof TimeoutException) {
+            return FailureCategory.TIMEOUT;
+        }
+        if (cause instanceof AssertionError) {
+            return FailureCategory.ASSERTION_FAILURE;
+        }
+        if (cause instanceof StaleElementReferenceException) {
+            return FailureCategory.STALE_ELEMENT;
+        }
+        if (cause instanceof WebDriverException) {
+            String msg = cause.getMessage() != null ? cause.getMessage().toLowerCase() : "";
+            if (msg.contains("session") || msg.contains("unreachable")
+                    || msg.contains("connection refused") || msg.contains("out of memory")) {
+                return FailureCategory.INFRASTRUCTURE;
+            }
+        }
+        return FailureCategory.UNKNOWN;
+    }
+
+    /** Returns true if the failure is transient and a retry is likely to succeed. */
+    public static boolean isRetryable(Throwable cause) {
+        FailureCategory category = classify(cause);
+        return category == FailureCategory.INFRASTRUCTURE;
+    }
+}
+```
+
+### Example 3: Smart Retry Analyzer That Uses Error Classification
+
+
+```java
+import org.testng.IRetryAnalyzer;
+import org.testng.ITestResult;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+/**
+ * Retry analyzer that only retries infrastructure failures.
+ * Application bugs and assertion failures fail immediately — no wasted retry attempts.
+ */
+public class SmartRetryAnalyzer implements IRetryAnalyzer {
+
+    private static final Logger log = LoggerFactory.getLogger(SmartRetryAnalyzer.class);
+    private static final int MAX_RETRIES = 2;
+    private int retryCount = 0;
+
+    @Override
+    public boolean retry(ITestResult result) {
+        Throwable cause = result.getThrowable();
+        ErrorClassifier.FailureCategory category = ErrorClassifier.classify(cause);
+
+        if (!ErrorClassifier.isRetryable(cause)) {
+            log.info("NOT retrying '{}' — failure is {} (not infrastructure): {}",
+                result.getMethod().getMethodName(), category,
+                cause != null ? cause.getMessage() : "unknown");
+            return false;  // don't waste time retrying a real bug
+        }
+
+        if (retryCount < MAX_RETRIES) {
+            retryCount++;
+            log.warn("RETRYING [{}/{}] '{}' — infrastructure failure ({}): {}",
+                retryCount, MAX_RETRIES,
+                result.getMethod().getMethodName(), category,
+                cause != null ? cause.getMessage() : "unknown");
+            return true;
+        }
+
+        log.error("GIVING UP on '{}' after {} retries — infrastructure failure persists",
+            result.getMethod().getMethodName(), MAX_RETRIES);
+        return false;
+    }
+}
+```
+
+---
+
+## Failure and Debugging (Layer 4)
+
+### Failure 1: Screenshot Captured After Driver Quit
+
+**The Problem:**
+
+
+```java
+@AfterMethod(alwaysRun = true)
+public void tearDown(ITestResult result) {
+    WebDriver driver = DriverManager.getDriver();
+    if (driver != null) {
+        driver.quit();                             // driver is dead
+        DriverManager.removeDriver();
+    }
+    if (result.getStatus() == ITestResult.FAILURE) {
+        ScreenshotUtils.capture(driver, result);   // NoSuchSessionException — driver is quit
+    }
+}
+```
+
+**Symptom:** Every failure diagnostic says "Failed to capture screenshot: NoSuchSessionException." The one piece of evidence you need most is missing for every failed test.
+
+**Root cause:** Screenshot capture happens *after* `driver.quit()`. The browser is already closed.
+
+**The fix — capture before cleanup, or use a listener:**
+
+
+```java
+@AfterMethod(alwaysRun = true)
+public void tearDown(ITestResult result) {
+    WebDriver driver = DriverManager.getDriver();
+    if (driver != null) {
+        try {
+            // Capture FIRST — while driver is still alive
+            if (result.getStatus() == ITestResult.FAILURE) {
+                ScreenshotUtils.capture(driver, result);
+            }
+        } finally {
+            // Cleanup SECOND — always, no matter what
+            driver.quit();
+            DriverManager.removeDriver();
+        }
+    }
+}
+```
+
+**Better approach:** Use the `ITestListener` pattern (Example 1 above). The listener fires before `@AfterMethod`, so the driver is guaranteed to be alive.
+
+### Failure 2: Diagnostics Directory Fills Up CI Disk
+
+**The Problem:** Every test failure saves a screenshot (500KB), page source (200KB), console logs (50KB), and video (10MB). With 30 failing tests per run and 10 runs per day, the CI agent accumulates 3GB+ of diagnostics daily. Eventually: disk full, CI agent offline.
+
+**The fix:**
+1. Clean diagnostics in CI pipeline before each run: `rm -rf target/diagnostics/*`
+2. Keep only the latest N runs (e.g., 3 days)
+3. Upload diagnostics as CI artifacts with retention policies (GitHub Actions: `retention-days: 7`)
+4. Don't record video for every test — only for failures, and only when screenshot + logs aren't enough
+
+### Failure 3: Diagnostic Files with Duplicate Names
+
+**The Problem:** Two tests named `shouldLogin` in different classes both fail. The screenshot files overwrite each other because the filename is just `shouldLogin.png`.
+
+**The fix:** Include class name and timestamp in the filename:
+
+```
+LoginTest_shouldLogin_2025-07-22_14-30-05.png     ← unique
+BookingTest_shouldLogin_2025-07-22_14-30-07.png    ← unique
+```
+
+The `buildTestId()` method in Example 1 handles this correctly.
+
+---
+
+## Engineering Judgment (Layer 5)
+
+### What to Capture: Cost vs Value
+
+| Diagnostic | Capture Cost | Storage Cost | Debugging Value | Recommendation |
+|-----------|-------------|-------------|----------------|----------------|
+| Screenshot | ~100ms | ~500KB | High — shows visual state | Always capture on failure |
+| Page source | ~50ms | ~200KB | High — shows DOM state | Always capture on failure |
+| Console logs | ~50ms | ~50KB | Medium — shows JS errors | Always capture on failure |
+| Network logs (HAR) | ~200ms + setup | ~2MB | High — shows API failures | Capture for API-heavy pages |
+| Video | Continuous recording | ~10MB/test | Very high for timing issues | Only when investigating specific flaky tests |
+
+**The recommended minimum:** Screenshot + page source + console logs. This covers 80% of debugging needs and costs &lt;200ms and &lt;1MB per failure.
+
+### When to Add Video Recording
+
+Video is expensive (storage, performance overhead) but invaluable for specific scenarios:
+
+- **Flaky tests that can't be reproduced locally** — the video shows the exact timing and sequence that causes the failure
+- **Complex multi-step workflows** — screenshot shows the end state but not how you got there
+- **Visual regressions** — element is technically present but rendered incorrectly (overlapping, wrong position)
+
+**Tools:** Selenoid (records video per browser session), BrowserStack/Sauce Labs (built-in video), ffmpeg-based screen recording in CI
+
+### Diagnostic Levels by Environment
+
+| Environment | Diagnostic Level | Why |
+|-------------|-----------------|-----|
+| Local development | Minimal (screenshot on failure) | Developer can reproduce and debug interactively |
+| CI (PR checks) | Standard (screenshot + page source + console) | Need enough to diagnose without reproducing |
+| CI (nightly regression) | Full (+ network logs) | More time to investigate; want maximum data |
+| Production smoke tests | Full + alerts | Failures indicate production issues; need immediate investigation |
+
+---
+
+## Interview and Revision (Layer 6)
+
+### Fundamental Questions
+
+**Q1: How does your framework handle test failures? What diagnostic data do you capture?**
+
+**A:** We have a TestNG `ITestListener` that fires on every test failure, before `@AfterMethod` teardown. It captures three things: (1) a screenshot showing exactly what the browser displayed at the moment of failure, (2) the page source HTML so we can inspect the DOM state even if the screenshot is unclear, and (3) browser console logs to catch JavaScript errors or failed AJAX calls. Each diagnostic file is named with the test class, method name, and timestamp to prevent collisions. These are saved to `target/diagnostics/` and uploaded as CI artifacts. For API-heavy failures, we also capture network logs. This means we can diagnose most failures from the CI report without reproducing them locally.
+
+**Q2: How do you classify test failures and decide what to do with each type?**
+
+**A:** I classify failures into four categories based on the exception type: (1) Element not found — usually a locator change or missing wait, fix the page object. (2) Timeout — backend is slow or the element condition is wrong, check network logs. (3) Assertion failure — real application bug or wrong test expectation, investigate the feature. (4) Infrastructure error — Grid crash, browser OOM, session lost, retry is appropriate. Our retry analyzer uses this classification: only infrastructure failures get retried. Application bugs and assertion failures fail immediately — retrying them wastes time and masks real problems.
+
+**Q3: How do you prevent retries from masking real bugs?**
+
+**A:** Two mechanisms. First, our `SmartRetryAnalyzer` classifies the error before deciding to retry. Only infrastructure failures (session lost, connection refused) are retried. Assertion failures and element-not-found errors fail immediately. Second, we log every retry with the test name, failure category, and error message. We review retry logs weekly — if the same test is retried more than twice in a week, it gets a JIRA ticket for investigation. The metric we track is "retry rate by test" — any test above 5% retry rate is a flakiness candidate that needs a root cause fix, not more retries.
+
+### Scenario-Based Questions
+
+**S1: "Forty tests failed in the nightly regression run. How do you efficiently triage them?"**
+
+**A:** First, I group the failures by error type using the diagnostic logs — this usually reveals that many failures share a root cause. If 30 tests failed with `NoSuchElementException` on a login page element, that's one issue (login page changed), not 30 issues. Next, I check the infrastructure errors separately — if 5 tests failed with `SessionNotCreatedException`, the Grid was under-provisioned. I fix the one or two root causes and re-run. The key is aggregation: don't investigate 40 failures individually; find the 2-3 root causes that explain 90% of them.
+
+
+
+
+| # | Front (Question) | Back (Answer) |
+|---|---|---|
+| 1 | What three diagnostics should you capture on every test failure? | Screenshot (visual state), page source (DOM), and browser console logs (JS errors). These cover ~80% of debugging needs. Capture them via an `ITestListener` that fires before teardown. |
+| 2 | Why should diagnostics be captured in a listener, not in `@AfterMethod`? | The listener fires before `@AfterMethod`, guaranteeing the driver is still alive. If you capture in `@AfterMethod`, you might screenshot after partial cleanup or after `driver.quit()` — getting nothing. |
+| 3 | What are the four failure categories and which ones should be retried? | Element not found (fix locator), timeout (fix wait/investigate backend), assertion failure (investigate bug), infrastructure error (retry). Only infrastructure errors should be retried automatically. |
+| 4 | How do you name diagnostic files to avoid collisions? | Include class name + method name + timestamp: `LoginTest_shouldLogin_2025-07-22_14-30-05.png`. This ensures uniqueness across tests and across runs. |
+| 5 | How do you triage 50 test failures efficiently? | Group by error type and error message first. Often 50 failures have 2-3 root causes. Fix the root causes and re-run. Don't investigate each failure individually. |
+
+### Mastery Checklist
+
+- [ ] Can implement a TestNG `ITestListener` that captures screenshot, page source, and console logs on failure
+- [ ] Can classify failures by type (element not found, timeout, assertion, infrastructure) and explain the correct response for each
+- [ ] Can implement a smart retry analyzer that only retries infrastructure failures
+- [ ] Can design a diagnostic file naming convention that prevents collisions and enables easy lookup
+- [ ] Can explain the execution order: `@Test` fails → `ITestListener.onTestFailure()` → `@AfterMethod`
+- [ ] Can set up CI artifacts to collect and retain diagnostic files with appropriate retention policies
+- [ ] Can triage a batch of failures by grouping them by root cause instead of investigating individually
+- [ ] Can explain when video recording is worth the cost vs when screenshot + logs are sufficient
+- [ ] Can prevent diagnostic data from filling CI disk (cleanup policies, retention limits)
+- [ ] Can answer "How does your framework handle test failures?" with a systematic diagnostics-first approach
+
+---
+
+**Next:** Framework Extensibility | **Related:** Logging And Reporting, Retries And Timeouts
+
+---
+
+*Last updated: *

@@ -1,0 +1,345 @@
+---
+title: "External Service Mocking"
+description: "What: External service mocking replaces real third-party services (payment gateways, email providers, notification systems) with lightweight local simulations that return predetermined responses. Instead of calling Stripe's real API during tests, you call a WireMock server that returns a fake \"payment successful\" response in 5ms."
+summary: "SDET Engineering guide: External Service Mocking"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "test-data-and-integration"
+lesson: "external-service-mocking"
+difficulty: "intermediate"
+estimatedMinutes: 30
+prerequisites: []
+tags: ["SDET", "Test Data", "Integration"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/test-data-and-integration/external-service-mocking"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# External Service Mocking
+
+> **Module:** 07 — Test Data & Integration  
+> **Prerequisites:** Api Database Integration, Http And Rest Fundamentals  
+> **Mastery Target:** L3 (Independent) — can set up WireMock stubs, simulate failures, and manage mock lifecycle in test suites without guidance
+
+---
+
+## Quick Overview (Layer 1)
+
+**What:** External service mocking replaces real third-party services (payment gateways, email providers, notification systems) with lightweight local simulations that return predetermined responses. Instead of calling Stripe's real API during tests, you call a WireMock server that returns a fake "payment successful" response in 5ms.
+
+**Why:** Four reasons, all critical. **Speed** — real external calls add 200ms-2s per request; mocks respond in &lt;10ms. **Reliability** — third-party services have outages, rate limits, and network variability; mocks are deterministic. **Cost** — payment APIs charge per transaction; mocking is free. **Determinism** — you can't make Stripe return a "card declined" response on demand, but you can make WireMock return whatever you need.
+
+**Where:** Integration tests where your application calls external services. In StayNest: payment processing (Stripe/PayPal mock), email delivery (SendGrid mock), SMS notifications, and any third-party availability checks. Not needed for unit tests (use plain mocks) or E2E tests against real staging environments.
+
+<KeyTakeaways>
+
+1. WireMock is the de facto Java library for HTTP service mocking — it runs a real HTTP server that your application calls instead of the real service.
+2. Stubs define the request-to-response mapping: "When you receive POST /payments with this body, return 200 with this JSON."
+3. Verification confirms your application actually called the mock: "Assert that POST /payments was called exactly once."
+4. Scenarios enable stateful mocking: first call returns "pending," second call returns "completed" — simulating async payment flows.
+5. Failure simulation is where mocking truly shines — you can test timeouts, 500 errors, and malformed responses that are impossible to trigger reliably against real services.
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation (Layer 2)
+
+### How WireMock Works
+
+```
+Normal Flow:                         Mocked Flow:
+┌─────────┐    ┌──────────────┐     ┌─────────┐    ┌──────────────┐
+│ StayNest │───→│ Stripe API   │     │ StayNest │───→│ WireMock     │
+│ Backend  │←───│ (real)       │     │ Backend  │←───│ (localhost:  │
+└─────────┘    └──────────────┘     └─────────┘    │  8089)       │
+                                                    └──────────────┘
+                                                    Configured by test code
+```
+
+Your application's configuration changes the payment service URL from `https://api.stripe.com` to `http://localhost:8089`. WireMock intercepts the call and returns whatever response you've configured.
+
+### Mock Server Lifecycle
+
+| Phase | What Happens | Where in Code |
+|-------|-------------|---------------|
+| **Start** | WireMock server starts on a port | `@BeforeAll` / `@BeforeSuite` |
+| **Configure** | Stubs are registered for test scenarios | `@BeforeEach` / `@BeforeMethod` |
+| **Execute** | Application calls mock instead of real service | Test method body |
+| **Verify** | Confirm expected calls were made | Test assertions |
+| **Reset** | Clear all stubs and request log | `@AfterEach` / `@AfterMethod` |
+| **Stop** | WireMock server shuts down | `@AfterAll` / `@AfterSuite` |
+
+---
+
+## Practical Implementation (Layer 3)
+
+### WireMock Server Setup
+
+
+```java
+import com.github.tomakehurst.wiremock.WireMockServer;
+import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
+import org.testng.annotations.*;
+
+public class PaymentServiceMockTest {
+
+    private static WireMockServer wireMockServer;
+
+    @BeforeSuite
+    public void startMockServer() {
+        wireMockServer = new WireMockServer(WireMockConfiguration.options()
+            .port(8089)
+            .usingFilesUnderClasspath("wiremock")); // for file-based stubs
+        wireMockServer.start();
+    }
+
+    @AfterMethod
+    public void resetStubs() {
+        wireMockServer.resetAll(); // Clear stubs and request log between tests
+    }
+
+    @AfterSuite
+    public void stopMockServer() {
+        wireMockServer.stop();
+    }
+}
+```
+
+### Stubbing — Define Mock Responses
+
+
+```java
+import static com.github.tomakehurst.wiremock.client.WireMock.*;
+
+@Test
+public void successfulPayment_returnsConfirmation() {
+    // ─── STUB: mock Stripe's charge endpoint ───
+    wireMockServer.stubFor(
+        post(urlEqualTo("/v1/charges"))
+            .withHeader("Content-Type", containing("application/json"))
+            .withRequestBody(matchingJsonPath("$.amount"))
+            .willReturn(aResponse()
+                .withStatus(200)
+                .withHeader("Content-Type", "application/json")
+                .withBody("""
+                    {
+                        "id": "ch_mock_12345",
+                        "status": "succeeded",
+                        "amount": 50000,
+                        "currency": "usd"
+                    }
+                """))
+    );
+
+    // ─── ACT: create a booking (StayNest calls the mocked payment service) ───
+    Response response = given()
+        .contentType("application/json")
+        .header("Authorization", AuthFactory.guest().getAuthHeader())
+        .body(BookingBuilder.aBooking().withRoomId(1L).buildJson())
+    .when()
+        .post("/bookings")
+    .then()
+        .statusCode(201)
+        .body("data.paymentStatus", equalTo("PAID"))
+        .extract().response();
+
+    // ─── VERIFY: StayNest actually called the payment service ───
+    wireMockServer.verify(1, postRequestedFor(urlEqualTo("/v1/charges"))
+        .withRequestBody(matchingJsonPath("$.amount", equalTo("50000"))));
+}
+```
+
+### Simulating Failures
+
+
+```java
+@Test
+public void paymentTimeout_bookingShowsPendingStatus() {
+    // Simulate 10-second timeout from payment service
+    wireMockServer.stubFor(
+        post(urlEqualTo("/v1/charges"))
+            .willReturn(aResponse()
+                .withStatus(200)
+                .withFixedDelay(10000)) // 10 second delay — triggers timeout
+    );
+
+    given()
+        .contentType("application/json")
+        .header("Authorization", AuthFactory.guest().getAuthHeader())
+        .body(BookingBuilder.aBooking().withRoomId(2L).buildJson())
+    .when()
+        .post("/bookings")
+    .then()
+        .statusCode(202)  // Accepted but not confirmed
+        .body("data.paymentStatus", equalTo("PENDING"));
+}
+
+@Test
+public void paymentServiceDown_returns503() {
+    // Simulate 500 Internal Server Error
+    wireMockServer.stubFor(
+        post(urlEqualTo("/v1/charges"))
+            .willReturn(aResponse()
+                .withStatus(500)
+                .withBody("{\"error\": \"Internal Server Error\"}"))
+    );
+
+    given()
+        .contentType("application/json")
+        .header("Authorization", AuthFactory.guest().getAuthHeader())
+        .body(BookingBuilder.aBooking().withRoomId(3L).buildJson())
+    .when()
+        .post("/bookings")
+    .then()
+        .statusCode(503)
+        .body("error", containsString("payment service"));
+}
+
+@Test
+public void malformedPaymentResponse_handledGracefully() {
+    // Simulate garbage response
+    wireMockServer.stubFor(
+        post(urlEqualTo("/v1/charges"))
+            .willReturn(aResponse()
+                .withStatus(200)
+                .withBody("NOT VALID JSON {{{"))
+    );
+
+    given()
+        .contentType("application/json")
+        .header("Authorization", AuthFactory.guest().getAuthHeader())
+        .body(BookingBuilder.aBooking().withRoomId(4L).buildJson())
+    .when()
+        .post("/bookings")
+    .then()
+        .statusCode(anyOf(is(500), is(502)));  // App should not crash
+}
+```
+
+### Stateful Scenarios — Payment Status Progression
+
+
+```java
+@Test
+public void paymentProgression_pendingThenSucceeded() {
+    // First call returns "pending", second returns "succeeded"
+    wireMockServer.stubFor(
+        post(urlEqualTo("/v1/charges"))
+            .inScenario("Payment Flow")
+            .whenScenarioStateIs("Started")
+            .willReturn(aResponse().withStatus(200)
+                .withBody("{\"id\":\"ch_1\",\"status\":\"pending\"}"))
+            .willSetStateTo("Payment Processing")
+    );
+
+    wireMockServer.stubFor(
+        get(urlEqualTo("/v1/charges/ch_1"))
+            .inScenario("Payment Flow")
+            .whenScenarioStateIs("Payment Processing")
+            .willReturn(aResponse().withStatus(200)
+                .withBody("{\"id\":\"ch_1\",\"status\":\"succeeded\"}"))
+            .willSetStateTo("Payment Complete")
+    );
+
+    // Test can now exercise the full async payment polling flow
+}
+```
+
+---
+
+## Failure and Debugging (Layer 4)
+
+### Failure 1: Stub Not Matching — Getting Real Service Call or 404
+
+**The Problem:** WireMock returns 404 instead of your stubbed response. The application tries to call the real service or gets an unexpected error.
+
+**Root cause:** The stub's URL, method, or request body matcher doesn't match the actual request. Even a trailing slash difference (`/v1/charges` vs `/v1/charges/`) causes a miss.
+
+**The fix:** Use WireMock's request journal to see what was actually received:
+
+
+```java
+// Dump all received requests for debugging
+wireMockServer.getAllServeEvents().forEach(event -> {
+    System.out.println("Received: " + event.getRequest().getMethod() +
+        " " + event.getRequest().getUrl());
+    System.out.println("Body: " + event.getRequest().getBodyAsString());
+});
+```
+
+### Failure 2: Port Conflict — WireMock Fails to Start
+
+**The Problem:** `java.net.BindException: Address already in use: 8089`.
+
+**The fix:** Use dynamic port allocation instead of hardcoding:
+
+
+```java
+WireMockServer server = new WireMockServer(WireMockConfiguration.options().dynamicPort());
+server.start();
+int actualPort = server.port(); // Use this to configure your app's service URL
+```
+
+---
+
+## Engineering Judgment (Layer 5)
+
+### When to Mock vs When to Use Real Services
+
+| Mock the Service | Use the Real Service |
+|-----------------|---------------------|
+| Unit/integration tests (speed, determinism) | E2E smoke tests against staging |
+| Failure simulation (timeouts, errors) | Contract verification (does our code match their actual API?) |
+| CI pipeline (no external dependencies) | Pre-release validation |
+| Parallel test execution (no rate limits) | Performance testing (real latency matters) |
+
+### Stub Maintenance Strategy
+
+| Approach | Pros | Cons |
+|----------|------|------|
+| **Inline stubs** (in test code) | Readable, self-contained | Duplication across tests |
+| **File-based stubs** (JSON in resources/) | Reusable, clean test code | Less visible, harder to parameterize |
+| **Shared stub factory** | DRY, consistent | One more abstraction layer |
+
+**Recommendation:** Use inline stubs for one-off scenarios, a shared stub factory for common patterns (success, auth failure, timeout), and file-based stubs for complex response bodies.
+
+---
+
+## Interview and Revision (Layer 6)
+
+
+
+
+| # | Front | Back |
+|---|-------|------|
+| 1 | Why mock external services in tests? | Speed (mocks respond in &lt;10ms vs 200ms+), reliability (no third-party outages), cost (no per-call charges), determinism (can trigger any response on demand) |
+| 2 | What is the difference between stubbing and verification in WireMock? | Stubbing defines what the mock returns (setup). Verification confirms that your app actually made the expected call (assertion). Both are needed for thorough tests |
+| 3 | How do WireMock scenarios enable stateful mocking? | Scenarios track state across multiple calls. First call in state "Started" returns response A and transitions to state "Processing." Next call in state "Processing" returns response B. Models real async flows |
+| 4 | What happens if a WireMock stub doesn't match? | WireMock returns 404 Not Found. Debug by inspecting the request journal to see the actual request URL, method, and body compared to the stub's matchers |
+| 5 | When should you NOT mock an external service? | Contract verification (need to confirm real API compatibility), performance testing (real latency matters), and final E2E validation in staging environments |
+
+### Mastery Checklist
+
+- [ ] Can set up a WireMock server with proper lifecycle (start, reset, stop)
+- [ ] Can create stubs matching URL, method, headers, and request body patterns
+- [ ] Can verify that the application made expected calls to the mock
+- [ ] Can simulate failures: timeouts, 500 errors, malformed responses
+- [ ] Can implement stateful scenarios for multi-step flows (pending → succeeded)
+- [ ] Can diagnose stub-not-matching issues using the request journal
+
+---
+
+**Next:** Message Queues And Events | **Related:** Api Database Integration
+
+*Last updated: *

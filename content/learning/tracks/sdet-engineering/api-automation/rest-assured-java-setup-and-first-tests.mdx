@@ -1,0 +1,718 @@
+---
+title: "REST Assured — Setup and First Tests"
+description: "What: REST Assured is a Java DSL (domain-specific language) for testing HTTP APIs. It wraps Apache HttpClient with a fluent given().when().then() syntax that mirrors how you think about API testing: \"given this setup, when I call this endpoint, then I expect this response.\" It integrates directly with TestNG/JUnit and Hamcrest matchers, making API test code readable and concise."
+summary: "SDET Engineering guide: REST Assured — Setup and First Tests"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "api-automation"
+lesson: "rest-assured-java-setup-and-first-tests"
+difficulty: "intermediate"
+estimatedMinutes: 46
+prerequisites: []
+tags: ["SDET", "API", "REST", "Testing"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/api-automation/rest-assured-java-setup-and-first-tests"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# REST Assured — Setup and First Tests
+
+> **Module:** 04 — API Automation > REST Assured Java  
+> **Prerequisites:** Http And Rest Fundamentals, Status Codes Headers And Json, Java basics  
+> **Mastery Target:** L3 (Independent) — can set up REST Assured from scratch, write fluent API tests, and extract/assert response data without guidance
+
+---
+
+## Quick Overview (Layer 1)
+
+**What:** REST Assured is a Java DSL (domain-specific language) for testing HTTP APIs. It wraps Apache HttpClient with a fluent `given().when().then()` syntax that mirrors how you think about API testing: "given this setup, when I call this endpoint, then I expect this response." It integrates directly with TestNG/JUnit and Hamcrest matchers, making API test code readable and concise.
+
+**Why:** You already use REST Assured at work, so you know the basics. But there's a gap between "I can copy-paste a working test" and "I can set up a project from scratch, configure shared specs, choose the right extraction method, and debug logging output." This file fills that gap — it takes you from Maven dependency to a complete, well-structured test class that you could explain line-by-line in an interview.
+
+**Where:** Every Java-based API test suite. REST Assured is the de facto standard for API testing in Java — used in CI/CD pipelines, integrated with TestNG/JUnit, and expected in SDET interviews. The patterns here apply to any REST API, demonstrated against StayNest endpoints.
+
+<MentalModel>
+
+Think of REST Assured as a **conversation template with a server**. `given()` is you preparing what to say (headers, auth, body). `when()` is you saying it (HTTP method + endpoint). `then()` is you checking the reply (status code, body, headers). Just like a conversation, you can keep it short (`get("/health").then().statusCode(200)`) or detailed with context, assertions, and follow-up extraction.
+
+</MentalModel>
+
+
+<KeyTakeaways>
+
+1. REST Assured's `given().when().then()` maps directly to Arrange-Act-Assert — the same pattern you use in every test.
+2. `RequestSpecification` centralizes shared config (base URI, content type, auth) — configure once, use everywhere.
+3. Extraction methods (`jsonPath()`, `path()`, `extract().response()`) serve different needs — know when to use each.
+4. Logging (`log().all()`, `log().ifValidationFails()`) is your primary debugging tool — configure it upfront, not after failure.
+5. Static imports (`given`, `equalTo`, `hasSize`) make tests readable but can confuse IDEs — know which classes they come from.
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation (Layer 2)
+
+### Maven Setup
+
+REST Assured requires one core dependency plus a JSON path dependency. For TestNG and Hamcrest matchers, add those as well:
+
+
+```xml
+<dependencies>
+    <!-- REST Assured core — the given().when().then() DSL -->
+    <dependency>
+        <groupId>io.rest-assured</groupId>
+        <artifactId>rest-assured</artifactId>
+        <version>5.4.0</version>
+        <scope>test</scope>
+    </dependency>
+
+    <!-- JSON Schema validation (for matchesJsonSchemaInClasspath) -->
+    <dependency>
+        <groupId>io.rest-assured</groupId>
+        <artifactId>json-schema-validator</artifactId>
+        <version>5.4.0</version>
+        <scope>test</scope>
+    </dependency>
+
+    <!-- TestNG as the test runner -->
+    <dependency>
+        <groupId>org.testng</groupId>
+        <artifactId>testng</artifactId>
+        <version>7.9.0</version>
+        <scope>test</scope>
+    </dependency>
+
+    <!-- Hamcrest matchers — used by REST Assured's then() assertions -->
+    <dependency>
+        <groupId>org.hamcrest</groupId>
+        <artifactId>hamcrest</artifactId>
+        <version>2.2</version>
+        <scope>test</scope>
+    </dependency>
+
+    <!-- Jackson for POJO serialization/deserialization -->
+    <dependency>
+        <groupId>com.fasterxml.jackson.core</groupId>
+        <artifactId>jackson-databind</artifactId>
+        <version>2.17.0</version>
+        <scope>test</scope>
+    </dependency>
+</dependencies>
+```
+
+**Why these versions matter:** REST Assured 5.x requires Java 11+. If you're on Java 8 (legacy projects), you need REST Assured 4.x. Jackson is optional — REST Assured uses Gson by default for JSON, but Jackson gives you more control over serialization (and most Spring Boot projects already include it).
+
+### Base URI Configuration
+
+Every REST Assured call needs to know the server address. You have three approaches, from simplest to most flexible:
+
+
+```java
+// Approach 1: Static global config — simplest, least flexible
+// Applied to ALL requests in the JVM. Fine for single-service test suites.
+RestAssured.baseURI = "http://localhost:8080/api/v1";
+
+// Approach 2: RequestSpecification — reusable, composable
+// Create once, pass to specific tests. Allows multiple base URIs in one suite.
+RequestSpecification baseSpec = new RequestSpecBuilder()
+    .setBaseUri("http://localhost:8080")
+    .setBasePath("/api/v1")
+    .setContentType(ContentType.JSON)
+    .setAccept(ContentType.JSON)
+    .build();
+
+// Approach 3: Environment-driven config — production-grade
+// Read from system properties or config files. CI/CD friendly.
+String baseUri = System.getProperty("api.baseUri", "http://localhost:8080/api/v1");
+RestAssured.baseURI = baseUri;
+```
+
+**Which to use:** Start with Approach 1 for learning and small suites. Move to Approach 2 when you test multiple services or need different auth for different endpoints. Use Approach 3 in CI/CD where the environment changes per pipeline.
+
+### The given().when().then() DSL
+
+REST Assured's fluent API maps to three phases of a test:
+
+```
+given()                          ← ARRANGE: set up the request
+    .contentType(ContentType.JSON)    // What format am I sending?
+    .header("Authorization", "Bearer " + token)  // Who am I?
+    .body(requestPayload)            // What data am I sending?
+.when()                          ← ACT: make the HTTP call
+    .post("/auth/login")             // Which method + endpoint?
+.then()                          ← ASSERT: validate the response
+    .statusCode(200)                 // Did it succeed?
+    .body("data.accessToken", notNullValue())  // Is the data correct?
+```
+
+**The chain is lazy until `then()`:** `given()` and `when()` build a request specification. Nothing is sent until `then()` triggers execution and validation. This means you can build requests incrementally.
+
+### Static Imports You Need
+
+REST Assured relies heavily on static imports. Without them, code becomes verbose and hard to read:
+
+
+```java
+// REST Assured DSL — the given/when/then entry points
+import static io.restassured.RestAssured.given;
+import static io.restassured.RestAssured.when;
+
+// Hamcrest matchers — used inside body() assertions
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.greaterThan;
+
+// Content type enum — cleaner than raw strings
+import io.restassured.http.ContentType;
+```
+
+### RequestSpecification and ResponseSpecification
+
+These are reusable templates that eliminate duplication across tests:
+
+
+```java
+import io.restassured.builder.RequestSpecBuilder;
+import io.restassured.builder.ResponseSpecBuilder;
+import io.restassured.specification.RequestSpecification;
+import io.restassured.specification.ResponseSpecification;
+
+public class SpecFactory {
+
+    /**
+     * Base request spec: JSON content type, base URI, logging on failure.
+     * Every test starts with this — individual tests add auth, body, params.
+     */
+    public static RequestSpecification baseRequestSpec() {
+        return new RequestSpecBuilder()
+            .setBaseUri("http://localhost:8080")
+            .setBasePath("/api/v1")
+            .setContentType(ContentType.JSON)
+            .setAccept(ContentType.JSON)
+            .log(LogDetail.ALL)  // Log full request if validation fails
+            .build();
+    }
+
+    /**
+     * Auth request spec: base spec + Bearer token.
+     * Use for any authenticated endpoint.
+     */
+    public static RequestSpecification authRequestSpec(String token) {
+        return new RequestSpecBuilder()
+            .addRequestSpecification(baseRequestSpec())  // Inherit base config
+            .addHeader("Authorization", "Bearer " + token)
+            .build();
+    }
+
+    /**
+     * Success response spec: 200, JSON content type, response time under 2s.
+     * Reuse for any standard successful response.
+     */
+    public static ResponseSpecification successResponseSpec() {
+        return new ResponseSpecBuilder()
+            .expectStatusCode(200)
+            .expectContentType(ContentType.JSON)
+            .expectResponseTime(lessThan(2000L))
+            .build();
+    }
+}
+```
+
+**Why specs matter:** Without specs, every test repeats `.contentType(ContentType.JSON).header("Authorization", "Bearer " + token).baseUri(...)`. With specs, each test adds only what's unique to that test — the endpoint, the body, the specific assertions.
+
+### Logging — Your Primary Debugging Tool
+
+REST Assured logging shows exactly what was sent and received. Configure it before you need it:
+
+
+```java
+// Log everything — useful during development, noisy in CI
+given()
+    .log().all()          // Log full request: method, URL, headers, body
+.when()
+    .get("/users/profile")
+.then()
+    .log().all()          // Log full response: status, headers, body
+    .statusCode(200);
+
+// Log only on failure — best for CI pipelines
+given()
+    .log().ifValidationFails()  // Only log request if an assertion fails
+.when()
+    .get("/users/profile")
+.then()
+    .log().ifValidationFails()  // Only log response if an assertion fails
+    .statusCode(200);
+
+// Log selectively — when you need specific parts
+given()
+    .log().headers()      // Log only request headers
+.when()
+    .post("/auth/login")
+.then()
+    .log().body()         // Log only response body
+    .log().ifError()      // Log response only if status >= 400
+    .statusCode(200);
+```
+
+**Practical rule:** Use `log().ifValidationFails()` as your default in `RequestSpecification`. Add `log().all()` temporarily when debugging a specific test. Never leave `log().all()` in CI — it floods logs and can leak sensitive data (tokens, passwords in request bodies).
+
+### Extracting Response Data
+
+Three ways to get data out of a response, each for different situations:
+
+
+```java
+// Method 1: extract().response() — get the full Response object
+// Use when you need multiple values or want to pass the response around
+Response response = given()
+    .spec(authRequestSpec(token))
+.when()
+    .get("/users/profile")
+.then()
+    .statusCode(200)
+    .extract().response();
+
+String name = response.jsonPath().getString("data.name");
+int userId = response.jsonPath().getInt("data.id");
+String contentType = response.getHeader("Content-Type");
+
+// Method 2: extract().path() — get a single value directly
+// Use when you need exactly one value (e.g., an ID for the next request)
+int hotelId = given()
+    .spec(authRequestSpec(token))
+    .body(hotelPayload)
+.when()
+    .post("/admin/hotels")
+.then()
+    .statusCode(201)
+    .extract().path("data.id");
+
+// Method 3: jsonPath() on the response — navigate complex JSON
+// Use when you need to query nested structures or arrays
+Response searchResponse = given()
+    .queryParam("city", "New York")
+.when()
+    .get("/hotels/search")
+.then()
+    .statusCode(200)
+    .extract().response();
+
+// Get the first hotel's name from the search results array
+String firstName = searchResponse.jsonPath().getString("data[0].name");
+// Get all hotel names as a list
+List<String> allNames = searchResponse.jsonPath().getList("data.name");
+// Get hotels with price > 100
+List<Map<String, Object>> expensiveHotels = searchResponse.jsonPath()
+    .getList("data.findAll { it.pricePerNight > 100 }");
+```
+
+---
+
+## Practical Implementation (Layer 3)
+
+### Complete Test Class: StayNest Auth Tests
+
+This is a fully working test class with five tests against StayNest's auth and profile endpoints. It demonstrates setup, request building, assertions, and extraction:
+
+
+```java
+import io.restassured.RestAssured;
+import io.restassured.http.ContentType;
+import io.restassured.response.Response;
+import io.restassured.specification.RequestSpecification;
+import io.restassured.builder.RequestSpecBuilder;
+import org.testng.annotations.BeforeClass;
+import org.testng.annotations.Test;
+
+import java.util.UUID;
+
+import static io.restassured.RestAssured.given;
+import static org.hamcrest.Matchers.*;
+
+/**
+ * REST Assured tests for StayNest /auth and /users endpoints.
+ * Demonstrates: setup, given/when/then, extraction, logging.
+ *
+ * Prerequisites: StayNest API running on localhost:8080
+ */
+public class AuthApiTest {
+
+    private RequestSpecification baseSpec;
+    private String testEmail;
+    private String testPassword = "Test@12345";
+    private String accessToken;
+
+    @BeforeClass
+    public void setup() {
+        // Unique email per test run — prevents collision with previous runs
+        testEmail = "test-" + UUID.randomUUID().toString().substring(0, 8) + "@staynest.com";
+
+        // Base spec: shared across all tests in this class
+        baseSpec = new RequestSpecBuilder()
+            .setBaseUri("http://localhost:8080")
+            .setBasePath("/api/v1")
+            .setContentType(ContentType.JSON)
+            .setAccept(ContentType.JSON)
+            .log(LogDetail.ALL)
+            .build();
+    }
+
+    /**
+     * Test 1: Successful signup returns 201 and user data.
+     * Verifies: status code, response envelope structure, user fields.
+     */
+    @Test(priority = 1)
+    public void testSignupSuccess() {
+        String signupBody = String.format("""
+            {
+                "name": "Test User",
+                "email": "%s",
+                "password": "%s",
+                "dateOfBirth": "1990-05-15",
+                "gender": "MALE",
+                "role": "GUEST"
+            }
+            """, testEmail, testPassword);
+
+        given()
+            .spec(baseSpec)
+            .body(signupBody)
+        .when()
+            .post("/auth/signup")
+        .then()
+            .statusCode(201)
+            .body("data.email", equalTo(testEmail))
+            .body("data.name", equalTo("Test User"))
+            .body("data.id", notNullValue())
+            .body("error", nullValue());
+    }
+
+    /**
+     * Test 2: Successful login returns 200 with accessToken.
+     * Extracts the token for use in subsequent authenticated tests.
+     */
+    @Test(priority = 2, dependsOnMethods = "testSignupSuccess")
+    public void testLoginSuccess() {
+        String loginBody = String.format("""
+            {
+                "email": "%s",
+                "password": "%s"
+            }
+            """, testEmail, testPassword);
+
+        Response response = given()
+            .spec(baseSpec)
+            .body(loginBody)
+        .when()
+            .post("/auth/login")
+        .then()
+            .statusCode(200)
+            .body("data.accessToken", notNullValue())
+            .body("error", nullValue())
+            .header("Content-Type", containsString("application/json"))
+            .extract().response();
+
+        // Extract token for authenticated tests
+        accessToken = response.jsonPath().getString("data.accessToken");
+
+        // Verify refresh token is set as HttpOnly cookie
+        String refreshCookie = response.getCookie("refreshToken");
+        // Note: refreshCookie may be null in getCookie if HttpOnly — 
+        // check response.getDetailedCookies() for full cookie details
+    }
+
+    /**
+     * Test 3: Login with wrong password returns 401.
+     * Negative test — verifies the server rejects invalid credentials.
+     */
+    @Test(priority = 3, dependsOnMethods = "testSignupSuccess")
+    public void testLoginWrongPassword() {
+        String loginBody = String.format("""
+            {
+                "email": "%s",
+                "password": "WrongPassword123"
+            }
+            """, testEmail);
+
+        given()
+            .spec(baseSpec)
+            .body(loginBody)
+        .when()
+            .post("/auth/login")
+        .then()
+            .statusCode(401)
+            .body("error", notNullValue());
+    }
+
+    /**
+     * Test 4: Authenticated GET /users/profile returns user data.
+     * Uses the extracted access token from login.
+     */
+    @Test(priority = 4, dependsOnMethods = "testLoginSuccess")
+    public void testGetProfile() {
+        given()
+            .spec(baseSpec)
+            .header("Authorization", "Bearer " + accessToken)
+        .when()
+            .get("/users/profile")
+        .then()
+            .statusCode(200)
+            .body("data.email", equalTo(testEmail))
+            .body("data.name", equalTo("Test User"))
+            .body("data.gender", equalTo("MALE"));
+    }
+
+    /**
+     * Test 5: Accessing profile without token returns 401.
+     * Verifies that authentication is enforced.
+     */
+    @Test(priority = 5)
+    public void testGetProfileWithoutAuth() {
+        given()
+            .spec(baseSpec)
+            // No Authorization header — deliberately omitted
+        .when()
+            .get("/users/profile")
+        .then()
+            .statusCode(401);
+    }
+}
+```
+
+**What each test demonstrates:**
+
+| Test | Concept | Key Technique |
+|------|---------|---------------|
+| Signup | POST with JSON body, 201 assertion | `body()` with Hamcrest matchers |
+| Login | Response extraction, cookie access | `extract().response()`, `jsonPath()` |
+| Wrong password | Negative testing, error response | Status code 401 assertion |
+| Get profile | Authenticated request, Bearer token | `.header("Authorization", ...)` |
+| No auth | Security validation | Omitting headers intentionally |
+
+---
+
+## Failure and Debugging (Layer 4)
+
+### Failure 1: "No value at JSON path" — Wrong Path Expression
+
+**The Problem:**
+
+
+```java
+// StayNest wraps responses in {"timeStamp": "...", "data": {...}, "error": null}
+// Forgetting the "data" wrapper in your path expression:
+given()
+    .spec(baseSpec)
+    .body(loginBody)
+.when()
+    .post("/auth/login")
+.then()
+    .body("accessToken", notNullValue());  // FAILS — no value at path "accessToken"
+```
+
+**Root cause:** The token is at `data.accessToken`, not `accessToken`. StayNest wraps every response in an envelope. Your path expression must navigate through it.
+
+**The fix:**
+
+
+```java
+.body("data.accessToken", notNullValue());  // Correct — navigates into the envelope
+```
+
+<BestPractice>
+
+**Prevention:** Establish a team convention: "All StayNest JsonPath expressions start with `data.`" or create a helper method that prepends the envelope path.
+
+</BestPractice>
+
+
+### Failure 2: Static Config Leaks Between Test Classes
+
+**The Problem:**
+
+
+```java
+// Test class A sets base URI for Service 1
+@BeforeClass
+public void setup() {
+    RestAssured.baseURI = "http://localhost:8080/api/v1";
+}
+
+// Test class B (runs later) expects a different base URI
+// but doesn't set it — it inherits class A's value!
+@Test
+public void testOtherService() {
+    given().when().get("/status")  // Hits localhost:8080, not the intended service
+    .then().statusCode(200);       // May pass for the wrong reason
+}
+```
+
+**Root cause:** `RestAssured.baseURI` is a static global variable. Setting it in one class affects all subsequent tests in the JVM unless explicitly reset.
+
+**The fix:** Use `RequestSpecification` instead of static config, or always reset in `@BeforeClass`:
+
+
+```java
+// Option 1: Reset after each class (defensive)
+@AfterClass
+public void teardown() {
+    RestAssured.reset();  // Resets baseURI, basePath, port, and all other static config
+}
+
+// Option 2 (preferred): Use specs instead of static config
+// Each class builds its own spec — no global state to leak
+RequestSpecification spec = new RequestSpecBuilder()
+    .setBaseUri("http://localhost:8080/api/v1")
+    .build();
+```
+
+### Failure 3: Assertion Fails but Log Shows Correct Data
+
+**The Problem:**
+
+
+```java
+// You see in the log: {"data":{"id":42,"name":"Test User"}}
+// But this assertion fails:
+.body("data.id", equalTo(42))  // FAILS: expected <42> but was <42>
+```
+
+**Root cause:** JSON numbers can be parsed as `Integer`, `Long`, or `Float` depending on size. REST Assured's `jsonPath()` may return `Long` while `equalTo(42)` creates an `Integer` matcher. Same value, different types.
+
+**The fix:**
+
+
+```java
+// Option 1: Use the correct type in the matcher
+.body("data.id", equalTo(42))         // Works if server returns small integers
+.body("data.id", equalTo(42L))        // Works if parsed as Long
+
+// Option 2: Use a type-agnostic comparison
+.body("data.id", is(42))              // Hamcrest is() is slightly more flexible
+
+// Option 3: Extract and compare explicitly
+int id = response.jsonPath().getInt("data.id");  // Forces Integer type
+Assert.assertEquals(id, 42);
+```
+
+### Failure 4: Tests Pass Locally but Fail in CI
+
+**The Problem:** Tests use `RestAssured.baseURI = "http://localhost:8080/api/v1"` but in CI, the API runs on a different host or port.
+
+**The fix:** Externalize the base URI:
+
+
+```java
+@BeforeClass
+public void setup() {
+    // Read from system property with localhost as fallback
+    String baseUri = System.getProperty("api.baseUri", "http://localhost:8080/api/v1");
+    RestAssured.baseURI = baseUri;
+}
+
+// In CI, pass: mvn test -Dapi.baseUri=http://staynest-api:8080/api/v1
+```
+
+---
+
+## Engineering Judgment (Layer 5)
+
+### When to Use body() Assertions vs extract() + Assert
+
+| Approach | Best For | Trade-off |
+|----------|----------|-----------|
+| `body("path", matcher)` inline | Simple single-value assertions | Clean but limited — one assertion style |
+| `extract().response()` + TestNG asserts | Complex multi-step validation, conditional logic | More flexible but more verbose |
+| `extract().path("path")` | Extracting a single value for the next request | Concise for chaining but loses the full response |
+
+**Guideline:** Use inline `body()` for straightforward assertions (status, single fields). Use `extract().response()` when you need the response for both assertions and downstream use (e.g., extract token from login, then use it in the next request).
+
+### When to Use log().all() vs log().ifValidationFails()
+
+| Context | Use | Reason |
+|---------|-----|--------|
+| Local development | `log().all()` | See every request/response while building tests |
+| CI pipeline | `log().ifValidationFails()` | Only log when something breaks — keeps logs clean |
+| Debugging a flaky test | `log().all()` temporarily | Need full context to understand intermittent failures |
+| Production monitoring | Neither — use a separate tool | REST Assured logging is for tests, not production monitoring |
+
+### RequestSpecification vs Static Config: Decision Framework
+
+| Factor | Static Config (`RestAssured.baseURI`) | RequestSpecification |
+|--------|---------------------------------------|---------------------|
+| Single service, simple suite | Good — minimal setup | Overkill |
+| Multiple services in one suite | Breaks — only one baseURI | Required — each service gets its own spec |
+| Parallel execution | Dangerous — shared mutable state | Safe — each thread uses its own spec |
+| CI/CD environments | Works with `reset()` discipline | Works naturally — specs are immutable |
+
+**Recommendation:** Always use `RequestSpecification` unless you're writing a quick throwaway script. The upfront cost is two extra lines; the payoff is no debugging global state leaks.
+
+---
+
+## Interview and Revision (Layer 6)
+
+### Fundamental Questions
+
+**Q1: What is the purpose of given().when().then() in REST Assured?**
+
+**A:** It's a fluent API that structures API tests into three phases, mirroring BDD (Behavior-Driven Development) and Arrange-Act-Assert. `given()` configures the request — headers, body, auth, content type. `when()` specifies the HTTP method and endpoint — it sends the request. `then()` validates the response — status code, headers, body. The chain is lazy: nothing is sent to the server until `then()` triggers execution. This makes tests readable top-to-bottom as a specification: "given this auth token and this JSON body, when I POST to /auth/login, then I expect a 200 with an access token."
+
+**Q2: How do you handle authentication across multiple REST Assured tests?**
+
+**A:** I use a `RequestSpecification` with the Authorization header. In `@BeforeClass`, I log in once, extract the access token, and build an authenticated spec. Every test uses that spec via `given().spec(authSpec)`. For token expiry, I use a `TokenManager` that checks the JWT's `exp` claim before each request and refreshes automatically. I avoid setting auth as static config because it's not thread-safe for parallel execution.
+
+**Q3: What's the difference between extract().path() and extract().response().jsonPath()?**
+
+**A:** `extract().path("data.id")` returns a single value directly — it's concise for grabbing one value for the next request. `extract().response()` returns the entire Response object, from which you can call `.jsonPath()`, `.getHeader()`, `.getCookie()`, etc. Use `path()` when you need one value; use `response()` when you need multiple values or when you want to both assert and extract from the same response.
+
+### Scenario-Based Questions
+
+**S1: "Your REST Assured tests work locally but fail in CI with connection refused. How do you debug?"**
+
+**A:** First, I check if the API is actually running in CI — `curl` the health endpoint from the CI script. If it's running, I check the base URI configuration: is it pointing to `localhost:8080` while the CI API runs on a different host or port? I externalize the base URI via system properties (`-Dapi.baseUri=...`) and add `log().all()` temporarily to see the exact URL being hit. Common causes: the API container hasn't fully started when tests begin (add a health check wait), the port mapping is different in Docker, or DNS resolution differs in CI.
+
+**S2: "A teammate writes tests with RestAssured.baseURI in every @BeforeClass. What's the risk?"**
+
+**A:** `RestAssured.baseURI` is static — it's shared across all test classes in the JVM. If tests run in a different order than expected, one class's `@BeforeClass` may overwrite another class's base URI before that class finishes. In parallel execution, it's a race condition. The fix is to use `RequestSpecification` per class or per service, which is an instance-level (not global) configuration. If they must use the static approach, every class needs `RestAssured.reset()` in `@AfterClass`.
+
+
+
+
+| # | Front (Question) | Back (Answer) |
+|---|---|---|
+| 1 | What static imports do you need for REST Assured's given/when/then? | `import static io.restassured.RestAssured.given;` and optionally `when`. Matchers come from `import static org.hamcrest.Matchers.*` |
+| 2 | How do you log the full request and response only when a test fails? | `given().log().ifValidationFails()` for the request, `.then().log().ifValidationFails()` for the response |
+| 3 | What does `RestAssured.reset()` do? | Resets all static configuration (baseURI, basePath, port, authentication, filters) to defaults. Use in `@AfterClass` to prevent state leaking between test classes |
+| 4 | What's the StayNest response envelope structure? | `{"timeStamp": "...", "data": {...}, "error": null}` — always navigate into `data` for assertions |
+| 5 | Why might `equalTo(42)` fail when the JSON clearly contains 42? | Type mismatch — JSON numbers may be parsed as `Long` or `Integer`. Use `equalTo(42L)` or extract with `getInt()` for explicit typing |
+
+### Mastery Checklist
+
+- [ ] Can set up a REST Assured Maven project from scratch (dependencies, imports, first test)
+- [ ] Can explain given().when().then() and how it maps to Arrange-Act-Assert
+- [ ] Can build and reuse `RequestSpecification` and `ResponseSpecification`
+- [ ] Can configure logging for both development and CI pipeline modes
+- [ ] Can extract response data using all three methods (path, jsonPath, extract.response)
+- [ ] Can debug type mismatch issues in Hamcrest assertions
+- [ ] Can write a complete test class with positive and negative tests against StayNest auth
+
+---
+
+**Next:** Advanced Request Patterns | **Related:** Http And Rest Fundamentals, Status Codes Headers And Json
+
+*Last updated: *

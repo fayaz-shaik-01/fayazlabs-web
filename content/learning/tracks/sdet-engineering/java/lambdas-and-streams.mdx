@@ -1,0 +1,657 @@
+---
+title: "Lambdas and Streams"
+description: "What: Lambdas and streams are functional programming features introduced in Java 8. Lambdas are anonymous functions you can pass around like values. Streams are pipelines that process sequences of data through a chain of operations — filter, transform, aggregate — without mutating the source."
+summary: "SDET Engineering guide: Lambdas and Streams"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "java"
+lesson: "lambdas-and-streams"
+difficulty: "beginner"
+estimatedMinutes: 42
+prerequisites: []
+tags: ["SDET", "Java", "Programming"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/java/lambdas-and-streams"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Lambdas and Streams
+
+> **Module:** 01 — Programming Foundations / Java  
+> **Prerequisites:** Syntax And Control Flow, Oop Fundamentals, Collections And Generics, Interfaces And Composition  
+> **Mastery Target:** L3 (independent — write lambda/stream pipelines without guidance)
+
+---
+
+## Quick Overview (Layer 1)
+
+**What:** Lambdas and streams are functional programming features introduced in Java 8. Lambdas are anonymous functions you can pass around like values. Streams are pipelines that process sequences of data through a chain of operations — filter, transform, aggregate — without mutating the source.
+
+**Why:** Automation engineers use these constantly — filtering test results by status, transforming API responses, building custom wait conditions, composing predicates for test selection, aggregating execution metrics. All cleaner and less error-prone than manual loops.
+
+**Where:** Test data filtering, result aggregation, custom Selenium waiters (`ExpectedCondition` is a functional interface), RestAssured response extraction, data providers, retry logic, report generation.
+
+<MentalModel>
+
+**Lambdas are anonymous workers** — instead of writing a full job description (a class), you hand someone instructions on a sticky note: `(x) -> x * 2`. No name, no ceremony, just behavior.
+
+</MentalModel>
+
+
+**Streams are assembly lines** — raw materials (a collection) enter one end; each station performs one operation (filter, reshape, sort); a terminal station packages the finished product (a list, a count). The assembly line doesn't modify the raw materials in the warehouse — it creates new output.
+
+<KeyTakeaways>
+
+1. **Lambdas replace anonymous inner classes** — anywhere Java expects a functional interface (one abstract method), you can pass a lambda instead of a verbose class.
+2. **Streams are NOT collections** — a stream is a one-time pipeline of operations. It doesn't store data and can't be reused after a terminal operation.
+3. **Lazy evaluation is the superpower** — intermediate operations (filter, map) don't execute until a terminal operation (collect, count) is called. This enables short-circuiting and efficiency.
+4. **Predicate composition** (`and`, `or`, `negate`) lets you build complex test filters from simple reusable conditions.
+5. **Method references** (`Class::method`) are shorthand for lambdas that just delegate to an existing method — prefer them for readability.
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation (Layer 2)
+
+### The Problem This Solves
+
+Without lambdas, passing behavior requires verbose anonymous inner classes. Without streams, processing collections requires mutable loops with temporary variables. Compare:
+
+
+```java
+// Without lambdas + streams — 12 lines, 3 mutable variables
+List<TestResult> failures = new ArrayList<>();
+for (TestResult r : results) {
+    if ("FAIL".equals(r.getStatus())) { failures.add(r); }
+}
+Collections.sort(failures, new Comparator<TestResult>() {
+    @Override public int compare(TestResult a, TestResult b) {
+        return a.getName().compareTo(b.getName());
+    }
+});
+
+// With lambdas + streams — 4 lines, declarative
+List<String> failedNames = results.stream()
+    .filter(r -> "FAIL".equals(r.getStatus()))
+    .sorted(Comparator.comparing(TestResult::getName))
+    .map(TestResult::getName)
+    .collect(Collectors.toList());
+```
+
+### Lambda Expressions
+
+A lambda is a concise way to represent a function that can be passed as an argument or stored in a variable.
+
+**Syntax:** `(params) -> expression` or `(params) -> { statements; }`
+
+
+```java
+(String s) -> s.length()                   // expression form — implicit return
+(int a, int b) -> a + b
+(String s) -> { return s.trim().toUpperCase(); }  // block form — explicit return
+() -> new ChromeDriver()                   // no parameters
+name -> name.startsWith("test")            // single param — parentheses optional
+```
+
+**Type inference:** The compiler infers parameter types from the **target type** — the functional interface the lambda is assigned to. So `Predicate<String> isLong = s -> s.length() > 10;` works without declaring `(String s)`.
+
+**Capturing variables — only effectively final:**
+
+
+```java
+String environment = "staging";  // effectively final — never reassigned
+
+// This works — lambda captures `environment`
+Predicate<TestCase> isForEnv = tc -> tc.getEnvironment().equals(environment);
+
+// This does NOT compile:
+String env = "staging";
+env = "production";  // reassigned — no longer effectively final
+Predicate<TestCase> broken = tc -> tc.getEnvironment().equals(env);  // COMPILE ERROR
+```
+
+Why this restriction? Lambdas may execute later (on a different thread, in a callback). If the variable could change between when the lambda captures it and when it runs, the behavior would be unpredictable. Java avoids this by requiring captured local variables to be effectively final.
+
+### Method References
+
+Method references are shorthand for lambdas that simply call an existing method. They're more readable when the lambda does nothing except delegate.
+
+
+```java
+// Static method reference: ClassName::staticMethod
+Function<String, Integer> parser = Integer::parseInt;
+// equivalent to: s -> Integer.parseInt(s)
+
+// Instance method of a particular object: instance::method
+Consumer<String> printer = System.out::println;
+// equivalent to: s -> System.out.println(s)
+
+// Instance method of an arbitrary object of a type: ClassName::instanceMethod
+Function<String, String> lower = String::toLowerCase;
+// equivalent to: s -> s.toLowerCase()
+
+// Constructor reference: ClassName::new
+Supplier<ArrayList<String>> listFactory = ArrayList::new;
+// equivalent to: () -> new ArrayList<>()
+```
+
+**When to use method references vs lambdas:**
+- Method reference when the lambda just delegates: `TestResult::getName` over `r -> r.getName()`
+- Lambda when you need to transform or combine: `r -> r.getName().toUpperCase()` (can't use a method reference here)
+
+### Functional Interfaces
+
+A functional interface has exactly one abstract method. This is the bridge between OOP and functional programming — the compiler maps a lambda to that single method. See Interfaces And Composition for a deeper treatment.
+
+**The four core functional interfaces (java.util.function):**
+
+| Interface | Method | Purpose | Automation Example |
+|-----------|--------|---------|-------------------|
+| `Predicate<T>` | `boolean test(T t)` | Test a condition | `r -> "FAIL".equals(r.getStatus())` |
+| `Function<T,R>` | `R apply(T t)` | Transform a value | `r -> r.getName()` |
+| `Consumer<T>` | `void accept(T t)` | Perform action, no return | `driver -> driver.quit()` |
+| `Supplier<T>` | `T get()` | Provide value, no input | `() -> new ChromeDriver()` |
+
+**Extended variants:** `BiFunction<T,U,R>` (two inputs), `UnaryOperator<T>` (Function where T=R), `BinaryOperator<T>` (BiFunction where all types are the same), `BiPredicate<T,U>`, `BiConsumer<T,U>`.
+
+**Predicate composition:** Predicates can be combined with `and()`, `or()`, and `negate()` to build complex conditions from reusable atoms. See Example 2 below for a full pattern.
+
+### Streams
+
+A stream is a sequence of elements supporting sequential or parallel aggregate operations. It is NOT a data structure — it doesn't store elements. It's a pipeline that reads from a source, processes through operations, and produces a result.
+
+**Stream lifecycle:**
+
+```
+Source → Intermediate Operations (lazy) → Terminal Operation (eager) → Result
+         filter, map, sorted, distinct     collect, forEach, count,
+         flatMap, limit, skip, peek        reduce, findFirst, toList
+```
+
+**Creating streams:** from a collection (`list.stream()`), from values (`Stream.of("a", "b")`), from an array (`Arrays.stream(arr)`), or generated (`Stream.generate(() -> 0).limit(5)`).
+
+**Intermediate operations** (lazy — don't execute until a terminal operation is called):
+
+| Operation | What It Does | Example |
+|-----------|-------------|---------|
+| `filter` | Keep matching elements | `.filter(r -> "FAIL".equals(r.getStatus()))` |
+| `map` | Transform each element | `.map(TestResult::getName)` |
+| `flatMap` | Flatten nested collections | `.flatMap(r -> r.getTags().stream())` |
+| `sorted` | Sort elements | `.sorted(Comparator.comparing(TestResult::getName))` |
+| `distinct` | Remove duplicates | `.map(TestResult::getStatus).distinct()` |
+| `limit` / `skip` | Control element count | `.skip(5).limit(10)` |
+| `peek` | Debug without consuming | `.peek(r -> System.out.println(r))` |
+
+**Terminal operations** (eager — trigger the entire pipeline):
+
+
+```java
+// collect — accumulate into a collection
+List<String> names = results.stream().map(TestResult::getName).collect(Collectors.toList());
+List<String> names16 = results.stream().map(TestResult::getName).toList();  // Java 16+
+
+// forEach — perform action on each element
+results.stream().filter(r -> "FAIL".equals(r.getStatus()))
+    .forEach(r -> System.out.println("Failed: " + r.getName()));
+
+// count, reduce — aggregate
+long failCount = results.stream().filter(r -> "FAIL".equals(r.getStatus())).count();
+int totalDuration = results.stream().map(TestResult::getDuration).reduce(0, Integer::sum);
+
+// findFirst / findAny — return Optional (short-circuits)
+Optional<TestResult> first = results.stream()
+    .filter(r -> "FAIL".equals(r.getStatus())).findFirst();
+
+// anyMatch / allMatch / noneMatch — boolean short-circuiting
+boolean hasFailures = results.stream().anyMatch(r -> "FAIL".equals(r.getStatus()));
+boolean allPassed = results.stream().allMatch(r -> "PASS".equals(r.getStatus()));
+```
+
+**Collectors — the power tools of `collect()`:**
+
+
+```java
+// toList, toSet, toMap
+List<String> names = stream.collect(Collectors.toList());
+Set<String> statuses = stream.collect(Collectors.toSet());
+Map<String, String> nameToStatus = results.stream()
+    .collect(Collectors.toMap(TestResult::getName, TestResult::getStatus,
+        (existing, replacement) -> existing));  // merge function avoids duplicate key exception
+
+// groupingBy — the workhorse for test result analysis
+Map<String, List<TestResult>> byStatus = results.stream()
+    .collect(Collectors.groupingBy(TestResult::getStatus));
+Map<String, Long> statusCounts = results.stream()
+    .collect(Collectors.groupingBy(TestResult::getStatus, Collectors.counting()));
+
+// partitioningBy — split into true/false
+Map<Boolean, List<TestResult>> passVsFail = results.stream()
+    .collect(Collectors.partitioningBy(r -> "PASS".equals(r.getStatus())));
+
+// joining — concatenate strings with delimiter
+String failedNames = results.stream()
+    .filter(r -> "FAIL".equals(r.getStatus()))
+    .map(TestResult::getName)
+    .collect(Collectors.joining(", "));  // "checkoutTest, paymentTest"
+```
+
+**Lazy evaluation and short-circuiting:** Intermediate operations don't run until a terminal operation triggers the pipeline. Short-circuiting terminals like `findFirst`, `anyMatch`, and `limit` stop processing as soon as they have their answer — a `findFirst` on a 10,000-element stream may only process a handful of elements.
+
+### Optional
+
+`Optional<T>` is a container that may or may not hold a value. It's Java's way of forcing you to handle the absence of a value explicitly rather than returning `null` and hoping callers check.
+
+
+```java
+// Creating
+Optional<String> present = Optional.of("value");          // must be non-null
+Optional<String> nullable = Optional.ofNullable(value);   // null becomes empty
+Optional<String> empty = Optional.empty();                // explicitly empty
+
+// Using safely
+Optional<TestResult> result = findTestByName("loginTest");
+result.ifPresent(r -> System.out.println("Found: " + r.getName()));
+TestResult r1 = result.orElse(defaultResult);                               // always evaluated
+TestResult r2 = result.orElseGet(() -> createExpensiveDefault());            // lazy
+TestResult r3 = result.orElseThrow(() -> new NoSuchElementException("Not found"));
+Optional<String> name = result.map(TestResult::getName);                    // transform if present
+Optional<String> err = result.flatMap(r -> Optional.ofNullable(r.getError())); // flatten nested Optional
+```
+
+**Anti-patterns:** `Optional.get()` without checking (defeats the purpose), Optional as a method parameter (use overloading or `@Nullable`), Optional for class fields (just use `null`). Use Optional as a **return type** to signal "might not be there."
+
+### Connection to Related Concepts
+
+- Oop Fundamentals — A lambda *is* an implementation of an interface method — polymorphism in action.
+- Interfaces And Composition — Functional interfaces enable lambdas; `Predicate`, `Function`, `Consumer`, `Supplier` are all interfaces.
+- Collections And Generics — Streams operate on collections; generics make type flow through pipelines.
+
+---
+
+## Practical Implementation (Layer 3)
+
+### Example 1: Filtering and Transforming Test Results
+
+The kind of code you write in custom reporters and CI dashboard integrators.
+
+
+```java
+import java.util.*;
+import java.util.stream.Collectors;
+
+public record TestResult(String name, String status, long durationMs, List<String> tags) {}
+
+public class ResultAnalyzer {
+
+    private final List<TestResult> results;
+
+    public ResultAnalyzer(List<TestResult> results) {
+        this.results = List.copyOf(results);  // defensive immutable copy
+    }
+
+    /** Count of results by status: {"PASS": 42, "FAIL": 7, "SKIP": 3} */
+    public Map<String, Long> statusCounts() {
+        return results.stream()
+            .collect(Collectors.groupingBy(TestResult::status, Collectors.counting()));
+    }
+
+    /** Sorted list of names of all failed tests */
+    public List<String> failedTestNames() {
+        return results.stream()
+            .filter(r -> "FAIL".equals(r.status()))
+            .map(TestResult::name)
+            .sorted()
+            .collect(Collectors.toList());
+    }
+
+    /** Average duration of passing tests */
+    public OptionalDouble averagePassDuration() {
+        return results.stream()
+            .filter(r -> "PASS".equals(r.status()))
+            .mapToLong(TestResult::durationMs)
+            .average();
+    }
+
+    /** All unique tags across all test results, sorted */
+    public Set<String> allTags() {
+        return results.stream()
+            .flatMap(r -> r.tags().stream())
+            .collect(Collectors.toCollection(TreeSet::new));
+    }
+}
+```
+
+**What this does:** Each method is a single stream pipeline answering a question about results. Note `flatMap` in `allTags()` — it flattens the nested `List<String>` of tags into a single stream. This is the pattern for whenever elements contain sub-lists.
+
+### Example 2: Custom Predicate Composition for Test Filtering
+
+Composable predicates keep complex test selection logic clean and reusable.
+
+
+```java
+import java.util.List;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
+
+public record TestCase(String name, List<String> tags, String priority, boolean enabled) {}
+
+public class TestFilter {
+
+    // Reusable atomic predicates
+    public static Predicate<TestCase> hasTag(String tag) {
+        return tc -> tc.tags().contains(tag);
+    }
+
+    public static Predicate<TestCase> hasPriority(String priority) {
+        return tc -> priority.equalsIgnoreCase(tc.priority());
+    }
+
+    public static Predicate<TestCase> isEnabled() {
+        return TestCase::enabled;
+    }
+
+    // Compose complex filters from atoms
+    public static Predicate<TestCase> smokeDesktopOnly() {
+        return hasTag("smoke").and(hasTag("mobile").negate()).and(isEnabled());
+    }
+
+    public static Predicate<TestCase> regressionHighPriority() {
+        return hasTag("regression").and(hasPriority("P1").or(hasPriority("P2"))).and(isEnabled());
+    }
+
+    public static List<TestCase> apply(List<TestCase> allTests, Predicate<TestCase> filter) {
+        return allTests.stream()
+            .filter(filter)
+            .collect(Collectors.toList());
+    }
+}
+
+// Usage
+// List<TestCase> smokeTests = TestFilter.apply(allTests, TestFilter.smokeDesktopOnly());
+// List<TestCase> criticalRegression = TestFilter.apply(allTests, TestFilter.regressionHighPriority());
+//
+// Ad-hoc composition:
+// Predicate<TestCase> custom = TestFilter.hasTag("api").and(TestFilter.hasPriority("P1"));
+// List<TestCase> customFiltered = TestFilter.apply(allTests, custom);
+```
+
+**What this does:** Each predicate is a testable unit. Complex filtering composes them with `and`/`or`/`negate`. Adding a new condition is one line — no changes to the filtering mechanism.
+
+### Example 3: Fluent Response Validator Using Lambdas
+
+A builder-style validator using `Predicate` lambdas — common in REST-assured extensions and custom API frameworks.
+
+
+```java
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.Predicate;
+
+public class ResponseValidator {
+
+    private final Response response;
+    private final List<String> failures = new ArrayList<>();
+
+    public ResponseValidator(Response response) {
+        this.response = response;
+    }
+
+    public static ResponseValidator assertThat(Response response) {
+        return new ResponseValidator(response);
+    }
+
+    public ResponseValidator satisfies(Predicate<Response> condition, String message) {
+        if (!condition.test(response)) {
+            failures.add(message);
+        }
+        return this;  // fluent — enables chaining
+    }
+
+    public ResponseValidator hasStatus(int expected) {
+        return satisfies(r -> r.getStatusCode() == expected,
+            String.format("Expected status %d but got %d", expected, response.getStatusCode()));
+    }
+
+    /** Throw if any assertions failed — collects ALL failures, not just the first */
+    public void validate() {
+        if (!failures.isEmpty()) {
+            String message = failures.stream()
+                .collect(Collectors.joining("\n  - ", "Response validation failed:\n  - ", ""));
+            throw new AssertionError(message);
+        }
+    }
+}
+
+// Usage:
+// ResponseValidator.assertThat(response)
+//     .hasStatus(200)
+//     .satisfies(r -> r.getBody().contains("bookingId"), "Missing bookingId")
+//     .satisfies(r -> r.getResponseTime() < 2000, "Response took too long")
+//     .validate();
+```
+
+**What this does:** `satisfies` accepts any `Predicate<Response>` — new conditions are lambdas, not new methods. `validate()` collects all failures before throwing, so the error shows everything wrong at once.
+
+---
+
+## Failure and Debugging (Layer 4)
+
+### Mistake 1: Stream Already Consumed
+
+**Broken code:**
+
+
+```java
+Stream<TestResult> failedStream = results.stream()
+    .filter(r -> "FAIL".equals(r.getStatus()));
+
+// First use — works fine
+long count = failedStream.count();
+
+// Second use — BLOWS UP
+List<String> names = failedStream
+    .map(TestResult::getName)
+    .collect(Collectors.toList());
+// IllegalStateException: stream has already been operated upon or closed
+```
+
+**Expected:** Both operations work.  
+**Actual:** `IllegalStateException` on the second terminal operation. A stream can only be consumed once — after `count()` runs, the stream is closed.
+
+**Fix — call `.stream()` again (streams are cheap to create), or use a `Supplier<Stream>` if the setup is complex:**
+
+
+```java
+// Just call .stream() again — the collection is still there
+long count = results.stream().filter(r -> "FAIL".equals(r.getStatus())).count();
+List<String> names = results.stream()
+    .filter(r -> "FAIL".equals(r.getStatus()))
+    .map(TestResult::getName)
+    .collect(Collectors.toList());
+```
+
+### Mistake 2: Modifying Source Collection During Stream
+
+**Broken code:**
+
+
+```java
+List<String> testNames = new ArrayList<>(List.of("login", "checkout", "search", "payment"));
+
+testNames.stream()
+    .filter(name -> name.startsWith("check"))
+    .forEach(name -> testNames.remove(name));  // BUG: modifying source during stream
+// ConcurrentModificationException
+```
+
+**Expected:** Removes "checkout" from the list.  
+**Actual:** `ConcurrentModificationException`. Streams don't allow modification of the underlying collection during pipeline execution.
+
+**Fix — never mutate the source; create a new collection or use `removeIf` outside a stream:**
+
+
+```java
+// Option A: stream to a new list (preferred)
+List<String> filtered = testNames.stream()
+    .filter(name -> !name.startsWith("check"))
+    .collect(Collectors.toList());
+
+// Option B: use removeIf directly on the collection (no stream needed)
+testNames.removeIf(name -> name.startsWith("check"));
+```
+
+### Mistake 3: Capturing a Non-Final Variable in a Lambda
+
+**Broken code:**
+
+
+```java
+String environment = "staging";
+
+// Later in the code...
+environment = System.getProperty("env", "staging");  // reassignment
+
+Predicate<TestCase> forEnv = tc -> tc.getEnv().equals(environment);  // COMPILE ERROR
+// error: local variables referenced from a lambda expression must be final or effectively final
+```
+
+**Expected:** Lambda uses the current value of `environment`.  
+**Actual:** Compile error. The variable was reassigned, so it's not effectively final.
+
+**Fix — assign once to a final (or effectively final) variable:**
+
+
+```java
+final String environment = System.getProperty("env", "staging");  // never reassigned
+Predicate<TestCase> forEnv = tc -> tc.getEnv().equals(environment);  // compiles
+```
+
+---
+
+## Engineering Judgment (Layer 5)
+
+### When to Use Streams vs For Loops
+
+| Factor | Prefer Streams | Prefer For Loops |
+|--------|---------------|-----------------|
+| **Readability** | Pipeline of filter/map/collect reads like a sentence | Complex logic with multiple exit points, index tracking, or mutation |
+| **Debugging** | Simple pipelines are easy to reason about | Breakpoints on individual lines; streams are harder to step through |
+| **Performance** | Negligible difference for automation workloads (&lt; 100K elements) | Tight loops with primitive arrays where autoboxing matters |
+| **Side effects** | Streams discourage side effects — this is a feature | When you need to update external state in each iteration |
+| **Short-circuiting** | `findFirst`, `anyMatch` stop early automatically | Explicit `break` in a loop |
+
+**Rule of thumb:** Use streams for filter-map-collect patterns (80% of cases). Use for loops when you need early returns, exception handling per element, or index-based access.
+
+### When Streams Hurt Readability
+
+If a stream pipeline exceeds 5-6 chained operations, or nests `Collectors.groupingBy` inside `Collectors.groupingBy`, break it into named intermediate variables. A complex pipeline that requires 30 seconds to parse is worse than a clear for-loop. The goal is readability, not "look how functional I am."
+
+### Optional vs Null Checking
+
+Use Optional as a **return type** to communicate "this value might not be there" — e.g., `Optional<TestResult> findByName(String name)`. Don't use it for class fields (just use `null`), method parameters (use overloading or `@Nullable`), or collection elements (use empty collections instead).
+
+---
+
+## Interview and Revision (Layer 6)
+
+### Fundamental Questions
+
+**Q1: What is a lambda expression, and how does it relate to functional interfaces?**  
+**A:** A lambda is an anonymous function — concise code that can be passed as an argument. Every lambda implements a functional interface (an interface with exactly one abstract method). The compiler maps the lambda to that method. Example: `s -> s.length() > 5` implements `Predicate<String>.test(String s)`.
+
+**Q2: What is the difference between intermediate and terminal stream operations?**  
+**A:** Intermediate operations (`filter`, `map`, `sorted`) are lazy — they return a new stream and don't execute until a terminal operation is called. Terminal operations (`collect`, `count`, `forEach`) are eager — they trigger the pipeline, consume the stream, and produce a result. A stream has many intermediates but exactly one terminal.
+
+**Q3: Explain lazy evaluation in streams.**  
+**A:** Intermediate operations don't process elements until a terminal operation triggers the pipeline. Elements flow one-at-a-time through the chain, so `findFirst` stops processing the moment it gets a match. This is called short-circuiting.
+
+**Q4: What does `flatMap` do?**  
+**A:** `flatMap` transforms each element into a stream, then flattens all streams into one. Use it when each element contains a collection: `results.stream().flatMap(r -> r.getTags().stream())` produces a single `Stream<String>` of all tags.
+
+**Q5: What is the difference between `orElse()` and `orElseGet()`?**  
+**A:** `orElse(value)` always evaluates the default. `orElseGet(supplier)` only calls the supplier when empty. Use `orElseGet` when the default is expensive to create.
+
+**Q6: Can you modify the source collection during stream processing?**  
+**A:** No — it throws `ConcurrentModificationException`. Streams require a non-interfering source. Collect results to a new collection, or use `removeIf` directly on the collection outside a stream.
+
+### Coding Questions
+
+**C1: Write a method that takes a `List<String>` of test names and returns only those containing a given substring, sorted alphabetically, with duplicates removed.**
+
+
+```java
+public static List<String> filterTests(List<String> testNames, String substring) {
+    return testNames.stream()
+        .filter(name -> name.contains(substring))
+        .distinct()
+        .sorted()
+        .collect(Collectors.toList());
+}
+```
+
+**C2: Given a `List<Map<String, String>>` representing API responses (each map has "statusCode" and "endpoint" keys), write a stream pipeline that returns a `Map<String, Long>` of status code counts.**
+
+
+```java
+public static Map<String, Long> countByStatus(List<Map<String, String>> responses) {
+    return responses.stream()
+        .collect(Collectors.groupingBy(
+            r -> r.get("statusCode"),
+            Collectors.counting()
+        ));
+}
+```
+
+**C3: Write a method that takes a list of strings and returns the first string longer than N characters, wrapped in an Optional. If none found, return Optional.empty().**
+
+
+```java
+public static Optional<String> findFirstLongerThan(List<String> items, int n) {
+    return items.stream()
+        .filter(s -> s.length() > n)
+        .findFirst();
+}
+```
+
+
+
+
+| # | Front (Question) | Back (Answer) |
+|---|---|---|
+| 1 | What happens if you call two terminal operations on the same stream? | `IllegalStateException: stream has already been operated upon or closed`. A stream can only be consumed once. Create a new stream from the source for each terminal operation. |
+| 2 | What is the difference between `map` and `flatMap`? | `map` transforms each element 1-to-1 (e.g., `TestResult` → `String`). `flatMap` transforms each element into a stream and flattens them into one stream — use it when each element contains a collection you want to unpack. |
+| 3 | Why must variables captured by a lambda be effectively final? | Lambdas may execute later or on a different thread. If the variable could change between capture and execution, behavior would be unpredictable. Java enforces effective finality to prevent this class of bug. |
+| 4 | What is the difference between `Predicate`, `Function`, `Consumer`, and `Supplier`? | `Predicate<T>`: takes T, returns boolean. `Function<T,R>`: takes T, returns R. `Consumer<T>`: takes T, returns void. `Supplier<T>`: takes nothing, returns T. |
+| 5 | When should you use `orElseGet()` instead of `orElse()`? | When the default value is expensive to create. `orElse()` always evaluates its argument; `orElseGet()` only calls the supplier when the Optional is empty. |
+
+### Mastery Checklist
+
+- [ ] Can write lambda expressions in both expression and block form with correct syntax
+- [ ] Can use all four method reference types (static, bound instance, unbound instance, constructor)
+- [ ] Can name and use the four core functional interfaces (`Predicate`, `Function`, `Consumer`, `Supplier`)
+- [ ] Can compose predicates using `and()`, `or()`, `negate()` for test filtering
+- [ ] Can build a stream pipeline with filter, map, flatMap, sorted, and collect
+- [ ] Can use `Collectors.groupingBy`, `partitioningBy`, `toMap`, `joining`, and `counting`
+- [ ] Can explain lazy evaluation and identify which operations short-circuit
+- [ ] Can create and use `Optional` correctly — `map`, `flatMap`, `orElse`, `orElseGet`, `orElseThrow`
+- [ ] Can identify and fix: consumed stream, concurrent modification, non-final capture
+- [ ] Can articulate when to use streams vs for loops and when streams hurt readability
+
+---
+
+**Next:** Exception Handling | **Related:** Collections And Generics, Interfaces And Composition
+
+---
+
+*Last updated: *

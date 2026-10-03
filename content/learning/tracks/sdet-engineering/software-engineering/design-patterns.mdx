@@ -1,0 +1,605 @@
+---
+title: "Design Patterns"
+description: "What: Design patterns are reusable solutions to common software design problems. They're not code you copy-paste — they're proven structural templates that solve recurring design challenges."
+summary: "SDET Engineering guide: Design Patterns"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "software-engineering"
+lesson: "design-patterns"
+difficulty: "intermediate"
+estimatedMinutes: 38
+prerequisites: []
+tags: ["SDET", "Software Engineering"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/software-engineering/design-patterns"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Design Patterns
+
+> **Module:** 01-Programming Foundations / Software Engineering  
+> **Prerequisites:** Oop Fundamentals, Interfaces And Composition, Clean Code  
+> **Mastery Target:** L3 (Independent)
+
+---
+
+## Quick Overview (2-minute read)
+
+**What:** Design patterns are reusable solutions to common software design problems. They're not code you copy-paste — they're proven structural templates that solve recurring design challenges.  
+**Why:** Test automation frameworks face the same structural problems repeatedly: creating different browser configurations, adding cross-cutting concerns like logging and screenshots, swapping retry strategies. Patterns give you a shared vocabulary and battle-tested approaches.  
+**Where:** Driver factories (Factory), test data builders (Builder), retry logic (Strategy), TestNG listeners (Observer), base test classes (Template Method), logging wrappers (Decorator).
+
+<MentalModel>
+
+Think of design patterns as **architectural blueprints for recurring problems**. Just like a building architect doesn't reinvent the concept of a load-bearing wall for every project, you don't need to reinvent how to create different object types (Factory) or how to add behavior without modifying existing code (Decorator). The pattern tells you *where to put the walls* — you fill in the specifics.
+
+</MentalModel>
+
+
+<KeyTakeaways>
+
+1. **Patterns solve specific problems** — if you don't have the problem, don't apply the pattern. A Factory with one product is over-engineering.
+2. **Singleton is dangerous in parallel testing** — shared mutable state across threads causes race conditions, data corruption, and flaky tests.
+3. **Strategy pattern is your most-used pattern** — swappable algorithms (wait strategies, retry policies, browser configs) appear everywhere in automation.
+4. **Decorator adds behavior without modifying existing code** — logging, screenshots, timing can all wrap existing implementations.
+5. **Know when NOT to use a pattern** — overusing patterns makes code harder to read, not easier. Start simple, add patterns when complexity demands it.
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation
+
+### Creational Patterns
+
+#### Factory Pattern
+
+**Problem:** You need to create different objects (Chrome, Firefox, Remote drivers) based on runtime configuration, but the creation logic shouldn't live in every test.
+
+**Solution:** Centralize object creation in a factory that returns the right implementation based on input.
+
+
+```java
+public interface BrowserProvider {
+    WebDriver createDriver();
+    String getBrowserName();
+}
+
+public class DriverFactory {
+    public static WebDriver createDriver(String browser) {
+        return switch (browser.toLowerCase()) {
+            case "chrome" -> {
+                ChromeOptions options = new ChromeOptions();
+                options.addArguments("--disable-gpu", "--no-sandbox");
+                yield new ChromeDriver(options);
+            }
+            case "firefox" -> new FirefoxDriver(new FirefoxOptions());
+            case "remote" -> {
+                try {
+                    yield new RemoteWebDriver(
+                        new URL(System.getProperty("grid.url")),
+                        new ChromeOptions());
+                } catch (MalformedURLException e) {
+                    throw new RuntimeException("Invalid grid URL", e);
+                }
+            }
+            default -> throw new IllegalArgumentException("Unsupported browser: " + browser);
+        };
+    }
+}
+
+// Usage — tests don't care HOW the driver is created
+WebDriver driver = DriverFactory.createDriver(config.getBrowser());
+```
+
+**When NOT to use:** If you only ever use Chrome, a factory adds indirection without value. Introduce it when the second browser type appears.
+
+#### Builder Pattern
+
+**Problem:** Creating test data objects with many optional fields leads to telescoping constructors or error-prone setter chains.
+
+**Solution:** A fluent builder that lets you set only the fields you care about.
+
+
+```java
+public class BookingRequest {
+    private final String guestName;
+    private final String roomType;
+    private final LocalDate checkIn;
+    private final LocalDate checkOut;
+    private final int guests;
+    private final boolean breakfast;
+
+    private BookingRequest(Builder builder) {
+        this.guestName = builder.guestName;
+        this.roomType = builder.roomType;
+        this.checkIn = builder.checkIn;
+        this.checkOut = builder.checkOut;
+        this.guests = builder.guests;
+        this.breakfast = builder.breakfast;
+    }
+
+    public static Builder builder() { return new Builder(); }
+
+    public static class Builder {
+        private String guestName = "Default Guest";
+        private String roomType = "STANDARD";
+        private LocalDate checkIn = LocalDate.now().plusDays(7);
+        private LocalDate checkOut = LocalDate.now().plusDays(10);
+        private int guests = 1;
+        private boolean breakfast = false;
+
+        public Builder guestName(String val) { guestName = val; return this; }
+        public Builder roomType(String val) { roomType = val; return this; }
+        public Builder checkIn(LocalDate val) { checkIn = val; return this; }
+        public Builder checkOut(LocalDate val) { checkOut = val; return this; }
+        public Builder guests(int val) { guests = val; return this; }
+        public Builder breakfast(boolean val) { breakfast = val; return this; }
+
+        public BookingRequest build() { return new BookingRequest(this); }
+    }
+
+    // getters omitted for brevity
+}
+
+// Usage — only specify what matters for the test
+BookingRequest minimal = BookingRequest.builder().guestName("Jane").build();
+BookingRequest full = BookingRequest.builder()
+    .guestName("Jane Doe")
+    .roomType("SUITE")
+    .checkIn(LocalDate.of(2024, 6, 1))
+    .guests(2)
+    .breakfast(true)
+    .build();
+```
+
+**When NOT to use:** For simple objects with 1-3 fields — just use a constructor. Builders shine at 4+ optional fields.
+
+#### Singleton — and Why It's Dangerous in Parallel Tests
+
+**Problem:** You want exactly one instance of something (config loader, connection pool).
+
+**Solution:** A class that restricts instantiation to one object.
+
+
+```java
+// Classic Singleton — DANGEROUS for parallel test execution
+public class ConfigManager {
+    private static ConfigManager instance;
+    private Properties properties;
+
+    private ConfigManager() {
+        properties = new Properties();
+        // load from file...
+    }
+
+    public static ConfigManager getInstance() {
+        if (instance == null) {
+            instance = new ConfigManager();  // Race condition in parallel!
+        }
+        return instance;
+    }
+}
+```
+
+**Why Singleton is dangerous in parallel tests:**
+- Shared mutable state across threads — one test modifies config, another reads stale values
+- Initialization race conditions — two threads enter `getInstance()` simultaneously
+- Implicit coupling — tests become dependent on global state, making them order-dependent
+- Hard to reset between tests — Singleton lifetime outlasts individual test execution
+
+**Alternative — ThreadLocal or dependency injection:**
+
+
+```java
+// ThreadLocal gives each thread its own instance — safe for parallel execution
+public class DriverManager {
+    private static final ThreadLocal<WebDriver> driverThread = new ThreadLocal<>();
+
+    public static WebDriver getDriver() { return driverThread.get(); }
+
+    public static void setDriver(WebDriver driver) { driverThread.set(driver); }
+
+    public static void quitDriver() {
+        WebDriver driver = driverThread.get();
+        if (driver != null) {
+            driver.quit();
+            driverThread.remove();
+        }
+    }
+}
+```
+
+### Structural Patterns
+
+#### Decorator Pattern — Adding Logging and Screenshots
+
+**Problem:** You want to add logging, screenshots, or timing to element interactions without modifying the original class.
+
+**Solution:** Wrap the original object with a decorator that adds behavior before/after delegating.
+
+
+```java
+public interface ElementActions {
+    void click(By locator);
+    String getText(By locator);
+}
+
+public class BaseElementActions implements ElementActions {
+    private final WebDriver driver;
+
+    public BaseElementActions(WebDriver driver) { this.driver = driver; }
+
+    @Override
+    public void click(By locator) {
+        driver.findElement(locator).click();
+    }
+
+    @Override
+    public String getText(By locator) {
+        return driver.findElement(locator).getText();
+    }
+}
+
+// Decorator: adds logging without modifying BaseElementActions
+public class LoggingElementActions implements ElementActions {
+    private final ElementActions delegate;
+    private static final Logger log = LoggerFactory.getLogger(LoggingElementActions.class);
+
+    public LoggingElementActions(ElementActions delegate) { this.delegate = delegate; }
+
+    @Override
+    public void click(By locator) {
+        log.info("Clicking: {}", locator);
+        delegate.click(locator);
+        log.info("Clicked: {}", locator);
+    }
+
+    @Override
+    public String getText(By locator) {
+        String text = delegate.getText(locator);
+        log.info("Got text '{}' from: {}", text, locator);
+        return text;
+    }
+}
+
+// Stack decorators — each adds one concern
+ElementActions actions = new LoggingElementActions(
+    new BaseElementActions(driver)
+);
+```
+
+#### Adapter Pattern — Wrapping Third-Party APIs
+
+**Problem:** A third-party library's interface doesn't match your framework's expected interface.
+
+**Solution:** An adapter class that translates between the two.
+
+
+```java
+// Your framework expects this interface
+public interface HttpClient {
+    Response get(String url, Map<String, String> headers);
+    Response post(String url, String body, Map<String, String> headers);
+}
+
+// RestAssured has its own API — doesn't match yours
+// Adapter bridges the gap
+public class RestAssuredAdapter implements HttpClient {
+    @Override
+    public Response get(String url, Map<String, String> headers) {
+        io.restassured.response.Response raResponse = given()
+            .headers(headers)
+            .when()
+            .get(url);
+        return mapToFrameworkResponse(raResponse);
+    }
+
+    @Override
+    public Response post(String url, String body, Map<String, String> headers) {
+        io.restassured.response.Response raResponse = given()
+            .headers(headers)
+            .body(body)
+            .when()
+            .post(url);
+        return mapToFrameworkResponse(raResponse);
+    }
+
+    private Response mapToFrameworkResponse(io.restassured.response.Response ra) {
+        return new Response(ra.getStatusCode(), ra.getBody().asString(), ra.getHeaders());
+    }
+}
+```
+
+**When NOT to use:** If your framework is the only consumer of RestAssured and you don't plan to swap HTTP libraries, the adapter is unnecessary abstraction.
+
+#### Facade Pattern — Simplifying Complex APIs
+
+**Problem:** Setting up test data requires coordinating multiple API calls, database operations, and waits. Tests shouldn't handle that complexity.
+
+**Solution:** A facade provides a simple interface over complex subsystems.
+
+
+```java
+// Complex setup hidden behind a simple facade
+public class TestEnvironmentFacade {
+    private final UserApiClient userApi;
+    private final BookingApiClient bookingApi;
+    private final DatabaseHelper db;
+
+    public TestEnvironmentFacade(String baseUrl, String dbUrl) {
+        this.userApi = new UserApiClient(baseUrl);
+        this.bookingApi = new BookingApiClient(baseUrl);
+        this.db = new DatabaseHelper(dbUrl);
+    }
+
+    // Simple method hides complex multi-step setup
+    public BookingTestData setupBookingScenario(String guestEmail, String roomType) {
+        String userId = userApi.createUser(guestEmail, "Test", "User");
+        String token = userApi.authenticate(guestEmail, "password123");
+        String bookingId = bookingApi.createBooking(token, roomType,
+            LocalDate.now().plusDays(7), LocalDate.now().plusDays(10));
+        db.waitForBookingStatus(bookingId, "CONFIRMED", Duration.ofSeconds(5));
+        return new BookingTestData(userId, token, bookingId);
+    }
+
+    public void teardownScenario(BookingTestData data) {
+        bookingApi.cancelBooking(data.token(), data.bookingId());
+        userApi.deleteUser(data.userId());
+    }
+}
+
+// Test uses the simple facade — no knowledge of the 5-step process
+@Test
+public void should_showBookingDetails_when_bookingExists() {
+    BookingTestData data = testEnv.setupBookingScenario("guest@test.com", "SUITE");
+    // ... test logic ...
+}
+```
+
+### Behavioral Patterns
+
+#### Strategy Pattern — Wait Strategies and Retry Policies
+
+**Problem:** Different tests need different wait/retry behaviors, but the core logic is the same.
+
+**Solution:** Define an interface for the algorithm, create multiple implementations, inject the one you need.
+
+
+```java
+@FunctionalInterface
+public interface WaitStrategy {
+    WebElement waitForElement(WebDriver driver, By locator);
+}
+
+// Strategy 1: Fast — for elements that should be immediately present
+WaitStrategy immediate = (driver, locator) ->
+    driver.findElement(locator);
+
+// Strategy 2: Patient — for elements that load asynchronously
+WaitStrategy patient = (driver, locator) ->
+    new WebDriverWait(driver, Duration.ofSeconds(15))
+        .until(ExpectedConditions.visibilityOfElementLocated(locator));
+
+// Strategy 3: Polling — for elements on pages with heavy JavaScript
+WaitStrategy polling = (driver, locator) ->
+    new WebDriverWait(driver, Duration.ofSeconds(30))
+        .pollingEvery(Duration.ofMillis(500))
+        .until(ExpectedConditions.elementToBeClickable(locator));
+
+// Usage — inject the strategy
+public class BasePage {
+    protected final WebDriver driver;
+    protected final WaitStrategy waitStrategy;
+
+    public BasePage(WebDriver driver, WaitStrategy waitStrategy) {
+        this.driver = driver;
+        this.waitStrategy = waitStrategy;
+    }
+
+    protected WebElement find(By locator) {
+        return waitStrategy.waitForElement(driver, locator);
+    }
+}
+```
+
+#### Observer/Listener — TestNG Listeners
+
+**Problem:** You need to perform actions when tests start, pass, fail, or finish — without modifying every test.
+
+**Solution:** Implement a listener that reacts to test lifecycle events.
+
+
+```java
+public class TestLifecycleListener implements ITestListener {
+    private static final Logger log = LoggerFactory.getLogger(TestLifecycleListener.class);
+
+    @Override
+    public void onTestStart(ITestResult result) {
+        log.info("▶ STARTING: {}", result.getMethod().getMethodName());
+    }
+
+    @Override
+    public void onTestSuccess(ITestResult result) {
+        log.info("✓ PASSED: {} ({}ms)", result.getMethod().getMethodName(),
+            result.getEndMillis() - result.getStartMillis());
+    }
+
+    @Override
+    public void onTestFailure(ITestResult result) {
+        log.error("✗ FAILED: {}", result.getMethod().getMethodName());
+        captureScreenshot(result);
+        capturePageSource(result);
+    }
+
+    private void captureScreenshot(ITestResult result) {
+        // Screenshot logic — centralized, not duplicated in every test
+    }
+}
+```
+
+#### Template Method — Base Test Class
+
+**Problem:** All test classes share the same lifecycle (setup driver → run test → take screenshot on failure → quit driver) but each test class has different specifics.
+
+**Solution:** Define the skeleton in a base class, let subclasses fill in the details.
+
+
+```java
+public abstract class BaseWebTest {
+    protected WebDriver driver;
+
+    @BeforeMethod
+    public final void setUp() {
+        driver = DriverFactory.createDriver(getBrowser());
+        driver.manage().window().maximize();
+        navigateToStartPage();     // Subclass defines where to start
+    }
+
+    @AfterMethod
+    public final void tearDown(ITestResult result) {
+        if (result.getStatus() == ITestResult.FAILURE) {
+            captureEvidence();     // Always happens on failure
+        }
+        driver.quit();
+    }
+
+    // Template methods — subclasses provide implementation
+    protected abstract String getBrowser();
+    protected abstract void navigateToStartPage();
+
+    // Hook — optional override, default does nothing
+    protected void captureEvidence() {
+        // Default: screenshot. Subclasses can add page source, logs, etc.
+        File screenshot = ((TakesScreenshot) driver).getScreenshotAs(OutputType.FILE);
+    }
+}
+
+// Concrete implementation
+public class LoginTest extends BaseWebTest {
+    @Override
+    protected String getBrowser() { return "chrome"; }
+
+    @Override
+    protected void navigateToStartPage() {
+        driver.get("https://app.example.com/login");
+    }
+
+    @Test
+    public void should_loginSuccessfully_when_validCredentials() { /* ... */ }
+}
+```
+
+**When NOT to use:** When it leads to deep inheritance hierarchies. If you're beyond 2 levels (Base → Concrete), switch to composition.
+
+---
+
+## Failure and Debugging
+
+### Scenario: Singleton Causes Flaky Parallel Tests
+
+**Deliberately Broken Example:**
+
+
+```java
+// Shared Singleton — all parallel threads use the same instance
+public class TestConfig {
+    private static TestConfig instance;
+    private String currentEnvironment;  // Mutable shared state!
+
+    public void setEnvironment(String env) { this.currentEnvironment = env; }
+    public String getEnvironment() { return currentEnvironment; }
+}
+
+// Thread 1: TestConfig.getInstance().setEnvironment("staging");
+// Thread 2: TestConfig.getInstance().setEnvironment("production");
+// Thread 1: TestConfig.getInstance().getEnvironment() → "production" ← WRONG!
+```
+
+**Root Cause:** Shared mutable state. Both threads modify and read the same `currentEnvironment` field.
+
+**Corrected Implementation:** Use ThreadLocal or pass config through constructors (dependency injection).
+
+<AntiPattern>
+
+| Anti-Pattern | What Happens | Fix |
+|-------------|-------------|-----|
+| **Pattern for pattern's sake** | Factory with one product, Strategy with one strategy | Remove the pattern until you have 2+ variants |
+| **Over-abstraction** | 5 interfaces, 3 abstract classes for a simple page object | YAGNI — start concrete, abstract when needed |
+| **Golden hammer** | Using Builder for every object, even 2-field ones | Match pattern to problem complexity |
+
+</AntiPattern>
+
+
+---
+
+## Engineering Judgment
+
+### Which Pattern When?
+
+| Problem | Pattern | Automation Example |
+|---------|---------|-------------------|
+| Need to create different object types based on config | **Factory** | Driver creation (Chrome, Firefox, Remote) |
+| Object has many optional fields | **Builder** | Test data objects (BookingRequest, UserProfile) |
+| Need to add behavior without modifying existing classes | **Decorator** | Logging, screenshots, timing around actions |
+| Third-party API doesn't match your interface | **Adapter** | Wrapping RestAssured, Appium, or Playwright |
+| Complex subsystem needs a simple interface | **Facade** | Test environment setup (API + DB + waits) |
+| Need to swap algorithms at runtime | **Strategy** | Wait strategies, retry policies, data sources |
+| React to lifecycle events without modifying tests | **Observer/Listener** | TestNG/JUnit listeners |
+| Shared skeleton with customizable steps | **Template Method** | Base test class with setup/teardown |
+
+---
+
+## Interview and Revision
+
+### Fundamental Questions
+
+**Q1: What is the Factory pattern and where do you use it in test automation?**  
+**A:** Factory centralizes object creation behind a common interface. In automation, I use it for driver creation — `DriverFactory.createDriver("chrome")` returns a configured ChromeDriver. Adding a new browser means adding a case to the factory, not modifying tests.
+
+**Q2: Why is Singleton problematic for parallel test execution?**  
+**A:** Singleton provides one shared instance across all threads. If that instance has mutable state, parallel tests can interfere with each other — one thread sets a value, another overwrites it. This causes flaky, non-deterministic failures. Use ThreadLocal or dependency injection instead.
+
+**Q3: Explain the Strategy pattern with an automation example.**  
+**A:** Strategy defines a family of interchangeable algorithms. In automation, wait strategies are a natural fit: an `immediate` strategy for fast elements, a `patient` strategy with explicit waits, a `polling` strategy for heavy JS pages. The page object accepts a `WaitStrategy` through its constructor, so you can swap behavior without changing the page object code.
+
+**Q4: What is the Decorator pattern and when would you use it?**  
+**A:** Decorator wraps an existing object to add behavior without modifying it. Both the wrapper and the original implement the same interface. I'd use it to add logging around element actions — a `LoggingElementActions` wraps `BaseElementActions`, logs before and after each call, then delegates. You can stack decorators: logging + screenshots + timing, each adding one concern.
+
+
+
+
+| # | Front (Question) | Back (Answer) |
+|---|---|---|
+| 1 | Factory vs Builder — when to use each? | Factory selects *which* type to create (Chrome vs Firefox). Builder constructs *one* type with many optional parameters (BookingRequest with 8 fields, only 3 specified). |
+| 2 | Why is Template Method limited to 2 levels of inheritance? | Deeper hierarchies create the fragile base class problem — changes in a parent silently break distant children. Beyond 2 levels, prefer composition. |
+| 3 | What problem does the Adapter pattern solve? | It bridges incompatible interfaces. When a third-party library's API doesn't match your framework's expected interface, an adapter translates between them. |
+| 4 | What is the most important question before applying a pattern? | "Do I actually have this problem?" If you don't have multiple implementations, a Factory adds complexity without value. |
+
+### Mastery Checklist
+
+- [ ] Can implement Factory, Builder, and explain why Singleton is risky in parallel tests
+- [ ] Can implement Decorator to add logging/screenshots without modifying existing classes
+- [ ] Can implement Strategy for swappable wait/retry policies
+- [ ] Can explain Observer/Listener pattern with TestNG lifecycle example
+- [ ] Can identify anti-patterns: over-abstraction, golden hammer, pattern for pattern's sake
+- [ ] Can choose the right pattern for a given automation problem
+- [ ] Can explain when NOT to use each pattern
+
+---
+
+**Next:** Dependency Management | **Related:** Clean Code, Interfaces And Composition
+
+---
+
+*Last updated: *

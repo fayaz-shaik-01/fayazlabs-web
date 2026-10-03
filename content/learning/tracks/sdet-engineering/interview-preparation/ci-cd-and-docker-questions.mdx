@@ -1,0 +1,897 @@
+---
+title: "CI/CD and Docker Interview Questions"
+description: "Each question includes: the question, a detailed answer, and a practical example. CI/CD knowledge separates senior SDETs from mid-level — you're expected to own the testing infrastructure, not just write tests."
+summary: "SDET Engineering guide: CI/CD and Docker Interview Questions"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "interview-preparation"
+lesson: "ci-cd-and-docker-questions"
+difficulty: "intermediate"
+estimatedMinutes: 58
+prerequisites: []
+tags: ["SDET", "Interview", "Preparation"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/interview-preparation/ci-cd-and-docker-questions"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# CI/CD and Docker Interview Questions
+
+> **Module:** 13 — Interview Preparation
+> **Focus:** 12 CI/CD and Docker questions with detailed answers and practical examples
+> **Audience:** SDET with ~3 years experience targeting senior roles
+> **Complements:** Fastenal-Prep covers Jenkins basics and CI troubleshooting; this file provides deeper pipeline design, Docker usage for testing, and infrastructure-as-code concepts
+
+---
+
+## How to Use This File
+
+Each question includes: the question, a detailed answer, and a practical example. CI/CD knowledge separates senior SDETs from mid-level — you're expected to own the testing infrastructure, not just write tests.
+
+---
+
+## Questions 1-4: CI/CD Fundamentals
+
+### Q1: Explain the difference between Continuous Integration, Continuous Delivery, and Continuous Deployment.
+
+**Answer:**
+
+**Continuous Integration (CI):** Developers merge code to main branch frequently (at least daily). Each merge triggers an automated build and test suite. The goal: catch integration issues early.
+
+```
+Developer pushes code → Build triggers → Unit tests → Integration tests → Results
+```
+
+**Continuous Delivery (CD):** Every change that passes CI is automatically prepared for release to production. The deployment to production requires a manual approval step.
+
+```
+CI passes → Deploy to staging → Acceptance tests → Manual approval → Deploy to production
+```
+
+**Continuous Deployment (CD):** Every change that passes all automated checks is automatically deployed to production. No manual approval gate.
+
+```
+CI passes → Deploy to staging → Acceptance tests → Auto-deploy to production
+```
+
+**Key distinction:**
+- Continuous Delivery: "We *can* deploy any time" (human decides when)
+- Continuous Deployment: "We *do* deploy every time" (automated decision)
+
+**Where SDETs fit:** SDETs build and maintain the automated test gates that make CD possible. Without reliable, fast, comprehensive automated tests, you can't trust automated deployments.
+
+**Practical Example:**
+
+```
+Company A (Continuous Delivery):
+  PR merged → CI (unit + API tests, 5 min) → Deploy to QA → 
+  Regression tests (15 min) → QA approval → Deploy to staging →
+  Smoke tests → Release manager approves → Deploy to prod
+
+Company B (Continuous Deployment):
+  PR merged → CI (unit + API tests, 5 min) → Deploy to staging → 
+  Regression + smoke (10 min) → Auto-deploy to prod →
+  Canary rollout (5% traffic) → Monitor metrics → Full rollout
+```
+
+---
+
+### Q2: Describe a Jenkins pipeline for running automated tests. Walk through each stage.
+
+**Answer:**
+
+```groovy
+<!-- unverified -->
+pipeline {
+    agent { docker { image 'maven:3.9-eclipse-temurin-17' } }
+    
+    parameters {
+        choice(name: 'TEST_SUITE', choices: ['smoke', 'regression', 'full'], 
+               description: 'Which test suite to run')
+        choice(name: 'ENVIRONMENT', choices: ['qa', 'staging', 'prod'], 
+               description: 'Target environment')
+    }
+    
+    environment {
+        BASE_URL = credentials('base-url-${ENVIRONMENT}')
+        API_TOKEN = credentials('api-token-${ENVIRONMENT}')
+    }
+    
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+        
+        stage('Build') {
+            steps {
+                sh 'mvn clean compile -DskipTests'
+            }
+        }
+        
+        stage('Start Test Infrastructure') {
+            steps {
+                sh 'docker-compose -f docker-compose.test.yml up -d'
+                sh 'scripts/wait-for-services.sh' // Health check loop
+            }
+        }
+        
+        stage('API Tests') {
+            steps {
+                sh """
+                    mvn test -Dsuite=api-${TEST_SUITE} \\
+                    -Denv=${ENVIRONMENT} \\
+                    -DthreadCount=5
+                """
+            }
+            post {
+                always {
+                    junit 'target/surefire-reports/*.xml'
+                }
+            }
+        }
+        
+        stage('UI Tests') {
+            when {
+                expression { params.TEST_SUITE != 'smoke' }
+            }
+            steps {
+                sh """
+                    mvn test -Dsuite=ui-${TEST_SUITE} \\
+                    -Denv=${ENVIRONMENT} \\
+                    -Dbrowser=chrome \\
+                    -Dheadless=true \\
+                    -DthreadCount=3
+                """
+            }
+            post {
+                always {
+                    junit 'target/surefire-reports/*.xml'
+                }
+            }
+        }
+        
+        stage('Generate Report') {
+            steps {
+                allure includeProperties: false,
+                       results: Path: 'Allure Results'
+            }
+        }
+    }
+    
+    post {
+        failure {
+            slackSend channel: '#qa-alerts',
+                      color: 'danger',
+                      message: "Test failure: ${env.JOB_NAME} #${env.BUILD_NUMBER}\n${env.BUILD_URL}"
+        }
+        always {
+            sh 'docker-compose -f docker-compose.test.yml down'
+            cleanWs()
+        }
+    }
+}
+```
+
+**Key design decisions:**
+- **Docker agent:** Tests run in a clean container, ensuring consistency
+- **API tests before UI tests:** Faster feedback; if APIs are broken, UI tests would fail anyway
+- **Conditional UI tests:** Skip for smoke runs (speed)
+- **Always sections:** Collect test results even on failure; always tear down infrastructure
+- **Parameterized:** Same pipeline serves smoke, regression, and full test runs
+
+---
+
+### Q3: What is the difference between declarative and scripted Jenkins pipelines?
+
+**Answer:**
+
+**Declarative pipeline:** Structured, opinionated syntax with pre-defined sections. Easier to read and maintain.
+
+```groovy
+<!-- unverified -->
+pipeline {
+    agent any
+    stages {
+        stage('Test') {
+            steps {
+                sh 'mvn test'
+            }
+        }
+    }
+    post {
+        always { junit '**/target/surefire-reports/*.xml' }
+    }
+}
+```
+
+**Scripted pipeline:** Full Groovy scripting. More flexible but harder to maintain.
+
+```groovy
+<!-- unverified -->
+node {
+    stage('Test') {
+        try {
+            sh 'mvn test'
+        } catch (Exception e) {
+            currentBuild.result = 'FAILURE'
+            throw e
+        } finally {
+            junit '**/target/surefire-reports/*.xml'
+        }
+    }
+}
+```
+
+**Comparison:**
+
+| Aspect | Declarative | Scripted |
+| --- | --- | --- |
+| Syntax | Structured (pipeline, stages, steps) | Free-form Groovy |
+| Learning curve | Lower | Higher |
+| Flexibility | Limited (use `script {}` for complex logic) | Unlimited |
+| Error handling | Built-in `post` section | Manual try/catch |
+| Restart from stage | Supported | Not supported |
+| Recommended for | Most pipelines | Complex orchestration logic |
+
+**Recommendation:** Start with declarative. Use `script {}` blocks for complex logic within declarative pipelines. Only use scripted for truly dynamic pipelines that can't be expressed declaratively.
+
+---
+
+### Q4: How do you handle test failures in CI? What is your notification and triage strategy?
+
+**Answer:**
+
+**Notification hierarchy:**
+
+```
+Test fails in CI
+  → Slack notification to #qa-alerts (immediate)
+  → Build marked as failed with Allure report link
+  → Failure assigned to last committer (if commit-triggered)
+  → If flaky (passed on retry), tagged as flaky in dashboard
+```
+
+**Triage workflow:**
+
+| Failure Type | Action | SLA |
+| --- | --- | --- |
+| New test failure after code change | Developer fixes or reverts | Same day |
+| Flaky test (passes on retry) | SDET investigates root cause | Within sprint |
+| Infrastructure failure (timeout, connection) | DevOps investigates | Same day |
+| Test environment down | Skip tests, notify team | Immediate |
+
+**Implementation — Slack notification with context:**
+
+```groovy
+<!-- unverified -->
+post {
+    failure {
+        script {
+            def failedTests = sh(script: """
+                grep -l 'failures=' target/surefire-reports/*.xml | head -5
+            """, returnStdout: true).trim()
+            
+            slackSend(
+                channel: '#qa-alerts',
+                color: 'danger',
+                message: """
+                    :red_circle: *Test Failure* - ${env.JOB_NAME} #${env.BUILD_NUMBER}
+                    *Environment:* ${params.ENVIRONMENT}
+                    *Suite:* ${params.TEST_SUITE}
+                    *Failed tests:* ${failedTests}
+                    *Report:* ${env.BUILD_URL}allure/
+                    *Last commit:* ${env.GIT_COMMIT} by ${env.GIT_AUTHOR_NAME}
+                """.stripIndent()
+            )
+        }
+    }
+    unstable {
+        slackSend(
+            channel: '#qa-alerts',
+            color: 'warning',
+            message: ":warning: *Flaky tests detected* - ${env.BUILD_URL}allure/"
+        )
+    }
+}
+```
+
+**Key principles:**
+- **Don't ignore failures.** Every failure should be triaged within 24 hours.
+- **Distinguish flaky from real.** Retried tests that pass should be tracked separately.
+- **Include context.** Slack messages should link to the report, show which tests failed, and identify the last committer.
+- **Escalation.** If failures are ignored for > 24 hours, escalate automatically.
+
+---
+
+## Questions 5-8: Docker for Testing
+
+### Q5: How do you use Docker in test automation? Explain common use cases.
+
+**Answer:**
+
+**Use case 1: Consistent test execution environment**
+
+```dockerfile
+<!-- unverified -->
+# Dockerfile for running Selenium tests
+FROM maven:3.9-eclipse-temurin-17
+
+# Install Chrome
+RUN wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb \
+    && apt-get update \
+    && apt-get install -y ./google-chrome-stable_current_amd64.deb \
+    && rm google-chrome-stable_current_amd64.deb
+
+# Install ChromeDriver (matching version)
+RUN CHROME_VERSION=$(google-chrome --version | awk '{print $3}') \
+    && wget -q "https://chromedriver.storage.googleapis.com/${CHROME_VERSION}/chromedriver_linux64.zip" \
+    && unzip chromedriver_linux64.zip -d /usr/local/bin/ \
+    && rm chromedriver_linux64.zip
+
+WORKDIR /tests
+COPY pom.xml .
+RUN mvn dependency:resolve
+COPY src/ src/
+
+CMD ["mvn", "test", "-Dheadless=true"]
+```
+
+**Use case 2: Spin up test dependencies**
+
+```yaml
+<!-- unverified -->
+# docker-compose.test.yml
+version: '3.8'
+services:
+  app:
+    image: myapp:latest
+    ports: ["8080:8080"]
+    environment:
+      - DB_HOST=postgres
+      - DB_NAME=testdb
+    depends_on:
+      postgres:
+        condition: service_healthy
+    
+  postgres:
+    image: postgres:15
+    environment:
+      - POSTGRES_DB=testdb
+      - POSTGRES_USER=test
+      - POSTGRES_PASSWORD=test
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U test"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    
+  selenium-chrome:
+    image: selenium/standalone-chrome:latest
+    ports: ["4444:4444"]
+    shm_size: 2g  # Prevent Chrome crashes
+```
+
+**Use case 3: Selenium Grid in Docker**
+
+```yaml
+<!-- unverified -->
+# docker-compose.grid.yml
+version: '3.8'
+services:
+  selenium-hub:
+    image: selenium/hub:latest
+    ports: ["4442:4442", "4443:4443", "4444:4444"]
+    
+  chrome-node:
+    image: selenium/node-chrome:latest
+    shm_size: 2g
+    depends_on: [selenium-hub]
+    environment:
+      - SE_EVENT_BUS_HOST=selenium-hub
+      - SE_EVENT_BUS_PUBLISH_PORT=4442
+      - SE_EVENT_BUS_SUBSCRIBE_PORT=4443
+      - SE_NODE_MAX_SESSIONS=3
+    deploy:
+      replicas: 2  # 2 Chrome nodes, 3 sessions each = 6 parallel tests
+      
+  firefox-node:
+    image: selenium/node-firefox:latest
+    shm_size: 2g
+    depends_on: [selenium-hub]
+    environment:
+      - SE_EVENT_BUS_HOST=selenium-hub
+      - SE_EVENT_BUS_PUBLISH_PORT=4442
+      - SE_EVENT_BUS_SUBSCRIBE_PORT=4443
+```
+
+**Key benefits of Docker for testing:**
+- **Reproducibility:** "It works on my machine" → "It works in this container"
+- **Isolation:** Each test run gets a fresh environment
+- **Speed:** Spin up infrastructure in seconds, not hours
+- **CI compatibility:** Docker runs anywhere — Jenkins, GitHub Actions, GitLab CI
+
+---
+
+### Q6: Explain Docker Compose for test infrastructure. How do you handle service dependencies and health checks?
+
+**Answer:**
+
+Docker Compose orchestrates multiple containers that work together. For testing, it creates the entire application stack.
+
+**Health check pattern — wait for services to be ready:**
+
+```yaml
+<!-- unverified -->
+# docker-compose.test.yml
+services:
+  postgres:
+    image: postgres:15
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U test -d testdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+  
+  redis:
+    image: redis:7
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+  
+  app:
+    build: ./app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    ports: ["8080:8080"]
+```
+
+**Wait script for test execution:**
+
+```bash
+<!-- unverified -->
+#!/bin/bash
+# wait-for-services.sh
+echo "Waiting for application to be ready..."
+for i in $(seq 1 30); do
+    if curl -sf http://localhost:8080/actuator/health > /dev/null 2>&1; then
+        echo "Application is ready!"
+        exit 0
+    fi
+    echo "Attempt $i/30 - waiting 5 seconds..."
+    sleep 5
+done
+echo "Application failed to start within timeout"
+exit 1
+```
+
+**Lifecycle in CI:**
+
+```groovy
+<!-- unverified -->
+stage('Setup Infrastructure') {
+    steps {
+        sh 'docker-compose -f docker-compose.test.yml up -d'
+        sh 'chmod +x scripts/wait-for-services.sh'
+        sh './scripts/wait-for-services.sh'
+    }
+}
+
+stage('Run Tests') {
+    steps {
+        sh 'mvn test -Dbase.url=http://localhost:8080'
+    }
+}
+
+// ALWAYS tear down — even on failure
+post {
+    always {
+        sh 'docker-compose -f docker-compose.test.yml down -v' // -v removes volumes
+    }
+}
+```
+
+**Key points:**
+- `depends_on` with `condition: service_healthy` ensures proper startup order
+- Always use health checks — `depends_on` alone only waits for the container to start, not the service inside it
+- Use `-v` flag on `down` to remove volumes and get a clean slate for next run
+
+---
+
+### Q7: What is the difference between Docker volumes, bind mounts, and tmpfs? When does each matter for testing?
+
+**Answer:**
+
+| Type | What It Does | Use Case in Testing |
+| --- | --- | --- |
+| **Volume** | Docker-managed storage that persists beyond container lifecycle | Database storage between runs, shared test artifacts |
+| **Bind mount** | Maps a host directory into the container | Mounting test code, config files, downloading reports |
+| **tmpfs** | In-memory storage, lost when container stops | Fast temporary storage for test execution, Chrome shared memory |
+
+**Practical examples:**
+
+```yaml
+<!-- unverified -->
+services:
+  test-runner:
+    image: maven:3.9-eclipse-temurin-17
+    volumes:
+      # Bind mount — mount test code from host
+      - ./src:/tests/src:ro
+      - ./pom.xml:/tests/pom.xml:ro
+      
+      # Bind mount — extract test reports to host
+      - ./reports:/tests/target/allure-results
+      
+      # Named volume — cache Maven dependencies between runs
+      - maven-cache:/root/.m2
+    
+    tmpfs:
+      # tmpfs — fast temporary storage for Chrome
+      - /tmp:size=1G
+  
+  selenium-chrome:
+    image: selenium/standalone-chrome:latest
+    shm_size: 2g  # Increase shared memory for Chrome (prevents crashes)
+
+volumes:
+  maven-cache:  # Named volume definition
+```
+
+**Why `shm_size` matters for Selenium:** Chrome uses shared memory (`/dev/shm`) for inter-process communication. Docker defaults to 64MB, which is too small. Chrome tabs crash with `session deleted` errors. Set `shm_size: 2g` or mount a tmpfs at `/dev/shm`.
+
+**Why Maven cache volume matters:** Without it, every test run downloads all dependencies from scratch (5-10 minutes). With a named volume, dependencies persist between runs.
+
+---
+
+### Q8: How do you run tests in Docker with environment-specific configuration?
+
+**Answer:**
+
+**Approach 1: Environment variables**
+
+```yaml
+<!-- unverified -->
+# docker-compose.test.yml
+services:
+  test-runner:
+    image: test-framework:latest
+    environment:
+      - ENV=qa
+      - BASE_URL=http://app:8080
+      - BROWSER=chrome
+      - HEADLESS=true
+      - THREAD_COUNT=5
+```
+
+**Approach 2: .env files**
+
+```bash
+<!-- unverified -->
+# .env.qa
+ENV=qa
+BASE_URL=https://qa.example.com
+API_TOKEN=qa-token-here
+BROWSER=chrome
+THREAD_COUNT=5
+```
+
+```yaml
+<!-- unverified -->
+services:
+  test-runner:
+    env_file: .env.qa
+```
+
+**Approach 3: Build args for baking config into images**
+
+```dockerfile
+<!-- unverified -->
+FROM maven:3.9-eclipse-temurin-17
+ARG ENV=local
+COPY config/${ENV}.properties /tests/config/active.properties
+```
+
+```bash
+<!-- unverified -->
+docker build --build-arg ENV=qa -t test-framework:qa .
+```
+
+**CI usage — pass environment at runtime:**
+
+```groovy
+<!-- unverified -->
+stage('Run Tests') {
+    steps {
+        sh """
+            docker-compose -f docker-compose.test.yml run \
+                -e ENV=${params.ENVIRONMENT} \
+                -e BASE_URL=${BASE_URL} \
+                -e API_TOKEN=${API_TOKEN} \
+                test-runner mvn test -Dsuite=${params.TEST_SUITE}
+        """
+    }
+}
+```
+
+**Security note:** Never bake secrets into Docker images. Always pass them as runtime environment variables, ideally from a secrets manager (Jenkins credentials, AWS Secrets Manager, Vault).
+
+---
+
+## Questions 9-12: Advanced CI/CD Topics
+
+### Q9: How do you implement parallel test execution in CI?
+
+**Answer:**
+
+**Level 1: Parallel within a single machine (TestNG threads)**
+
+```xml
+<!-- unverified -->
+<!-- testng.xml -->
+<suite name="Regression" parallel="methods" thread-count="5">
+    <test name="All Tests">
+        <packages>
+            <package name="com.tests.regression"/>
+        </packages>
+    </test>
+</suite>
+```
+
+**Level 2: Parallel across CI stages (Jenkins parallel)**
+
+```groovy
+<!-- unverified -->
+stage('Tests') {
+    parallel {
+        stage('API Tests') {
+            agent { docker { image 'maven:3.9-eclipse-temurin-17' } }
+            steps {
+                sh 'mvn test -Dsuite=api-regression -DthreadCount=5'
+            }
+        }
+        stage('UI Tests - Chrome') {
+            agent { docker { image 'selenium-runner:chrome' } }
+            steps {
+                sh 'mvn test -Dsuite=ui-regression -Dbrowser=chrome -DthreadCount=3'
+            }
+        }
+        stage('UI Tests - Firefox') {
+            agent { docker { image 'selenium-runner:firefox' } }
+            steps {
+                sh 'mvn test -Dsuite=ui-regression -Dbrowser=firefox -DthreadCount=3'
+            }
+        }
+    }
+}
+```
+
+**Level 3: Distributed across Selenium Grid nodes**
+
+```java
+<!-- unverified -->
+// Tests connect to Selenium Grid hub — grid distributes to available nodes
+ChromeOptions options = new ChromeOptions();
+WebDriver driver = new RemoteWebDriver(
+    new URL("http://selenium-hub:4444"), options
+);
+// Grid routes to an available Chrome node
+```
+
+**Strategies to make parallelism reliable:**
+- **Test isolation:** Each test creates its own data, uses ThreadLocal for driver
+- **Unique identifiers:** UUID-based test data prevents conflicts
+- **Independent tests:** No test depends on another test's execution
+- **Resource management:** Limit thread count to available CPU cores / browser instances
+- **Report aggregation:** Merge results from parallel branches into a single report
+
+---
+
+### Q10: How do you manage test artifacts (reports, screenshots, logs) in CI?
+
+**Answer:**
+
+**Artifact types and retention:**
+
+| Artifact | Format | Retention | Purpose |
+| --- | --- | --- | --- |
+| Test reports | Allure HTML, JUnit XML | 30 days | Pass/fail results and trends |
+| Screenshots | PNG | 7 days | Debugging UI failures |
+| Video recordings | MP4 (Playwright/Selenoid) | 3 days | Complex flow debugging |
+| Logs | Text files | 14 days | Stack traces, API request/response |
+| Performance metrics | CSV/JSON | 90 days | Trend analysis |
+
+**Jenkins artifact collection:**
+
+```groovy
+<!-- unverified -->
+post {
+    always {
+        // Allure report
+        allure includeProperties: false,
+               results: Path: 'Allure Results'
+        
+        // JUnit results for Jenkins test trend
+        junit allowEmptyResults: true,
+              testResults: '**/target/surefire-reports/*.xml'
+        
+        // Archive screenshots and logs
+        archiveArtifacts artifacts: 'target/screenshots/**/*.png',
+                         allowEmptyArchive: true
+        archiveArtifacts artifacts: 'target/logs/**/*.log',
+                         allowEmptyArchive: true
+        
+        // Cleanup workspace
+        cleanWs()
+    }
+}
+```
+
+**Centralized artifact storage:**
+- **S3/GCS:** Upload reports for long-term storage and sharing
+- **Allure Report Server:** Centralized Allure with history and trends
+- **Artifact versioning:** Tag artifacts with build number, branch, and commit
+
+---
+
+### Q11: How do you implement test impact analysis (only run affected tests)?
+
+**Answer:**
+
+Test impact analysis (TIA) determines which tests need to run based on code changes — dramatically reducing execution time for large suites.
+
+**Approaches:**
+
+**1. Module-based selection:**
+
+```groovy
+<!-- unverified -->
+stage('Determine Affected Tests') {
+    steps {
+        script {
+            def changedFiles = sh(
+                script: "git diff --name-only HEAD~1",
+                returnStdout: true
+            ).trim().split('\n')
+            
+            def suites = []
+            if (changedFiles.any { it.contains('api/') }) suites.add('api-regression')
+            if (changedFiles.any { it.contains('web/') }) suites.add('ui-regression')
+            if (changedFiles.any { it.contains('mobile/') }) suites.add('mobile-regression')
+            if (suites.isEmpty()) suites.add('smoke') // Fallback
+            
+            env.TEST_SUITES = suites.join(',')
+        }
+    }
+}
+
+stage('Run Affected Tests') {
+    steps {
+        sh "mvn test -Dsuite=${env.TEST_SUITES}"
+    }
+}
+```
+
+**2. TestNG group-based selection:**
+
+```groovy
+<!-- unverified -->
+// Map changed components to test groups
+def testGroups = []
+if (changedFiles.any { it.contains('BookingService') }) testGroups.add('booking')
+if (changedFiles.any { it.contains('AuthService') }) testGroups.add('auth')
+if (changedFiles.any { it.contains('PaymentService') }) testGroups.add('payment')
+
+sh "mvn test -Dgroups=${testGroups.join(',')}"
+```
+
+**3. Full suite on main branch, affected tests on PRs:**
+
+```groovy
+<!-- unverified -->
+stage('Tests') {
+    steps {
+        script {
+            if (env.BRANCH_NAME == 'main') {
+                sh 'mvn test -Dsuite=full-regression'
+            } else {
+                def suites = determineAffectedSuites()
+                sh "mvn test -Dsuite=${suites}"
+            }
+        }
+    }
+}
+```
+
+**Trade-offs:**
+- TIA saves time but can miss bugs caused by indirect dependencies
+- Always run the full suite before releases (nightly or pre-release)
+- Start simple (module-based) before building sophisticated code analysis
+
+---
+
+### Q12: How do you set up a CI pipeline from scratch for a new test automation project?
+
+**Answer:**
+
+**Phase 1: Basic pipeline (Day 1-3)**
+
+```groovy
+<!-- unverified -->
+// Jenkinsfile — minimal but functional
+pipeline {
+    agent { docker { image 'maven:3.9-eclipse-temurin-17' } }
+    triggers { pollSCM('H/5 * * * *') } // Check for changes every 5 min
+    
+    stages {
+        stage('Build and Test') {
+            steps {
+                sh 'mvn clean test -Dsuite=smoke'
+            }
+        }
+    }
+    post {
+        always { junit '**/surefire-reports/*.xml' }
+        failure { slackSend channel: '#qa', message: "Build failed: ${BUILD_URL}" }
+    }
+}
+```
+
+**Phase 2: Add structure (Week 1-2)**
+- Separate API and UI test stages
+- Add Docker Compose for test dependencies
+- Configure Allure reporting
+- Add parameterized builds (suite, environment, browser)
+
+**Phase 3: Optimize (Week 3-4)**
+- Parallel execution (multiple test stages)
+- Maven dependency caching (Docker volumes)
+- Selective test execution based on changed files
+- Environment-specific configurations
+
+**Phase 4: Harden (Month 2+)**
+- Retry logic for flaky tests (with tracking)
+- Historical trend dashboards
+- Nightly full regression on schedule
+- PR-triggered smoke tests
+- Security scanning of test dependencies
+- Cleanup of old artifacts and containers
+
+**Checklist for a production-ready CI pipeline:**
+
+- [ ] Tests run on every PR and every merge to main
+- [ ] Docker provides consistent environment
+- [ ] Health checks ensure services are ready before tests run
+- [ ] Reports are generated even on failure
+- [ ] Screenshots captured on UI test failure
+- [ ] Slack/Teams notifications on failure
+- [ ] Parameterized for different suites and environments
+- [ ] Test execution time is under 15 minutes for regression
+- [ ] Old artifacts are cleaned up automatically
+- [ ] Secrets are managed via CI credentials, not in code
+
+---
+
+**Related:** Jenkins Fundamentals, Docker For Testing, Pipeline As Code

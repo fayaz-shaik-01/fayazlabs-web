@@ -1,0 +1,606 @@
+---
+title: "Git and Branching"
+description: "What: Git is a distributed version control system that tracks changes to files, enables collaboration, and maintains a complete history of every modification."
+summary: "SDET Engineering guide: Git and Branching"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "software-engineering"
+lesson: "git-and-branching"
+difficulty: "intermediate"
+estimatedMinutes: 38
+prerequisites: []
+tags: ["SDET", "Software Engineering"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/software-engineering/git-and-branching"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Git and Branching
+
+> **Module:** 01-Programming Foundations / Software Engineering  
+> **Prerequisites:** Command line basics  
+> **Mastery Target:** L3 (Independent)
+
+---
+
+## Quick Overview (2-minute read)
+
+**What:** Git is a distributed version control system that tracks changes to files, enables collaboration, and maintains a complete history of every modification.  
+**Why:** As an SDET, you write code every day — test frameworks, page objects, utilities. Git is how you collaborate on that code without overwriting each other's work, how you isolate experimental changes, and how you recover from mistakes. Every CI pipeline starts with a `git clone`.  
+**Where:** Every automation project, every day. Branching for new test suites, PRs for code review, merge conflict resolution, bisecting to find when a test broke.
+
+<MentalModel>
+
+Think of Git as a **save-game system for your codebase**. Each commit is a save point you can return to. Branches are parallel save files — you can experiment on a branch without corrupting your main save. Merging combines two save files back together. Remote repositories (GitHub, GitLab) are cloud backups that your whole team shares. The staging area (`git add`) is your chance to review what goes into the next save before you commit.
+
+</MentalModel>
+
+
+<KeyTakeaways>
+
+1. **Commits are snapshots, not diffs** — Git stores the complete state of tracked files at each commit. Diffs are computed, not stored.
+2. **Branches are cheap pointers** — a branch is just a 41-byte file pointing to a commit hash. Create and delete them freely.
+3. **The staging area is your quality gate** — use `git add` selectively to craft clean, focused commits. Don't `git add .` blindly.
+4. **Merge conflicts are normal, not emergencies** — they happen when two people edit the same lines. The resolution process is mechanical.
+5. **Your `.gitignore` protects the team** — committing `node_modules/`, test reports, or `.env` files causes real problems for every collaborator.
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation
+
+### Git Fundamentals
+
+**Repository initialization and cloning:**
+
+
+```bash
+# Initialize a new repository in the current directory
+git init
+
+# Clone an existing remote repository
+git clone https://github.com/team/test-automation-framework.git
+
+# Clone into a specific directory
+git clone https://github.com/team/test-automation-framework.git my-framework
+```
+
+**The three areas of Git:**
+
+```
+Working Directory          Staging Area (Index)       Local Repository
+(your files on disk)       (what will be committed)   (committed history)
+      │                          │                          │
+      │── git add ──────────────>│                          │
+      │                          │── git commit ───────────>│
+      │                          │                          │── git push ──> Remote
+      │<──────────────── git checkout / restore ────────────│
+```
+
+**Core commands — the daily workflow:**
+
+
+```bash
+# Check what's changed
+git status                  # Shows modified, staged, and untracked files
+git diff                    # Shows unstaged changes (working dir vs staging)
+git diff --staged           # Shows staged changes (staging vs last commit)
+
+# Stage changes for commit
+git add src/test/LoginTest.java           # Stage a specific file
+git add src/test/pages/                   # Stage all files in a directory
+git add -p                                # Stage interactively, hunk by hunk (powerful!)
+
+# Commit staged changes
+git commit -m "Add login validation tests for empty credentials"
+git commit -am "Fix locator for submit button"  # Stage tracked + commit (skips untracked)
+
+# Sync with remote
+git push origin feature/login-tests       # Push your branch to remote
+git pull origin main                      # Fetch + merge remote main into current branch
+git fetch origin                          # Download remote changes without merging
+```
+
+**`git pull` vs `git fetch`:**
+
+| Command | What It Does | When to Use |
+|---------|-------------|-------------|
+| `git fetch` | Downloads remote changes but doesn't merge | When you want to inspect changes before merging |
+| `git pull` | `git fetch` + `git merge` in one step | When you're confident you want to integrate remote changes |
+| `git pull --rebase` | `git fetch` + `git rebase` instead of merge | When you want a linear history without merge commits |
+
+### Branching
+
+Branches let you work on features in isolation. They're lightweight — creating a branch is instant.
+
+
+```bash
+# Create and switch to a new branch
+git checkout -b feature/booking-api-tests        # Old syntax (still works)
+git switch -c feature/booking-api-tests          # Modern syntax (Git 2.23+)
+
+# Switch between existing branches
+git checkout main
+git switch main
+
+# List branches
+git branch                     # Local branches
+git branch -r                  # Remote branches
+git branch -a                  # All branches
+
+# Delete a branch
+git branch -d feature/booking-api-tests          # Safe delete (only if merged)
+git branch -D feature/booking-api-tests          # Force delete (even if unmerged)
+
+# Delete a remote branch
+git push origin --delete feature/booking-api-tests
+```
+
+**Merging:**
+
+
+```bash
+# Merge feature branch into main
+git switch main
+git pull origin main                             # Make sure main is up to date
+git merge feature/booking-api-tests              # Merge the feature branch
+
+# Fast-forward merge (linear history, no merge commit)
+#   Happens when main hasn't diverged from the branch point
+#   main: A → B → C
+#   feature:         → D → E
+#   After merge: A → B → C → D → E
+
+# Three-way merge (creates a merge commit)
+#   Happens when both branches have new commits
+#   main: A → B → C → F
+#   feature:         → D → E
+#   After merge: A → B → C → F → M  (M has two parents: F and E)
+```
+
+**Rebase (concept):**
+
+Rebase replays your branch's commits on top of the target branch, creating a linear history. It rewrites commit hashes.
+
+```
+Before rebase:
+  main:    A → B → C → F
+  feature:         → D → E
+
+After rebase (git rebase main while on feature):
+  main:    A → B → C → F
+  feature:                → D' → E'   (D' and E' are new commits with same changes)
+```
+
+**When to rebase vs merge:**
+- **Rebase** for updating your feature branch with latest main — keeps history clean
+- **Merge** for integrating a feature into main — preserves the branch history
+- **Never rebase commits that others have pulled** — it rewrites history they depend on
+
+### Branching Strategies
+
+| Strategy | How It Works | Best For |
+|----------|-------------|----------|
+| **GitFlow** | `main`, `develop`, `feature/*`, `release/*`, `hotfix/*` branches with strict rules | Large teams, scheduled releases, multiple versions in production |
+| **Trunk-based** | Everyone commits to `main` (or short-lived branches merged within hours) | CI/CD, small teams, frequent deployments |
+| **Feature branches** | Branch per feature/story, merge via PR when complete | Most teams — balances isolation with simplicity |
+
+**For SDET teams:** Feature branches are most common. Branch per test suite or test area (`feature/login-tests`, `feature/booking-api-tests`), open a PR, get review, merge.
+
+### Merge Conflicts
+
+Conflicts happen when two branches modify the same lines in the same file. Git can't decide which version to keep, so it asks you.
+
+**How they happen:**
+
+
+```bash
+# Developer A (on branch-a) changes LoginPage.java line 15:
+private By usernameField = By.id("email");
+
+# Developer B (on branch-b) changes LoginPage.java line 15:
+private By usernameField = By.cssSelector("[data-testid='username']");
+
+# When merging branch-b into main (which already has branch-a's change):
+# CONFLICT — Git marks the file:
+```
+
+**What a conflict looks like:**
+
+
+```java
+<<<<<<< HEAD
+    private By usernameField = By.id("email");
+=======
+    private By usernameField = By.cssSelector("[data-testid='username']");
+>>>>>>> feature/update-locators
+```
+
+**How to resolve:**
+
+
+```bash
+# 1. Open the conflicted file and choose the correct version
+#    (or combine both changes if both are needed)
+
+# 2. Remove the conflict markers (<<<, ===, >>>)
+    private By usernameField = By.cssSelector("[data-testid='username']");
+
+# 3. Stage the resolved file
+git add src/test/pages/LoginPage.java
+
+# 4. Complete the merge
+git commit    # Git auto-generates a merge commit message
+```
+
+### Git Log, Diff, Blame, Stash
+
+
+```bash
+# View commit history
+git log --oneline --graph --all     # Compact visual history of all branches
+git log --oneline -10               # Last 10 commits, one line each
+git log --author="sfayaz"           # Filter by author
+git log -- src/test/pages/          # History of a specific directory
+
+# Diff — compare changes
+git diff                            # Working directory vs staging
+git diff --staged                   # Staging vs last commit
+git diff main..feature/login-tests  # Compare two branches
+git diff HEAD~3..HEAD               # Last 3 commits
+
+# Blame — who changed each line (and when)
+git blame src/test/pages/LoginPage.java
+# Shows: commit-hash | author | date | line content
+# Useful when a locator broke and you need to find who changed it and why
+
+# Stash — temporarily save uncommitted changes
+git stash                           # Save changes, clean working directory
+git stash -m "WIP: login test refactor"  # Stash with a message
+git stash list                      # Show all stashes
+git stash pop                       # Apply most recent stash and remove it
+git stash apply                     # Apply most recent stash but keep it
+git stash drop                      # Delete most recent stash
+```
+
+**When stash is useful for SDETs:**
+- You're mid-refactor on a page object, but a critical test failure needs your attention on `main`
+- You want to quickly test something on a clean branch without committing your WIP
+
+### .gitignore for Automation Projects
+
+A proper `.gitignore` prevents committing generated files, secrets, and environment-specific artifacts.
+
+
+```gitignore
+# === Build output ===
+target/                     # Maven build output
+build/                      # Gradle build output
+out/                        # IntelliJ build output
+
+# === Dependencies ===
+node_modules/               # npm/yarn packages (install from package-lock.json)
+
+# === IDE files ===
+.idea/                      # IntelliJ settings
+*.iml                       # IntelliJ module files
+.vscode/                    # VS Code settings (optional — some teams share this)
+.settings/                  # Eclipse settings
+.classpath                  # Eclipse classpath
+.project                    # Eclipse project
+
+# === Test output (regenerated on every run) ===
+test-output/                # TestNG default report directory
+allure-results/             # Allure raw results
+allure-report/              # Allure generated report
+reports/                    # Custom report directory
+screenshots/                # Failure screenshots
+recordings/                 # Video recordings
+
+# === Environment and secrets ===
+.env                        # Environment variables (may contain passwords!)
+*.env.local                 # Local overrides
+config/local.properties     # Local config overrides
+
+# === OS files ===
+.DS_Store                   # macOS
+Thumbs.db                   # Windows
+
+# === Drivers (download via WebDriverManager) ===
+drivers/                    # Manually downloaded browser drivers
+*.exe                       # Windows executables (chromedriver.exe)
+
+# === Logs ===
+*.log                       # Log files
+logs/                       # Log directory
+```
+
+**Why each matters:**
+- **`target/`, `node_modules/`** — huge directories, regenerated from source. Committing them bloats the repo and causes constant merge conflicts.
+- **`.env`** — may contain API keys, database passwords. Committing secrets is a security incident.
+- **`screenshots/`, `reports/`** — generated on every test run. They're CI artifacts, not source code.
+- **`drivers/`** — use WebDriverManager to download drivers at runtime. Committing binaries bloats history permanently.
+
+---
+
+## Practical Implementation
+
+### Typical SDET Git Workflow
+
+A day-in-the-life workflow for an SDET working on a test automation framework:
+
+
+```bash
+# 1. Start your day — sync with the team
+git switch main
+git pull origin main
+
+# 2. Create a branch for your work
+git switch -c feature/booking-cancellation-tests
+
+# 3. Work on your tests — commit frequently with clear messages
+git add src/test/java/tests/BookingCancellationTest.java
+git commit -m "Add happy path test for booking cancellation"
+
+git add src/test/java/pages/BookingDetailsPage.java
+git commit -m "Add cancel button locator and confirmation dialog handler"
+
+git add src/test/resources/test-data/cancellation-data.json
+git commit -m "Add test data for cancellation scenarios (refund, no-refund, partial)"
+
+# 4. Before pushing, rebase onto latest main to catch conflicts early
+git fetch origin
+git rebase origin/main
+# Resolve any conflicts if they arise
+
+# 5. Push and open a PR
+git push origin feature/booking-cancellation-tests
+# Open PR in GitHub/GitLab — add description, link to test plan, request reviewers
+
+# 6. Address PR feedback
+git add src/test/java/tests/BookingCancellationTest.java
+git commit -m "Address review: extract cancellation assertion to helper method"
+git push origin feature/booking-cancellation-tests
+
+# 7. After approval and CI passes — merge (usually via the PR UI)
+```
+
+**Commit message conventions:**
+
+
+```bash
+# Good commit messages — specific, action-oriented
+git commit -m "Add negative test for cancellation with past checkout date"
+git commit -m "Fix flaky wait in BookingDetailsPage — use explicit wait instead of sleep"
+git commit -m "Refactor: extract common booking setup to TestDataFactory"
+git commit -m "Update Selenium dependency from 4.15.0 to 4.18.0"
+
+# Bad commit messages — vague, unhelpful
+git commit -m "fix tests"
+git commit -m "update"
+git commit -m "WIP"
+git commit -m "changes"
+```
+
+### Recovering from Common Git Mistakes
+
+
+```bash
+# Undo the last commit but keep changes staged
+git reset --soft HEAD~1
+
+# Undo the last commit and unstage changes (keep in working directory)
+git reset --mixed HEAD~1     # --mixed is the default
+
+# Completely discard the last commit and all changes (DANGEROUS)
+git reset --hard HEAD~1
+
+# Amend the last commit (fix message or add forgotten files)
+git add forgotten-file.java
+git commit --amend -m "Add booking cancellation tests with correct test data"
+
+# Undo a pushed commit by creating a reverse commit (safe for shared branches)
+git revert <commit-hash>
+
+# Find a lost commit (after reset --hard or deleted branch)
+git reflog                   # Shows all recent HEAD movements
+git checkout <commit-hash>   # Recover the lost commit
+```
+
+---
+
+## Failure and Debugging
+
+### Scenario 1: Accidental Commit to Main
+
+**What happened:** You forgot to create a feature branch and committed directly to `main`.
+
+
+```bash
+# You're on main and realize you committed here by mistake
+git log --oneline -3
+# abc1234 Add booking tests (HEAD -> main)  ← this should be on a branch
+# def5678 Previous main commit
+
+# Fix: move the commit to a new branch
+git branch feature/booking-tests            # Create branch at current commit
+git reset --hard HEAD~1                     # Move main back one commit
+git switch feature/booking-tests            # Switch to the new branch
+# Your commit is now on feature/booking-tests, main is unchanged
+```
+
+### Scenario 2: Merge Conflict in a Page Object
+
+**What happened:** Two SDETs modified `LoginPage.java` — one updated locators, another added a new method.
+
+
+```java
+// After attempting merge, Git marks the conflict:
+public class LoginPage {
+<<<<<<< HEAD
+    private By usernameField = By.id("email-input");
+    private By passwordField = By.id("pass-input");
+=======
+    private By usernameField = By.cssSelector("[data-testid='username']");
+    private By passwordField = By.cssSelector("[data-testid='password']");
+>>>>>>> feature/update-locators
+
+    // Non-conflicting additions are merged automatically
+    public void clearAndType(By locator, String text) {
+        driver.findElement(locator).clear();
+        driver.findElement(locator).sendKeys(text);
+    }
+}
+```
+
+**Resolution:** Talk to the other developer. In this case, `data-testid` locators are more stable, so keep those:
+
+
+```java
+public class LoginPage {
+    private By usernameField = By.cssSelector("[data-testid='username']");
+    private By passwordField = By.cssSelector("[data-testid='password']");
+
+    public void clearAndType(By locator, String text) {
+        driver.findElement(locator).clear();
+        driver.findElement(locator).sendKeys(text);
+    }
+}
+```
+
+<BestPractice>
+
+**Prevention:** Keep page objects small and focused. If one page object grows large, split it (e.g., `LoginForm`, `LoginValidation`). Smaller files = fewer conflicts.
+
+</BestPractice>
+
+
+### Scenario 3: Committed Secrets to Repository
+
+**What happened:** Someone committed `.env` with database credentials.
+
+
+```bash
+# .env is already committed and pushed — .gitignore won't help retroactively
+# Adding to .gitignore only prevents FUTURE commits
+
+# Step 1: Remove the file from tracking (but keep local copy)
+git rm --cached .env
+echo ".env" >> .gitignore
+git add .gitignore
+git commit -m "Remove .env from tracking, add to .gitignore"
+
+# Step 2: The file is STILL in git history! Anyone can see it.
+# Rotate all credentials immediately — assume they're compromised.
+
+# Step 3: To scrub from history (requires force push — coordinate with team):
+# Use git-filter-repo (preferred) or BFG Repo Cleaner
+# This rewrites history — all team members must re-clone
+```
+
+<BestPractice>
+
+**Prevention:** Add `.env` to `.gitignore` before the first commit. Use `.env.example` (with placeholder values) as a template.
+
+</BestPractice>
+
+
+---
+
+## Engineering Judgment
+
+### Branch Naming Conventions
+
+| Pattern | Example | When |
+|---------|---------|------|
+| `feature/<area>` | `feature/booking-api-tests` | New test suites or features |
+| `fix/<issue>` | `fix/flaky-login-wait` | Fixing existing tests |
+| `refactor/<area>` | `refactor/page-object-cleanup` | Restructuring without behavior change |
+| `chore/<task>` | `chore/update-selenium-4.18` | Dependency updates, config changes |
+
+### When to Commit vs. When to Stash
+
+| Situation | Action |
+|-----------|--------|
+| Completed a logical unit of work | **Commit** — even if the feature isn't done |
+| Need to switch branches for a quick fix | **Stash** — if the work isn't commit-worthy yet |
+| End of the day, work in progress | **Commit** with `WIP:` prefix — you can squash later |
+| Experimenting, might throw it away | **Stash** or work on a throwaway branch |
+
+### Rebase vs Merge: Team Decision
+
+| Factor | Rebase | Merge |
+|--------|--------|-------|
+| History readability | Clean, linear | Preserves branch topology |
+| Safety on shared branches | **Never** rebase shared branches | Always safe |
+| Conflict resolution | Re-resolve per commit during rebase | Resolve once at merge |
+| Team preference | Requires team agreement | Works without coordination |
+
+**Practical advice:** Use `git pull --rebase` on your feature branch to stay updated with `main`. Use merge (via PR) to integrate your branch into `main`.
+
+---
+
+## Interview and Revision
+
+### Fundamental Questions
+
+**Q1: What is the difference between `git pull` and `git fetch`?**  
+**A:** `git fetch` downloads new commits and branches from the remote but does not modify your working directory or current branch. `git pull` runs `git fetch` followed by `git merge` (or `git rebase` with `--rebase` flag), so it both downloads and integrates remote changes. Use `fetch` when you want to inspect before merging; use `pull` when you're ready to integrate.
+
+**Q2: What is a merge conflict and how do you resolve one?**  
+**A:** A merge conflict occurs when two branches modify the same lines of the same file, and Git cannot determine which version to keep. Git marks the conflicted sections with `<<<<<<<`, `=======`, and `>>>>>>>` markers. To resolve: (1) open the file, (2) choose the correct version or combine both changes, (3) remove the conflict markers, (4) `git add` the file, and (5) `git commit` to complete the merge.
+
+**Q3: Explain the difference between `git reset --soft`, `--mixed`, and `--hard`.**  
+**A:** All three move the branch pointer to a different commit. `--soft` keeps changes staged (ready to commit again). `--mixed` (default) unstages changes but keeps them in the working directory. `--hard` discards all changes — both staged and working directory modifications are lost. Use `--soft` to re-commit, `--mixed` to re-stage selectively, and `--hard` only when you want to throw everything away.
+
+**Q4: What is rebasing and when should you avoid it?**  
+**A:** Rebasing replays your branch's commits on top of another branch, creating a linear history by rewriting commit hashes. Avoid rebasing commits that have been pushed and shared with others — it rewrites history that collaborators depend on, causing divergence and confusion. Safe to rebase: your unpushed local commits. Unsafe to rebase: anything on `main` or shared branches.
+
+### Scenario-Based Questions
+
+**S1: "You and a colleague both modified the same page object file. Your PR shows merge conflicts. Walk me through your resolution process."**  
+**A:** First, I'd `git fetch origin` and `git merge origin/main` (or rebase) into my branch locally. I'd open the conflicted file, read both versions to understand the intent of each change, and talk to the colleague if the changes overlap semantically. I'd keep the version that's correct (or combine both if both are needed), remove the conflict markers, run the affected tests to make sure nothing broke, then `git add` and `git commit`. I'd push the resolved branch and note in the PR that I resolved conflicts.
+
+**S2: "A junior SDET committed test reports, screenshots, and node_modules to the repository. How do you fix it?"**  
+**A:** First, I'd add these to `.gitignore`. Then I'd use `git rm -r --cached node_modules/ reports/ screenshots/` to remove them from Git tracking without deleting the local files. Commit and push. For `node_modules/`, the repo size may have grown significantly — I might use `git filter-repo` to scrub them from history, but this requires coordinating a force push with the team. Finally, I'd review the `.gitignore` with the junior and explain why each entry matters.
+
+
+
+
+| # | Front (Question) | Back (Answer) |
+|---|---|---|
+| 1 | What does `git stash` do? | Temporarily saves uncommitted changes (both staged and unstaged) and reverts the working directory to the last commit. Retrieve with `git stash pop` (apply and remove) or `git stash apply` (apply and keep). |
+| 2 | What is the staging area (index)? | An intermediate area between the working directory and the repository. `git add` moves changes to staging; `git commit` records staged changes. It lets you craft commits selectively. |
+| 3 | Why shouldn't you commit `.env` files? | They often contain secrets (API keys, passwords, DB credentials). Once committed, they're in Git history permanently. Even deleting the file doesn't remove it from history. |
+| 4 | What does `git blame` show? | For each line in a file, it shows the commit hash, author, and date of the last modification. Useful for finding who changed a locator or when a test was last updated. |
+| 5 | What is the difference between `git branch -d` and `git branch -D`? | `-d` (lowercase) only deletes if the branch is fully merged — it's a safety check. `-D` (uppercase) force-deletes regardless of merge status. |
+
+### Mastery Checklist
+
+- [ ] Can initialize a repo, stage selectively, commit with clear messages, and push to remote
+- [ ] Can create, switch, merge, and delete branches fluently
+- [ ] Can resolve merge conflicts by reading both versions and choosing the correct resolution
+- [ ] Can explain rebase vs merge and when to use each
+- [ ] Can use `git log`, `git diff`, `git blame`, and `git stash` for investigation and workflow
+- [ ] Can write a proper `.gitignore` for a Java/Maven or TypeScript automation project
+- [ ] Can recover from common mistakes: accidental commit to main, amending commits, reverting pushed commits
+- [ ] Can explain GitFlow vs trunk-based vs feature branch strategies and recommend one for a team
+
+---
+
+**Next:** Clean Code | **Related:** Debugging Methodology
+
+---
+
+*Last updated: *

@@ -1,0 +1,578 @@
+---
+title: "Concurrency and ThreadLocal"
+description: "What: Concurrency is multiple threads executing simultaneously within one JVM process. ThreadLocal is per-thread isolated storage — each thread gets its own copy of a variable with no sharing and no collisions."
+summary: "SDET Engineering guide: Concurrency and ThreadLocal"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "java"
+lesson: "concurrency-and-threadlocal"
+difficulty: "beginner"
+estimatedMinutes: 36
+prerequisites: []
+tags: ["SDET", "Java", "Programming"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/java/concurrency-and-threadlocal"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Concurrency and ThreadLocal
+
+> **Module:** 01 — Programming Foundations / Java  
+> **Prerequisites:** Oop Fundamentals, Collections And Generics, Interfaces And Composition  
+> **Mastery Target:** L3 (independent — design thread-safe parallel test infrastructure without guidance)
+
+---
+
+## Quick Overview (Layer 1)
+
+**What:** Concurrency is multiple threads executing simultaneously within one JVM process. `ThreadLocal` is per-thread isolated storage — each thread gets its own copy of a variable with no sharing and no collisions.
+
+**Why:** Parallel test execution is the #1 source of flaky tests in automation. When TestNG or JUnit runs tests in parallel, each test gets its own thread. If those threads share a static `WebDriver`, shared test data, or any static mutable state, tests interfere: one test closes the browser while another is mid-click, one overwrites credentials while another reads them. The failures are intermittent, non-reproducible, and agonizing to debug.
+
+**Where:** Parallel Selenium/Playwright execution, ThreadLocal WebDriver management, parallel API test clients, shared test result aggregation, CI pipelines running tests concurrently for speed.
+
+<MentalModel>
+
+Think of threads as **parallel assembly lines in a factory**. Each line builds the same product (runs a test), and everything works fine as long as each line has its own tools (driver, data, state). The moment two lines share a single screwdriver (static WebDriver), collisions happen — one grabs it while the other is using it. `ThreadLocal` gives each assembly line its own personal toolbox.
+
+</MentalModel>
+
+
+<KeyTakeaways>
+
+1. **A thread is a lightweight unit of execution** — multiple threads share JVM heap memory, which is why shared state is dangerous.
+2. **Race conditions are the root cause of flaky parallel tests** — two threads reading/writing the same variable simultaneously produce unpredictable results.
+3. **`ThreadLocal<T>` gives each thread its own isolated copy** — the standard pattern for parallel WebDriver management.
+4. **Always call `ThreadLocal.remove()` after use** — thread pools reuse threads, so stale data leaks into the next test.
+5. **`synchronized`, `volatile`, and `Atomic` classes** are the three tools for thread safety — each solves a different problem.
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation (Layer 2)
+
+### What Is a Thread?
+
+A thread is the smallest unit of execution within a JVM process. All threads share the same heap memory (where objects live) — this is why one thread can see and modify objects created by another thread, and the source of almost every concurrency bug.
+
+```
+JVM Process
+├── Heap Memory (shared by ALL threads)
+│   ├── Static fields       ← DANGER: visible to all threads
+│   ├── Object instances    ← shared if referenced by multiple threads
+│   └── ThreadLocal storage ← per-thread isolated copies
+├── Thread-1 (loginTest)    └── Stack: local variables (private)
+├── Thread-2 (checkoutTest) └── Stack: local variables (private)
+└── Thread-3 (searchTest)   └── Stack: local variables (private)
+```
+
+### Creating Threads
+
+
+```java
+// 1. Extending Thread
+public class TestRunner extends Thread {
+    private final String testName;
+    public TestRunner(String testName) { this.testName = testName; }
+
+    @Override
+    public void run() {
+        System.out.println(Thread.currentThread().getName() + " running: " + testName);
+    }
+}
+TestRunner t1 = new TestRunner("loginTest");
+t1.start();  // start() creates a new thread; do NOT call run() directly
+
+// 2. Runnable interface (preferred — separates task from threading)
+Thread t2 = new Thread(() -> System.out.println("Running searchTest"));
+t2.start();
+
+// 3. Callable<T> with Future<T> (when you need a return value)
+ExecutorService executor = Executors.newFixedThreadPool(3);
+Future<String> result = executor.submit(() -> { Thread.sleep(1000); return "PASS"; });
+String status = result.get();  // blocks until complete
+executor.shutdown();
+```
+
+### Thread Lifecycle
+
+- **NEW** — created, `start()` not yet called.
+- **RUNNABLE** — eligible to run; OS scheduler decides when it gets CPU time.
+- **BLOCKED** — waiting to acquire a lock held by another thread.
+- **WAITING** — waiting indefinitely for a signal (`wait()`, `join()`).
+- **TIMED_WAITING** — waiting with timeout (`Thread.sleep(5000)`).
+- **TERMINATED** — `run()` completed or exception thrown.
+
+### Race Conditions
+
+A race condition occurs when two threads access shared mutable state simultaneously and the result depends on unpredictable execution order.
+
+
+```java
+// BROKEN: shared mutable counter — classic race condition
+public class SharedCounter {
+    private int count = 0;
+
+    public void increment() {
+        count++;  // NOT atomic! read count → add 1 → write count (3 operations)
+    }
+    public int getCount() { return count; }
+}
+
+SharedCounter counter = new SharedCounter();
+Thread t1 = new Thread(() -> { for (int i = 0; i < 1000; i++) counter.increment(); });
+Thread t2 = new Thread(() -> { for (int i = 0; i < 1000; i++) counter.increment(); });
+t1.start(); t2.start(); t1.join(); t2.join();
+System.out.println(counter.getCount());
+// Expected: 2000 | Actual: some number less than 2000 — different every run
+```
+
+### The `synchronized` Keyword
+
+Ensures only one thread executes a block at a time using an intrinsic lock (monitor).
+
+
+```java
+// Method-level lock (locks on `this`)
+public synchronized void increment() { count++; }
+
+// Block-level lock (more granular — locks on specific object)
+private final Object lock = new Object();
+public void increment() {
+    synchronized (lock) { count++; }
+}
+```
+
+**Trade-off:** Prevents race conditions but reduces parallelism — threads queue to acquire the lock. Over-synchronizing can make parallel tests slower than sequential ones.
+
+### The `volatile` Keyword
+
+Guarantees visibility: when one thread writes to a volatile variable, all other threads immediately see the update. Without it, threads may cache values and never see updates.
+
+
+```java
+private volatile boolean running = true;  // visible across threads
+
+public void stopExecution() { running = false; }         // Thread-1 writes
+public void executeTests() { while (running) { /*...*/ } } // Thread-2 sees update
+```
+
+**What `volatile` does NOT do:** It does not make compound operations (`count++`) atomic. Use `synchronized` or `AtomicInteger` for that.
+
+### ThreadLocal`<T>`
+
+Per-thread isolated storage. Each thread gets its own independent copy — no locking needed because nothing is shared.
+
+
+```java
+ThreadLocal<String> threadName = new ThreadLocal<>();
+
+// Thread-1: threadName.set("loginTest");    → get() returns "loginTest"
+// Thread-2: threadName.set("checkoutTest"); → get() returns "checkoutTest"
+// Thread-1's value is still "loginTest" — completely isolated
+
+// Core API:
+ThreadLocal<WebDriver> driverLocal = new ThreadLocal<>();
+driverLocal.set(new ChromeDriver());      // set() — store for current thread
+WebDriver driver = driverLocal.get();     // get() — retrieve current thread's value
+driverLocal.remove();                     // remove() — CRITICAL: clear value
+
+// withInitial() — provide default via supplier
+ThreadLocal<String> browser = ThreadLocal.withInitial(() -> "chrome");
+```
+
+**Why `remove()` is critical:** Thread pools reuse threads. If Thread-A stores a WebDriver for `loginTest` and the pool reassigns Thread-A to `searchTest`, the stale (possibly quit) driver is still in the `ThreadLocal`. Calling `remove()` in teardown prevents this.
+
+### Thread Pools and ExecutorService
+
+
+```java
+ExecutorService pool = Executors.newFixedThreadPool(4);
+List<String> tests = List.of("login", "checkout", "search", "payment", "profile");
+for (String test : tests) {
+    pool.submit(() -> System.out.println(Thread.currentThread().getName() + " → " + test));
+}
+pool.shutdown();
+pool.awaitTermination(60, TimeUnit.SECONDS);
+```
+
+TestNG's `parallel="methods"` and JUnit 5's parallel execution both use thread pools internally — the same thread runs multiple tests, which is why `ThreadLocal.remove()` matters.
+
+### Thread-Safe Collections
+
+
+```java
+// ConcurrentHashMap — fine-grained locking, high performance
+Map<String, String> results = new ConcurrentHashMap<>();
+
+// CopyOnWriteArrayList — safe for iteration-heavy, write-light workloads
+List<String> log = new CopyOnWriteArrayList<>();
+
+// Synchronized wrapper — coarse-grained, locks entire collection
+List<String> syncList = Collections.synchronizedList(new ArrayList<>());
+```
+
+### The Automation-Specific Problem
+
+When TestNG/JUnit runs tests in parallel, each thread needs its **own** WebDriver, its **own** test data, and its **own** API client. If any of these are shared via static fields without `ThreadLocal`, tests interfere. This is not theoretical — it is the single most common root cause of flaky tests in Selenium frameworks.
+
+### Connection to Related Concepts
+
+- Oop Fundamentals — Static mutable fields are the primary source of race conditions in test frameworks.
+- Collections And Generics — `ConcurrentHashMap` and `CopyOnWriteArrayList` are thread-safe collection alternatives.
+- Interfaces And Composition — Dependency injection of thread-safe components is preferred over static `ThreadLocal` in larger frameworks.
+
+---
+
+## Practical Implementation (Layer 3)
+
+### Example 1: ThreadLocal WebDriver Management
+
+The correct pattern for parallel Selenium tests — the single most important concurrency pattern for automation engineers.
+
+
+```java
+public class DriverManager {
+    private static final ThreadLocal<WebDriver> driver = new ThreadLocal<>();
+
+    public static WebDriver getDriver() { return driver.get(); }
+
+    public static void initDriver() {
+        ChromeOptions options = new ChromeOptions();
+        options.addArguments("--headless=new", "--disable-gpu", "--no-sandbox");
+        driver.set(new ChromeDriver(options));
+    }
+
+    public static void removeDriver() {
+        WebDriver currentDriver = driver.get();
+        if (currentDriver != null) { currentDriver.quit(); }
+        driver.remove();  // ALWAYS call remove(), even if get() was null
+    }
+}
+
+// Usage in TestNG:
+public class ParallelLoginTest {
+    @BeforeMethod
+    public void setup() { DriverManager.initDriver(); }
+
+    @AfterMethod(alwaysRun = true)
+    public void teardown() { DriverManager.removeDriver(); }
+
+    @Test
+    public void testValidLogin() {
+        WebDriver driver = DriverManager.getDriver();
+        driver.get("https://app.example.com/login");
+        // this driver belongs ONLY to this thread
+    }
+}
+```
+
+```xml
+<!-- TestNG parallel configuration -->
+<suite name="Parallel Suite" parallel="methods" thread-count="4">
+    <test name="Login Tests">
+        <classes><class name="tests.ParallelLoginTest"/></classes>
+    </test>
+</suite>
+```
+
+### Example 2: Race Condition Demo
+
+
+```java
+public class RaceConditionDemo {
+    private static int unsafeCount = 0;
+    private static final AtomicInteger safeCount = new AtomicInteger(0);
+
+    public static void main(String[] args) throws InterruptedException {
+        int iterations = 100_000;
+
+        // --- Unsafe: race condition ---
+        Thread t1 = new Thread(() -> { for (int i = 0; i < iterations; i++) unsafeCount++; });
+        Thread t2 = new Thread(() -> { for (int i = 0; i < iterations; i++) unsafeCount++; });
+        t1.start(); t2.start(); t1.join(); t2.join();
+        System.out.println("Unsafe: " + unsafeCount);  // varies: 187342, 193891, etc.
+
+        // --- Safe: atomic counter ---
+        Thread t3 = new Thread(() -> { for (int i = 0; i < iterations; i++) safeCount.incrementAndGet(); });
+        Thread t4 = new Thread(() -> { for (int i = 0; i < iterations; i++) safeCount.incrementAndGet(); });
+        t3.start(); t4.start(); t3.join(); t4.join();
+        System.out.println("Safe: " + safeCount.get());  // always 200000
+    }
+}
+```
+
+### Example 3: Thread-Safe Test Context for Parallel API Tests
+
+
+```java
+public class TestContext {
+    private static final ThreadLocal<TestContext> CONTEXT = new ThreadLocal<>();
+
+    private final String testName;
+    private final Map<String, String> testData = new HashMap<>();
+    private String baseUrl;
+
+    private TestContext(String testName) { this.testName = testName; }
+
+    public static void init(String testName) { CONTEXT.set(new TestContext(testName)); }
+
+    public static TestContext get() {
+        TestContext ctx = CONTEXT.get();
+        if (ctx == null) {
+            throw new IllegalStateException(
+                "TestContext not initialized for thread: " + Thread.currentThread().getName());
+        }
+        return ctx;
+    }
+
+    public static void cleanup() { CONTEXT.remove(); }
+
+    public String getTestName() { return testName; }
+    public void setBaseUrl(String url) { this.baseUrl = url; }
+    public String getBaseUrl() { return baseUrl; }
+    public void putTestData(String key, String value) { testData.put(key, value); }
+    public String getTestData(String key) { return testData.get(key); }
+}
+
+// Usage in parallel API tests:
+public class ParallelApiTest {
+    @BeforeMethod
+    public void setup(Method method) {
+        TestContext.init(method.getName());
+        TestContext.get().setBaseUrl("https://api.staynest.com/v2");
+    }
+
+    @AfterMethod(alwaysRun = true)
+    public void teardown() { TestContext.cleanup(); }
+
+    @Test
+    public void testCreateBooking() {
+        TestContext ctx = TestContext.get();
+        ctx.putTestData("guestName", "John Doe");
+        String url = ctx.getBaseUrl() + "/bookings";
+        // ... fully isolated from other threads
+    }
+}
+```
+
+---
+
+## Failure and Debugging (Layer 4)
+
+### Scenario 1: Static WebDriver Without ThreadLocal
+
+
+```java
+// BAD: static WebDriver shared across all threads
+public class BrokenDriverManager {
+    private static WebDriver driver;  // ONE driver for ALL threads
+
+    public static void initDriver() { driver = new ChromeDriver(); }
+    public static WebDriver getDriver() { return driver; }
+    public static void quitDriver() { if (driver != null) { driver.quit(); driver = null; } }
+}
+```
+
+**Expected:** Each test gets its own browser.  
+**Actual:** Thread-2's `initDriver()` overwrites Thread-1's driver reference. Thread-1 then operates on Thread-2's browser. Thread-1's teardown quits Thread-2's browser mid-test. Symptoms: `NoSuchSessionException`, `StaleElementReferenceException`, tests navigating to wrong pages — all intermittent.
+
+<BestPractice>
+
+**Fix:** Replace `private static WebDriver driver` with `private static final ThreadLocal<WebDriver> driver = new ThreadLocal<>()` and add `driver.remove()` in teardown. Never use a plain `static` field for anything that must be isolated per test in parallel execution.
+
+</BestPractice>
+
+
+### Scenario 2: ThreadLocal Without `remove()` — Memory Leak
+
+
+```java
+// BAD: no remove() — thread pool reuses threads, stale data persists
+public class LeakyContext {
+    private static final ThreadLocal<Map<String, Object>> context = new ThreadLocal<>();
+
+    public static void init() {
+        context.set(Map.of("largePayload", new byte[1024 * 1024]));  // 1 MB
+    }
+    // No cleanup method — remove() is never called
+}
+```
+
+**Expected:** Memory reclaimed after each test.  
+**Actual:** Thread pool reuses threads; each thread's `ThreadLocal` map retains the 1 MB payload. Over hundreds of tests, memory grows steadily → `OutOfMemoryError` in long CI runs. Stale context can also silently pollute the next test on the same thread.
+
+<BestPractice>
+
+**Fix:** Add `context.remove()` in `@AfterMethod(alwaysRun = true)`. Every `ThreadLocal.set()` must have a corresponding `remove()`. Use heap dump tools (VisualVM, Eclipse MAT) to diagnose — search for `ThreadLocalMap` entries.
+
+</BestPractice>
+
+
+### Scenario 3: Shared Mutable Collection Between Threads
+
+
+```java
+// BAD: ArrayList is NOT thread-safe
+private static final List<String> results = new ArrayList<>();
+
+// Concurrent add() from multiple threads can:
+// 1. Throw ArrayIndexOutOfBoundsException during internal resize
+// 2. Silently lose entries (two threads write to same index)
+// 3. Throw ConcurrentModificationException if iterated during modification
+```
+
+<BestPractice>
+
+**Fix:** Use `CopyOnWriteArrayList` for write-light workloads, `ConcurrentHashMap` for key-value result tracking, or `Collections.synchronizedList()` as a quick wrapper.
+
+</BestPractice>
+
+
+---
+
+## Engineering Judgment (Layer 5)
+
+### When Parallel Execution Is Worth the Complexity
+
+| Scenario | Parallel? | Why |
+|----------|-----------|-----|
+| 200+ UI tests, CI takes 45 min | **Yes** | Substantial time savings; ThreadLocal pattern is well-established |
+| 10 smoke tests, CI takes 3 min | **No** | Thread-safe infrastructure complexity outweighs minimal savings |
+| API tests with independent endpoints | **Yes** | Naturally isolated; no shared browser state |
+| Tests sharing a single database user | **Caution** | DB-level contention causes flakiness regardless of code thread safety |
+
+**Rule of thumb:** Under 5 minutes sequential → probably not worth it. Over 30 minutes → almost certainly worth it.
+
+### ThreadLocal vs Dependency Injection
+
+**Start with `ThreadLocal`** — it's the industry standard for Selenium parallel execution and needs no extra dependencies. Move to DI (Guice, Spring) when the framework grows beyond ~50 test classes or you need to mock the driver manager in unit tests. Many mature frameworks (Selenide, Serenity) use `ThreadLocal` internally.
+
+### Choosing the Right Concurrency Tool
+
+| Tool | Use When | Cost |
+|------|----------|------|
+| **`ThreadLocal`** | Per-thread isolated state (no sharing needed) | Lowest — no synchronization |
+| **`volatile`** | Single variable, one writer, many readers (flags) | Low — memory barrier only |
+| **`Atomic` classes** | Single-variable atomic operations (counters) | Low — lock-free CAS |
+| **`ConcurrentHashMap`** | Shared key-value data, multiple writers | Low — lock striping |
+| **`synchronized`** | Multiple related variables updated together | Medium — threads queue |
+
+**Decision guide:** If threads don't need to share the data, use `ThreadLocal`. If they must share, prefer `Atomic` for single variables, `ConcurrentHashMap` for maps, and `synchronized` only when multiple variables must be updated atomically.
+
+---
+
+## Interview and Revision (Layer 6)
+
+### Fundamental Questions
+
+**Q1: How do you handle parallel test execution in your framework?**  
+**A:** I use `ThreadLocal` to isolate per-test state — primarily the WebDriver. A `DriverManager` class with static `initDriver()`, `getDriver()`, and `removeDriver()` methods stores each thread's driver in a `ThreadLocal<WebDriver>`. `@BeforeMethod` initializes it, `@AfterMethod(alwaysRun = true)` quits and removes it. For shared cross-thread state like result aggregation, I use `ConcurrentHashMap`. The code works identically whether running sequentially or in parallel.
+
+**Q2: What is `ThreadLocal` and why do you use it?**  
+**A:** `ThreadLocal<T>` provides per-thread isolated storage — each thread gets its own independent copy. I use it for WebDriver management in parallel execution. Without it, a static `WebDriver` field is shared across all threads, causing one test to interfere with another. The critical practice is always calling `remove()` in teardown because thread pools reuse threads — stale data from a previous test leaks into the next one.
+
+**Q3: What is a race condition? Give an automation example.**  
+**A:** A race condition occurs when correctness depends on unpredictable thread timing. Example: two threads increment `static int passCount` simultaneously — both read the same value, add 1, and write back, losing one increment. Another example: a shared static `WebDriver` where Thread-1 creates a driver, Thread-2 overwrites it, and Thread-1 operates on Thread-2's browser. Fix: `AtomicInteger` for counters, `ThreadLocal` for per-test state, `ConcurrentHashMap` for shared collections.
+
+**Q4: What's the difference between `synchronized` and `volatile`?**  
+**A:** `volatile` guarantees visibility (all threads see the latest write) but NOT atomicity of compound operations. `synchronized` guarantees both visibility and atomicity — only one thread executes the block at a time. Use `volatile` for simple flags; use `synchronized` for read-modify-write operations.
+
+**Q5: What happens if you forget `ThreadLocal.remove()`?**  
+**A:** Two problems: (1) memory leak — thread pool reuses threads, and each thread's `ThreadLocal` map retains references, eventually causing `OutOfMemoryError`; (2) data pollution — the next test on the same thread inherits stale data, causing flaky failures that depend on thread pool assignment order.
+
+**Q6: Why can't you just use `synchronized` everywhere instead of `ThreadLocal`?**  
+**A:** They solve different problems. `synchronized` serializes shared access — threads take turns. `ThreadLocal` eliminates sharing — each thread gets its own copy. For WebDriver, you want each thread to have its own browser running independently, not threads taking turns with one browser. Using `synchronized` on a shared driver would make tests run sequentially, defeating the purpose of parallelism.
+
+### Coding Questions
+
+**Coding 1: Implement a thread-safe test timer**
+
+
+```java
+/**
+ * Track per-test duration using ThreadLocal for start time,
+ * ConcurrentHashMap for shared results.
+ * Methods: startTimer(testName), stopTimer(), getAllDurations()
+ */
+public class TestTimer {
+    // your implementation here
+}
+```
+
+**Coding 2: Fix the broken parallel test code (3 concurrency bugs)**
+
+
+```java
+public class BrokenParallelFramework {
+    private static WebDriver driver;                          // Bug 1
+    private static List<String> results = new ArrayList<>();  // Bug 2
+    private static int testCount = 0;                         // Bug 3
+
+    public static void setup() { driver = new ChromeDriver(); testCount++; }
+    public static void runTest(String testName) {
+        driver.get("https://example.com/" + testName);
+        results.add(testName + ": PASS");
+    }
+    public static void teardown() { driver.quit(); }
+}
+```
+
+**Coding 3: Implement a ThreadLocal-based API client factory**
+
+
+```java
+/**
+ * Give each thread its own API client with configurable base URL,
+ * auth token, and automatic cleanup.
+ * Hint: ThreadLocal<ApiClientContext>
+ */
+public class ThreadSafeApiClientFactory {
+    // your implementation here
+}
+```
+
+
+
+
+| # | Front (Question) | Back (Answer) |
+|---|---|---|
+| 1 | What is the difference between `thread.start()` and `thread.run()`? | `start()` creates a new OS thread and calls `run()` on it. `run()` called directly executes on the current thread — no new thread. Always use `start()`. |
+| 2 | Why is `ThreadLocal.remove()` critical in test automation? | Thread pools reuse threads. Without `remove()`, stale data persists: (1) memory leaks over long runs, (2) data pollution where one test inherits another's state. |
+| 3 | What does `volatile` guarantee and what does it NOT? | Guarantees visibility (all threads see latest write). Does NOT guarantee atomicity — `count++` on a volatile int is still a race condition (3 separate operations). |
+| 4 | `ConcurrentHashMap` vs `ThreadLocal` — when to use each? | `ThreadLocal`: each thread needs its own independent copy (WebDriver, context). `ConcurrentHashMap`: threads need to share data safely (collecting results into one map). |
+| 5 | What is `@AfterMethod(alwaysRun = true)` and why does it matter? | Ensures teardown runs even when the test fails. Without it, a failed test may skip `ThreadLocal.remove()` and `driver.quit()`, causing memory leaks and orphaned browsers. |
+
+### Mastery Checklist
+
+- [ ] Can explain what a thread is and how threads share memory within a JVM process
+- [ ] Can create threads using `Thread`, `Runnable`, and `Callable<T>` with `Future<T>`
+- [ ] Can identify race conditions in code and explain why they cause flaky tests
+- [ ] Can use `synchronized` for mutual exclusion (method-level and block-level)
+- [ ] Can explain `volatile` and when it is sufficient vs when `synchronized` is needed
+- [ ] Can implement the `ThreadLocal` WebDriver pattern for parallel Selenium tests
+- [ ] Can explain why `ThreadLocal.remove()` is critical and what happens without it
+- [ ] Can choose between `ThreadLocal`, `synchronized`, `volatile`, and `Atomic` classes for a given scenario
+- [ ] Can use `ConcurrentHashMap` and `CopyOnWriteArrayList` for thread-safe result collection
+- [ ] Can configure TestNG/JUnit for parallel execution and design parallel-safe tests
+- [ ] Can diagnose a ThreadLocal memory leak using heap analysis
+- [ ] Can refactor a broken static-field-based framework into a thread-safe ThreadLocal design
+
+---
+
+**Next:** Debugging And Profiling | **Related:** Interfaces And Composition, Collections And Generics
+
+---
+
+*Last updated: *

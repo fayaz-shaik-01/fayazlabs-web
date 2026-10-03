@@ -1,0 +1,207 @@
+---
+title: "StayNest - Requirements and Business Rules"
+description: "Every rule below is derived from the actual backend source code. The \"Source\" column points to the class where the behavior is implemented. Use this as your specification when writing tests."
+summary: "SDET Engineering guide: StayNest - Requirements and Business Rules"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "staynest-lab"
+lesson: "requirements-and-business-rules"
+difficulty: "beginner"
+estimatedMinutes: 30
+prerequisites: []
+tags: ["SDET", "StayNest", "Hands-on"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "reference"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/staynest-lab/requirements-and-business-rules"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# StayNest - Requirements and Business Rules
+
+Every rule below is derived from the actual backend source code. The "Source" column points to the class where the behavior is implemented. Use this as your specification when writing tests.
+
+---
+
+## Authentication Rules
+
+| Rule ID | Description | Testable Assertion | Priority | Source |
+| ------- | ----------- | ------------------ | -------- | ------ |
+| AUTH-01 | Signup creates a new user with a hashed password | `POST /auth/signup` returns 201 with user DTO (no password field in response). Password in DB is BCrypt-hashed, not plaintext. | P0 | `AuthService.signUp()` |
+| AUTH-02 | Signup with duplicate email is rejected | `POST /auth/signup` with an already-registered email returns 500 with message "User is already present with same email id" | P0 | `AuthService.signUp()` |
+| AUTH-03 | Signup defaults role to GUEST when no role is provided | The returned user should have the GUEST role. Sending `roles: null` or omitting it should still succeed. | P1 | `AuthService.signUp()` |
+| AUTH-04 | Signup allows specifying HOTEL_MANAGER role | Sending `roles: ["HOTEL_MANAGER"]` in signup should create a user with HOTEL_MANAGER role | P1 | `AuthService.signUp()` |
+| AUTH-05 | Login returns a JWT access token | `POST /auth/login` with valid credentials returns 200 with `{ "accessToken": "<jwt>" }` | P0 | `AuthController.login()` |
+| AUTH-06 | Login sets a refresh token as an HttpOnly cookie | Response includes a `Set-Cookie` header with `refreshToken=<value>; HttpOnly` | P1 | `AuthController.login()` |
+| AUTH-07 | Login with invalid credentials returns 401 | Wrong email or password returns `UNAUTHORIZED` status | P0 | `GlobalExceptionHandler` |
+| AUTH-08 | Access token expires after 10 minutes | JWT `exp` claim is set to `iat + 600 seconds`. Using an expired token returns 401. | P1 | `JWTService.generateAccessToken()` |
+| AUTH-09 | Refresh token can generate a new access token | `POST /auth/refresh` with a valid refresh token cookie returns a new access token | P2 | `AuthController.refresh()` |
+| AUTH-10 | Refresh without cookie returns error | `POST /auth/refresh` without a `refreshToken` cookie throws `AuthenticationServiceException` | P2 | `AuthController.refresh()` |
+
+---
+
+## Signup Validation Rules
+
+| Rule ID | Description | Testable Assertion | Priority | Source |
+| ------- | ----------- | ------------------ | -------- | ------ |
+| VAL-01 | Email is required | Omitting email or sending blank returns 400 with sub-error containing "Email is required" | P0 | `SignUpRequestDto` |
+| VAL-02 | Email must be valid format | Sending `"email": "notanemail"` returns 400 with "Invalid email format" | P0 | `SignUpRequestDto` |
+| VAL-03 | Password is required | Omitting password returns 400 with "Password is required" | P0 | `SignUpRequestDto` |
+| VAL-04 | Password must be at least 6 characters | Sending a 5-character password returns 400 with "Password must be at least 6 characters" | P1 | `SignUpRequestDto` |
+| VAL-05 | Name is required | Omitting name returns 400 with "Name is required" | P0 | `SignUpRequestDto` |
+
+---
+
+## Authorization Rules
+
+| Rule ID | Description | Testable Assertion | Priority | Source |
+| ------- | ----------- | ------------------ | -------- | ------ |
+| AUTHZ-01 | Admin endpoints require HOTEL_MANAGER role | `GET /admin/hotels` with a GUEST token returns 403 Forbidden | P0 | `WebSecurityConfig` |
+| AUTHZ-02 | Booking endpoints require authentication | `POST /bookings/init` without a token returns 401 | P0 | `WebSecurityConfig` |
+| AUTHZ-03 | User endpoints require authentication | `GET /users/profile` without a token returns 401 | P0 | `WebSecurityConfig` |
+| AUTHZ-04 | Browse endpoints are public | `POST /hotels/search` works without any token | P0 | `WebSecurityConfig` |
+| AUTHZ-05 | Auth endpoints are public | `POST /auth/signup` and `POST /auth/login` work without any token | P0 | `WebSecurityConfig` |
+| AUTHZ-06 | Hotel owner restriction | A HOTEL_MANAGER can only manage their own hotels. Accessing another manager's hotel returns 403. | P1 | `HotelServiceImpl`, `InventoryServiceImpl` |
+
+---
+
+## Hotel Rules
+
+| Rule ID | Description | Testable Assertion | Priority | Source |
+| ------- | ----------- | ------------------ | -------- | ------ |
+| HOTEL-01 | Only HOTEL_MANAGER can create hotels | `POST /admin/hotels` with a GUEST token returns 403 | P0 | `WebSecurityConfig` |
+| HOTEL-02 | New hotels are created with the current user as owner | The hotel entity has the authenticated user set as `owner` | P1 | `HotelServiceImpl` |
+| HOTEL-03 | Hotels must be activated to appear in search | A hotel with `active=false` should not appear in browse/search results | P1 | `HotelController.activateHotel()` |
+| HOTEL-04 | Hotel activation endpoint | `PATCH /admin/hotels/{id}/activate` sets `active=true` and returns 204 | P1 | `HotelController` |
+| HOTEL-05 | Deleting a hotel returns 204 No Content | `DELETE /admin/hotels/{id}` returns 204 with empty body | P1 | `HotelController` |
+| HOTEL-06 | Getting a non-existent hotel returns 404 | `GET /admin/hotels/99999` returns 404 with "not found" message | P1 | `HotelServiceImpl` |
+
+---
+
+## Room Rules
+
+| Rule ID | Description | Testable Assertion | Priority | Source |
+| ------- | ----------- | ------------------ | -------- | ------ |
+| ROOM-01 | Creating a room auto-generates inventory for 1 year | After `POST /admin/hotels/{id}/rooms`, inventory records exist for every date from today to today+365 | P1 | `RoomServiceImpl`, `InventoryServiceImpl.initializeRoomForAYear()` |
+| ROOM-02 | Room has required fields: type, basePrice, totalCount, capacity | These fields are non-null in the entity. Missing values cause persistence errors. | P1 | `Room` entity |
+| ROOM-03 | Deleting a room deletes its inventory | `DELETE /admin/hotels/{id}/rooms/{roomId}` also removes all associated inventory records | P2 | `RoomServiceImpl` |
+
+---
+
+## Booking Rules
+
+| Rule ID | Description | Testable Assertion | Priority | Source |
+| ------- | ----------- | ------------------ | -------- | ------ |
+| BOOK-01 | Booking init requires hotel, room, checkIn, checkOut, roomsCount | Omitting any required field returns 400 with validation error | P0 | `BookingRequest` |
+| BOOK-02 | Check-in date must be today or in the future | A past check-in date returns 400 with "Check-in date must be today or in the future" | P0 | `BookingRequest` |
+| BOOK-03 | Check-out date must be today or in the future | A past check-out date returns 400 with "Check-out date must be today or in the future" | P0 | `BookingRequest` |
+| BOOK-04 | At least 1 room must be booked | `roomsCount: 0` returns 400 with "At least 1 room must be booked" | P1 | `BookingRequest` |
+| BOOK-05 | Room must have available inventory for all requested dates | If inventory is not available for even one date in the range, returns 409 with "Room is not available anymore" | P0 | `BookingServiceImpl.initialiseBooking()` |
+| BOOK-06 | Initial booking status is RESERVED | After successful `POST /bookings/init`, the booking status is `RESERVED` | P0 | `BookingServiceImpl.initialiseBooking()` |
+| BOOK-07 | Booking amount is calculated using dynamic pricing | The `amount` field reflects the sum of dynamic prices across all dates, multiplied by rooms count | P1 | `BookingServiceImpl.initialiseBooking()` |
+| BOOK-08 | Only the booking owner can add guests | Adding guests to another user's booking returns 403 | P1 | `BookingServiceImpl.addGuests()` |
+| BOOK-09 | Guests can only be added when status is RESERVED | Adding guests to a non-RESERVED booking returns 409 with "Booking is not under reserved state" | P1 | `BookingServiceImpl.addGuests()` |
+| BOOK-10 | Only confirmed bookings can be cancelled | Cancelling a RESERVED booking returns 409 with "Only confirmed bookings can be cancelled" | P0 | `BookingServiceImpl.cancelBooking()` |
+| BOOK-11 | Cancelling restores inventory | After cancellation, the `bookedCount` for the affected dates is decremented | P1 | `BookingServiceImpl.cancelBooking()` |
+| BOOK-12 | Only the booking owner can cancel | Cancelling another user's booking returns 403 | P1 | `BookingServiceImpl.cancelBooking()` |
+| BOOK-13 | Only the booking owner can check status | Checking status of another user's booking returns 403 | P1 | `BookingServiceImpl.getBookingStatus()` |
+
+---
+
+## Booking Status Lifecycle
+
+```
+  POST /bookings/init
+        |
+        v
+    RESERVED ──────────────────────────────────────────┐
+        |                                              |
+  POST /bookings/{id}/addGuests                        |
+        |                                        (10 min expiry)
+        v                                              |
+  GUESTS_ADDED ────────────────────────────────────────┤
+        |                                              |
+  POST /bookings/{id}/payments                         |
+        |                                              |
+        v                                              v
+  PAYMENTS_PENDING ─────────────────────────────> EXPIRED
+        |
+   Stripe webhook (or mock auto-confirm)
+        |
+        v
+    CONFIRMED
+        |
+  POST /bookings/{id}/cancel
+        |
+        v
+    CANCELLED
+```
+
+---
+
+## Booking Expiry Rules
+
+| Rule ID | Description | Testable Assertion | Priority | Source |
+| ------- | ----------- | ------------------ | -------- | ------ |
+| EXP-01 | Bookings expire after 10 minutes | A booking created more than 10 minutes ago with status RESERVED, GUESTS_ADDED, or PAYMENTS_PENDING is set to EXPIRED | P1 | `BookingExpiryService` |
+| EXP-02 | Expired bookings release reserved inventory | When a booking expires, `reservedCount` is decremented for the affected dates | P2 | `BookingExpiryService` |
+| EXP-03 | Expiry job runs every 2 minutes | The `@Scheduled(fixedRate = 120_000)` annotation triggers the cleanup | P2 | `BookingExpiryService` |
+| EXP-04 | Adding guests to an expired booking fails | If the booking was created more than 10 minutes ago, `addGuests` returns 409 with "Booking has already expired" | P1 | `BookingServiceImpl.addGuests()` |
+
+---
+
+## Inventory Rules
+
+| Rule ID | Description | Testable Assertion | Priority | Source |
+| ------- | ----------- | ------------------ | -------- | ------ |
+| INV-01 | Inventory is unique per hotel+room+date | The unique constraint `unique_hotel_room_date` prevents duplicate records | P2 | `Inventory` entity |
+| INV-02 | Booking decrements available inventory | After a booking init, `reservedCount` increases for the affected dates | P1 | `BookingServiceImpl.initialiseBooking()` |
+| INV-03 | Confirmed booking moves from reserved to booked | After payment confirmation, `reservedCount` decreases and `bookedCount` increases | P2 | `BookingServiceImpl.capturePayment()` |
+| INV-04 | Inventory can be closed by admin | Setting `closed: true` via `PATCH /admin/inventory/rooms/{id}` prevents the room from being booked for those dates | P2 | `InventoryServiceImpl.updateInventory()` |
+| INV-05 | Surge factor can be updated by admin | Setting `surgeFactor` via `PATCH /admin/inventory/rooms/{id}` adjusts dynamic pricing | P2 | `InventoryServiceImpl.updateInventory()` |
+
+---
+
+## Search Rules
+
+| Rule ID | Description | Testable Assertion | Priority | Source |
+| ------- | ----------- | ------------------ | -------- | ------ |
+| SRCH-01 | Search requires city, startDate, endDate, roomsCount | Omitting any field returns 400 | P0 | `HotelSearchRequest` |
+| SRCH-02 | Search dates must be today or in the future | Past dates return 400 | P1 | `HotelSearchRequest` |
+| SRCH-03 | Search returns paginated results | Response is a Spring `Page` with `content`, `totalElements`, `totalPages`, etc. | P1 | `InventoryServiceImpl.searchHotels()` |
+| SRCH-04 | Search only returns hotels with available inventory | Hotels without enough rooms for all dates in the range are excluded | P0 | `InventoryServiceImpl.searchHotels()` |
+| SRCH-05 | Search results include minimum price | Each result includes the cheapest available room price per night | P1 | `HotelMinPriceRepository` |
+
+---
+
+## Error Handling Rules
+
+| Rule ID | Description | Testable Assertion | Priority | Source |
+| ------- | ----------- | ------------------ | -------- | ------ |
+| ERR-01 | ResourceNotFoundException returns 404 | Missing hotel, room, booking, or guest returns 404 | P0 | `GlobalExceptionHandler` |
+| ERR-02 | AuthenticationException returns 401 | Invalid credentials return 401 | P0 | `GlobalExceptionHandler` |
+| ERR-03 | JwtException returns 401 | Expired, malformed, or invalid JWT returns 401 | P0 | `GlobalExceptionHandler` |
+| ERR-04 | AccessDeniedException returns 403 | Insufficient role or accessing another user's resource returns 403 | P0 | `GlobalExceptionHandler` |
+| ERR-05 | IllegalStateException returns 409 | Business rule violations (e.g., "Room is not available anymore") return 409 Conflict | P1 | `GlobalExceptionHandler` |
+| ERR-06 | MethodArgumentNotValidException returns 400 | Validation failures return 400 with a list of field-level errors in `subErrors` | P0 | `GlobalExceptionHandler` |
+| ERR-07 | All errors are wrapped in ApiResponse | Error responses always have the structure: `{ timeStamp, data: null, error: { status, message, subErrors } }` | P1 | `GlobalExceptionHandler` |
+
+---
+
+## Dynamic Pricing Rules
+
+| Rule ID | Description | Testable Assertion | Priority | Source |
+| ------- | ----------- | ------------------ | -------- | ------ |
+| PRICE-01 | Base price comes from inventory record | The starting price for calculation is `inventory.price` | P2 | `BasePricingStrategy` |
+| PRICE-02 | Surge factor multiplies the price | A `surgeFactor` of 1.5 should increase the price by 50% | P2 | `SurgePricingStrategy` |
+| PRICE-03 | Occupancy affects pricing | Higher occupancy (bookedCount / totalCount) increases the price | P2 | `OccupancyPricingStrategy` |
+| PRICE-04 | Urgency affects pricing | Dates closer to today may have adjusted pricing | P2 | `UrgencyPricingStrategy` |
+| PRICE-05 | Holidays affect pricing | Holiday dates may have adjusted pricing | P2 | `HolidayPricingStrategy` |
+| PRICE-06 | Strategies are applied in chain | Base -> Surge -> Occupancy -> Urgency -> Holiday (decorator pattern) | P2 | `PricingService` |

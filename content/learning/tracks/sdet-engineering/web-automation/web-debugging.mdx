@@ -1,0 +1,793 @@
+---
+title: "Web Test Debugging"
+description: "What: Web test debugging is the systematic process of diagnosing why a browser test failed. It goes beyond reading the error message — it involves analyzing screenshots, videos, network traces, DOM snapshots, console logs, and the difference between what the test expected and what the browser actually showed. Modern tools like Playwright's Trace Viewer make this dramatically easier than the traditional Selenium approach of staring at stack traces and guessing."
+summary: "SDET Engineering guide: Web Test Debugging"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "web-automation"
+lesson: "web-debugging"
+difficulty: "intermediate"
+estimatedMinutes: 51
+prerequisites: []
+tags: ["SDET", "Web", "Selenium", "Playwright"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/web-automation/web-debugging"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Web Test Debugging
+
+> **Module:** 05 — Web Automation > Web Debugging  
+> **Prerequisites:** Browser And Dom Fundamentals, Synchronization And Waits, Locator Strategy  
+> **Mastery Target:** L3 (Independent) → L4 (Teaching)
+
+---
+
+## Quick Overview (Layer 1)
+
+**What:** Web test debugging is the systematic process of diagnosing *why* a browser test failed. It goes beyond reading the error message — it involves analyzing screenshots, videos, network traces, DOM snapshots, console logs, and the difference between what the test expected and what the browser actually showed. Modern tools like Playwright's Trace Viewer make this dramatically easier than the traditional Selenium approach of staring at stack traces and guessing.
+
+**Why:** Every SDET spends a significant part of their day diagnosing test failures. The difference between a 5-minute fix and a 2-hour investigation is methodology. With 3 years of Selenium experience, you've debugged plenty of `NoSuchElementException` and `TimeoutException` — but you may not have a systematic framework for tackling unfamiliar failures, especially those that only happen in CI. This topic gives you that framework and introduces Playwright's Trace Viewer, which is a step change in debugging capability.
+
+**Where:** Every failed test, every flaky test investigation, every CI pipeline red build, every "it works on my machine" conversation.
+
+<MentalModel>
+
+Think of debugging a web test failure as a **crime scene investigation**. The error message is the 911 call — it tells you *something* happened, not *what* happened. The screenshot is the crime scene photo — it shows the state at the moment of failure. The video is the security camera footage — it shows the sequence of events. The network trace is the phone records — it shows what communications happened. The DOM snapshot is the forensic analysis — it shows the exact state of every element. Playwright's Trace Viewer puts all of this evidence in one place.
+
+</MentalModel>
+
+
+<KeyTakeaways>
+
+1. **Error messages are symptoms, not diagnoses** — `TimeoutError` could mean: element doesn't exist, element is hidden, wrong locator, page didn't load, network failed
+2. **Screenshots capture the moment of failure** — configure automatic screenshots on failure in both Selenium and Playwright
+3. **Playwright Trace Viewer is the most powerful debugging tool** — timeline, DOM snapshots, network, console, all in one UI
+4. **CI failures need artifacts** — always save screenshots, videos, and traces as CI artifacts; you can't reproduce CI conditions locally
+5. **Most failures fall into 5 patterns** — element not found, timeout, stale element, element intercepted, unexpected state
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation (Layer 2)
+
+### The Debugging Framework: 5 Steps
+
+```
+Step 1: READ THE ERROR           What exception? What locator? What timeout?
+    │
+    ▼
+Step 2: EXAMINE THE EVIDENCE     Screenshot, video, trace, console logs
+    │
+    ▼
+Step 3: REPRODUCE LOCALLY        Can you trigger the same failure?
+    │
+    ▼
+Step 4: ISOLATE THE CAUSE        Is it timing? Locator? Data? Environment?
+    │
+    ▼
+Step 5: FIX AND PREVENT          Fix the test/app, add safeguard against recurrence
+```
+
+### Common Failure Patterns — Diagnosis Guide
+
+| Error / Symptom | Likely Cause | First Thing to Check |
+|---|---|---|
+| `NoSuchElementException` (Selenium) | Element not in DOM | Screenshot — is the page what you expected? |
+| `TimeoutError` (Playwright) | Element didn't meet condition in time | Trace — what was on screen at timeout? |
+| `StaleElementReferenceException` | DOM re-rendered, element reference invalid | Did an action trigger a re-render? |
+| `ElementClickInterceptedException` | Another element covers the target | Screenshot — look for overlays, modals, banners |
+| `ElementNotInteractableException` | Element hidden or disabled | DevTools — check `display`, `visibility`, `disabled` |
+| Test passes locally, fails in CI | Timing, viewport, or environment difference | Compare CI screenshot with local; check viewport size |
+| Test fails intermittently (flaky) | Race condition or timing | Run 10x locally; check for async operations |
+| Wrong assertion value | Data changed, or reading wrong element | Screenshot + trace — verify element identity |
+
+### Screenshot Analysis
+
+#### Automatic Screenshots on Failure (Playwright)
+
+
+```typescript
+// playwright.config.ts — automatic screenshots
+import { defineConfig } from '@playwright/test';
+
+export default defineConfig({
+    use: {
+        // Capture screenshot on failure
+        screenshot: 'only-on-failure',  // 'on' | 'off' | 'only-on-failure'
+
+        // Full page screenshot (not just viewport)
+        screenshot: {
+            mode: 'only-on-failure',
+            fullPage: true,
+        },
+    },
+
+    // Where to store results
+    outputDir: 'test-results/',
+});
+```
+
+#### Automatic Screenshots on Failure (Selenium)
+
+
+```java
+// Selenium: capture screenshot in @AfterEach or test listener
+public class ScreenshotOnFailure implements TestWatcher {
+
+    @Override
+    public void testFailed(ExtensionContext context, Throwable cause) {
+        WebDriver driver = getDriverFromContext(context);
+        if (driver instanceof TakesScreenshot) {
+            File screenshot = ((TakesScreenshot) driver).getScreenshotAs(OutputType.FILE);
+            String testName = context.getDisplayName().replaceAll("[^a-zA-Z0-9]", "_");
+            String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
+            File destination = new File("test-results/screenshots/" + testName + "_" + timestamp + ".png");
+            try {
+                Files.createDirectories(destination.getParentFile().toPath());
+                Files.copy(screenshot.toPath(), destination.toPath());
+                System.out.println("Screenshot saved: " + destination.getAbsolutePath());
+            } catch (IOException e) {
+                System.err.println("Failed to save screenshot: " + e.getMessage());
+            }
+        }
+    }
+}
+
+// Usage with JUnit 5
+@ExtendWith(ScreenshotOnFailure.class)
+public class LoginTest {
+    // Tests here automatically get screenshots on failure
+}
+```
+
+#### Manual Screenshots During Debugging
+
+
+```typescript
+// Playwright: take diagnostic screenshots at specific points
+test('debug hotel search', async ({ page }) => {
+    await page.goto('http://localhost:5173/search');
+    await page.screenshot({ path: 'debug/01-page-loaded.png' });
+
+    await page.getByLabel('Location').fill('New York');
+    await page.screenshot({ path: 'debug/02-location-filled.png' });
+
+    await page.getByRole('button', { name: 'Search' }).click();
+    await page.screenshot({ path: 'debug/03-after-search-click.png' });
+
+    // Wait a moment for results to load
+    await page.waitForTimeout(2000);  // Only for debugging — don't ship this
+    await page.screenshot({ path: 'debug/04-results-loaded.png', fullPage: true });
+});
+```
+
+
+```java
+// Selenium: diagnostic screenshots
+TakesScreenshot ts = (TakesScreenshot) driver;
+
+driver.get("http://localhost:5173/search");
+File ss1 = ts.getScreenshotAs(OutputType.FILE);
+Files.copy(ss1.toPath(), Path.of("debug/01-page-loaded.png"));
+
+driver.findElement(By.cssSelector("[data-testid='search-button']")).click();
+File ss2 = ts.getScreenshotAs(OutputType.FILE);
+Files.copy(ss2.toPath(), Path.of("debug/02-after-click.png"));
+```
+
+### Video Recording
+
+#### Playwright Video
+
+
+```typescript
+// playwright.config.ts — video recording
+export default defineConfig({
+    use: {
+        // Record video for failed tests
+        video: 'retain-on-failure',  // 'on' | 'off' | 'retain-on-failure' | 'on-first-retry'
+
+        // Custom video settings
+        video: {
+            mode: 'retain-on-failure',
+            size: { width: 1280, height: 720 },
+        },
+    },
+});
+```
+
+#### Selenium Video (via Grid)
+
+
+```yaml
+# Docker Selenium with video recording
+version: "3"
+services:
+  chrome-video:
+    image: selenium/node-chrome:4.27.0
+    depends_on:
+      - hub
+    environment:
+      - SE_EVENT_BUS_HOST=hub
+      - SE_EVENT_BUS_PUBLISH_PORT=4442
+      - SE_EVENT_BUS_SUBSCRIBE_PORT=4443
+      - SE_RECORD_VIDEO=true
+    volumes:
+      - ./videos:/videos
+    shm_size: "2gb"
+```
+
+### Playwright Trace Viewer — The Debugging Superpower
+
+The Trace Viewer is Playwright's most powerful debugging tool. It records a complete trace of everything that happened during a test: every action, every network request, every DOM snapshot, every console log.
+
+#### Enabling Traces
+
+
+```typescript
+// playwright.config.ts — trace recording
+export default defineConfig({
+    use: {
+        // Record trace for failed tests (most common setting)
+        trace: 'retain-on-failure',  // 'on' | 'off' | 'retain-on-failure' | 'on-first-retry'
+
+        // For debugging: record trace for all tests
+        // trace: 'on',
+    },
+});
+```
+
+#### What the Trace Contains
+
+```
+Trace Viewer UI
+│
+├── Timeline ──────────── Visual timeline of all test actions
+│   └── Click, fill, goto, expect — each action shown with duration
+│
+├── DOM Snapshots ──────── Full DOM state at each action
+│   └── Before action, after action — see exactly what changed
+│
+├── Network ──────────── Every HTTP request and response
+│   └── URL, method, status, headers, body, timing
+│
+├── Console ──────────── All console.log, console.error from the page
+│   └── JavaScript errors, React warnings, app logs
+│
+├── Source ──────────── The test code, highlighted at the current action
+│   └── Jump to the exact line that failed
+│
+└── Screenshots ──────── Auto-captured at each action
+    └── Before and after each step
+```
+
+#### Viewing Traces
+
+
+```bash
+# After a test failure, open the trace file
+npx playwright show-trace test-results/hotel-search-chromium/trace.zip
+
+# Or view traces from the HTML report
+npx playwright show-report
+
+# Traces are in the test-results/ directory, one per failed test
+ls test-results/
+# hotel-search-chromium/
+#   trace.zip          ← Open this in Trace Viewer
+#   test-finished-1.png
+#   video.webm
+```
+
+#### Practical Trace Analysis
+
+
+```typescript
+// This test fails intermittently — let's use the trace to diagnose
+test('book a hotel', async ({ page }) => {
+    await page.goto('http://localhost:5173/hotels/1');
+    await page.getByRole('button', { name: 'Book Now' }).click();
+
+    // Fill booking form
+    await page.getByLabel('Check-in').fill('2025-08-01');
+    await page.getByLabel('Check-out').fill('2025-08-05');
+    await page.getByRole('button', { name: 'Confirm Booking' }).click();
+
+    // This assertion sometimes fails
+    await expect(page.getByText('Booking confirmed!')).toBeVisible();
+    // TimeoutError: locator.toBeVisible() timed out
+});
+```
+
+**Trace analysis workflow:**
+
+1. **Open trace:** `npx playwright show-trace test-results/book-a-hotel-chromium/trace.zip`
+2. **Find the failing action** in the timeline — it's highlighted in red
+3. **Check the DOM snapshot** at that moment — is "Booking confirmed!" anywhere in the DOM?
+4. **Check the Network tab** — did the `POST /api/v1/bookings` request succeed? What status code?
+5. **Check the Console tab** — any JavaScript errors? React error boundaries catching something?
+6. **Look at the screenshot** — what does the user actually see? An error message? A loading spinner that never resolved?
+
+**Common findings from traces:**
+- Network: The booking API returned 400 because the date was in the past (test data issue)
+- Console: `TypeError: Cannot read property 'id' of undefined` — React crash
+- DOM: The text says "Booking failed: Room not available" — not the expected success message
+- Screenshot: A modal overlay is blocking the view — the success message is behind it
+
+### Browser DevTools in Test Debugging
+
+#### Using DevTools with Playwright
+
+
+```bash
+# Run test in headed mode with browser DevTools open
+npx playwright test hotel-search.spec.ts --headed --debug
+
+# Or use the Playwright Inspector (step through each action)
+npx playwright test hotel-search.spec.ts --debug
+
+# Or pause the test at a specific point in code
+```
+
+
+```typescript
+// Pause the test and open Playwright Inspector
+test('debug with inspector', async ({ page }) => {
+    await page.goto('http://localhost:5173/search');
+    await page.getByLabel('Location').fill('New York');
+
+    // Pause here — opens Playwright Inspector
+    // You can inspect the page, try locators, step through actions
+    await page.pause();
+
+    await page.getByRole('button', { name: 'Search' }).click();
+});
+```
+
+#### Using DevTools with Selenium
+
+
+```java
+// Selenium: run in headed mode for debugging
+ChromeOptions options = new ChromeOptions();
+// Don't add --headless — run with visible browser
+options.addArguments("--start-maximized");
+// Keep browser open after test (for manual inspection)
+options.setExperimentalOption("detach", true);
+
+WebDriver driver = new ChromeDriver(options);
+driver.get("http://localhost:5173/search");
+
+// Add breakpoint in your IDE — browser stays open for inspection
+// Use DevTools manually while test is paused
+```
+
+### Console Log Capture
+
+
+```typescript
+// Playwright: capture console messages during test
+test('capture console errors', async ({ page }) => {
+    const consoleMessages: string[] = [];
+    const consoleErrors: string[] = [];
+
+    // Listen for all console messages
+    page.on('console', msg => {
+        consoleMessages.push(`[${msg.type()}] ${msg.text()}`);
+        if (msg.type() === 'error') {
+            consoleErrors.push(msg.text());
+        }
+    });
+
+    // Listen for uncaught exceptions
+    page.on('pageerror', error => {
+        consoleErrors.push(`PAGE ERROR: ${error.message}`);
+    });
+
+    await page.goto('http://localhost:5173/search');
+    await page.getByRole('button', { name: 'Search' }).click();
+
+    // After test actions, check for unexpected errors
+    if (consoleErrors.length > 0) {
+        console.log('Console errors detected:');
+        consoleErrors.forEach(e => console.log(`  - ${e}`));
+    }
+
+    // Assert no console errors (optional — strict mode)
+    expect(consoleErrors).toHaveLength(0);
+});
+```
+
+
+```java
+// Selenium: capture browser console logs
+public class ConsoleLogCapture {
+
+    @Test
+    void captureConsoleLogs() {
+        ChromeOptions options = new ChromeOptions();
+        options.setCapability("goog:loggingPrefs", Map.of(
+            "browser", "ALL",
+            "performance", "ALL"
+        ));
+
+        WebDriver driver = new ChromeDriver(options);
+        driver.get("http://localhost:5173/search");
+
+        // Get browser console logs
+        LogEntries logs = driver.manage().logs().get("browser");
+        for (LogEntry entry : logs) {
+            System.out.printf("[%s] %s: %s%n",
+                entry.getTimestamp(), entry.getLevel(), entry.getMessage());
+        }
+
+        // Filter for errors
+        List<LogEntry> errors = logs.getAll().stream()
+            .filter(e -> e.getLevel().equals(Level.SEVERE))
+            .toList();
+
+        if (!errors.isEmpty()) {
+            System.out.println("BROWSER ERRORS DETECTED:");
+            errors.forEach(e -> System.out.println("  " + e.getMessage()));
+        }
+
+        driver.quit();
+    }
+}
+```
+
+---
+
+## Practical Implementation (Layer 3)
+
+### Practical Exercise: Diagnose a StayNest Test Failure Using Trace Viewer
+
+**Scenario:** The following test fails intermittently in CI:
+
+
+```typescript
+import { test, expect } from '@playwright/test';
+
+test('complete hotel booking flow', async ({ page }) => {
+    await page.goto('http://localhost:5173/login');
+    await page.getByLabel('Email').fill('user@staynest.com');
+    await page.getByLabel('Password').fill('User123!');
+    await page.getByRole('button', { name: 'Login' }).click();
+
+    await page.goto('http://localhost:5173/search');
+    await page.getByLabel('Location').fill('New York');
+    await page.getByRole('button', { name: 'Search' }).click();
+
+    // Click first hotel
+    await page.getByTestId('hotel-card').first().click();
+
+    // Book the hotel
+    await page.getByRole('button', { name: 'Book Now' }).click();
+    await page.getByLabel('Check-in').fill('2025-08-01');
+    await page.getByLabel('Check-out').fill('2025-08-05');
+    await page.getByRole('button', { name: 'Confirm Booking' }).click();
+
+    // THIS LINE FAILS INTERMITTENTLY
+    await expect(page.getByText('Booking confirmed')).toBeVisible({ timeout: 15_000 });
+});
+```
+
+**Debug configuration to add:**
+
+
+```typescript
+// playwright.config.ts — maximum debug info for CI
+export default defineConfig({
+    retries: process.env.CI ? 2 : 0,
+    use: {
+        trace: 'retain-on-failure',
+        screenshot: 'only-on-failure',
+        video: 'retain-on-failure',
+    },
+    reporter: [
+        ['html', { open: 'never' }],  // HTML report with embedded traces
+        ['list'],                       // Console output
+    ],
+});
+```
+
+**Trace Viewer investigation steps:**
+
+1. Download CI artifacts (trace.zip, screenshots, video)
+2. `npx playwright show-trace trace.zip`
+3. In the Trace Viewer timeline, find the "Confirm Booking" click action
+4. Check the **Network tab** at that moment:
+   - Did `POST /api/v1/bookings` fire?
+   - What was the response status? 200? 400? 500?
+   - What was the response body?
+5. Check the **DOM snapshot** after the click:
+   - Is there a loading spinner still visible?
+   - Is there an error message instead of "Booking confirmed"?
+   - Is the booking form still showing (click didn't register)?
+6. Check the **Console tab**:
+   - Any JavaScript errors?
+   - Any React error boundary catches?
+7. Compare with the **screenshot at failure**:
+   - What does the user actually see?
+
+**Common root causes for this specific failure:**
+- API returned 409 (conflict) — room already booked by another parallel test
+- API returned 500 — server error under load in CI
+- The "Confirm Booking" button was covered by a tooltip/popover — click didn't register
+- Dates in the past — test hardcodes `2025-08-01` which will eventually be in the past
+
+### Practical Exercise: Building a Debug-Friendly Test Framework
+
+
+```typescript
+// test-helpers/debug-utils.ts — reusable debugging utilities
+import { Page, TestInfo } from '@playwright/test';
+
+export async function captureDebugInfo(
+    page: Page,
+    testInfo: TestInfo,
+    label: string
+) {
+    // Capture screenshot
+    const screenshotPath = testInfo.outputPath(`${label}-screenshot.png`);
+    await page.screenshot({ path: screenshotPath, fullPage: true });
+    testInfo.attachments.push({
+        name: `${label}-screenshot`,
+        path: screenshotPath,
+        contentType: 'image/png',
+    });
+
+    // Capture console errors
+    const html = await page.content();
+    const htmlPath = testInfo.outputPath(`${label}-page-source.html`);
+    require('fs').writeFileSync(htmlPath, html);
+    testInfo.attachments.push({
+        name: `${label}-page-source`,
+        path: htmlPath,
+        contentType: 'text/html',
+    });
+
+    // Capture current URL
+    console.log(`[DEBUG ${label}] URL: ${page.url()}`);
+    console.log(`[DEBUG ${label}] Title: ${await page.title()}`);
+}
+```
+
+
+```typescript
+// Usage in tests
+import { test, expect } from '@playwright/test';
+import { captureDebugInfo } from './test-helpers/debug-utils';
+
+test('booking flow with debug info', async ({ page }, testInfo) => {
+    await page.goto('http://localhost:5173/hotels/1');
+
+    // Capture state before critical action
+    await captureDebugInfo(page, testInfo, 'before-booking');
+
+    await page.getByRole('button', { name: 'Book Now' }).click();
+
+    // Capture state after action
+    await captureDebugInfo(page, testInfo, 'after-booking-click');
+
+    await expect(page.getByText('Booking confirmed')).toBeVisible();
+});
+```
+
+---
+
+## Failure and Debugging (Layer 4)
+
+### Failure: "Works on My Machine" — CI vs Local
+
+**The Problem:** Test passes locally, fails in CI.
+
+**Systematic Diagnosis:**
+
+| Factor | Local | CI | How to Check |
+|---|---|---|---|
+| Browser mode | Headed (visible) | Headless (no display) | Run locally with `--headed` vs default |
+| Viewport size | Your monitor resolution | Default (1280x720) | Check screenshot dimensions |
+| CPU/Memory | Fast dev machine | Shared CI runner | Check action duration in trace |
+| Network | localhost, fast | Docker network, variable | Check network timing in trace |
+| Timezone | Your local timezone | UTC (typically) | Check date-related assertions |
+| Fonts | OS-installed fonts | Minimal fonts in container | Check text rendering in screenshot |
+| Animation speed | Normal | Same, but CPU slower | Check for animation-related waits |
+
+**Fixes:**
+
+
+```typescript
+// Fix: set explicit viewport (don't rely on defaults)
+export default defineConfig({
+    use: {
+        viewport: { width: 1280, height: 720 },
+        timezoneId: 'America/New_York',
+        locale: 'en-US',
+    },
+});
+```
+
+
+```java
+// Selenium: set explicit window size for CI consistency
+ChromeOptions options = new ChromeOptions();
+options.addArguments("--headless=new");
+options.addArguments("--window-size=1280,720");
+options.addArguments("--disable-gpu");
+options.addArguments("--no-sandbox");  // Required in Docker
+options.addArguments("--disable-dev-shm-usage");  // Prevent shared memory issues
+```
+
+### Failure: Flaky Test — Passes 80% of the Time
+
+**Debugging approach:**
+
+
+```bash
+# Playwright: run the test many times to reproduce flakiness
+npx playwright test hotel-booking.spec.ts --repeat-each=20
+
+# With trace on every run to capture the failure
+npx playwright test hotel-booking.spec.ts --repeat-each=20 --trace=on
+```
+
+
+```typescript
+// Add timing telemetry to find the race condition
+test('flaky booking test — instrumented', async ({ page }) => {
+    const timings: Record<string, number> = {};
+    const start = Date.now();
+
+    await page.goto('http://localhost:5173/hotels/1');
+    timings['page-load'] = Date.now() - start;
+
+    await page.getByRole('button', { name: 'Book Now' }).click();
+    timings['book-click'] = Date.now() - start;
+
+    await page.getByLabel('Check-in').fill('2025-08-01');
+    timings['checkin-fill'] = Date.now() - start;
+
+    await page.getByRole('button', { name: 'Confirm Booking' }).click();
+    timings['confirm-click'] = Date.now() - start;
+
+    await expect(page.getByText('Booking confirmed')).toBeVisible();
+    timings['confirmation-visible'] = Date.now() - start;
+
+    console.log('TIMINGS:', JSON.stringify(timings, null, 2));
+    // Compare timings between passing and failing runs
+    // Large variance in a specific step reveals the race condition
+});
+```
+
+### Failure: Element Found But Wrong Content
+
+
+```typescript
+// Expected: "Welcome, Admin"
+// Actual: "Welcome, User"
+// The locator is correct, but the test data is wrong
+
+// Diagnosis: check what the element actually contains
+test('debug wrong content', async ({ page }) => {
+    await page.goto('http://localhost:5173/dashboard');
+
+    const heading = page.getByRole('heading', { level: 1 });
+    const actualText = await heading.textContent();
+    console.log('Actual heading text:', JSON.stringify(actualText));
+
+    // Check localStorage for auth state
+    const authToken = await page.evaluate(() => localStorage.getItem('authToken'));
+    console.log('Auth token present:', !!authToken);
+
+    const userData = await page.evaluate(() => localStorage.getItem('user'));
+    console.log('User data:', userData);
+});
+```
+
+---
+
+## Engineering Judgment (Layer 5)
+
+### Debug Artifact Strategy by Environment
+
+| Environment | Screenshot | Video | Trace | Console Logs |
+|---|---|---|---|---|
+| Local development | Manual (`page.pause()`) | Off | Off | IDE debug |
+| CI — PR check | On failure | Off | On failure | Attached |
+| CI — Nightly | On failure | On failure | On failure | Attached |
+| CI — Investigating flaky | Always | Always | Always | Attached |
+| Production monitoring | N/A | N/A | N/A | Logging service |
+
+### When to Debug vs When to Skip
+
+**Investigate thoroughly when:**
+- The failure is in a critical path (login, checkout, core business flow)
+- The failure is new — a previously passing test just broke
+- The failure is consistent — fails every time, not flaky
+- The failure only happens in CI — environmental issue worth fixing
+
+**Flag and move on when:**
+- The failure is a known flaky test already tracked in your bug tracker
+- The failure is in a test for a feature being actively refactored
+- Fixing the test would take longer than the value it provides
+
+### Playwright Trace Viewer vs Traditional Debugging
+
+| Capability | Trace Viewer | Traditional (Selenium + Screenshots) |
+|---|---|---|
+| Exact DOM state at failure | Yes — full snapshot | No — only screenshot |
+| Network requests/responses | Yes — headers, body, timing | Only with proxy (BrowserMob) |
+| Console logs | Yes — in context | Manual log capture |
+| Step-by-step replay | Yes — timeline with snapshots | No |
+| Time between actions | Yes — visible in timeline | Manual timing code |
+| Before/after each action | Yes — DOM diff | No |
+| **Time to diagnose** | **Minutes** | **Hours** |
+
+---
+
+## Interview and Revision (Layer 6)
+
+### Fundamental Questions
+
+**Q1: Describe your systematic approach to debugging a failed web test.**
+
+**A:** I follow five steps: (1) Read the error — what exception, what locator, what timeout? This gives me the category of failure. (2) Examine evidence — screenshots show what the page looked like; traces show network and DOM state; console logs show JavaScript errors. (3) Reproduce locally — run the failing test locally, in headed mode if needed, to see if it's environment-specific. (4) Isolate the cause — is it timing (add explicit wait), locator (test in DevTools), data (check API response), or environment (compare CI vs local)? (5) Fix and prevent — apply the fix and add guards against recurrence (better wait, more stable locator, better test data).
+
+**Q2: How does Playwright's Trace Viewer help debug test failures?**
+
+**A:** The Trace Viewer records everything that happens during a test and presents it in a timeline UI. For each action (click, fill, assert), it captures: the DOM snapshot before and after, a screenshot, all network requests and responses, console log messages, and the test source code highlighted at the current line. When investigating a failure, I open the trace, jump to the failing action, and can see exactly what the page looked like, what API returned, and what JavaScript errors occurred — all without needing to reproduce the failure locally. This is especially valuable for CI-only failures.
+
+**Q3: A test passes locally but fails in CI. What are the most common causes?**
+
+**A:** The most common causes: (1) Timing — CI machines are slower, so elements take longer to render; fix with proper waits, not longer timeouts. (2) Viewport size — CI runs headless with a default viewport that may differ from your monitor; fix by setting explicit viewport in config. (3) Missing resources — CI containers may lack fonts, timezone data, or network access to external services. (4) Parallel interference — tests that pass in isolation share state when run in parallel. (5) Environment differences — different browser version, different OS, missing environment variables. I diagnose by comparing CI screenshots/traces with local results.
+
+### Scenario-Based Questions
+
+**S1: "A test fails with TimeoutError waiting for 'Booking confirmed' text. The Trace Viewer shows the API returned 200. What do you check next?"**
+
+**A:** If the API returned 200, the backend succeeded. I'd check: (1) The DOM snapshot — is the text "Booking confirmed" in the DOM but hidden? Maybe it's behind a modal or has `display: none`. (2) The exact text content — maybe it says "Booking Confirmed!" (different case or punctuation) and my locator is case-sensitive. (3) JavaScript errors in the Console tab — maybe React crashed while trying to render the success state. (4) Whether a re-render replaced the success message before the assertion ran (race condition). (5) Whether the element is in an iframe or shadow DOM that the locator can't reach.
+
+**S2: "A flaky test fails about 20% of the time. How do you approach it?"**
+
+**A:** First, I'd run it 20-50 times locally with trace recording: `npx playwright test --repeat-each=50 --trace=on`. Then I'd compare traces from passing and failing runs. The difference usually reveals the race condition — maybe on failing runs, a loading spinner appears between the click and the assertion, or an animation hasn't completed, or a network request takes slightly longer. Common fixes: add a wait for the loading state to resolve, use Playwright's auto-retrying assertions (`expect(locator).toBeVisible()` instead of a manual check), or wait for the network request to complete before asserting.
+
+
+
+
+| # | Front (Question) | Back (Answer) |
+|---|---|---|
+| 1 | What evidence should you collect for every CI test failure? | Screenshot (what the page looked like), video (what happened), trace (DOM + network + console), and console logs. Configure Playwright with `screenshot: 'only-on-failure'`, `trace: 'retain-on-failure'`. |
+| 2 | How do you open Playwright Trace Viewer? | `npx playwright show-trace path/to/trace.zip` or open the HTML report with `npx playwright show-report`. |
+| 3 | Name 5 common web test failure patterns. | (1) Element not found, (2) Timeout waiting for condition, (3) Stale element reference, (4) Element click intercepted (overlay), (5) Wrong element content (data/state issue). |
+| 4 | How do you debug a "works locally, fails in CI" problem? | Compare CI screenshot with local. Check viewport size, headless mode, timezone, font availability, browser version, and network conditions. Set explicit viewport and locale in config. |
+| 5 | What is `page.pause()` in Playwright? | Opens the Playwright Inspector, pausing test execution. You can inspect the DOM, try locators interactively, and step through remaining actions one by one. |
+
+### Mastery Checklist
+
+- [ ] Can follow the 5-step debugging framework systematically
+- [ ] Can configure automatic screenshots, video, and traces for Playwright
+- [ ] Can use Playwright Trace Viewer to diagnose a failure from timeline, DOM, network, and console
+- [ ] Can capture screenshots and console logs in Selenium tests
+- [ ] Can debug "works locally, fails in CI" problems by identifying environmental differences
+- [ ] Can diagnose flaky tests using repeated runs with trace recording
+- [ ] Can use `page.pause()` and Playwright Inspector for interactive debugging
+- [ ] Can capture and analyze browser console logs in both Playwright and Selenium
+
+---
+
+**Related:** Cross Browser Testing, Synchronization And Waits, Locator Strategy
+
+*Last updated: *

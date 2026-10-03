@@ -1,0 +1,714 @@
+---
+title: "Infrastructure Troubleshooting"
+description: "What: Infrastructure troubleshooting is the systematic process of diagnosing and resolving CI/CD failures that aren't caused by test logic — Jenkins issues, Docker problems, browser crashes in CI, network failures, and the universal classic: \"tests pass locally, fail in CI.\""
+summary: "SDET Engineering guide: Infrastructure Troubleshooting"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "ci-cd-and-infrastructure"
+lesson: "infrastructure-troubleshooting"
+difficulty: "intermediate"
+estimatedMinutes: 45
+prerequisites: []
+tags: ["SDET", "CI/CD", "Jenkins", "Docker"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/ci-cd-and-infrastructure/infrastructure-troubleshooting"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Infrastructure Troubleshooting
+
+> **Module:** 08 — CI/CD and Infrastructure > Infrastructure Troubleshooting  
+> **Prerequisites:** Jenkins Fundamentals, Docker For Testing, Pipeline As Code  
+> **Mastery Target:** L3 (Independent) → L4 (Engineering Judgment)
+
+---
+
+## Quick Overview (Layer 1)
+
+**What:** Infrastructure troubleshooting is the systematic process of diagnosing and resolving CI/CD failures that aren't caused by test logic — Jenkins issues, Docker problems, browser crashes in CI, network failures, and the universal classic: "tests pass locally, fail in CI."
+
+**Why it matters:** You'll spend more time debugging CI infrastructure than you expect. A test failure caused by a flaky network, a Docker container running out of memory, or a Chrome version mismatch looks identical to a "real" test failure in the pipeline output. The ability to quickly distinguish "test bug" from "infrastructure bug" is what separates a productive SDET from one who wastes days on wild goose chases.
+
+**Where you encounter it:** Every time tests pass locally but fail in CI. Every "out of memory" Jenkins crash. Every Docker image pull timeout. Every mysterious "session not created" Selenium error.
+
+<MentalModel>
+
+Think of infrastructure troubleshooting as **being an electrician, not a lamp designer**. When a lamp doesn't turn on, most people check the bulb (test code). An electrician first checks: Is the outlet working? Is the circuit breaker tripped? Is the wiring intact? Is the switch functional? Only after confirming the power supply (infrastructure) is healthy do you look at the bulb (test). CI failures follow the same pattern — infrastructure problems masquerade as test failures.
+
+</MentalModel>
+
+
+<KeyTakeaways>
+
+1. **"Works locally, fails in CI" is almost always an environment difference** — different OS, browser version, timezone, screen resolution, network access, or missing dependency.
+2. **Check infrastructure before debugging test code** — disk space, memory, network, Docker health, agent status. Five minutes of infrastructure checks can save hours of test debugging.
+3. **Headless browser issues are the #1 CI-specific problem** — Chrome in headless mode on a Linux CI agent behaves differently from Chrome with a GUI on your Mac.
+4. **Transient failures need retry logic, not investigation** — network timeouts, Docker pull failures, and flaky element locators deserve retries in the pipeline, not root cause analysis for each occurrence.
+5. **Maintain a troubleshooting runbook** — when you solve a CI problem, document it. The same problem will occur again in 3 months when everyone has forgotten the fix.
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation (Layer 2)
+
+### Common CI/CD Failure Categories
+
+```
+┌────────────────────────────────────────────────────┐
+│           CI/CD Failure Taxonomy                    │
+├──────────────┬─────────────────────────────────────┤
+│ Category     │ Examples                             │
+├──────────────┼─────────────────────────────────────┤
+│ Jenkins      │ Out of memory, disk full, plugin     │
+│              │ conflict, executor starvation         │
+├──────────────┼─────────────────────────────────────┤
+│ Docker       │ Image pull failure, container OOM,   │
+│              │ networking, port conflicts            │
+├──────────────┼─────────────────────────────────────┤
+│ Browser/     │ Headless mode issues, version         │
+│ Selenium     │ mismatch, display server, shm_size   │
+├──────────────┼─────────────────────────────────────┤
+│ Network      │ Firewall, proxy, DNS, certificate,   │
+│              │ rate limiting                         │
+├──────────────┼─────────────────────────────────────┤
+│ Environment  │ Wrong config, missing env vars,      │
+│              │ stale data, environment down          │
+├──────────────┼─────────────────────────────────────┤
+│ Build/Deps   │ Maven download failure, version       │
+│              │ conflict, outdated cache              │
+└──────────────┴─────────────────────────────────────┘
+```
+
+### Jenkins Issues
+
+**Out of Memory (OOM):**
+
+```
+java.lang.OutOfMemoryError: Java heap space
+```
+
+**Causes:** Too many concurrent builds. Large test reports being processed. Plugin memory leaks. Jenkins master running jobs directly.
+
+**Fix:**
+
+
+```bash
+# Increase Jenkins heap size in startup script
+JAVA_OPTS="-Xmx4g -Xms2g -XX:+UseG1GC"
+
+# Or in systemd service file
+Environment="JAVA_OPTS=-Xmx4g -Xms2g"
+```
+
+<BestPractice>
+
+**Prevention:** Don't run jobs on the master. Set executor count on master to 0. Use agents for all test execution.
+
+</BestPractice>
+
+
+**Disk Space:**
+
+```
+java.io.IOException: No space left on device
+```
+
+**Causes:** Build artifacts accumulating. Docker images/volumes not pruned. Workspace not cleaned. Old builds not discarded.
+
+**Diagnostic:**
+
+
+```bash
+# Check disk usage
+df -h
+
+# Find large directories in Jenkins home
+du -sh /var/jenkins_home/jobs/*/builds/ | sort -rh | head -10
+
+# Find large Docker artifacts
+docker system df
+```
+
+**Fix:**
+
+
+```groovy
+// In every pipeline
+options {
+    buildDiscarder(logRotator(numToKeepStr: '20', artifactNumToKeepStr: '5'))
+}
+post {
+    always {
+        cleanWs()
+        sh 'docker system prune -f'
+    }
+}
+```
+
+**Executor Starvation:**
+
+All executors are busy; new builds wait in the queue indefinitely.
+
+**Diagnostic:** Jenkins Dashboard → Build Queue. If jobs are waiting for > 5 minutes regularly, you need more agents/executors.
+
+**Fix:**
+1. Add more agents or increase executor count per agent
+2. Use dynamic agents (Docker, Kubernetes) that scale up on demand
+3. Reduce concurrent builds with `disableConcurrentBuilds()`
+4. Stagger nightly jobs across different hours
+
+### Docker Issues
+
+**Image Pull Failure:**
+
+```
+Error: pulling image "selenium/node-chrome:4.18": dial tcp: lookup registry-1.docker.io: no such host
+```
+
+**Causes:** Network connectivity from CI agent. Docker Hub rate limits (100 pulls/6h for anonymous). Private registry authentication expired.
+
+**Fix:**
+
+
+```groovy
+// Retry image pull
+stage('Start Environment') {
+    steps {
+        retry(3) {
+            sh 'docker compose pull'
+        }
+        sh 'docker compose up -d --wait'
+    }
+}
+```
+
+<BestPractice>
+
+**Prevention:** Use a private Docker registry (ECR, GCR, Artifactory) as a mirror. Pre-pull frequently used images on agents.
+
+</BestPractice>
+
+
+**Container Out of Memory:**
+
+```
+Container killed due to OOM (Out of Memory) - exit code 137
+```
+
+**Fix:**
+
+
+```yaml
+services:
+  chrome-node:
+    image: selenium/node-chrome:4.18
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+        reservations:
+          memory: 1g
+    shm_size: '2g'
+```
+
+**Port Conflicts:**
+
+```
+Bind for 0.0.0.0:4444 failed: port is already allocated
+```
+
+**Cause:** Previous `docker compose up` didn't get a proper `docker compose down`. Container from a previous build is still running.
+
+**Fix:**
+
+
+```groovy
+stage('Start Environment') {
+    steps {
+        sh 'docker compose down -v || true'  // Force cleanup of any previous run
+        sh 'docker compose up -d --wait'
+    }
+}
+```
+
+### Browser Issues in CI
+
+**"Session not created" / Chrome crashes:**
+
+```
+SessionNotCreatedException: Message: session not created: Chrome failed to start: crashed
+```
+
+**Root causes and fixes:**
+
+| Cause | Fix |
+|-------|-----|
+| Insufficient shared memory | `shm_size: '2g'` or `--disable-dev-shm-usage` |
+| Missing `--no-sandbox` | Add to ChromeOptions (required in Docker/CI) |
+| Not running headless | Add `--headless=new` to ChromeOptions |
+| Chrome/ChromeDriver version mismatch | Pin versions or use WebDriverManager |
+| Missing display server | Use headless mode; or install Xvfb |
+
+**Complete CI-safe ChromeOptions:**
+
+
+```java
+ChromeOptions options = new ChromeOptions();
+
+if (config.isHeadless()) {
+    options.addArguments("--headless=new");        // New headless mode (Chrome 112+)
+}
+
+// Always required in CI/Docker environments
+options.addArguments("--no-sandbox");               // Required when running as root
+options.addArguments("--disable-dev-shm-usage");    // Prevents /dev/shm OOM
+options.addArguments("--disable-gpu");              // No GPU in CI
+options.addArguments("--window-size=1920,1080");    // Consistent viewport
+options.addArguments("--disable-extensions");       // No extensions in CI
+options.addArguments("--remote-allow-origins=*");   // Allows remote connections
+```
+
+**Font rendering differences:**
+
+Tests pass locally (macOS fonts) but fail in CI (Linux fonts) because text width differs and elements shift.
+
+<BestPractice>
+
+**Fix:** Use data attributes or IDs for locators instead of coordinates or visual assertions. If visual testing is needed, capture baseline screenshots on the CI environment — not locally.
+
+</BestPractice>
+
+
+### Network Issues
+
+**Firewall blocking outbound traffic:**
+
+The CI agent can't reach the application URL, external APIs, or package registries.
+
+**Diagnostic:**
+
+
+```bash
+# From the CI agent
+curl -v https://staging.staynest.com/health
+# Check DNS resolution
+nslookup staging.staynest.com
+# Check port connectivity
+nc -zv staging.staynest.com 443
+```
+
+**Certificate problems:**
+
+```
+PKIX path building failed: sun.security.provider.certpath.SunCertPathBuilderException
+```
+
+**Cause:** The CI agent doesn't trust the certificate (self-signed cert, internal CA, expired cert).
+
+**Fix:**
+
+
+```bash
+# Import certificate into Java truststore
+keytool -importcert -trustcacerts \
+    -keystore $JAVA_HOME/lib/security/cacerts \
+    -storepass changeit \
+    -alias staynest-staging \
+    -file /path/to/staging-cert.pem
+```
+
+Or for RestAssured:
+
+
+```java
+// Disable SSL verification in test environments (NOT in production)
+RestAssured.useRelaxedHTTPSValidation();
+```
+
+---
+
+## Practical Implementation (Layer 3)
+
+### "Tests Pass Locally, Fail in CI" — Troubleshooting Flowchart
+
+```
+Tests pass locally, fail in CI?
+│
+├─ Is it a compilation/build error?
+│  ├─ Yes → Check JDK/Maven version on CI agent
+│  │         Check dependency download (network, mirror)
+│  └─ No ↓
+│
+├─ Is it a "session not created" / browser error?
+│  ├─ Yes → Check Chrome/driver version match
+│  │         Add --headless, --no-sandbox, --disable-dev-shm-usage
+│  │         Check shm_size in Docker
+│  └─ No ↓
+│
+├─ Is it a timeout / element not found?
+│  ├─ Yes → Increase timeouts (CI is slower than local)
+│  │         Check if the app URL is reachable from CI
+│  │         Check if data exists in the CI environment
+│  └─ No ↓
+│
+├─ Is it an assertion failure (wrong value)?
+│  ├─ Yes → Check environment config (URL, data, feature flags)
+│  │         Check timezone differences (CI might be UTC)
+│  │         Check locale differences (date format, currency)
+│  └─ No ↓
+│
+├─ Is it a connection refused / network error?
+│  ├─ Yes → Check firewall rules on CI network
+│  │         Check DNS resolution from CI agent
+│  │         Check VPN/proxy requirements
+│  └─ No ↓
+│
+├─ Is it intermittent (passes sometimes)?
+│  ├─ Yes → Flaky test — check for race conditions
+│  │         Check for shared test data conflicts
+│  │         Add retry logic for transient failures
+│  └─ No ↓
+│
+└─ Reproduce in a Docker container locally
+   docker run -it maven:3.9-eclipse-temurin-17 bash
+   # Reproduce the CI environment on your machine
+```
+
+### Example 1: Resilient Pipeline with Retry and Timeout
+
+
+```groovy
+pipeline {
+    agent { label 'linux' }
+
+    options {
+        timeout(time: 60, unit: 'MINUTES')
+        timestamps()
+        retry(2)  // Retry entire pipeline once on failure
+    }
+
+    stages {
+        stage('Setup Docker Environment') {
+            steps {
+                // Clean up any previous containers
+                sh 'docker compose down -v || true'
+                
+                // Pull images with retry
+                retry(3) {
+                    sh 'docker compose pull'
+                }
+                
+                // Start with health check wait
+                sh 'docker compose up -d'
+                
+                // Wait for services to be ready
+                timeout(time: 120, unit: 'SECONDS') {
+                    sh '''
+                        until curl -sf http://localhost:8080/actuator/health; do
+                            echo "Waiting for app to start..."
+                            sleep 5
+                        done
+                    '''
+                }
+            }
+        }
+
+        stage('Run Tests') {
+            steps {
+                sh '''
+                    mvn test \
+                        -Denv=docker \
+                        -Dbase.url=http://localhost:8080 \
+                        -Dselenium.hub.url=http://localhost:4444/wd/hub \
+                        -Dbrowser=chrome \
+                        -Dheadless=true
+                '''
+            }
+        }
+    }
+
+    post {
+        always {
+            // Capture Docker logs for debugging
+            sh 'docker compose logs --no-color > docker-logs.txt 2>&1 || true'
+            archiveArtifacts artifacts: 'docker-logs.txt', allowEmptyArchive: true
+            
+            junit '**/target/surefire-reports/*.xml'
+            allure results: Path: 'Target/Allure Results'
+            
+            // Tear down Docker environment
+            sh 'docker compose down -v || true'
+            cleanWs()
+        }
+    }
+}
+```
+
+### Example 2: Diagnostic Script for CI Agent Health
+
+
+```bash
+#!/bin/bash
+# ci-health-check.sh — Run at the start of each pipeline build
+
+echo "=== CI Agent Health Check ==="
+echo "Date: $(date)"
+echo "Hostname: $(hostname)"
+echo ""
+
+echo "=== Disk Usage ==="
+df -h / /tmp /var
+echo ""
+
+echo "=== Memory ==="
+free -h
+echo ""
+
+echo "=== Docker ==="
+docker version --format '{{.Server.Version}}' 2>/dev/null || echo "Docker not available"
+docker system df 2>/dev/null || echo "Cannot check Docker disk"
+docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}' 2>/dev/null
+echo ""
+
+echo "=== Java ==="
+java -version 2>&1
+echo ""
+
+echo "=== Maven ==="
+mvn --version 2>&1 | head -3
+echo ""
+
+echo "=== Network ==="
+curl -sf -o /dev/null -w "Staging: HTTP %{http_code} (%{time_total}s)\n" \
+    https://staging.staynest.com/health || echo "Staging: UNREACHABLE"
+echo ""
+
+echo "=== Chrome ==="
+google-chrome --version 2>/dev/null || chromium-browser --version 2>/dev/null || echo "Chrome not found"
+echo ""
+
+echo "=== Health Check Complete ==="
+```
+
+
+```groovy
+// Add to pipeline as first stage
+stage('Agent Health Check') {
+    steps {
+        sh 'chmod +x ci-health-check.sh && ./ci-health-check.sh'
+    }
+}
+```
+
+### Example 3: Timezone and Locale Issues
+
+
+```java
+// Test that fails in CI because of timezone difference
+@Test
+public void shouldShowBookingDate() {
+    // This assertion depends on the server's timezone
+    // Local machine: PST (America/Los_Angeles)
+    // CI agent: UTC
+    
+    // BAD — timezone-dependent assertion
+    assertThat(booking.getDisplayDate()).isEqualTo("March 1, 2025 at 2:00 PM");
+    
+    // GOOD — timezone-independent assertion
+    assertThat(booking.getCheckInDate()).isEqualTo(LocalDate.of(2025, 3, 1));
+    
+    // Or set timezone explicitly in CI
+    // mvn test -Duser.timezone=America/Los_Angeles
+}
+```
+
+
+```groovy
+// Set timezone in pipeline
+environment {
+    TZ = 'America/Los_Angeles'  // Match production timezone
+}
+stages {
+    stage('Test') {
+        steps {
+            sh 'mvn test -Duser.timezone=America/Los_Angeles'
+        }
+    }
+}
+```
+
+---
+
+## Failure and Debugging (Layer 4)
+
+### Failure 1: "Works on My Machine" — Complete Debug Session
+
+**Scenario:** `shouldFilterPropertiesByPrice` passes on your Mac, fails in Jenkins with `ElementNotInteractableException`.
+
+**Debug session:**
+
+**Step 1: Check the screenshot** (from Allure report)
+→ Screenshot shows the filter sidebar is collapsed on the CI's 1920x1080 viewport. On your 2560x1440 retina display, it's always visible.
+
+**Step 2: Check ChromeOptions**
+→ CI runs headless with `--window-size=1920,1080`. Your Mac uses a windowed browser with a larger viewport.
+
+**Step 3: Fix — click to expand the filter sidebar before interacting:**
+
+
+```java
+@Test
+public void shouldFilterPropertiesByPrice() {
+    searchPage.openFilterPanel();  // Explicitly expand (needed in CI viewport)
+    searchPage.setPriceRange(100, 500);
+    searchPage.applyFilters();
+    assertThat(searchPage.getResultCount()).isGreaterThan(0);
+}
+```
+
+<BestPractice>
+
+**Prevention:** Always run tests locally in headless mode with the same viewport as CI before pushing.
+
+</BestPractice>
+
+
+### Failure 2: Build Queue Wait Time > 30 Minutes
+
+**Scenario:** Developers complain that PR checks take 40 minutes. Jenkins console shows the build waited 30 minutes in queue, then ran for 10 minutes.
+
+**Root cause:** All 4 executors are busy with long-running nightly regression builds. PR builds queue behind them.
+
+**Fix — priority and scheduling:**
+
+
+```groovy
+// Nightly regression — use a priority plugin or schedule carefully
+triggers {
+    cron('H 2 * * 1-5')  // Run at 2 AM when nobody submits PRs
+}
+
+// PR builds — use lightweight agents
+agent { label 'pr-builds' }  // Separate agent pool for fast feedback
+```
+
+### Failure 3: Intermittent Docker Compose Failures
+
+**Scenario:** 1 in 5 builds fail with "connection refused to localhost:8080" even though `docker compose up -d` completed.
+
+**Root cause:** `docker compose up -d` returns when containers are *started*, not when applications are *ready*. The app needs 15 seconds to initialize; tests start immediately.
+
+**Fix — proper health check waiting:**
+
+
+```groovy
+stage('Start Environment') {
+    steps {
+        sh 'docker compose up -d'
+        
+        // Wait for application health, not just container start
+        timeout(time: 120, unit: 'SECONDS') {
+            sh '''
+                until curl -sf http://localhost:8080/actuator/health > /dev/null 2>&1; do
+                    echo "Waiting for app... $(date)"
+                    sleep 3
+                done
+                echo "Application is ready!"
+            '''
+        }
+    }
+}
+```
+
+---
+
+## Engineering Judgment (Layer 5)
+
+### Retry Strategy: What Deserves a Retry vs What Needs a Fix
+
+| Failure Type | Retry? | Why |
+|---|---|---|
+| Docker image pull timeout | Yes (3x) | Transient network issue. Will likely succeed on retry. |
+| Chrome session not created | Yes (1x) | Occasional container flake. If it happens consistently, fix the root cause. |
+| Assertion failure (wrong value) | No | This is a real test or app bug. Retrying masks the problem. |
+| Connection refused to app | No (fix wait logic) | The app isn't ready. Fix the health check, don't retry blindly. |
+| Out of disk space | No | Adding a retry won't free disk space. Fix the root cause. |
+| Flaky element not found | Fix the test | Retrying at the pipeline level is too coarse. Fix the locator or add proper waits. |
+
+### Infrastructure Investment by Team Size
+
+| Team Size | Investment | Example |
+|-----------|-----------|---------|
+| 1 SDET | Jenkins master-only, basic pipeline | Enough to get started. Don't over-invest. |
+| 3-5 SDETs | Jenkins + 2 agents, Docker Compose, basic monitoring | Covers parallelism and environment consistency. |
+| 10+ SDETs | Jenkins + dynamic agents (K8s), Selenium Grid auto-scaling, Grafana dashboards | Required to prevent executor starvation and maintain visibility. |
+
+### When to Fix vs When to Work Around
+
+| Fix (invest time) | Work around (move on) |
+|---|---|
+| Test fails every time in CI due to missing headless config | Rare flake (1 in 50 runs) due to network blip |
+| Docker Compose doesn't wait for app readiness | CI agent timezone differs from local (set env var) |
+| Disk space fills every 2 weeks | Occasional Docker pull timeout (add retry) |
+
+---
+
+## Interview and Revision (Layer 6)
+
+### Fundamental Questions
+
+**Q1: Your tests pass locally but fail in CI. Walk me through your debugging process.**
+
+**A:** I follow a systematic checklist. First, I check the failure type: is it a build error, browser error, timeout, assertion failure, or network error? Each has a different root cause path. For browser errors, I verify headless mode, ChromeOptions (no-sandbox, disable-dev-shm-usage), and Chrome/driver version match. For timeouts, I check if the application is reachable from the CI agent and whether CI-specific timeout increases are needed. For assertion failures, I check environment configuration (wrong URL, different data, timezone/locale differences). For network errors, I check firewall rules and DNS resolution. If none of these explain it, I reproduce the CI environment locally using Docker — `docker run -it maven:3.9-eclipse-temurin-17 bash` — and run the tests in the same OS and JDK version.
+
+**Q2: How do you handle intermittent CI failures?**
+
+**A:** I categorize them. Transient infrastructure issues (Docker pull timeout, network blip) get retry logic in the pipeline — `retry(3) { sh 'docker compose pull' }`. Flaky tests (pass sometimes, fail sometimes) get investigated: I check for race conditions, shared data, or missing waits. If a test is genuinely flaky and I can't fix it immediately, I quarantine it in a separate suite and track it as a metric. I never add pipeline-level retry for assertion failures — that masks real bugs.
+
+**Q3: What Chrome options are required for CI environments?**
+
+**A:** Five essential options: `--headless=new` (no display available in CI), `--no-sandbox` (required when running as root in Docker), `--disable-dev-shm-usage` (prevents shared memory OOM), `--disable-gpu` (no GPU in CI), and `--window-size=1920,1080` (consistent viewport for reliable element interaction). I also add `--disable-extensions` and `--remote-allow-origins=*`. These are configured in the test framework's `DriverFactory` based on the `headless` configuration flag.
+
+### Scenario-Based Questions
+
+**Q4: Your Jenkins server is running out of disk space every 2 weeks. What's your approach?**
+
+**A:** I'd investigate in order of likely impact. First, check Docker: `docker system df` — dangling images and unused volumes accumulate fast. Add `docker system prune -f` to pipeline cleanup. Second, check build artifacts: `du -sh /var/jenkins_home/jobs/*/builds/ | sort -rh | head -10` — identify which jobs store the most data and add `buildDiscarder` with `artifactNumToKeepStr`. Third, check workspaces: ensure every pipeline has `cleanWs()` in the post block. Fourth, set up a weekly cleanup job that prunes old builds, Docker artifacts, and temporary files. Finally, monitor disk usage in Grafana to catch the trend before it becomes a crisis.
+
+
+
+
+| # | Front (Question) | Back (Answer) |
+|---|---|---|
+| 1 | What does `--no-sandbox` do in ChromeOptions? | Disables the Chrome sandbox security layer. Required when running Chrome as root in Docker/CI. Without it, Chrome refuses to start. |
+| 2 | Why does `docker compose up -d` not mean the app is ready? | `-d` returns when containers are *started*, not when the application inside is *initialized*. Use a health check loop (`curl` until healthy) before running tests. |
+| 3 | Exit code 137 in a Docker container means what? | OOM kill — the container was killed because it exceeded its memory limit. Increase `memory` limit or `shm_size` in docker-compose. |
+| 4 | What is executor starvation? | All Jenkins executors are busy with long-running jobs, causing new builds to wait in queue indefinitely. Fix: add agents, separate agent pools, or schedule heavy jobs off-peak. |
+| 5 | Why reproduce CI failures in Docker locally? | Docker matches the CI environment (OS, JDK, filesystem). Running `docker run -it maven:3.9-eclipse-temurin-17 bash` gives you the same environment as CI for debugging. |
+
+### Mastery Checklist
+
+- [ ] Can systematically debug "tests pass locally, fail in CI" using the troubleshooting flowchart
+- [ ] Can configure CI-safe ChromeOptions for headless execution
+- [ ] Can diagnose and fix Jenkins issues (OOM, disk space, executor starvation)
+- [ ] Can diagnose and fix Docker issues (image pull, networking, OOM, port conflicts)
+- [ ] Can implement proper health check waiting in Docker Compose pipelines
+- [ ] Can distinguish retriable infrastructure issues from real test/app bugs
+- [ ] Can write CI health check scripts for proactive agent monitoring
+
+---
+
+**Related:** Security Testing Basics, Docker For Testing, Jenkins Fundamentals
+
+*Last updated: *

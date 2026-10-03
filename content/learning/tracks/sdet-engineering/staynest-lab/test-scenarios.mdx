@@ -1,0 +1,241 @@
+---
+title: "StayNest - Test Scenarios"
+description: "A prioritized scenario matrix organized by automation layer. Each scenario maps to a specific business rule from requirements-and-business-rules.md so you always know what you are testing and why."
+summary: "SDET Engineering guide: StayNest - Test Scenarios"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "staynest-lab"
+lesson: "test-scenarios"
+difficulty: "beginner"
+estimatedMinutes: 30
+prerequisites: []
+tags: ["SDET", "StayNest", "Hands-on"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/staynest-lab/test-scenarios"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# StayNest - Test Scenarios
+
+A prioritized scenario matrix organized by automation layer. Each scenario maps to a specific business rule from `requirements-and-business-rules.md` so you always know *what* you are testing and *why*.
+
+---
+
+## API Test Scenarios
+
+API tests are the highest priority. They validate business logic without UI complexity, run fast, and catch the majority of regressions.
+
+### Authentication
+
+| ID | Scenario | Business Rule | Priority | Steps |
+| -- | -------- | ------------- | -------- | ----- |
+| API-AUTH-01 | Signup with valid data | AUTH-01 | P0 | POST /auth/signup with valid email, password (6+ chars), name. Assert 201, response has `id`, `email`, `name`, no `password` field. |
+| API-AUTH-02 | Login with valid credentials | AUTH-05 | P0 | Signup a user, then POST /auth/login. Assert 200, response has `accessToken` that is a valid JWT. |
+| API-AUTH-03 | Login with wrong password | AUTH-07 | P0 | Signup a user, then login with wrong password. Assert 401. |
+| API-AUTH-04 | Login with non-existent email | AUTH-07 | P0 | POST /auth/login with unregistered email. Assert 401. |
+| API-AUTH-05 | Signup with duplicate email | AUTH-02 | P0 | Signup a user, then signup again with the same email. Assert 500 with "already present" message. |
+| API-AUTH-06 | Signup without email | VAL-01 | P0 | POST /auth/signup without email field. Assert 400 with "Email is required" in subErrors. |
+| API-AUTH-07 | Signup with invalid email format | VAL-02 | P0 | POST /auth/signup with `email: "notanemail"`. Assert 400 with "Invalid email format". |
+| API-AUTH-08 | Signup with short password | VAL-04 | P1 | POST /auth/signup with 5-char password. Assert 400 with "Password must be at least 6 characters". |
+| API-AUTH-09 | Signup without name | VAL-05 | P0 | POST /auth/signup without name. Assert 400 with "Name is required". |
+| API-AUTH-10 | Signup defaults to GUEST role | AUTH-03 | P1 | POST /auth/signup without `roles` field. Login and decode JWT -- roles should contain `GUEST`. |
+| API-AUTH-11 | Signup with HOTEL_MANAGER role | AUTH-04 | P1 | POST /auth/signup with `roles: ["HOTEL_MANAGER"]`. Login and decode JWT -- roles should contain `HOTEL_MANAGER`. |
+| API-AUTH-12 | Access token contains correct claims | AUTH-05 | P1 | Login, decode JWT. Assert `sub` is user ID, `email` matches, `roles` is present, `exp` is ~10 min after `iat`. |
+| API-AUTH-13 | Refresh token generates new access token | AUTH-09 | P2 | Login (capture cookie), POST /auth/refresh with cookie. Assert new access token returned. |
+
+### Authorization
+
+| ID | Scenario | Business Rule | Priority | Steps |
+| -- | -------- | ------------- | -------- | ----- |
+| API-AUTHZ-01 | GUEST cannot access admin endpoints | AUTHZ-01 | P0 | Login as GUEST, GET /admin/hotels. Assert 403. |
+| API-AUTHZ-02 | Unauthenticated cannot access booking endpoints | AUTHZ-02 | P0 | POST /bookings/init without token. Assert 401. |
+| API-AUTHZ-03 | Unauthenticated cannot access user endpoints | AUTHZ-03 | P0 | GET /users/profile without token. Assert 401. |
+| API-AUTHZ-04 | Browse endpoints work without auth | AUTHZ-04 | P0 | POST /hotels/search without token. Assert 200 (or 400 if body invalid, but not 401). |
+| API-AUTHZ-05 | HOTEL_MANAGER can access admin endpoints | AUTHZ-01 | P0 | Login as HOTEL_MANAGER, GET /admin/hotels. Assert 200. |
+| API-AUTHZ-06 | Expired token is rejected | AUTH-08 | P1 | Use a token with a past `exp` claim. Assert 401 on any authenticated endpoint. |
+
+### Hotel CRUD (Admin)
+
+| ID | Scenario | Business Rule | Priority | Steps |
+| -- | -------- | ------------- | -------- | ----- |
+| API-HOTEL-01 | Create a hotel | HOTEL-01 | P0 | Login as HOTEL_MANAGER, POST /admin/hotels with name and city. Assert 201, response has `id`. |
+| API-HOTEL-02 | Get hotel by ID | HOTEL-06 | P1 | Create hotel, GET /admin/hotels/{'{'}id{'}'}. Assert 200, matches created data. |
+| API-HOTEL-03 | Update a hotel | HOTEL-01 | P1 | Create hotel, PUT /admin/hotels/{'{'}id{'}'} with new name. Assert 200, name updated. |
+| API-HOTEL-04 | Delete a hotel | HOTEL-05 | P1 | Create hotel, DELETE /admin/hotels/{'{'}id{'}'}. Assert 204. GET the same ID, assert 404. |
+| API-HOTEL-05 | Activate a hotel | HOTEL-04 | P1 | Create hotel, PATCH /admin/hotels/{'{'}id{'}'}/activate. Assert 204. |
+| API-HOTEL-06 | Get all owned hotels | HOTEL-02 | P1 | Create 2 hotels, GET /admin/hotels. Assert list contains both. |
+| API-HOTEL-07 | Get non-existent hotel | HOTEL-06 | P1 | GET /admin/hotels/99999. Assert 404. |
+| API-HOTEL-08 | GUEST cannot create hotel | HOTEL-01 | P0 | Login as GUEST, POST /admin/hotels. Assert 403. |
+
+### Room Management (Admin)
+
+| ID | Scenario | Business Rule | Priority | Steps |
+| -- | -------- | ------------- | -------- | ----- |
+| API-ROOM-01 | Create a room in a hotel | ROOM-01 | P0 | Create hotel, POST /admin/hotels/{'{'}id{'}'}/rooms with type, basePrice, totalCount, capacity. Assert 201. |
+| API-ROOM-02 | Room creation generates inventory | ROOM-01 | P1 | Create room, GET /admin/inventory/rooms/{'{'}roomId{'}'}. Assert inventory exists (365+ records). |
+| API-ROOM-03 | Get all rooms in a hotel | ROOM-02 | P1 | Create 2 rooms, GET /admin/hotels/{'{'}id{'}'}/rooms. Assert list has 2 items. |
+| API-ROOM-04 | Delete a room | ROOM-03 | P2 | Create room, DELETE /admin/hotels/{'{'}id{'}'}/rooms/{'{'}roomId{'}'}. Assert 204. |
+| API-ROOM-05 | Update a room | ROOM-02 | P2 | Create room, PUT /admin/hotels/{'{'}id{'}'}/rooms/{'{'}roomId{'}'} with new basePrice. Assert 200. |
+
+### Booking Lifecycle
+
+| ID | Scenario | Business Rule | Priority | Steps |
+| -- | -------- | ------------- | -------- | ----- |
+| API-BOOK-01 | Init a booking | BOOK-06 | P0 | Setup: create hotel+room+activate as admin. Login as GUEST, POST /bookings/init. Assert 200, status is `RESERVED`, `amount` > 0. |
+| API-BOOK-02 | Add guests to a booking | BOOK-09 | P1 | Init booking, create guests, POST /bookings/{'{'}id{'}'}/addGuests. Assert 200, status is `GUESTS_ADDED`. |
+| API-BOOK-03 | Initiate payment (mock mode) | BOOK-06 | P1 | Init booking, add guests, POST /bookings/{'{'}id{'}'}/payments. Assert 200, sessionUrl is `MOCK_PAYMENT_SUCCESS`. Check status is `CONFIRMED`. |
+| API-BOOK-04 | Cancel a confirmed booking | BOOK-10 | P0 | Complete full booking flow (init -> guests -> payment), POST /bookings/{'{'}id{'}'}/cancel. Assert 204. Check status is `CANCELLED`. |
+| API-BOOK-05 | Cannot cancel a non-confirmed booking | BOOK-10 | P1 | Init booking (status RESERVED), POST /bookings/{'{'}id{'}'}/cancel. Assert 409. |
+| API-BOOK-06 | Check booking status | BOOK-13 | P1 | Init booking, GET /bookings/{'{'}id{'}'}/status. Assert 200, status is `RESERVED`. |
+| API-BOOK-07 | Init with missing hotelId | BOOK-01 | P0 | POST /bookings/init without hotelId. Assert 400 with "Hotel ID is required". |
+| API-BOOK-08 | Init with past check-in date | BOOK-02 | P0 | POST /bookings/init with yesterday as checkInDate. Assert 400. |
+| API-BOOK-09 | Init with roomsCount=0 | BOOK-04 | P1 | POST /bookings/init with roomsCount=0. Assert 400 with "At least 1 room must be booked". |
+| API-BOOK-10 | Init when no inventory available | BOOK-05 | P0 | Book all available rooms, then try to book again. Assert 409 "Room is not available anymore". |
+| API-BOOK-11 | Cannot access another user's booking | BOOK-12 | P1 | User A creates booking, User B tries to cancel it. Assert 403. |
+| API-BOOK-12 | View my bookings | BOOK-06 | P1 | Create 2 bookings, GET /users/myBookings. Assert list has 2 items. |
+
+### Inventory
+
+| ID | Scenario | Business Rule | Priority | Steps |
+| -- | -------- | ------------- | -------- | ----- |
+| API-INV-01 | Get inventory for a room | INV-01 | P1 | Create room, GET /admin/inventory/rooms/{'{'}id{'}'}. Assert response is non-empty list. |
+| API-INV-02 | Update inventory surge factor | INV-05 | P2 | PATCH /admin/inventory/rooms/{'{'}id{'}'} with surgeFactor=1.5. Verify updated values. |
+| API-INV-03 | Close inventory for date range | INV-04 | P2 | PATCH /admin/inventory/rooms/{'{'}id{'}'} with closed=true. Verify rooms unavailable in search. |
+| API-INV-04 | Booking decrements inventory | INV-02 | P1 | Get inventory before booking, create booking, get inventory again. Assert reservedCount increased. |
+
+### Hotel Search
+
+| ID | Scenario | Business Rule | Priority | Steps |
+| -- | -------- | ------------- | -------- | ----- |
+| API-SRCH-01 | Search returns available hotels | SRCH-04 | P0 | Setup hotel+room+activate, POST /hotels/search with matching city and dates. Assert hotel in results. |
+| API-SRCH-02 | Search with no matching city | SRCH-04 | P1 | POST /hotels/search with non-existent city. Assert empty results. |
+| API-SRCH-03 | Search with missing city | SRCH-01 | P0 | POST /hotels/search without city. Assert 400. |
+| API-SRCH-04 | Search results are paginated | SRCH-03 | P1 | Assert response has `content`, `totalElements`, `totalPages`, `number`, `size` fields. |
+| API-SRCH-05 | Search without auth works | AUTHZ-04 | P0 | POST /hotels/search without token. Assert not 401/403. |
+
+### Guest Management
+
+| ID | Scenario | Business Rule | Priority | Steps |
+| -- | -------- | ------------- | -------- | ----- |
+| API-GUEST-01 | Create a guest | -- | P1 | POST /users/guests with name, gender, dateOfBirth. Assert 201. |
+| API-GUEST-02 | Get all guests | -- | P1 | Create 2 guests, GET /users/guests. Assert list has 2 items. |
+| API-GUEST-03 | Update a guest | -- | P2 | Create guest, PUT /users/guests/{'{'}id{'}'} with new name. Assert 204. |
+| API-GUEST-04 | Delete a guest | -- | P2 | Create guest, DELETE /users/guests/{'{'}id{'}'}. Assert 204. |
+
+### User Profile
+
+| ID | Scenario | Business Rule | Priority | Steps |
+| -- | -------- | ------------- | -------- | ----- |
+| API-USER-01 | Get my profile | -- | P1 | Login, GET /users/profile. Assert 200, email matches login email. |
+| API-USER-02 | Update my profile | -- | P1 | PATCH /users/profile with new name. Assert 204. GET profile, verify name changed. |
+
+### Admin Reports and Bookings
+
+| ID | Scenario | Business Rule | Priority | Steps |
+| -- | -------- | ------------- | -------- | ----- |
+| API-RPT-01 | Get hotel bookings | HOTEL-02 | P1 | Create hotel, make booking, GET /admin/hotels/{'{'}id{'}'}/bookings as owner. Assert list contains booking. |
+| API-RPT-02 | Get hotel report | HOTEL-02 | P2 | Create hotel, complete booking, GET /admin/hotels/{'{'}id{'}'}/reports. Assert totalConfirmedBookings >= 1. |
+| API-RPT-03 | Non-owner cannot view hotel bookings | AUTHZ-06 | P1 | Manager A creates hotel, Manager B tries GET /admin/hotels/{'{'}id{'}'}/bookings. Assert 403. |
+
+---
+
+## Web UI Test Scenarios
+
+Web UI tests are second priority. They validate the user-facing flows and catch UI-specific regressions.
+
+### Authentication UI
+
+| ID | Scenario | Business Rule | Priority | Steps |
+| -- | -------- | ------------- | -------- | ----- |
+| WEB-AUTH-01 | Login with valid credentials | AUTH-05 | P0 | Navigate to login page, enter email/password, click Login. Assert redirected to home page. |
+| WEB-AUTH-02 | Login with invalid credentials | AUTH-07 | P0 | Enter wrong password, click Login. Assert error message displayed. |
+| WEB-AUTH-03 | Signup flow | AUTH-01 | P0 | Navigate to signup, fill form, submit. Assert user created and redirected. |
+| WEB-AUTH-04 | Signup validation errors | VAL-01-05 | P1 | Submit empty signup form. Assert validation messages shown for required fields. |
+| WEB-AUTH-05 | Logout | -- | P1 | Login, click logout. Assert redirected to login page, protected routes no longer accessible. |
+
+### Hotel Search UI
+
+| ID | Scenario | Business Rule | Priority | Steps |
+| -- | -------- | ------------- | -------- | ----- |
+| WEB-SRCH-01 | Search for hotels | SRCH-04 | P0 | Enter city, dates, room count in search bar. Submit. Assert hotel cards displayed. |
+| WEB-SRCH-02 | No results message | SRCH-04 | P1 | Search for non-existent city. Assert empty state message shown. |
+| WEB-SRCH-03 | Hotel detail page | -- | P1 | Click on a hotel card from search results. Assert hotel info page loads with room options. |
+
+### Booking UI
+
+| ID | Scenario | Business Rule | Priority | Steps |
+| -- | -------- | ------------- | -------- | ----- |
+| WEB-BOOK-01 | Complete booking flow | BOOK-06 | P0 | Search hotel, select room, add guests, initiate payment. Assert booking confirmed. |
+| WEB-BOOK-02 | View my bookings | -- | P1 | After booking, navigate to My Bookings. Assert booking listed with correct status. |
+| WEB-BOOK-03 | Cancel a booking | BOOK-10 | P1 | From My Bookings, cancel a confirmed booking. Assert status changes to CANCELLED. |
+| WEB-BOOK-04 | Booking status page | BOOK-13 | P1 | Navigate to /bookings/{'{'}id{'}'}/status. Assert correct status displayed. |
+
+### Manager UI
+
+| ID | Scenario | Business Rule | Priority | Steps |
+| -- | -------- | ------------- | -------- | ----- |
+| WEB-MGR-01 | Create a hotel | HOTEL-01 | P1 | Login as manager, navigate to dashboard, create hotel form. Assert hotel appears in list. |
+| WEB-MGR-02 | Manage rooms | ROOM-01 | P1 | From hotel page, add room. Assert room appears in list. |
+| WEB-MGR-03 | View inventory | INV-01 | P2 | Navigate to inventory page for a room. Assert inventory grid displayed. |
+| WEB-MGR-04 | View hotel bookings | -- | P2 | Navigate to hotel bookings page. Assert bookings listed. |
+| WEB-MGR-05 | View reports | -- | P2 | Navigate to reports page. Assert report data displayed. |
+
+---
+
+## Mobile Test Scenarios
+
+Mobile tests are third priority. They validate platform-specific behavior on Android and iOS.
+
+### Android
+
+| ID | Scenario | Business Rule | Priority | Steps |
+| -- | -------- | ------------- | -------- | ----- |
+| AND-AUTH-01 | Login | AUTH-05 | P0 | Launch app, enter credentials on LoginScreen, tap Login. Assert HomeScreen displayed. |
+| AND-AUTH-02 | Signup | AUTH-01 | P1 | Navigate to SignupScreen, fill form, submit. Assert account created. |
+| AND-SRCH-01 | Search hotels | SRCH-04 | P0 | Enter city in SearchScreen search bar. Assert hotel cards rendered. |
+| AND-BOOK-01 | View hotel detail | -- | P1 | Tap hotel card. Assert HotelDetailScreen shows room info. |
+| AND-BOOK-02 | Book a room | BOOK-06 | P1 | From hotel detail, initiate booking, add guests. Assert booking created. |
+| AND-USER-01 | View profile | -- | P2 | Navigate to profile screen. Assert user info displayed. |
+
+### iOS
+
+| ID | Scenario | Business Rule | Priority | Steps |
+| -- | -------- | ------------- | -------- | ----- |
+| IOS-AUTH-01 | Login | AUTH-05 | P0 | Launch app, enter credentials on LoginView, tap Login. Assert HomeView displayed. |
+| IOS-AUTH-02 | Signup | AUTH-01 | P1 | Navigate to SignupView, fill form, submit. Assert account created. |
+| IOS-SRCH-01 | Search hotels | SRCH-04 | P0 | Enter city in SearchView. Assert hotel list updates. |
+| IOS-BOOK-01 | View hotel detail | -- | P1 | Tap hotel row. Assert HotelDetailView shows rooms. |
+| IOS-BOOK-02 | Book a room | BOOK-06 | P1 | From hotel detail, start booking flow. Assert booking created. |
+| IOS-USER-01 | View profile | -- | P2 | Navigate to ProfileView. Assert user info displayed. |
+
+---
+
+## Scenario Priority Summary
+
+| Priority | Count | Focus |
+| -------- | ----- | ----- |
+| P0 | ~25 | Must-have tests: auth, authorization, core booking, search |
+| P1 | ~30 | Should-have tests: CRUD operations, validation, lifecycle |
+| P2 | ~15 | Nice-to-have tests: inventory, pricing, edge cases |
+
+---
+
+## Test Data Requirements
+
+For API tests, you will need helper functions to:
+
+1. **Create a test user** -- unique email per test run (e.g., `test-{uuid}@example.com`)
+2. **Get a valid token** -- signup + login, extract access token
+3. **Create a hotel with rooms** -- signup as HOTEL_MANAGER, create hotel, create room, activate hotel
+4. **Create a complete booking** -- init booking, add guests, initiate payment (mock mode auto-confirms)
+
+These helpers form a reusable test infrastructure that all scenarios build upon.

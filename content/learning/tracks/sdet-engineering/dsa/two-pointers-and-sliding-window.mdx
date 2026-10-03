@@ -1,0 +1,395 @@
+---
+title: "Two Pointers and Sliding Window"
+description: "What: Two pointers and sliding window are techniques that use index variables to traverse arrays or strings efficiently, often reducing O(n^2) brute force to O(n)."
+summary: "SDET Engineering guide: Two Pointers and Sliding Window"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "dsa"
+lesson: "two-pointers-and-sliding-window"
+difficulty: "intermediate"
+estimatedMinutes: 30
+prerequisites: []
+tags: ["SDET", "DSA", "Algorithms"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/dsa/two-pointers-and-sliding-window"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Two Pointers and Sliding Window
+
+> **Module:** 01-programming-foundations / dsa
+> **Prerequisites:** Arrays And Strings, Complexity Analysis
+> **Mastery Target:** L3
+
+---
+
+## Quick Overview (2-minute read)
+
+**What:** Two pointers and sliding window are techniques that use index variables to traverse arrays or strings efficiently, often reducing O(n^2) brute force to O(n).
+
+**Why:** These patterns appear in ~30% of array/string interview problems. They also map directly to automation scenarios like comparing sorted test results, scanning log windows, or validating sequential data.
+
+**Where:** Palindrome checks, duplicate removal, subarray problems, substring searches, log window analysis, diff comparison.
+
+<MentalModel>
+
+**Two Pointers** — Imagine two fingers on a ruler:
+- **Opposite ends:** One finger starts at the left, one at the right. They move toward each other. Great for sorted arrays and palindromes.
+- **Same direction (fast/slow):** Both start at the left. The fast pointer scouts ahead while the slow pointer marks a position. Great for removing duplicates or partitioning.
+- **Fast/slow (Floyd's):** Used for cycle detection — one pointer moves 1 step, the other moves 2 steps.
+
+</MentalModel>
+
+
+**Sliding Window** — Imagine a fixed or elastic window sliding across a conveyor belt:
+- **Fixed size:** The window is always k elements wide. Slide it one position at a time.
+- **Variable size:** The window expands and contracts to find the optimal substring/subarray.
+
+<KeyTakeaways>
+
+1. Two pointers work on **sorted arrays** or when you need to compare elements from both ends.
+2. Sliding window works on **contiguous subarrays/substrings** — if the problem says "subarray" or "substring," think window.
+3. Both techniques achieve O(n) by ensuring each element is visited at most twice.
+4. The variable-size window uses a "expand right, shrink left" pattern with a condition to track validity.
+
+</KeyTakeaways>
+
+
+---
+
+## Key Patterns and Techniques
+
+### Pattern 1: Opposite-End Two Pointers
+
+
+```java
+// Template: two pointers moving toward each other
+public static boolean isPalindromeTemplate(String s) {
+    int left = 0, right = s.length() - 1;
+    while (left < right) {
+        // Process or compare s.charAt(left) and s.charAt(right)
+        if (s.charAt(left) != s.charAt(right)) {
+            return false;
+        }
+        left++;
+        right--;
+    }
+    return true;
+}
+```
+
+**When to use:** Palindrome checks, two-sum on sorted arrays, container with most water.
+
+### Pattern 2: Same-Direction Two Pointers (Fast/Slow)
+
+
+```java
+// Template: slow pointer marks "write position," fast pointer scans
+public static int removeDuplicatesTemplate(int[] nums) {
+    if (nums.length == 0) return 0;
+    int slow = 0;
+    for (int fast = 1; fast < nums.length; fast++) {
+        if (nums[fast] != nums[slow]) {
+            slow++;
+            nums[slow] = nums[fast];
+        }
+    }
+    return slow + 1; // length of unique portion
+}
+```
+
+**When to use:** Removing elements in-place, partitioning arrays, move zeroes.
+
+### Pattern 3: Fixed-Size Sliding Window
+
+
+```java
+// Template: window of size k
+public static double maxAverageTemplate(int[] nums, int k) {
+    // 1. Build the initial window
+    int windowSum = 0;
+    for (int i = 0; i < k; i++) {
+        windowSum += nums[i];
+    }
+    int maxSum = windowSum;
+
+    // 2. Slide the window: add right, remove left
+    for (int i = k; i < nums.length; i++) {
+        windowSum += nums[i] - nums[i - k];
+        maxSum = Math.max(maxSum, windowSum);
+    }
+    return (double) maxSum / k;
+}
+```
+
+### Pattern 4: Variable-Size Sliding Window
+
+
+```java
+// Template: expand right, shrink left when condition breaks
+public static int variableWindowTemplate(String s) {
+    Map<Character, Integer> window = new HashMap<>();
+    int left = 0, result = 0;
+
+    for (int right = 0; right < s.length(); right++) {
+        char c = s.charAt(right);
+        window.merge(c, 1, Integer::sum); // expand
+
+        while (/* window is invalid */) {
+            char leftChar = s.charAt(left);
+            window.merge(leftChar, -1, Integer::sum); // shrink
+            left++;
+        }
+        result = Math.max(result, right - left + 1);
+    }
+    return result;
+}
+```
+
+**When to use:** Longest substring without repeating characters, minimum window substring, smallest subarray with sum >= target.
+
+---
+
+## Problems with Solutions
+
+### Problem 1: Valid Palindrome (LeetCode 125)
+
+**Task:** Given a string, determine if it is a palindrome considering only alphanumeric characters and ignoring cases.
+
+**Hint:** Use opposite-end two pointers. Skip non-alphanumeric characters.
+
+
+
+
+```java
+public boolean isPalindrome(String s) {
+    int left = 0, right = s.length() - 1;
+    while (left < right) {
+        while (left < right && !Character.isLetterOrDigit(s.charAt(left))) {
+            left++;
+        }
+        while (left < right && !Character.isLetterOrDigit(s.charAt(right))) {
+            right--;
+        }
+        if (Character.toLowerCase(s.charAt(left)) != Character.toLowerCase(s.charAt(right))) {
+            return false;
+        }
+        left++;
+        right--;
+    }
+    return true;
+}
+// Time: O(n) | Space: O(1)
+```
+
+
+
+### Problem 2: Move Zeroes (LeetCode 283)
+
+**Task:** Move all 0s to the end of the array while maintaining the relative order of non-zero elements. Do it in-place.
+
+**Hint:** Use same-direction two pointers. Slow pointer marks where the next non-zero should go.
+
+
+
+
+```java
+public void moveZeroes(int[] nums) {
+    int slow = 0;
+    for (int fast = 0; fast < nums.length; fast++) {
+        if (nums[fast] != 0) {
+            int temp = nums[slow];
+            nums[slow] = nums[fast];
+            nums[fast] = temp;
+            slow++;
+        }
+    }
+}
+// Time: O(n) | Space: O(1)
+```
+
+
+
+### Problem 3: Maximum Average Subarray I (LeetCode 643)
+
+**Task:** Find the contiguous subarray of length k with the maximum average value.
+
+**Hint:** Fixed-size sliding window. Compute initial sum, then slide by adding the new right and removing the old left.
+
+
+
+
+```java
+public double findMaxAverage(int[] nums, int k) {
+    int windowSum = 0;
+    for (int i = 0; i < k; i++) {
+        windowSum += nums[i];
+    }
+    int maxSum = windowSum;
+    for (int i = k; i < nums.length; i++) {
+        windowSum += nums[i] - nums[i - k];
+        maxSum = Math.max(maxSum, windowSum);
+    }
+    return (double) maxSum / k;
+}
+// Time: O(n) | Space: O(1)
+```
+
+
+
+### Problem 4: Minimum Window Substring (LeetCode 76) — Medium
+
+**Task:** Given strings s and t, find the minimum window in s that contains all characters of t.
+
+**Hint:** Variable-size window. Use a frequency map for t. Expand right to include characters, shrink left when all characters are covered. Track the minimum valid window.
+
+
+
+
+```java
+public String minWindow(String s, String t) {
+    if (s.length() < t.length()) return "";
+
+    Map<Character, Integer> need = new HashMap<>();
+    for (char c : t.toCharArray()) need.merge(c, 1, Integer::sum);
+
+    int have = 0, required = need.size();
+    int left = 0, minLen = Integer.MAX_VALUE, minStart = 0;
+    Map<Character, Integer> window = new HashMap<>();
+
+    for (int right = 0; right < s.length(); right++) {
+        char c = s.charAt(right);
+        window.merge(c, 1, Integer::sum);
+        if (need.containsKey(c) && window.get(c).intValue() == need.get(c).intValue()) {
+            have++;
+        }
+        while (have == required) {
+            if (right - left + 1 < minLen) {
+                minLen = right - left + 1;
+                minStart = left;
+            }
+            char leftChar = s.charAt(left);
+            window.merge(leftChar, -1, Integer::sum);
+            if (need.containsKey(leftChar) && window.get(leftChar) < need.get(leftChar)) {
+                have--;
+            }
+            left++;
+        }
+    }
+    return minLen == Integer.MAX_VALUE ? "" : s.substring(minStart, minStart + minLen);
+}
+// Time: O(n + m) where n = s.length(), m = t.length() | Space: O(m)
+```
+
+
+
+---
+
+## Common Mistakes
+
+### Mistake 1: Forgetting to Skip Invalid Characters
+
+
+```java
+// WRONG: doesn't handle non-alphanumeric in palindrome check
+if (s.charAt(left) != s.charAt(right)) return false;
+
+// RIGHT: skip non-alphanumeric first
+while (left < right && !Character.isLetterOrDigit(s.charAt(left))) left++;
+while (left < right && !Character.isLetterOrDigit(s.charAt(right))) right--;
+```
+
+### Mistake 2: Off-by-One in Window Size
+
+
+```java
+// WRONG: window has k+1 elements
+for (int i = k; i <= nums.length; i++) { ... }
+
+// RIGHT: window has exactly k elements
+for (int i = k; i < nums.length; i++) {
+    windowSum += nums[i] - nums[i - k]; // removes element that just left the window
+}
+```
+
+### Mistake 3: Using == Instead of .equals() for Integer Comparison in Maps
+
+
+```java
+// WRONG: Integer cache only covers -128 to 127
+if (window.get(c) == need.get(c)) { ... }
+
+// RIGHT: use .intValue() or .equals()
+if (window.get(c).intValue() == need.get(c).intValue()) { ... }
+```
+
+---
+
+## Automation Connections
+
+| Technique | Automation Use Case |
+|---|---|
+| Opposite-end pointers | Comparing two sorted test result lists for equality |
+| Same-direction pointers | Filtering/compacting test data arrays in-place |
+| Fixed sliding window | Monitoring test pass rates over the last k runs |
+| Variable sliding window | Finding the shortest log segment containing all error types |
+
+
+```java
+// Example: rolling pass rate over last k test runs
+public static double[] rollingPassRate(boolean[] results, int k) {
+    double[] rates = new double[results.length - k + 1];
+    int passes = 0;
+    for (int i = 0; i < k; i++) {
+        if (results[i]) passes++;
+    }
+    rates[0] = (double) passes / k;
+    for (int i = k; i < results.length; i++) {
+        if (results[i]) passes++;
+        if (results[i - k]) passes--;
+        rates[i - k + 1] = (double) passes / k;
+    }
+    return rates;
+}
+```
+
+---
+
+## Interview and Revision
+
+
+
+
+**Q:** When do you use two pointers vs sliding window?
+**A:** Two pointers for comparing/pairing elements (often sorted data). Sliding window for contiguous subarray/substring optimization problems.
+
+**Q:** What's the time complexity of the sliding window approach?
+**A:** O(n) — each element is added and removed from the window at most once, so the total work is 2n = O(n).
+
+**Q:** How do you decide between fixed and variable sliding window?
+**A:** Fixed: problem specifies the window size (e.g., "subarray of length k"). Variable: problem asks for the minimum/maximum window satisfying a condition.
+
+**Q:** In a two-pointer palindrome check, why do you need `left < right` in the inner while loops?
+**A:** Without it, the pointers could cross each other when skipping characters, causing an index out of bounds or incorrect result.
+
+### Mastery Checklist
+
+- [ ] Can identify when a problem needs two pointers vs sliding window
+- [ ] Can implement opposite-end and same-direction two pointer patterns from memory
+- [ ] Can implement fixed-size and variable-size sliding window from memory
+- [ ] Can solve Minimum Window Substring with correct complexity
+- [ ] Can explain why sliding window is O(n) despite having a while loop inside a for loop
+- [ ] Can apply these patterns to automation scenarios
+
+---
+
+**Next:** Stacks And Queues | **Related:** Arrays And Strings

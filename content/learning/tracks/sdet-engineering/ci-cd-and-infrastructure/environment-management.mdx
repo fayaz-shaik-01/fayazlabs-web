@@ -1,0 +1,462 @@
+---
+title: "Environment Management"
+description: "What: Environment management is the practice of provisioning, configuring, and maintaining the distinct environments (dev, staging, pre-prod, production) that your tests target. It encompasses knowing which URLs, credentials, feature flags, and test data apply to each environment — and switching between them without changing test code."
+summary: "SDET Engineering guide: Environment Management"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "ci-cd-and-infrastructure"
+lesson: "environment-management"
+difficulty: "intermediate"
+estimatedMinutes: 30
+prerequisites: []
+tags: ["SDET", "CI/CD", "Jenkins", "Docker"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/ci-cd-and-infrastructure/environment-management"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Environment Management
+
+> **Module:** 08 — CI/CD and Infrastructure > Environment Management  
+> **Prerequisites:** Docker For Testing, Framework Configuration And Environments  
+> **Mastery Target:** L3 (Independent) → L4 (Engineering Judgment)
+
+---
+
+## Quick Overview (Layer 1)
+
+**What:** Environment management is the practice of provisioning, configuring, and maintaining the distinct environments (dev, staging, pre-prod, production) that your tests target. It encompasses knowing which URLs, credentials, feature flags, and test data apply to each environment — and switching between them without changing test code.
+
+**Why it matters:** Your API smoke tests pass on staging. The team deploys to production. The same tests fail there — because production has different rate limits, different data, and a feature flag disabled. Environment management ensures you understand these differences and your framework adapts to them automatically.
+
+**Where you encounter it:** Every time you switch from `staging` to `production`. Every time a new feature is behind a flag in dev but enabled in staging. Every time CI needs a fresh database with seed data. Every time an environment is "down for maintenance" and your nightly tests need to skip it.
+
+<MentalModel>
+
+Think of environments as **floors in a building under construction**. The ground floor (dev) is raw concrete — features are incomplete, data is messy, things change hourly. The second floor (staging) is furnished — it mirrors production but with test data. The penthouse (production) is where tenants live — real data, real traffic, careful changes only. Your test automation needs different blueprints (configuration) for each floor, but the inspection checklist (test logic) is the same.
+
+</MentalModel>
+
+
+<KeyTakeaways>
+
+1. **One test codebase, many environments** — your tests should run against any environment by changing a single parameter (`-Denv=staging`), never by editing source code.
+2. **Each environment has its own configuration matrix** — URLs, credentials, feature flags, rate limits, and data availability differ across environments.
+3. **Test data strategy varies by environment** — dev has synthetic data you control, staging has shared data that others modify, production has real data you must not corrupt.
+4. **Environment availability is a testing constraint** — shared environments go down, get redeployed, or run out of resources. Your pipeline should handle this gracefully.
+5. **Infrastructure as Code makes environments reproducible** — defining infrastructure in code (Terraform, Docker Compose) means "spin up a new staging" is a command, not a week-long ticket.
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation (Layer 2)
+
+### Environment Types
+
+| Environment | Purpose | Data | Stability | Who Uses It |
+|------------|---------|------|-----------|-------------|
+| **Local** | Developer's machine | Synthetic, controlled | Unstable (changes constantly) | Individual developer |
+| **Dev** | Latest code, integration testing | Synthetic, seeded | Low (deployed on every merge) | Dev team |
+| **Staging** | Pre-production validation | Production-like, sanitized | Medium (deployed per release) | QA, SDETs, product team |
+| **Pre-prod** | Final validation before prod | Production mirror | High (matches prod config) | Release team, SDETs |
+| **Production** | Live users | Real data | Highest | Everyone (read-only testing) |
+
+### Environment Configuration Differences
+
+The same test — "user can search for a property in Tokyo" — needs different configuration per environment:
+
+```
+┌─────────────────────────────────────────────────────┐
+│              Environment Configuration Matrix        │
+├──────────────┬───────────┬───────────┬──────────────┤
+│              │   Dev     │  Staging  │  Production  │
+├──────────────┼───────────┼───────────┼──────────────┤
+│ Base URL     │ localhost │ staging.  │ staynest.com │
+│              │ :8080     │ staynest  │              │
+│              │           │ .com      │              │
+├──────────────┼───────────┼───────────┼──────────────┤
+│ API URL      │ localhost │ api.stg.  │ api.staynest │
+│              │ :8080/api │ staynest  │ .com         │
+│              │           │ .com      │              │
+├──────────────┼───────────┼───────────┼──────────────┤
+│ Auth         │ No auth / │ Test      │ Read-only    │
+│              │ mock auth │ OAuth     │ service acct │
+├──────────────┼───────────┼───────────┼──────────────┤
+│ Data         │ Seeded    │ Shared,   │ Real users,  │
+│              │ per run   │ periodic  │ DO NOT write │
+│              │           │ refresh   │              │
+├──────────────┼───────────┼───────────┼──────────────┤
+│ Rate limits  │ None      │ 100/min   │ 30/min       │
+├──────────────┼───────────┼───────────┼──────────────┤
+│ Feature:     │ Enabled   │ Enabled   │ Disabled     │
+│ new-search   │           │           │              │
+└──────────────┴───────────┴───────────┴──────────────┘
+```
+
+### Environment Data Strategies
+
+**Seeded data (dev/local):** Your test setup creates exactly the data it needs. A `@BeforeMethod` calls the API to create a user, a property, and a booking. After the test, cleanup removes them. Full control, full isolation.
+
+**Shared data (staging):** Multiple teams and testers share the environment. You can't delete "all users" because another tester is using them. Strategy: use unique identifiers (email prefixes, name patterns) so your tests only touch their own data.
+
+**Production data (production):** Real users, real bookings, real money. Tests must be read-only — search, view, validate. Never create, update, or delete. If you must test writes, use a dedicated test tenant/account with data isolation.
+
+### Environment Provisioning
+
+**Shared, persistent environments (traditional):**
+- One staging environment shared by the team
+- Pros: mirrors production closely, always available
+- Cons: contention ("don't deploy while I'm testing"), data pollution, dependency on infra team
+
+**On-demand environments (modern):**
+- Spin up a fresh environment per PR or per test run
+- Pros: isolation, no contention, clean data every time
+- Cons: cost, provisioning time, infrastructure complexity
+
+
+```yaml
+# docker-compose.yml — on-demand environment per test run
+services:
+  app:
+    image: staynest/api:${GIT_SHA:-latest}  # Pin to the commit being tested
+    environment:
+      - SPRING_PROFILES_ACTIVE=test
+      - DATABASE_URL=jdbc:postgresql://db:5432/staynest_test
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_DB=staynest_test
+      - POSTGRES_USER=test
+      - POSTGRES_PASSWORD=test
+    volumes:
+      - ./db/seed.sql:/docker-entrypoint-initdb.d/seed.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U test"]
+      interval: 3s
+      retries: 5
+```
+
+### Infrastructure as Code (Conceptual)
+
+**Terraform:** Defines cloud infrastructure (VMs, databases, networks) in `.tf` files. `terraform apply` creates the infrastructure; `terraform destroy` removes it. Used for provisioning staging/pre-prod environments in AWS, GCP, or Azure.
+
+**Ansible:** Configures existing machines — installs software, copies config files, starts services. Used after Terraform provisions the machines.
+
+**For SDETs:** You don't need to master Terraform or Ansible, but you should understand the concepts. When someone says "the staging environment is defined in Terraform," you should know that means the infrastructure is reproducible and version-controlled — not manually configured by clicking in AWS console.
+
+---
+
+## Practical Implementation (Layer 3)
+
+### Example 1: Environment Configuration Files for StayNest
+
+
+```properties
+# config/config.properties — defaults
+base.url=http://localhost:8080
+api.base.url=http://localhost:8080/api
+browser=chrome
+headless=false
+timeout.seconds=10
+retry.count=1
+db.host=localhost
+db.port=5432
+db.name=staynest_test
+```
+
+
+```properties
+# config/dev.properties
+base.url=http://dev.staynest.internal:8080
+api.base.url=http://dev.staynest.internal:8080/api
+timeout.seconds=15
+```
+
+
+```properties
+# config/staging.properties
+base.url=https://staging.staynest.com
+api.base.url=https://api.staging.staynest.com
+timeout.seconds=20
+headless=true
+db.host=staging-db.staynest.internal
+db.name=staynest_staging
+```
+
+
+```properties
+# config/production.properties
+base.url=https://staynest.com
+api.base.url=https://api.staynest.com
+timeout.seconds=30
+headless=true
+retry.count=2
+# production tests are READ-ONLY — no write operations allowed
+test.mode=read-only
+```
+
+### Example 2: Feature Flag-Aware Tests
+
+
+```java
+public class FeatureFlags {
+    
+    private static final Map<String, Map<String, Boolean>> FLAGS = Map.of(
+        "dev", Map.of("new-search", true, "payment-v2", true, "reviews", true),
+        "staging", Map.of("new-search", true, "payment-v2", false, "reviews", true),
+        "production", Map.of("new-search", false, "payment-v2", false, "reviews", true)
+    );
+    
+    public static boolean isEnabled(String environment, String featureName) {
+        return FLAGS.getOrDefault(environment, Map.of())
+                    .getOrDefault(featureName, false);
+    }
+}
+```
+
+
+```java
+@Test
+public void shouldUseNewSearchInterface() {
+    String env = config.getEnvironment();
+    
+    if (!FeatureFlags.isEnabled(env, "new-search")) {
+        throw new SkipException(
+            "Skipping: 'new-search' feature flag is disabled in " + env
+        );
+    }
+    
+    // Test the new search feature
+    SearchPage searchPage = new SearchPage(driver);
+    searchPage.useNewSearchBar("Tokyo");
+    assertThat(searchPage.getResultCount()).isGreaterThan(0);
+}
+```
+
+### Example 3: Environment Reset Strategy
+
+
+```java
+/**
+ * Resets test data based on environment capabilities.
+ * Dev/local: full database reset via API
+ * Staging: cleanup only test-created data (by prefix)
+ * Production: no cleanup — read-only tests only
+ */
+public class EnvironmentDataManager {
+    
+    private final ConfigManager config;
+    private final ApiClient apiClient;
+    
+    public EnvironmentDataManager(ConfigManager config) {
+        this.config = config;
+        this.apiClient = new ApiClient(config.getApiBaseUrl());
+    }
+    
+    public void resetData() {
+        String env = config.getEnvironment();
+        switch (env) {
+            case "local":
+            case "dev":
+                // Full reset — we own the environment
+                apiClient.post("/admin/reset-database", null);
+                apiClient.post("/admin/seed-data", null);
+                break;
+                
+            case "staging":
+                // Selective cleanup — only our test data
+                apiClient.delete("/admin/cleanup?prefix=TEST_AUTO_");
+                break;
+                
+            case "production":
+                // No write operations in production
+                break;
+                
+            default:
+                throw new IllegalStateException("Unknown environment: " + env);
+        }
+    }
+}
+```
+
+---
+
+## Failure and Debugging (Layer 4)
+
+### Failure 1: Tests Pass on Staging, Fail on Production
+
+**The Problem:** API tests pass consistently on staging but fail on production with `429 Too Many Requests`.
+
+**Root cause:** Production has stricter rate limits (30 requests/minute vs 100 on staging). The test suite sends 50 requests in rapid succession.
+
+**The fix — add rate-limiting awareness:**
+
+
+```java
+public class RateLimitedApiClient {
+    
+    private final int requestsPerMinute;
+    private final Queue<Long> requestTimestamps = new ConcurrentLinkedQueue<>();
+    
+    public RateLimitedApiClient(ConfigManager config) {
+        this.requestsPerMinute = Integer.parseInt(
+            config.get("api.rate.limit", "100")
+        );
+    }
+    
+    public Response sendRequest(Request request) {
+        throttleIfNeeded();
+        requestTimestamps.add(System.currentTimeMillis());
+        return httpClient.execute(request);
+    }
+    
+    private void throttleIfNeeded() {
+        long oneMinuteAgo = System.currentTimeMillis() - 60_000;
+        requestTimestamps.removeIf(ts -> ts < oneMinuteAgo);
+        
+        if (requestTimestamps.size() >= requestsPerMinute) {
+            long waitMs = requestTimestamps.peek() - oneMinuteAgo;
+            try { Thread.sleep(waitMs); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+        }
+    }
+}
+```
+
+### Failure 2: Shared Staging Environment — Data Conflict
+
+**The Problem:** Your test creates user `testuser@staynest.com`, runs a booking test, then deletes the user in cleanup. Meanwhile, another tester's manual test also uses `testuser@staynest.com` and gets a "user not found" error.
+
+**The fix — use unique test identifiers:**
+
+
+```java
+public class TestDataFactory {
+    
+    private static final String PREFIX = "AUTO_";
+    
+    public static String uniqueEmail() {
+        return PREFIX + UUID.randomUUID().toString().substring(0, 8) + "@test.staynest.com";
+    }
+    
+    public static String uniquePropertyName() {
+        return PREFIX + "Property_" + System.currentTimeMillis();
+    }
+}
+```
+
+### Failure 3: Environment URL Wrong After Deployment
+
+**The Problem:** Staging was redeployed to a new URL (`staging-v2.staynest.com`) but the config file still points to `staging.staynest.com`.
+
+**Prevention — environment health check before tests:**
+
+
+```java
+@BeforeSuite
+public void verifyEnvironmentHealth() {
+    String baseUrl = config.getBaseUrl();
+    try {
+        int statusCode = given().get(baseUrl + "/actuator/health").statusCode();
+        if (statusCode != 200) {
+            throw new IllegalStateException(
+                "Environment " + baseUrl + " is not healthy. Status: " + statusCode
+            );
+        }
+    } catch (Exception e) {
+        throw new IllegalStateException(
+            "Cannot reach environment " + baseUrl + ". Is it running?", e
+        );
+    }
+}
+```
+
+---
+
+## Engineering Judgment (Layer 5)
+
+### How Many Environments Do You Need?
+
+| Team Size / Maturity | Recommended Environments |
+|---------------------|--------------------------|
+| Solo SDET, small project | Local + Staging |
+| Team of 3-5, moderate CI | Local + Dev + Staging |
+| Large team, continuous delivery | Local + Dev + Staging + Pre-prod |
+| Enterprise, regulated industry | Local + Dev + Staging + Pre-prod + Prod (read-only tests) |
+
+### Testing in Production: When and How
+
+**When:** Smoke tests after deployment (verify critical paths work with real infrastructure). Synthetic monitoring (scheduled tests that simulate user journeys).
+
+**How — safely:**
+1. Read-only tests only (search, view, validate)
+2. Dedicated test accounts with isolated data
+3. Clearly labeled test data (prefix `TEST_`)
+4. Alerting on test failures (may indicate real outage)
+5. Never test destructive operations (delete, bulk update)
+
+### Environment Configuration: Files vs Environment Variables vs Service
+
+| Approach | Pros | Cons | Best For |
+|----------|------|------|----------|
+| Config files in repo | Simple, version-controlled | Secrets can't go here | Non-sensitive config |
+| Environment variables | CI-friendly, no files to manage | No structure, hard to document | Secrets, CI-injected values |
+| Config service (Consul, Spring Cloud Config) | Centralized, dynamic updates | Complexity, another service to manage | Large-scale, multi-service |
+
+---
+
+## Interview and Revision (Layer 6)
+
+### Fundamental Questions
+
+**Q1: How do you manage test execution across multiple environments?**
+
+**A:** I use a layered configuration approach. A `config.properties` file has defaults (timeouts, browser). Environment-specific files (`staging.properties`, `production.properties`) override only what differs — base URLs, API endpoints, rate limits. The environment is selected via a system property (`-Denv=staging`) or environment variable. My `ConfigManager` merges these layers at startup, and all test code reads from it — never hardcoding environment-specific values. This lets the same compiled tests run against any environment.
+
+**Q2: What challenges exist when testing in a shared staging environment?**
+
+**A:** The main challenge is data contention. Multiple testers and CI pipelines share the same data. My approach: use unique identifiers for all test-created data (UUID-based emails, timestamped names, `AUTO_` prefixes), clean up only data matching my prefix, and never modify shared reference data. I also add an environment health check in `@BeforeSuite` — if staging is being redeployed, the tests fail fast with a clear message instead of producing false failures.
+
+**Q3: When would you run tests in production?**
+
+**A:** Read-only smoke tests after deployment — verify search works, login works, key pages render. Synthetic monitoring on a schedule to detect outages. Always with dedicated test accounts, never with real user data. I never test write operations (create, update, delete) in production. The tests should have clear labels and alerting, so a test failure might indicate a real production issue.
+
+
+
+
+| # | Front (Question) | Back (Answer) |
+|---|---|---|
+| 1 | Name the typical test environments in order. | Local → Dev → Staging → Pre-prod → Production. Each is progressively more stable and production-like. |
+| 2 | Why use unique identifiers in shared environments? | To avoid data conflicts with other testers. UUID-based emails and `AUTO_` prefixes ensure your tests only touch their own data. |
+| 3 | What is Infrastructure as Code? | Defining infrastructure (servers, databases, networks) in version-controlled files (Terraform, Docker Compose) instead of manual configuration. Makes environments reproducible. |
+| 4 | How do feature flags affect test automation? | Tests must be flag-aware — skip tests for disabled features instead of failing. Check flag state per environment and use `SkipException` or conditional logic. |
+| 5 | On-demand vs shared environments? | On-demand: isolated, clean, no contention, but costly and slower to provision. Shared: always available, production-like, but prone to data conflicts and contention. |
+
+### Mastery Checklist
+
+- [ ] Can design environment-specific configuration files with proper override hierarchy
+- [ ] Can explain the tradeoffs between shared and on-demand test environments
+- [ ] Can implement test data strategies that avoid conflicts in shared environments
+- [ ] Can handle feature flags in test code (skip vs fail for disabled features)
+- [ ] Can add environment health checks to fail fast when environments are unavailable
+- [ ] Can articulate when and how to safely test in production
+
+---
+
+**Next:** Test Orchestration | **Related:** Docker For Testing, Framework Configuration And Environments
+
+*Last updated: *

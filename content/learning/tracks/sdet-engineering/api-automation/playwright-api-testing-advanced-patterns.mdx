@@ -1,0 +1,657 @@
+---
+title: "Playwright API Testing — Advanced Patterns"
+description: "What: Playwright's real power for API testing isn't in replacing dedicated API tools — it's in combining API and UI testing in a single framework. Create test data via API, verify it via browser. Mock API responses with page.route() to test UI behavior with controlled data. Save authentication state from API login and reuse it across browser tests. All with full TypeScript type safety for API responses."
+summary: "SDET Engineering guide: Playwright API Testing — Advanced Patterns"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "api-automation"
+lesson: "playwright-api-testing-advanced-patterns"
+difficulty: "intermediate"
+estimatedMinutes: 42
+prerequisites: []
+tags: ["SDET", "API", "REST", "Testing"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/api-automation/playwright-api-testing-advanced-patterns"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Playwright API Testing — Advanced Patterns
+
+> **Module:** 04 — API Automation > Playwright API Testing  
+> **Prerequisites:** Setup And First Tests, TypeScript interfaces, Playwright page fixture basics  
+> **Mastery Target:** L3 (Independent) — can combine API + UI testing, mock API responses, manage auth state, and type API responses with TypeScript interfaces
+
+---
+
+## Quick Overview (Layer 1)
+
+**What:** Playwright's real power for API testing isn't in replacing dedicated API tools — it's in combining API and UI testing in a single framework. Create test data via API, verify it via browser. Mock API responses with `page.route()` to test UI behavior with controlled data. Save authentication state from API login and reuse it across browser tests. All with full TypeScript type safety for API responses.
+
+**Why:** In your day-to-day work, API and UI testing are often disconnected — REST Assured for APIs, Playwright for browsers, with no bridge between them. This creates gaps: you test the API returns correct data and you test the UI renders correctly, but you never verify that the UI correctly renders *this specific API data*. Combined testing closes that gap. Route mocking eliminates flaky external dependencies. Storage state reuse eliminates repeated login flows.
+
+**Where:** Any project where UI tests need data setup (create a booking via API, then verify the booking page). Any project where UI behavior depends on API responses (error pages, loading states, edge cases). Any test suite where login is a bottleneck (60 tests each spending 3 seconds logging in via UI = 3 minutes wasted).
+
+<MentalModel>
+
+Think of combined API + UI testing as a **stage director who controls both the script and the set**. API calls are the script — they determine what data exists and what the server returns. The browser is the stage — where the audience (assertions) watches the performance. By controlling both, you can test exactly the scenario you want: "When the API returns a booking with status CANCELLED, does the UI show the cancellation banner?" Route mocking lets you write the script without needing the real actors (backend services).
+
+</MentalModel>
+
+
+<KeyTakeaways>
+
+1. **API + UI combined testing** creates data via API (fast, reliable) and verifies via browser (user-facing validation) — the strongest assertion strategy.
+2. **`page.route()`** intercepts network requests from the browser, letting you return mock responses — test error states, edge cases, and third-party failures without touching the real API.
+3. **Storage state** saves cookies and localStorage from an API login and injects them into browser tests — eliminating repeated login flows across tests.
+4. **TypeScript interfaces** for API responses provide compile-time type checking — typos in field names become build errors, not runtime failures.
+5. These patterns combine to enable a testing workflow: authenticate via API → save state → create test data via API → open browser with saved auth → assert UI reflects the data.
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation (Layer 2)
+
+### API + UI Combined Testing
+
+The pattern: use the API to set up the world, then use the browser to verify the UI reflects it:
+
+
+```typescript
+import { test, expect } from '@playwright/test';
+
+test.describe('API + UI Combined: Booking Verification', () => {
+
+  test('booking created via API appears in browser', async ({ request, page }) => {
+    // ===== STEP 1: API Setup — Create data fast and reliably =====
+    
+    // Login via API (faster than UI login)
+    const loginResponse = await request.post('/api/v1/auth/login', {
+      data: { email: 'guest@staynest.com', password: 'pass123' },
+    });
+    const { data: loginData } = await loginResponse.json();
+    const token = loginData.accessToken;
+
+    // Create a booking via API (no browser needed for data setup)
+    const bookingResponse = await request.post('/api/v1/bookings/init', {
+      headers: { Authorization: `Bearer ${token}` },
+      data: {
+        hotelId: 1,
+        roomId: 1,
+        checkInDate: '2025-09-01',
+        checkOutDate: '2025-09-04',
+        numberOfGuests: 2,
+      },
+    });
+    expect(bookingResponse.status()).toBe(201);
+    const { data: bookingData } = await bookingResponse.json();
+
+    // ===== STEP 2: Browser Verification — Check the UI =====
+
+    // Set auth token in browser context (so the page loads authenticated)
+    await page.context().addCookies([{
+      name: 'accessToken',
+      value: token,
+      domain: 'localhost',
+      path: '/',
+    }]);
+
+    // Navigate to bookings page
+    await page.goto('/bookings');
+
+    // Verify the booking we just created appears in the UI
+    const bookingCard = page.locator(`[data-booking-id="${bookingData.id}"]`);
+    await expect(bookingCard).toBeVisible();
+    await expect(bookingCard.locator('.booking-status')).toHaveText('PENDING');
+    await expect(bookingCard.locator('.check-in-date')).toContainText('Sep 1, 2025');
+  });
+});
+```
+
+**Why this is powerful:** The API call is fast (&lt; 100ms) and deterministic (no UI flakiness). The browser assertion verifies the user-facing behavior. You're testing the full integration: API → database → UI rendering.
+
+### Request Interception with page.route()
+
+`page.route()` intercepts HTTP requests from the browser and returns mock responses. The browser thinks it's talking to the real server:
+
+
+```typescript
+import { test, expect } from '@playwright/test';
+
+test.describe('Route Mocking — Controlled API Responses', () => {
+
+  test('display error banner when API returns 500', async ({ page }) => {
+    // Mock the bookings endpoint to return a server error
+    await page.route('**/api/v1/bookings', (route) => {
+      route.fulfill({
+        status: 500,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          timeStamp: new Date().toISOString(),
+          data: null,
+          error: 'Internal server error',
+        }),
+      });
+    });
+
+    await page.goto('/bookings');
+
+    // Verify the UI handles the error gracefully
+    await expect(page.locator('.error-banner')).toBeVisible();
+    await expect(page.locator('.error-banner')).toContainText('Something went wrong');
+    // Verify no booking cards are shown
+    await expect(page.locator('.booking-card')).toHaveCount(0);
+  });
+
+  test('display empty state when no bookings exist', async ({ page }) => {
+    // Mock bookings to return empty array
+    await page.route('**/api/v1/bookings', (route) => {
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          timeStamp: new Date().toISOString(),
+          data: [],
+          error: null,
+        }),
+      });
+    });
+
+    await page.goto('/bookings');
+
+    // Verify empty state UI
+    await expect(page.locator('.empty-state')).toBeVisible();
+    await expect(page.locator('.empty-state')).toContainText('No bookings yet');
+  });
+
+  test('display specific booking data from mocked response', async ({ page }) => {
+    const mockBooking = {
+      id: 999,
+      status: 'CONFIRMED',
+      hotelName: 'Mock Grand Hotel',
+      checkInDate: '2025-12-25',
+      checkOutDate: '2025-12-28',
+      totalPrice: 450.00,
+    };
+
+    await page.route('**/api/v1/bookings', (route) => {
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          timeStamp: new Date().toISOString(),
+          data: [mockBooking],
+          error: null,
+        }),
+      });
+    });
+
+    await page.goto('/bookings');
+
+    // Verify the UI renders the exact mock data
+    const card = page.locator('.booking-card').first();
+    await expect(card.locator('.hotel-name')).toHaveText('Mock Grand Hotel');
+    await expect(card.locator('.booking-status')).toHaveText('CONFIRMED');
+    await expect(card.locator('.total-price')).toContainText('450');
+  });
+});
+```
+
+**Route mocking patterns:**
+
+| Pattern | Code | Use Case |
+|---------|------|----------|
+| Fulfill with custom response | `route.fulfill({ status, body })` | Control exactly what the UI sees |
+| Continue with modifications | `route.continue({ headers: {...} })` | Modify real requests (add headers, change URL) |
+| Abort the request | `route.abort()` | Simulate network failures |
+| Delay the response | `await new Promise(r => setTimeout(r, 3000)); route.fulfill(...)` | Test loading states |
+
+### Storage State — Reusing Authentication
+
+Storage state saves cookies and localStorage from one context and loads them into another. This eliminates repeated login:
+
+
+```typescript
+// auth.setup.ts — Run once before all tests to create auth state
+import { test as setup, expect } from '@playwright/test';
+import path from 'path';
+
+const authFile = path.join(__dirname, '../.auth/guest-state.json');
+
+setup('authenticate via API and save state', async ({ request }) => {
+  // Login via API — much faster than clicking through UI
+  const response = await request.post('/api/v1/auth/login', {
+    data: {
+      email: 'guest@staynest.com',
+      password: 'pass123',
+    },
+  });
+  expect(response.status()).toBe(200);
+
+  const body = await response.json();
+  const token = body.data.accessToken;
+
+  // Create a browser context and inject the auth state
+  // This simulates what the real app does after login
+  const context = await request.storageState();
+
+  // Save storage state to file — browser tests will load this
+  // Note: For JWT-based apps, you may need to set cookies or
+  // localStorage directly, depending on how the frontend stores tokens
+  await request.storageState({ path: authFile });
+});
+```
+
+
+```typescript
+// playwright.config.ts — Configure auth setup and state reuse
+import { defineConfig } from '@playwright/test';
+
+export default defineConfig({
+  projects: [
+    // Setup project: runs first, creates auth state files
+    {
+      name: 'auth-setup',
+      testDir: './tests',
+      testMatch: /auth\.setup\.ts/,
+    },
+
+    // API tests: no auth state needed (uses custom fixtures)
+    {
+      name: 'api',
+      testDir: './tests/api',
+      use: {
+        baseURL: 'http://localhost:8080/api/v1',
+      },
+    },
+
+    // UI tests: use saved auth state, depend on setup
+    {
+      name: 'ui',
+      testDir: './tests/ui',
+      dependencies: ['auth-setup'],
+      use: {
+        baseURL: 'http://localhost:3000',
+        storageState: '.auth/guest-state.json',  // Loaded into every browser context
+      },
+    },
+  ],
+});
+```
+
+### TypeScript Type Safety for API Responses
+
+Typing API responses catches field name typos and structural assumptions at compile time:
+
+
+```typescript
+// types/api.ts — Response interfaces matching the StayNest API
+
+/** StayNest response envelope — wraps all API responses */
+interface ApiResponse<T> {
+  timeStamp: string;
+  data: T;
+  error: string | null;
+}
+
+/** User profile data */
+interface UserProfile {
+  id: number;
+  email: string;
+  name: string;
+  gender: 'MALE' | 'FEMALE' | 'OTHER';
+  dateOfBirth: string;
+  role: 'GUEST' | 'HOTEL_MANAGER';
+}
+
+/** Login response data */
+interface LoginData {
+  accessToken: string;
+}
+
+/** Booking data */
+interface BookingData {
+  id: number;
+  hotelId: number;
+  roomId: number;
+  status: 'PENDING' | 'CONFIRMED' | 'CANCELLED';
+  checkInDate: string;
+  checkOutDate: string;
+  totalPrice: number;
+  numberOfGuests: number;
+}
+
+/** Hotel search result */
+interface HotelSummary {
+  id: number;
+  name: string;
+  city: string;
+  pricePerNight: number;
+  rating: number;
+  amenities: string[];
+}
+```
+
+Using types in tests:
+
+
+```typescript
+import { test, expect } from '@playwright/test';
+import type { ApiResponse, LoginData, BookingData, UserProfile } from '../types/api';
+
+test('typed API responses', async ({ request }) => {
+  // Login with typed response
+  const loginResponse = await request.post('/api/v1/auth/login', {
+    data: { email: 'guest@staynest.com', password: 'pass123' },
+  });
+  const loginBody = await loginResponse.json() as ApiResponse<LoginData>;
+
+  // TypeScript now knows the shape — autocomplete works, typos caught
+  const token = loginBody.data.accessToken;  // ✓ Type-safe
+  // loginBody.data.acceessToken;             // ✗ Compile error — typo caught!
+
+  // Profile with typed response
+  const profileResponse = await request.get('/api/v1/users/profile', {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const profileBody = await profileResponse.json() as ApiResponse<UserProfile>;
+
+  expect(profileBody.data.email).toContain('@');
+  expect(profileBody.data.role).toBe('GUEST');
+  // profileBody.data.username;  // ✗ Compile error — field doesn't exist!
+});
+```
+
+**Important caveat:** `as ApiResponse<T>` is a type assertion — it tells TypeScript "trust me, this is the shape." It does NOT validate at runtime. If the API changes its response shape, TypeScript won't catch it at runtime. For runtime validation, combine with schema validation or runtime type guards.
+
+---
+
+## Practical Implementation (Layer 3)
+
+### StayNest Booking Flow — Create via API, Verify in Browser
+
+
+```typescript
+import { test, expect } from '@playwright/test';
+import type { ApiResponse, LoginData, BookingData } from '../types/api';
+
+test.describe('Booking Flow — API Setup + Browser Verification', () => {
+  let token: string;
+  let bookingId: number;
+
+  test.beforeAll(async ({ request }) => {
+    // Authenticate once for all tests in this describe block
+    const loginRes = await request.post('/api/v1/auth/login', {
+      data: { email: 'guest@staynest.com', password: 'pass123' },
+    });
+    const loginBody = await loginRes.json() as ApiResponse<LoginData>;
+    token = loginBody.data.accessToken;
+  });
+
+  test('create booking via API', async ({ request }) => {
+    const response = await request.post('/api/v1/bookings/init', {
+      headers: { Authorization: `Bearer ${token}` },
+      data: {
+        hotelId: 1,
+        roomId: 1,
+        checkInDate: '2025-10-01',
+        checkOutDate: '2025-10-04',
+        numberOfGuests: 2,
+      },
+    });
+
+    expect(response.status()).toBe(201);
+    const body = await response.json() as ApiResponse<BookingData>;
+    bookingId = body.data.id;
+    expect(body.data.status).toBe('PENDING');
+  });
+
+  test('verify booking appears in browser', async ({ page }) => {
+    // Inject auth token into browser context
+    await page.context().addCookies([{
+      name: 'accessToken',
+      value: token,
+      domain: 'localhost',
+      path: '/',
+    }]);
+
+    // Navigate and verify
+    await page.goto(`/bookings/${bookingId}`);
+    await expect(page.locator('h1')).toContainText('Booking Details');
+    await expect(page.locator('[data-testid="booking-status"]')).toHaveText('PENDING');
+    await expect(page.locator('[data-testid="check-in"]')).toContainText('Oct 1, 2025');
+  });
+
+  test('cancel booking via API, verify UI updates', async ({ request, page }) => {
+    // Cancel via API
+    const cancelRes = await request.patch(`/api/v1/bookings/${bookingId}/cancel`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(cancelRes.status()).toBe(200);
+
+    // Verify browser shows updated status
+    await page.context().addCookies([{
+      name: 'accessToken',
+      value: token,
+      domain: 'localhost',
+      path: '/',
+    }]);
+
+    await page.goto(`/bookings/${bookingId}`);
+    await expect(page.locator('[data-testid="booking-status"]')).toHaveText('CANCELLED');
+  });
+});
+```
+
+### Modifying Real Responses with route.continue()
+
+
+```typescript
+test('test UI with modified API response', async ({ page }) => {
+  // Intercept the real API call but modify the response
+  await page.route('**/api/v1/users/profile', async (route) => {
+    // Fetch the real response from the server
+    const response = await route.fetch();
+    const body = await response.json();
+
+    // Modify specific fields
+    body.data.name = 'Modified For Testing';
+    body.data.role = 'HOTEL_MANAGER';
+
+    // Return the modified response
+    await route.fulfill({
+      response,
+      body: JSON.stringify(body),
+    });
+  });
+
+  await page.goto('/profile');
+  await expect(page.locator('.profile-name')).toHaveText('Modified For Testing');
+  await expect(page.locator('.profile-role')).toHaveText('Hotel Manager');
+});
+```
+
+---
+
+## Failure and Debugging (Layer 4)
+
+### Failure 1: Route Mock Doesn't Intercept — Pattern Mismatch
+
+**The Problem:**
+
+
+```typescript
+// Route pattern doesn't match the actual URL
+await page.route('**/bookings', (route) => { ... });
+// But the browser calls: http://localhost:8080/api/v1/bookings?page=0
+// The query parameters aren't matched — works only if the path matches exactly
+```
+
+**Root cause:** Glob patterns in `page.route()` match the URL path. Query parameters are part of the URL but might not match your pattern.
+
+**The fix:**
+
+
+```typescript
+// Use ** to match any prefix, and include the full path
+await page.route('**/api/v1/bookings**', (route) => { ... });
+// Matches: /api/v1/bookings, /api/v1/bookings?page=0, /api/v1/bookings/123
+
+// Or use a regex for precise control
+await page.route(/\/api\/v1\/bookings(\?|$)/, (route) => { ... });
+// Matches /api/v1/bookings and /api/v1/bookings?anything, but not /api/v1/bookings/123
+
+// Debug: log all intercepted URLs to see what's actually being called
+await page.route('**/*', (route) => {
+  console.log('Intercepted:', route.request().url());
+  route.continue();  // Pass through — just logging
+});
+```
+
+### Failure 2: Storage State Doesn't Work — Different Auth Mechanism
+
+**The Problem:** You save storage state after API login, but the browser still shows the login page.
+
+**Root cause:** Storage state saves cookies and localStorage. If the frontend stores the JWT in memory (not in cookies or localStorage), the saved state doesn't include the token.
+
+**The fix:**
+
+
+```typescript
+// If the app stores tokens in localStorage:
+setup('save auth state', async ({ page, request }) => {
+  // Login via API
+  const loginRes = await request.post('/api/v1/auth/login', {
+    data: { email: 'guest@staynest.com', password: 'pass123' },
+  });
+  const { data } = await loginRes.json();
+
+  // Navigate to the app and manually set localStorage
+  await page.goto('/');
+  await page.evaluate((token) => {
+    localStorage.setItem('accessToken', token);
+  }, data.accessToken);
+
+  // Now save the state (includes localStorage)
+  await page.context().storageState({ path: '.auth/guest-state.json' });
+});
+```
+
+### Failure 3: Combined Tests Are Timing-Sensitive
+
+**The Problem:** API creates data, browser navigates immediately, but the data isn't visible yet (async processing, caching, eventual consistency).
+
+**The fix:**
+
+
+```typescript
+test('wait for API data to appear in UI', async ({ request, page }) => {
+  // Create data via API
+  const response = await request.post('/api/v1/bookings/init', { ... });
+  const { data } = await response.json();
+
+  // Option 1: Wait for the specific element (Playwright auto-waits)
+  await page.goto('/bookings');
+  await expect(page.locator(`[data-booking-id="${data.id}"]`))
+    .toBeVisible({ timeout: 10_000 });  // Extended timeout for async processing
+
+  // Option 2: Poll the API until data is ready, then check browser
+  await expect(async () => {
+    const checkRes = await request.get(`/api/v1/bookings/${data.id}`);
+    expect(checkRes.status()).toBe(200);
+  }).toPass({ timeout: 10_000 });  // Retry until API confirms data is ready
+
+  await page.goto(`/bookings/${data.id}`);
+  // Now the data is guaranteed to exist
+});
+```
+
+---
+
+## Engineering Judgment (Layer 5)
+
+### When to Mock vs When to Hit the Real API
+
+| Scenario | Mock (page.route) | Real API |
+|----------|-------------------|----------|
+| Testing UI error handling (500, timeout) | Mock — can't reliably trigger real 500s | Not practical |
+| Testing UI with specific data shapes | Mock — control exact response | Real if data exists in DB |
+| Integration testing (does UI + API work together?) | Don't mock — defeats the purpose | Real — that's the whole point |
+| Slow or flaky external services | Mock — isolate from instability | Only in dedicated integration runs |
+| Testing loading/spinner states | Mock with delay | Too fast to observe with real API |
+
+**Guideline:** Mock when you're testing *UI behavior given certain data*. Hit the real API when you're testing *that the UI and API work together correctly*. These are different test objectives — both are valuable.
+
+### Type Assertions vs Runtime Validation
+
+| Approach | Catches | Misses | When to Use |
+|----------|---------|--------|-------------|
+| `as ApiResponse<T>` (type assertion) | Typos in test code at compile time | API changes at runtime | Every test — minimal overhead |
+| Zod/Joi schema validation | API contract changes at runtime | Nothing — full validation | Critical flows, contract tests |
+| No typing (raw `any`) | Nothing | Everything | Never in a maintained codebase |
+
+**Recommendation:** Use type assertions in every test for developer experience. Add runtime schema validation in a separate contract test suite that runs in CI to catch API changes.
+
+### Cost of Combined API + UI Tests
+
+| Factor | Pure API Test | Pure UI Test | Combined API + UI |
+|--------|-------------|-------------|-------------------|
+| Speed | ~100ms | ~3-10s | ~3-10s (API setup is negligible) |
+| Flakiness | Low | Medium-High | Medium (API setup more reliable than UI setup) |
+| Coverage | API contract only | UI rendering + interaction | Full integration: data → UI rendering |
+| Maintenance | Low | High (locator changes) | Medium-High (both API and locator changes) |
+
+---
+
+## Interview and Revision (Layer 6)
+
+### Fundamental Questions
+
+**Q1: How do you mock API responses in Playwright browser tests?**
+
+**A:** I use `page.route()` to intercept network requests from the browser. I pass a URL pattern (glob or regex) and a handler function that calls `route.fulfill()` with a custom status, content type, and body. The browser thinks it received a real response. I use this to test error states (mocking 500 responses to verify error UI), empty states (mocking empty arrays), and specific data scenarios (mocking a booking with a particular status). For partial mocking, I use `route.fetch()` to get the real response, modify it, then `route.fulfill()` with the modified version.
+
+**Q2: Explain the storage state pattern for authentication in Playwright.**
+
+**A:** Storage state saves cookies and localStorage from a browser context to a JSON file. I use it to authenticate once (via API for speed) and reuse that auth state across all browser tests. In the setup project, I login via API, inject the token into browser storage (localStorage or cookies depending on the app), and save the state with `context.storageState({ path: 'file.json' })`. Browser test projects load this file via `use: { storageState: 'file.json' }` in the config. Every browser test starts already authenticated — no login form, no waiting for auth redirects. This saves 2-5 seconds per test.
+
+**Q3: What's the advantage of creating test data via API instead of UI?**
+
+**A:** API data creation is faster (100ms vs 5-10 seconds through UI), more reliable (no UI flakiness from locator changes or timing), and more flexible (can create exact data shapes, edge cases, and large volumes). In combined tests, I create data via API (fast, deterministic) and verify via browser (user-facing validation). This gives me the reliability of API testing with the coverage of UI testing. The trade-off is test complexity — you need to know both the API contract and the UI rendering, and you need to handle auth in both contexts.
+
+
+
+
+| # | Front (Question) | Back (Answer) |
+|---|---|---|
+| 1 | What's the difference between `route.fulfill()`, `route.continue()`, and `route.abort()`? | `fulfill()` — return a custom response (mock). `continue()` — forward the request (optionally modified). `abort()` — cancel the request (simulate network failure) |
+| 2 | How do you save auth state from an API login for browser tests? | Login via API → inject token into browser localStorage/cookies → `context.storageState({ path: 'file.json' })` → load in config: `use: { storageState: 'file.json' }` |
+| 3 | Does `as ApiResponse<T>` validate the response at runtime? | No — it's a compile-time type assertion only. If the API returns a different shape, TypeScript won't catch it at runtime. Use Zod or Joi for runtime validation |
+| 4 | How do you mock a slow API response to test loading states? | Add a delay in the route handler: `await new Promise(r => setTimeout(r, 3000)); route.fulfill({ ... })` |
+| 5 | How do you intercept a URL with query parameters in page.route()? | Use `**` suffix: `page.route('**/api/v1/bookings**', ...)` or a regex: `page.route(/\/bookings(\?|$)/, ...)` |
+
+### Mastery Checklist
+
+- [ ] Can write combined API + UI tests: create data via API, verify in browser
+- [ ] Can use `page.route()` to mock API responses (fulfill, continue, abort)
+- [ ] Can set up storage state for auth reuse across browser tests
+- [ ] Can define TypeScript interfaces for API responses and use type assertions
+- [ ] Can debug route interception issues (pattern matching, timing)
+- [ ] Can explain when to mock vs when to hit the real API
+- [ ] Can implement the auth setup project pattern in `playwright.config.ts`
+
+---
+
+**Next:** Comparison With Rest Assured | **Related:** Setup And First Tests, REST Assured Advanced Request Patterns
+
+*Last updated: *

@@ -1,0 +1,380 @@
+---
+title: "Test Architecture Patterns"
+description: "What: Test architecture patterns are structural designs for organizing large test suites. Just as application code has architecture (MVC, microservices, hexagonal), test code needs architecture too. Without it, a 2,000-test suite becomes an unmaintainable tangle of duplicated setup code, brittle selectors, and tests that break when unrelated features change. The key patterns are: layered architecture, hexagonal testing (ports and adapters), event-driven testing, and modular test sui..."
+summary: "SDET Engineering guide: Test Architecture Patterns"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "advanced-quality-engineering"
+lesson: "test-architecture-patterns"
+difficulty: "advanced"
+estimatedMinutes: 30
+prerequisites: []
+tags: ["SDET", "Quality Engineering", "Advanced"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/advanced-quality-engineering/test-architecture-patterns"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Test Architecture Patterns
+
+> **Module:** 09 — Advanced Quality Engineering  
+> **Prerequisites:** Framework Architecture, Chaos And Resilience Testing  
+> **Mastery Target:** L3 (Independent) — can design a layered, modular test architecture for a large application and explain the tradeoffs of different patterns
+
+---
+
+## Quick Overview (Layer 1)
+
+**What:** Test architecture patterns are structural designs for organizing large test suites. Just as application code has architecture (MVC, microservices, hexagonal), test code needs architecture too. Without it, a 2,000-test suite becomes an unmaintainable tangle of duplicated setup code, brittle selectors, and tests that break when unrelated features change. The key patterns are: layered architecture, hexagonal testing (ports and adapters), event-driven testing, and modular test suites.
+
+**Why:** Small test suites (50 tests) don't need architecture — any organization works. At 500+ tests, bad architecture creates compounding problems: one API change breaks 200 tests because every test hardcodes the endpoint URL. One page redesign breaks 150 tests because selectors are scattered everywhere. Good architecture isolates change — an API endpoint rename requires editing one file (the API client layer), not 200 test files.
+
+**Where:** Any project with 200+ automated tests across multiple test types (unit, API, E2E). In StayNest: the comprehensive test suite spanning API tests, UI tests, database validations, performance tests, and accessibility tests — all sharing common infrastructure but owned by different SDET focus areas.
+
+<KeyTakeaways>
+
+1. **Layered architecture** separates concerns: tests → page/API clients → utilities. Each layer only talks to the one below it.
+2. **Hexagonal testing** treats test infrastructure (DB connections, mock servers, API clients) as swappable "adapters" behind stable "ports" (interfaces).
+3. **Modular test suites** are independently runnable test modules (booking-tests, search-tests, payment-tests) that compose into a full suite.
+4. The goal is **change isolation** — when the application changes, you update one layer, not every test.
+5. Over-architecture is as harmful as under-architecture. Don't build abstractions until you have duplication to eliminate.
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation (Layer 2)
+
+### Layered Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  TEST LAYER (what to test)                                   │
+│  BookingApiTest, SearchE2ETest, PaymentResilienceTest        │
+│  Contains: test methods, assertions, test data               │
+├──────────────────────────┬──────────────────────────────────┤
+│  PAGE/SCREEN LAYER       │  API CLIENT LAYER                │
+│  (UI automation)         │  (API automation)                │
+│  BookingPage             │  BookingApiClient                │
+│  SearchPage              │  HotelApiClient                  │
+│  Contains: locators,     │  Contains: endpoints,            │
+│  user actions            │  request builders                │
+├──────────────────────────┴──────────────────────────────────┤
+│  UTILITY LAYER (shared infrastructure)                       │
+│  TestConnectionPool, AuthFactory, TestDataGenerator,         │
+│  WireMockManager, ConfigReader, RetryHelper                  │
+│  Contains: cross-cutting concerns used by all layers         │
+├─────────────────────────────────────────────────────────────┤
+│  CONFIGURATION LAYER                                         │
+│  test-config.yml, environment variables, testng.xml          │
+│  Contains: URLs, credentials, feature flags, suite config    │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Rule:** Each layer only depends on the layer below it. Tests never directly create JDBC connections (that's the utility layer's job). Page objects never assert (that's the test layer's job).
+
+### Hexagonal Testing (Ports and Adapters)
+
+```
+                    ┌──────────────────────┐
+                    │     TEST CORE         │
+                    │  (business test logic) │
+                    │                       │
+           Port     │  ┌────────────────┐   │     Port
+    ┌──────────────→│  │  DataProvider  │   │←──────────────┐
+    │               │  │   (interface)  │   │               │
+    │               │  └────────────────┘   │               │
+    │               │  ┌────────────────┐   │               │
+    │               │  │ ServiceClient  │   │               │
+    │               │  │   (interface)  │   │               │
+    │               │  └────────────────┘   │               │
+    │               └──────────────────────┘               │
+    │                                                       │
+┌───┴─────────┐                                   ┌────────┴──────┐
+│  Adapter:    │                                   │  Adapter:      │
+│  PostgreSQL  │                                   │  REST Assured  │
+│  DataProvider│                                   │  ServiceClient │
+└─────────────┘                                   └───────────────┘
+    OR                                                 OR
+┌─────────────┐                                   ┌───────────────┐
+│  Adapter:    │                                   │  Adapter:      │
+│  H2 InMemory │                                   │  WireMock      │
+│  DataProvider│                                   │  ServiceClient │
+└─────────────┘                                   └───────────────┘
+```
+
+The test core depends on interfaces (ports). Different adapters (real DB vs in-memory, real API vs mock) can be swapped without changing tests.
+
+---
+
+## Practical Implementation (Layer 3)
+
+### Layered Architecture — API Client Layer
+
+
+```java
+/**
+ * API Client Layer: encapsulates all booking-related API calls.
+ * Tests call this instead of writing raw REST Assured code.
+ * If the endpoint URL changes, only this file changes.
+ */
+public class BookingApiClient {
+
+    private final String baseUrl;
+    private final String authToken;
+
+    public BookingApiClient(String baseUrl, String authToken) {
+        this.baseUrl = baseUrl;
+        this.authToken = authToken;
+    }
+
+    public Response createBooking(String bookingJson) {
+        return given()
+            .baseUri(baseUrl)
+            .contentType("application/json")
+            .header("Authorization", "Bearer " + authToken)
+            .body(bookingJson)
+        .when()
+            .post("/bookings");
+    }
+
+    public Response getBooking(long bookingId) {
+        return given()
+            .baseUri(baseUrl)
+            .header("Authorization", "Bearer " + authToken)
+        .when()
+            .get("/bookings/" + bookingId);
+    }
+
+    public Response cancelBooking(long bookingId) {
+        return given()
+            .baseUri(baseUrl)
+            .header("Authorization", "Bearer " + authToken)
+        .when()
+            .patch("/bookings/" + bookingId + "/cancel");
+    }
+
+    public Response listBookings() {
+        return given()
+            .baseUri(baseUrl)
+            .header("Authorization", "Bearer " + authToken)
+        .when()
+            .get("/bookings");
+    }
+}
+```
+
+### Hexagonal Pattern — Swappable Data Provider
+
+
+```java
+/** Port: interface for test data operations */
+public interface TestDataProvider {
+    Map<String, Object> findBookingById(long id);
+    int countBookingsForRoom(long roomId);
+    void cleanup(long bookingId);
+}
+
+/** Adapter: real PostgreSQL implementation */
+public class PostgresTestDataProvider implements TestDataProvider {
+    @Override
+    public Map<String, Object> findBookingById(long id) {
+        try (Connection conn = TestConnectionPool.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(
+                 "SELECT * FROM bookings WHERE id = ?")) {
+            stmt.setLong(1, id);
+            ResultSet rs = stmt.executeQuery();
+            if (!rs.next()) return Collections.emptyMap();
+            return Map.of("id", rs.getLong("id"), "status", rs.getString("status"));
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Override
+    public int countBookingsForRoom(long roomId) {
+        // ... PostgreSQL implementation
+        return 0;
+    }
+
+    @Override
+    public void cleanup(long bookingId) {
+        // ... DELETE FROM bookings WHERE id = ?
+    }
+}
+
+/** Adapter: in-memory implementation for fast tests */
+public class InMemoryTestDataProvider implements TestDataProvider {
+    private final Map<Long, Map<String, Object>> store = new HashMap<>();
+
+    @Override
+    public Map<String, Object> findBookingById(long id) {
+        return store.getOrDefault(id, Collections.emptyMap());
+    }
+    @Override
+    public int countBookingsForRoom(long roomId) { /* filter store by roomId */ return 0; }
+    @Override
+    public void cleanup(long bookingId) { store.remove(bookingId); }
+}
+```
+
+### Modular Test Suites — Independent Modules That Compose
+
+
+```java
+/**
+ * Each module is independently runnable and has its own setup/teardown.
+ * Modules compose into the full suite via TestNG XML configuration.
+ */
+
+// Module 1: Booking Tests
+// Can run standalone: mvn test -Dsuite=booking
+public class BookingTestModule {
+    private BookingApiClient client;
+    private TestDataProvider dataProvider;
+
+    @BeforeSuite
+    public void moduleSetup() {
+        String token = AuthFactory.guest().getAccessToken();
+        client = new BookingApiClient(Config.baseUrl(), token);
+        dataProvider = DataProviderFactory.create(); // returns Postgres or InMemory
+    }
+
+    @Test(groups = "api-regression")
+    public void createBooking_returnsConfirmed() {
+        Response response = client.createBooking(
+            BookingBuilder.aBooking().withRoomId(1L).buildJson());
+        assertEquals(response.statusCode(), 201);
+    }
+
+    @AfterSuite
+    public void moduleTeardown() {
+        // Clean up module-specific test data
+    }
+}
+
+// Module 2: Search Tests
+// Can run standalone: mvn test -Dsuite=search
+public class SearchTestModule {
+    @Test(groups = "api-regression")
+    public void searchByCity_returnsResults() {
+        // Independent from BookingTestModule
+    }
+}
+```
+
+### StayNest Architecture Diagram
+
+```
+┌─ TEST MODULES (independently runnable) ──────────────────────────┐
+│  [Booking Tests]  [Search Tests]  [Payment Tests]  [Hotel Mgmt]  │
+│    (API+DB)         (API+E2E)       (API+Mock)       (API+Auth)  │
+├──────────────────────────────────────────────────────────────────┤
+│  SHARED CLIENT LAYER                                              │
+│  BookingApiClient │ HotelApiClient │ Page Objects (Booking, Search)│
+├──────────────────────────────────────────────────────────────────┤
+│  UTILITY LAYER                                                    │
+│  AuthFactory │ TestDataBuilder │ WireMockManager │ DB ConnPool    │
+├──────────────────────────────────────────────────────────────────┤
+│  CONFIGURATION: test-config.yml │ env vars │ testng.xml           │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Failure and Debugging (Layer 4)
+
+### Failure 1: Test Layer Directly Uses JDBC — Breaks Layer Separation
+
+**The Problem:** An SDET writes `DriverManager.getConnection(...)` directly in a test method. When the DB URL changes, 40 test files need updating.
+
+**Root cause:** No architecture enforcement. The utility layer exists but isn't mandated.
+
+**The fix:** Code review convention: test methods never import `java.sql.*`. DB access goes through `TestDataProvider` interface. Consider architectural fitness functions (automated checks in CI):
+
+
+```java
+// ArchUnit test — enforce layer dependencies
+@Test
+public void testLayer_shouldNotAccessDatabase() {
+    JavaClasses classes = new ClassFileImporter().importPackages("com.staynest.tests");
+    noClasses().that().resideInAPackage("..tests..")
+        .should().accessClassesThat().resideInAPackage("java.sql..")
+        .check(classes);
+}
+```
+
+### Failure 2: Modular Tests Fail When Run Together
+
+**The Problem:** `BookingTestModule` passes alone. `SearchTestModule` passes alone. Running both together, search fails because booking tests consumed all DB connections.
+
+**Root cause:** Each module creates its own connection pool with 5 connections. Running two modules = 10 connections, exceeding the test database limit of 8.
+
+**The fix:** Shared connection pool at the utility layer level, not per module. Module setup uses the shared pool:
+
+
+```java
+// Shared pool — initialized once, used by all modules
+TestConnectionPool.initialize(maxConnections: 5); // One pool for entire suite
+```
+
+---
+
+## Engineering Judgment (Layer 5)
+
+### When to Introduce Architecture
+
+| Suite Size | Recommended Architecture |
+|-----------|-------------------------|
+| &lt;50 tests | None — flat structure is fine |
+| 50-200 tests | Basic layering (test + page/API client + utils) |
+| 200-1000 tests | Full layered architecture with hexagonal data providers |
+| 1000+ tests | Modular suites with shared infrastructure and ArchUnit enforcement |
+
+### Architecture Anti-Patterns
+
+| Anti-Pattern | Symptom | Fix |
+|-------------|---------|-----|
+| **Leaky abstraction** | Tests know about DB columns, HTTP headers | Thicker client layer that hides implementation |
+| **Premature abstraction** | 5 interfaces for 5 classes with no alternative implementations | YAGNI — add interfaces when you need swappability |
+| **God utility class** | `TestUtils` with 200 methods | Split: `AuthUtils`, `DataUtils`, `DbUtils`, `WaitUtils` |
+| **Copy-paste tests** | 50 tests with identical setup blocks | Extract to `@BeforeClass` in base class or shared module setup |
+
+---
+
+## Interview and Revision (Layer 6)
+
+
+
+
+| # | Front | Back |
+|---|-------|------|
+| 1 | What are the four layers in a test architecture? | Test layer (assertions), page/API client layer (interactions), utility layer (infrastructure), configuration layer (env-specific settings) |
+| 2 | What is hexagonal testing? | Using interfaces (ports) for test infrastructure (DB, API clients) with swappable implementations (adapters). Enables switching between real DB and in-memory, or real API and mock |
+| 3 | What is a modular test suite? | Independently runnable test modules (booking-tests, search-tests) that can execute alone or compose into a full suite. Each module has its own setup/teardown |
+| 4 | Why enforce layer boundaries with ArchUnit? | Prevents test code from bypassing abstractions (e.g., importing java.sql directly in tests). Automated enforcement catches violations in CI before they spread |
+| 5 | When should you introduce test architecture? | At 50+ tests, basic layering. At 200+, full architecture. At 1000+, modular suites. Below 50, flat structure is fine — premature architecture adds overhead without benefit |
+
+### Mastery Checklist
+
+- [ ] Can design a four-layer test architecture for a project with 500+ tests
+- [ ] Can implement the hexagonal pattern with swappable data providers (real DB vs in-memory)
+- [ ] Can structure modular test suites that run independently and compose into a full suite
+- [ ] Can enforce layer boundaries with ArchUnit or code review conventions
+- [ ] Can identify and fix architecture anti-patterns (leaky abstractions, god classes, premature abstraction)
+
+---
+
+**Related:** Framework Architecture, Chaos And Resilience Testing
+
+*Last updated: *

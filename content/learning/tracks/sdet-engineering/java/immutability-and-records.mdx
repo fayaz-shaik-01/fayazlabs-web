@@ -1,0 +1,477 @@
+---
+title: "Immutability and Records"
+description: "What: Immutability is a design principle where objects cannot be modified after creation. Records (Java 16+) make creating immutable data carriers effortless — one line replaces dozens of boilerplate lines."
+summary: "SDET Engineering guide: Immutability and Records"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "java"
+lesson: "immutability-and-records"
+difficulty: "beginner"
+estimatedMinutes: 30
+prerequisites: []
+tags: ["SDET", "Java", "Programming"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/java/immutability-and-records"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Immutability and Records
+
+> **Module:** 01 — Programming Foundations / Java  
+> **Prerequisites:** Oop Fundamentals, Collections And Generics  
+> **Mastery Target:** L3 (independent — design immutable classes and use records without guidance)
+
+---
+
+## Quick Overview (Layer 1)
+
+**What:** Immutability is a design principle where objects cannot be modified after creation. Records (Java 16+) make creating immutable data carriers effortless — one line replaces dozens of boilerplate lines.
+
+**Why:** Mutable shared state is the #1 source of flaky parallel tests. Immutable objects eliminate that category of bugs entirely — no thread can change what another thread is reading. As an SDET, this matters for test configurations, API DTOs, and data-driven test carriers.
+
+**Where:** Test configuration objects, API response/request DTOs, test data carriers, value objects used in assertions, builder pattern results.
+
+<MentalModel>
+
+Think of immutable objects as **sealed envelopes**. Once sealed, anyone can read a copy of the contents, but nobody can change what's inside. Need different contents? Create a new envelope. Safe to hand to ten people simultaneously.
+
+</MentalModel>
+
+
+<KeyTakeaways>
+
+1. **Immutable objects are inherently thread-safe** — no synchronization needed when tests run in parallel.
+2. **Records give you immutability for free** — constructor, getters, `equals()`, `hashCode()`, `toString()` from a single line.
+3. **"Immutable" is only as strong as its weakest field** — a `final` reference to a mutable `List` is NOT immutable. Defensively copy mutable fields.
+4. **Records can't do everything** — no inheritance, no mutable state, no no-arg constructor.
+5. **Prefer immutable by default** — make fields `final`, use `List.of()`, reach for records first. Add mutability only when needed.
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation (Layer 2)
+
+### What Makes a Class Immutable
+
+Four rules: (1) `final` class — no mutable subclasses, (2) `final` fields — assigned once, (3) no setters, (4) defensive copies of mutable fields in constructors and getters.
+
+
+```java
+public final class TestConfig {
+    private final String baseUrl;
+    private final int timeoutSeconds;
+    private final List<String> supportedBrowsers;
+
+    public TestConfig(String baseUrl, int timeoutSeconds, List<String> supportedBrowsers) {
+        this.baseUrl = baseUrl;
+        this.timeoutSeconds = timeoutSeconds;
+        this.supportedBrowsers = List.copyOf(supportedBrowsers); // defensive copy
+    }
+
+    public String getBaseUrl() { return baseUrl; }
+    public int getTimeoutSeconds() { return timeoutSeconds; }
+    public List<String> getSupportedBrowsers() { return supportedBrowsers; } // already unmodifiable
+}
+```
+
+### String as the Canonical Immutable Class
+
+Every "modification" creates a new object — `url.toUpperCase()` returns a NEW `String`, leaving `url` unchanged. This is why Strings are safe as `HashMap` keys and thread-safe without synchronization.
+
+### Unmodifiable Collections
+
+
+```java
+// 1. List.of() — truly immutable, rejects null
+List<String> browsers = List.of("chrome", "firefox", "safari");
+
+// 2. Collections.unmodifiableList() — unmodifiable VIEW (changes to source reflect here!)
+List<String> mutable = new ArrayList<>(List.of("chrome", "firefox"));
+List<String> view = Collections.unmodifiableList(mutable);
+mutable.add("edge"); // view ALSO sees "edge" now
+
+// 3. List.copyOf() — immutable independent COPY
+List<String> copy = List.copyOf(mutable);
+mutable.add("safari"); // copy NOT affected
+```
+
+| Method | Truly Immutable? | Independent Copy? |
+|--------|-----------------|-------------------|
+| `List.of(...)` | Yes | N/A (creates new) |
+| `Collections.unmodifiableList()` | No — view only | No |
+| `List.copyOf()` | Yes | Yes |
+
+### Records (Java 16+)
+
+One line generates a complete immutable class:
+
+
+```java
+public record UserDto(String email, String name, String role) {}
+// Auto-generates: constructor, email(), name(), role() (no "get" prefix),
+// equals(), hashCode(), toString(). Class is implicitly final.
+```
+
+**Compact constructor** — add validation without repeating parameter list:
+
+
+```java
+public record BookingDto(Long id, String guestEmail, String checkIn, String checkOut, int guests) {
+    public BookingDto { // no parameter list needed
+        if (guests <= 0) throw new IllegalArgumentException("Guest count must be positive");
+        // Field assignments happen automatically AFTER this block
+    }
+}
+```
+
+**Custom methods** — records can have instance methods, static factories, and implement interfaces:
+
+
+```java
+public record TestResult(String testName, String status, long durationMs) {
+    public boolean isFailed() { return "FAIL".equals(status); }
+    public static TestResult pass(String name, long ms) { return new TestResult(name, "PASS", ms); }
+}
+```
+
+### Records vs Traditional POJOs vs Lombok @Value
+
+| Feature | Traditional POJO | Lombok `@Value` | Record |
+|---------|-----------------|-----------------|--------|
+| Boilerplate | 50+ lines | ~5 lines | 1 line |
+| Immutable by default | No | Yes | Yes |
+| Getters | `getX()` | `getX()` | `x()` (no prefix) |
+| Inheritance | Yes | No | No |
+| No-arg constructor | Yes | No | No |
+| Dependency | None | Lombok processor | Java 16+ |
+
+**When records can't be used:** need mutable state, need inheritance, need no-arg constructor (some JPA/serialization frameworks), need non-final fields for reflection.
+
+### Sealed Classes and Interfaces (Java 17+)
+
+Restrict which classes can implement/extend a type — often combined with records:
+
+
+```java
+public sealed interface ApiResponse permits SuccessResponse, ErrorResponse, TimeoutResponse {}
+
+public record SuccessResponse(int statusCode, String body) implements ApiResponse {}
+public record ErrorResponse(int statusCode, String message) implements ApiResponse {}
+public record TimeoutResponse(String endpoint, long timeoutMs) implements ApiResponse {}
+
+// Pattern matching (Java 21+) — compiler verifies exhaustive handling
+public String describe(ApiResponse r) {
+    return switch (r) {
+        case SuccessResponse s -> "Success: " + s.statusCode();
+        case ErrorResponse e   -> "Error: " + e.message();
+        case TimeoutResponse t -> "Timeout on " + t.endpoint();
+    };
+}
+```
+
+---
+
+## Practical Implementation (Layer 3)
+
+### Example 1: Immutable TestConfig with Builder Pattern
+
+The builder is mutable; the config it produces is immutable.
+
+
+```java
+public final class TestConfig {
+    private final String baseUrl;
+    private final String browser;
+    private final int timeoutSeconds;
+    private final boolean headless;
+    private final List<String> tags;
+
+    private TestConfig(Builder b) {
+        this.baseUrl = b.baseUrl;
+        this.browser = b.browser;
+        this.timeoutSeconds = b.timeoutSeconds;
+        this.headless = b.headless;
+        this.tags = List.copyOf(b.tags); // defensive copy
+    }
+
+    public String getBaseUrl() { return baseUrl; }
+    public String getBrowser() { return browser; }
+    public int getTimeoutSeconds() { return timeoutSeconds; }
+    public boolean isHeadless() { return headless; }
+    public List<String> getTags() { return tags; }
+
+    public static class Builder {
+        private final String baseUrl; // required
+        private String browser = "chrome";
+        private int timeoutSeconds = 10;
+        private boolean headless = false;
+        private List<String> tags = new ArrayList<>();
+
+        public Builder(String baseUrl) { this.baseUrl = baseUrl; }
+        public Builder browser(String b) { this.browser = b; return this; }
+        public Builder timeoutSeconds(int t) { this.timeoutSeconds = t; return this; }
+        public Builder headless(boolean h) { this.headless = h; return this; }
+        public Builder tags(List<String> t) { this.tags = new ArrayList<>(t); return this; }
+        public TestConfig build() { return new TestConfig(this); }
+    }
+}
+
+// Usage — config is fully immutable, safe to share across parallel tests
+TestConfig config = new TestConfig.Builder("https://staging.staynest.com")
+    .browser("firefox").headless(true).tags(List.of("smoke", "regression")).build();
+```
+
+### Example 2: Record-Based API Response DTOs (StayNest)
+
+
+```java
+public record UserDto(Long id, String email, String firstName, String lastName, String role) {
+    public String fullName() { return firstName + " " + lastName; }
+}
+
+public record BookingDto(Long id, Long propertyId, String guestEmail,
+        String checkIn, String checkOut, int guestCount, String status, double totalPrice) {
+    public BookingDto {
+        if (guestCount <= 0) throw new IllegalArgumentException("Guest count must be positive");
+    }
+    public boolean isConfirmed() { return "CONFIRMED".equals(status); }
+}
+
+// In a test — records auto-generate equals() for clean assertions
+UserDto expected = new UserDto(1L, "alice@test.com", "Alice", "Smith", "GUEST");
+UserDto actual = apiClient.getUser(1L);
+assertEquals(expected, actual);
+```
+
+### Example 3: Records as Test Data Carriers in Data-Driven Tests
+
+
+```java
+public record LoginTestData(String scenario, String username, String password,
+        boolean expectSuccess, String expectedMessage) {}
+
+@DataProvider(name = "loginData")
+public Object[][] loginTestData() {
+    return new Object[][] {
+        { new LoginTestData("valid_admin", "admin@staynest.com", "Admin123!", true, "Welcome") },
+        { new LoginTestData("bad_password", "admin@staynest.com", "wrong", false, "Invalid credentials") },
+        { new LoginTestData("empty_email", "", "Admin123!", false, "Email is required") },
+    };
+}
+
+@Test(dataProvider = "loginData")
+public void testLogin(LoginTestData data) {
+    loginPage.enterEmail(data.username());
+    loginPage.enterPassword(data.password());
+    loginPage.clickLogin();
+    if (data.expectSuccess()) {
+        assertEquals(dashboardPage.getWelcomeMessage(), data.expectedMessage());
+    } else {
+        assertEquals(loginPage.getErrorMessage(), data.expectedMessage());
+    }
+}
+```
+
+**Why this beats `Object[][]`:** Type safety, named fields instead of `(String) args[0]`, auto-generated `toString()` for readable failure reports.
+
+---
+
+## Failure and Debugging (Layer 4)
+
+### Pitfall 1: "Immutable" Class with Mutable List Field
+
+
+```java
+// BROKEN — stores caller's reference directly
+public final class TestSuite {
+    private final List<String> testNames;
+    public TestSuite(List<String> testNames) { this.testNames = testNames; }
+    public List<String> getTestNames() { return testNames; }
+}
+
+List<String> tests = new ArrayList<>(List.of("loginTest"));
+TestSuite suite = new TestSuite(tests);
+tests.add("hackedTest");          // modifies suite's internal list!
+suite.getTestNames().clear();     // also modifies it!
+// Fix: this.testNames = List.copyOf(testNames); in constructor
+```
+
+### Pitfall 2: Record with Mutable Field — Same Problem
+
+
+```java
+// BROKEN
+public record TestPlan(String name, List<String> testIds) {}
+// Fix with compact constructor:
+public record TestPlan(String name, List<String> testIds) {
+    public TestPlan { testIds = List.copyOf(testIds); }
+}
+```
+
+### Pitfall 3: Records with Jackson Deserialization
+
+**Symptom:** `InvalidDefinitionException: Cannot construct instance of ... (no Creators, like default constructor, exist)`
+
+<BestPractice>
+
+**Fix:** Jackson 2.12+ supports records natively. Ensure `-parameters` compiler flag is set, or annotate explicitly:
+
+</BestPractice>
+
+
+
+```java
+// Option 1: pom.xml — add <parameters>true</parameters> to maven-compiler-plugin
+// Then Jackson 2.12+ handles records automatically.
+
+// Option 2: explicit annotation
+public record UserDto(@JsonProperty("id") Long id, @JsonProperty("email") String email,
+        @JsonProperty("firstName") String firstName, @JsonProperty("lastName") String lastName,
+        @JsonProperty("role") String role) {}
+```
+
+---
+
+## Engineering Judgment (Layer 5)
+
+### When to Use Records vs Classes
+
+| Scenario | Record | Class |
+|----------|--------|-------|
+| API response/request DTO | Yes | Only if framework demands |
+| Test data carrier | Yes | If you need mutation |
+| Complex config with many optional fields | No | Yes — use builder |
+| Page object | No | Yes — mutable driver interactions |
+| Entity with JPA/Hibernate | Maybe | Yes, for older JPA versions |
+
+### When Is Immutability Worth the Effort?
+
+**Almost always.** The cost (occasional object creation, defensive copies) is negligible for test automation workloads. The benefits — thread safety, predictable state, safe sharing, easier debugging — are substantial.
+
+**Exception:** When building something iteratively (collecting results, constructing complex objects), use a mutable builder internally and produce an immutable result at the end.
+
+**Defensive copying rule of thumb:** Always copy in public APIs. Skip only in performance-critical internal code where you control all callers.
+
+---
+
+## Interview and Revision (Layer 6)
+
+### Questions and Answers
+
+**Q1: What makes a Java class immutable?**
+A: Four things: `final` class, `final` fields, no setters, defensive copies of mutable fields.
+
+**Q2: What's the difference between `List.of()` and `Collections.unmodifiableList()`?**
+A: `List.of()` creates a truly immutable list. `Collections.unmodifiableList()` creates an unmodifiable *view* — changes to the original list are reflected in the view.
+
+**Q3: Why do records use `email()` instead of `getEmail()`?**
+A: Records follow a convention where accessor names match component names. They're data carriers, not JavaBeans.
+
+**Q4: Can a record implement an interface?**
+A: Yes. Records can implement interfaces but cannot extend classes (they implicitly extend `java.lang.Record`).
+
+**Q5: How do you make a record with a `List` field truly immutable?**
+A: Use a compact constructor: `public MyRecord { items = List.copyOf(items); }`.
+
+### Coding Questions
+
+**C1: Write an immutable `Credentials` class (no records) with proper `equals`/`hashCode`/`toString`.**
+
+
+```java
+public final class Credentials {
+    private final String username;
+    private final String password;
+
+    public Credentials(String username, String password) {
+        if (username == null || username.isBlank()) throw new IllegalArgumentException("Username required");
+        this.username = username;
+        this.password = password;
+    }
+
+    public String getUsername() { return username; }
+    public String getPassword() { return password; }
+
+    @Override public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Credentials c = (Credentials) o;
+        return Objects.equals(username, c.username) && Objects.equals(password, c.password);
+    }
+    @Override public int hashCode() { return Objects.hash(username, password); }
+    @Override public String toString() { return "Credentials{username='" + username + "', password='***'}"; }
+}
+```
+
+**C2: Convert a mutable POJO to a record with validation.**
+
+
+```java
+// Before: mutable POJO with getters/setters/equals/hashCode (50+ lines)
+// After:
+public record PropertyListing(String name, double pricePerNight, int maxGuests) {
+    public PropertyListing {
+        if (name == null || name.isBlank()) throw new IllegalArgumentException("Name required");
+        if (pricePerNight <= 0) throw new IllegalArgumentException("Price must be positive");
+        if (maxGuests <= 0) throw new IllegalArgumentException("Max guests must be positive");
+    }
+}
+```
+
+**C3: Fix this record to be truly immutable.**
+
+
+```java
+// Broken:  public record TestEnvironment(String name, Map<String, String> properties) {}
+// Fixed:
+public record TestEnvironment(String name, Map<String, String> properties) {
+    public TestEnvironment {
+        if (name == null || name.isBlank()) throw new IllegalArgumentException("Name required");
+        properties = Map.copyOf(properties);
+    }
+}
+```
+
+
+
+
+**Q:** What four rules make a Java class immutable?
+**A:** `final` class, `final` fields, no setters, defensive copies of mutable fields.
+
+**Q:** What does a record auto-generate?
+**A:** Canonical constructor, accessor methods (no `get` prefix), `equals()`, `hashCode()`, `toString()`. Class is implicitly `final`.
+
+**Q:** What's a compact constructor?
+**A:** A record constructor written without a parameter list — runs validation before auto-generated field assignments.
+
+**Q:** Why is `final` on a reference NOT the same as immutability?
+**A:** `final` prevents reassigning the reference. The object it points to can still be mutated (`final List` still allows `list.add()`).
+
+**Q:** When should you NOT use a record?
+**A:** Need mutable state, class inheritance, no-arg constructor (some frameworks), or non-final fields.
+
+### Mastery Checklist
+
+- [ ] Can explain the four rules of immutability
+- [ ] Can write an immutable class with proper defensive copying
+- [ ] Can create a record with compact constructor validation
+- [ ] Can explain `List.of()` vs `List.copyOf()` vs `Collections.unmodifiableList()`
+- [ ] Can identify when a `final` field doesn't guarantee immutability
+- [ ] Can configure Jackson to deserialize into records
+- [ ] Know when to choose record vs class vs Lombok `@Value`
+- [ ] Can use sealed interfaces with records for closed type hierarchies
+
+---
+
+**Next:** Concurrency And Threadlocal | **Related:** Oop Fundamentals, Collections And Generics

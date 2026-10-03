@@ -1,0 +1,919 @@
+---
+title: "Interfaces and Composition"
+description: "What: Interfaces are contracts that define behavior without providing implementation. Composition is the practice of building complex objects by combining simpler ones rather than inheriting from parent classes."
+summary: "SDET Engineering guide: Interfaces and Composition"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "java"
+lesson: "interfaces-and-composition"
+difficulty: "beginner"
+estimatedMinutes: 59
+prerequisites: []
+tags: ["SDET", "Java", "Programming"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/java/interfaces-and-composition"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Interfaces and Composition
+
+> **Module:** 01-Programming Foundations > Java > Interfaces and Composition  
+> **Prerequisites:** Syntax And Control Flow, Oop Fundamentals, Collections And Generics  
+> **Mastery Target:** L3 (Independent)
+
+---
+
+## Quick Overview (2-minute read)
+
+**What:** Interfaces are contracts that define behavior without providing implementation. Composition is the practice of building complex objects by combining simpler ones rather than inheriting from parent classes.  
+**Why:** In test automation, interfaces let you swap implementations (browsers, environments, retry strategies) without changing test code. Composition prevents the brittle, deeply-nested base class hierarchies that plague every framework that over-uses inheritance.  
+**Where:** Driver management, page object design, retry mechanisms, test context setup, dependency injection, strategy selection.
+
+<MentalModel>
+
+Think of interfaces as **job descriptions** and classes as **employees who fulfill them**. A job description for "Browser Provider" says *what* the role must do (create a driver, report browser name) but doesn't dictate *how*. A `ChromeProvider` employee does it one way; a `RemoteProvider` employee does it another. The hiring manager (your test framework) only cares about the job description — it works with any employee that meets the contract.
+
+</MentalModel>
+
+
+Composition is **hiring specialists instead of cloning yourself**. Rather than one super-employee (deep inheritance) who tries to do everything, you assemble a team: one handles the browser, one handles config, one handles test data. Each specialist is replaceable independently.
+
+<KeyTakeaways>
+
+1. **Interfaces define what, not how** — they decouple the contract from the implementation, enabling flexibility and testability.
+2. **A class can implement multiple interfaces** — unlike single inheritance, this lets you compose behaviors freely.
+3. **Composition over inheritance** — "Has-a" relationships are more flexible than "Is-a" relationships; prefer `TestContext` that *has* a driver over `BaseWebTest` that *is* a base test.
+4. **Functional interfaces enable lambdas** — a single abstract method interface can be expressed as `(params) -> expression`, which powers modern Java test code.
+5. **Depend on abstractions, not concretions** — inject interfaces through constructors so implementations can be swapped for testing, different environments, or future requirements.
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation
+
+### Interfaces
+
+An interface declares a set of methods that a class must implement. It is a pure contract — no state, no constructors, just behavior signatures.
+
+**Declaring interfaces:**
+
+
+```java
+// Basic interface — all methods are implicitly public and abstract
+public interface BrowserProvider {
+    WebDriver createDriver(Map<String, Object> capabilities);
+    String getBrowserName();
+}
+
+// Default methods (Java 8+) — provide a default implementation that classes can override
+public interface Retryable {
+    boolean shouldRetry(int attempt, Exception lastException);
+    long getDelayMillis(int attempt);
+
+    default void waitBeforeRetry(int attempt) {
+        try {
+            Thread.sleep(getDelayMillis(attempt));
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+}
+
+// Static methods — utility methods that belong to the interface itself
+public interface TestDataSource {
+    List<Map<String, String>> loadData(String dataSetName);
+
+    static TestDataSource fromFormat(String format) {
+        return switch (format.toLowerCase()) {
+            case "csv"  -> new CsvDataSource();
+            case "json" -> new JsonDataSource();
+            case "xlsx" -> new ExcelDataSource();
+            default     -> throw new IllegalArgumentException("Unsupported format: " + format);
+        };
+    }
+}
+
+// Private methods (Java 9+) — shared helper logic within default methods
+public interface Loggable {
+    default void logInfo(String message) {
+        log("INFO", message);
+    }
+
+    default void logError(String message) {
+        log("ERROR", message);
+    }
+
+    private void log(String level, String message) {
+        System.out.printf("[%s] %s: %s%n", level,
+            java.time.LocalDateTime.now(), message);
+    }
+}
+```
+
+**Implementing interfaces — a class can implement multiple:**
+
+
+```java
+public class ChromeProvider implements BrowserProvider, Loggable {
+
+    @Override
+    public WebDriver createDriver(Map<String, Object> capabilities) {
+        logInfo("Creating Chrome driver with capabilities: " + capabilities);
+        ChromeOptions options = new ChromeOptions();
+        if (capabilities.containsKey("headless")) {
+            options.addArguments("--headless=new");
+        }
+        return new ChromeDriver(options);
+    }
+
+    @Override
+    public String getBrowserName() {
+        return "chrome";
+    }
+}
+```
+
+### Functional Interfaces
+
+A functional interface has **exactly one abstract method**. This single-method constraint is what allows lambdas — the compiler knows which method the lambda implements.
+
+
+```java
+// The @FunctionalInterface annotation is optional but recommended —
+// it causes a compile error if someone adds a second abstract method
+@FunctionalInterface
+public interface ElementCondition {
+    boolean test(WebElement element);
+}
+
+// Usage with a lambda:
+ElementCondition isDisplayed = element -> element.isDisplayed();
+ElementCondition hasText = element -> !element.getText().isEmpty();
+
+// Usage with a method reference:
+ElementCondition isEnabled = WebElement::isEnabled;
+```
+
+**Key built-in functional interfaces (java.util.function):**
+
+| Interface | Method Signature | Purpose | Automation Example |
+|-----------|-----------------|---------|-------------------|
+| `Supplier<T>` | `T get()` | Provide a value, no input | `() -> new ChromeDriver()` |
+| `Consumer<T>` | `void accept(T t)` | Perform action, no return | `driver -> driver.quit()` |
+| `Function<T,R>` | `R apply(T t)` | Transform a value | `element -> element.getText()` |
+| `Predicate<T>` | `boolean test(T t)` | Test a condition | `r -> r.getStatus() == 200` |
+| `Runnable` | `void run()` | Execute action, no input/output | `() -> driver.navigate().refresh()` |
+| `Callable<V>` | `V call() throws Exception` | Compute value, may throw | `() -> api.getResponse("/health")` |
+
+### Interface vs Abstract Class
+
+| Aspect | Interface | Abstract Class |
+|--------|-----------|----------------|
+| **Multiple inheritance** | A class can implement many | A class can extend only one |
+| **State (fields)** | Only `static final` constants | Can have instance fields |
+| **Constructors** | None | Yes — subclasses call `super()` |
+| **Access modifiers** | Methods are implicitly `public` | Can have any access modifier |
+| **Default methods** | Yes (Java 8+) | Yes (always could) |
+| **When to use** | Defining a capability/contract across unrelated classes | Sharing code and state among closely related classes |
+| **Automation example** | `BrowserProvider` — Chrome, Firefox, Remote are unrelated classes that share a contract | `BasePage` — all page objects share setup logic and a driver field |
+
+**Decision guide:** If you're defining *what something can do* (a capability), use an interface. If you're defining *what something is* and want to share implementation code, use an abstract class. When in doubt, start with an interface — you can always add an abstract class later, but you can't undo single inheritance.
+
+### Composition
+
+Composition means building complex behavior by combining simple objects. A class *has* its dependencies rather than *being* a specialization of a parent.
+
+**Has-a vs Is-a:**
+
+```
+Has-a (Composition):  "A TestContext HAS-A driver, HAS-A config, HAS-A data manager"
+Is-a  (Inheritance):  "A WebTest IS-A BaseTest IS-A AbstractRunner IS-A ..."
+```
+
+**Why deep inheritance hierarchies are fragile:**
+
+```
+BaseTest                    ← has WebDriver setup
+  └── BaseWebTest           ← adds URL navigation, waits
+        └── BaseLoginTest   ← adds login helper
+              └── BaseAdminTest  ← adds admin privileges
+                    └── BookingTest  ← your actual test, 4 levels deep
+```
+
+Problems with the above:
+1. **Fragile base class** — changing `BaseWebTest` can silently break `BookingTest` three levels down.
+2. **Forced inheritance** — what if a test needs admin privileges but NOT login (API-created session)? You can't skip a level.
+3. **Hidden dependencies** — a reader of `BookingTest` must read four parent classes to understand what's available.
+4. **Single inheritance limit** — if `BookingTest` also needs database validation behavior from another hierarchy, you're stuck.
+
+### Strategy Pattern
+
+The strategy pattern uses interfaces to swap behavior at runtime. Instead of hardcoding an algorithm, you inject it.
+
+
+```java
+// The strategy interface
+public interface RetryStrategy {
+    boolean shouldRetry(int attempt, Exception lastException);
+    long getDelayMillis(int attempt);
+}
+
+// Strategy 1: Fixed delay between retries
+public class FixedDelayRetry implements RetryStrategy {
+    private final int maxAttempts;
+    private final long delayMs;
+
+    public FixedDelayRetry(int maxAttempts, long delayMs) {
+        this.maxAttempts = maxAttempts;
+        this.delayMs = delayMs;
+    }
+
+    @Override
+    public boolean shouldRetry(int attempt, Exception lastException) {
+        return attempt < maxAttempts;
+    }
+
+    @Override
+    public long getDelayMillis(int attempt) {
+        return delayMs;
+    }
+}
+
+// Strategy 2: Exponential backoff
+public class ExponentialBackoffRetry implements RetryStrategy {
+    private final int maxAttempts;
+    private final long initialDelayMs;
+    private final long maxDelayMs;
+
+    public ExponentialBackoffRetry(int maxAttempts, long initialDelayMs, long maxDelayMs) {
+        this.maxAttempts = maxAttempts;
+        this.initialDelayMs = initialDelayMs;
+        this.maxDelayMs = maxDelayMs;
+    }
+
+    @Override
+    public boolean shouldRetry(int attempt, Exception lastException) {
+        return attempt < maxAttempts;
+    }
+
+    @Override
+    public long getDelayMillis(int attempt) {
+        long delay = initialDelayMs * (long) Math.pow(2, attempt - 1);
+        return Math.min(delay, maxDelayMs);
+    }
+}
+```
+
+### Decorator Pattern
+
+The decorator pattern adds behavior without modifying existing classes by wrapping them. Both the wrapper and the original implement the same interface.
+
+
+```java
+// Base interface
+public interface ApiClient {
+    Response execute(Request request);
+}
+
+// Concrete implementation
+public class HttpApiClient implements ApiClient {
+    @Override
+    public Response execute(Request request) {
+        // actual HTTP call
+        return httpLibrary.send(request);
+    }
+}
+
+// Decorator: adds logging without modifying HttpApiClient
+public class LoggingApiClient implements ApiClient {
+    private final ApiClient delegate;
+    private static final Logger log = LoggerFactory.getLogger(LoggingApiClient.class);
+
+    public LoggingApiClient(ApiClient delegate) {
+        this.delegate = delegate;
+    }
+
+    @Override
+    public Response execute(Request request) {
+        log.info("Request: {} {}", request.getMethod(), request.getUrl());
+        long start = System.currentTimeMillis();
+        Response response = delegate.execute(request);
+        log.info("Response: {} in {}ms", response.getStatusCode(),
+            System.currentTimeMillis() - start);
+        return response;
+    }
+}
+
+// Usage: stack decorators
+ApiClient client = new LoggingApiClient(new HttpApiClient());
+```
+
+### Dependency Injection (Simplified)
+
+**Constructor injection** means passing dependencies through the constructor rather than creating them internally.
+
+
+```java
+// BAD: class creates its own dependency — tightly coupled
+public class TestRunner {
+    private final ChromeDriver driver = new ChromeDriver();  // hardcoded to Chrome
+}
+
+// GOOD: dependency injected through constructor via interface
+public class TestRunner {
+    private final BrowserProvider browserProvider;
+
+    public TestRunner(BrowserProvider browserProvider) {
+        this.browserProvider = browserProvider;
+    }
+
+    public void runTest(TestCase testCase) {
+        WebDriver driver = browserProvider.createDriver(testCase.getCapabilities());
+        // ... run the test
+    }
+}
+
+// Now you can inject any implementation:
+TestRunner chromeRunner = new TestRunner(new ChromeProvider());
+TestRunner firefoxRunner = new TestRunner(new FirefoxProvider());
+TestRunner remoteRunner = new TestRunner(new RemoteProvider("http://grid:4444"));
+```
+
+**Why constructor injection matters:**
+1. **Testability** — inject a mock or stub during unit testing.
+2. **Flexibility** — swap Chrome for Firefox by changing one line, not the entire class.
+3. **Clear dependencies** — the constructor explicitly declares what the class needs.
+4. **Connection to interfaces** — always inject the interface (`BrowserProvider`), never the implementation (`ChromeProvider`).
+
+---
+
+## Practical Implementation
+
+### Example 1: Interface-Based Driver Management
+
+A complete driver factory that uses interfaces and composition to provide flexible browser management.
+
+
+```java
+import org.openqa.selenium.WebDriver;
+import org.openqa.selenium.chrome.ChromeDriver;
+import org.openqa.selenium.chrome.ChromeOptions;
+import org.openqa.selenium.firefox.FirefoxDriver;
+import org.openqa.selenium.firefox.FirefoxOptions;
+import org.openqa.selenium.remote.RemoteWebDriver;
+
+import java.net.URL;
+import java.util.Map;
+
+// The contract
+public interface BrowserProvider {
+    WebDriver createDriver(Map<String, Object> capabilities);
+    String getBrowserName();
+}
+
+// Chrome implementation
+public class ChromeProvider implements BrowserProvider {
+
+    @Override
+    public WebDriver createDriver(Map<String, Object> capabilities) {
+        ChromeOptions options = new ChromeOptions();
+        if (Boolean.TRUE.equals(capabilities.get("headless"))) {
+            options.addArguments("--headless=new");
+        }
+        if (capabilities.containsKey("windowSize")) {
+            options.addArguments("--window-size=" + capabilities.get("windowSize"));
+        }
+        options.addArguments("--disable-gpu", "--no-sandbox");
+        return new ChromeDriver(options);
+    }
+
+    @Override
+    public String getBrowserName() {
+        return "chrome";
+    }
+}
+
+// Firefox implementation
+public class FirefoxProvider implements BrowserProvider {
+
+    @Override
+    public WebDriver createDriver(Map<String, Object> capabilities) {
+        FirefoxOptions options = new FirefoxOptions();
+        if (Boolean.TRUE.equals(capabilities.get("headless"))) {
+            options.addArguments("--headless");
+        }
+        return new FirefoxDriver(options);
+    }
+
+    @Override
+    public String getBrowserName() {
+        return "firefox";
+    }
+}
+
+// Remote grid implementation
+public class RemoteProvider implements BrowserProvider {
+    private final String gridUrl;
+
+    public RemoteProvider(String gridUrl) {
+        this.gridUrl = gridUrl;
+    }
+
+    @Override
+    public WebDriver createDriver(Map<String, Object> capabilities) {
+        ChromeOptions options = new ChromeOptions();
+        options.setCapability("platformName", capabilities.getOrDefault("platform", "LINUX"));
+        try {
+            return new RemoteWebDriver(new URL(gridUrl), options);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to connect to grid: " + gridUrl, e);
+        }
+    }
+
+    @Override
+    public String getBrowserName() {
+        return "remote-chrome";
+    }
+}
+
+// Factory that selects the right provider based on config
+public class DriverFactory {
+    private static final Map<String, BrowserProvider> PROVIDERS = Map.of(
+        "chrome",  new ChromeProvider(),
+        "firefox", new FirefoxProvider()
+    );
+
+    public static BrowserProvider getProvider(String browserName) {
+        BrowserProvider provider = PROVIDERS.get(browserName.toLowerCase());
+        if (provider == null) {
+            throw new IllegalArgumentException("Unsupported browser: " + browserName
+                + ". Available: " + PROVIDERS.keySet());
+        }
+        return provider;
+    }
+
+    public static BrowserProvider getProvider(String browserName, String gridUrl) {
+        if (gridUrl != null && !gridUrl.isBlank()) {
+            return new RemoteProvider(gridUrl);
+        }
+        return getProvider(browserName);
+    }
+}
+```
+
+**What this does:** Separates the *contract* for creating browsers from the *implementation* of each browser. Adding Safari support means creating a `SafariProvider` class — zero changes to `DriverFactory`, `TestContext`, or any test.
+
+### Example 2: Composition-Based Test Context (vs Inheritance)
+
+
+```java
+// ═══════════════════════════════════════════════
+// BAD: Deep inheritance — every test drags along 4 parent classes
+// ═══════════════════════════════════════════════
+
+class BaseTest {
+    protected WebDriver driver;
+    @BeforeMethod void setupDriver() { driver = new ChromeDriver(); }
+    @AfterMethod void teardownDriver() { driver.quit(); }
+}
+
+class BaseWebTest extends BaseTest {
+    protected void navigateTo(String url) { driver.get(url); }
+    protected void waitForPageLoad() { /* ... */ }
+}
+
+class BaseLoginTest extends BaseWebTest {
+    protected void loginAs(String user, String pass) { /* ... */ }
+}
+
+class BookingTest extends BaseLoginTest {
+    // 4 levels deep — what does this class actually have access to?
+    // A reader must trace through BaseLoginTest → BaseWebTest → BaseTest
+    @Test
+    void testCreateBooking() {
+        loginAs("admin", "pass123");
+        navigateTo("/bookings/new");
+        // ... test logic
+    }
+}
+
+// ═══════════════════════════════════════════════
+// GOOD: Composition — flat, explicit, replaceable
+// ═══════════════════════════════════════════════
+
+public class TestContext {
+    private final BrowserProvider browserProvider;
+    private final ConfigLoader config;
+    private final TestDataManager data;
+    private WebDriver driver;
+
+    // Constructor injection — dependencies are explicit
+    public TestContext(BrowserProvider browserProvider, ConfigLoader config,
+                       TestDataManager data) {
+        this.browserProvider = browserProvider;
+        this.config = config;
+        this.data = data;
+    }
+
+    public WebDriver getDriver() {
+        if (driver == null) {
+            driver = browserProvider.createDriver(config.getCapabilities());
+        }
+        return driver;
+    }
+
+    public ConfigLoader getConfig() { return config; }
+    public TestDataManager getData() { return data; }
+
+    public void teardown() {
+        if (driver != null) {
+            driver.quit();
+            driver = null;
+        }
+    }
+}
+
+// Test class — flat, no inheritance chain
+public class BookingTest {
+    private TestContext context;  // HAS-A, not IS-A
+
+    @BeforeMethod
+    void setup() {
+        context = new TestContext(
+            DriverFactory.getProvider("chrome"),
+            new ConfigLoader("booking-tests.properties"),
+            new TestDataManager("booking-data.json")
+        );
+    }
+
+    @AfterMethod
+    void teardown() {
+        context.teardown();
+    }
+
+    @Test
+    void testCreateBooking() {
+        WebDriver driver = context.getDriver();
+        driver.get(context.getConfig().get("baseUrl") + "/bookings/new");
+        // ... test logic using context.getData() for test data
+    }
+}
+```
+
+**What this does:** Replaces a 4-level inheritance chain with a single composed `TestContext`. Each component (browser, config, data) is independently replaceable. A reader of `BookingTest` sees everything it depends on in one place.
+
+### Example 3: Strategy Pattern for Retry Logic
+
+
+```java
+import java.util.function.Supplier;
+
+/**
+ * A generic retry executor that uses the strategy pattern.
+ * The retry STRATEGY is injected — the executor doesn't know or care
+ * whether it's fixed-delay, exponential backoff, or something custom.
+ */
+public class RetryExecutor {
+    private final RetryStrategy strategy;
+
+    public RetryExecutor(RetryStrategy strategy) {
+        this.strategy = strategy;
+    }
+
+    /**
+     * Executes the given action with retry logic.
+     * @param action     the operation to retry
+     * @param actionName description for logging
+     * @return the result of the action
+     * @throws RuntimeException if all retries are exhausted
+     */
+    public <T> T execute(Supplier<T> action, String actionName) {
+        int attempt = 0;
+        Exception lastException = null;
+
+        while (true) {
+            attempt++;
+            try {
+                return action.get();
+            } catch (Exception e) {
+                lastException = e;
+                if (!strategy.shouldRetry(attempt, e)) {
+                    break;
+                }
+                long delay = strategy.getDelayMillis(attempt);
+                System.out.printf("Retry %d for '%s' after %dms: %s%n",
+                    attempt, actionName, delay, e.getMessage());
+                try {
+                    Thread.sleep(delay);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw new RuntimeException("Retry interrupted", ie);
+                }
+            }
+        }
+        throw new RuntimeException(
+            String.format("'%s' failed after %d attempts", actionName, attempt),
+            lastException
+        );
+    }
+}
+
+// Usage — swap strategies without changing the executor or the test
+RetryExecutor quickRetry = new RetryExecutor(new FixedDelayRetry(3, 500));
+RetryExecutor patientRetry = new RetryExecutor(
+    new ExponentialBackoffRetry(5, 1000, 30000)
+);
+
+// Same action, different strategies:
+String result = quickRetry.execute(
+    () -> apiClient.get("/health").getBody(),
+    "Health check"
+);
+```
+
+**What this does:** Separates *what to retry* from *how to retry*. The `RetryExecutor` works with any `RetryStrategy` implementation. Adding a new strategy (e.g., retry only on specific exception types) requires zero changes to existing code.
+
+---
+
+## Failure and Debugging
+
+### Scenario 1: Default Method Conflict
+
+**Deliberately Broken Example:**
+
+
+```java
+public interface Loggable {
+    default String getIdentifier() {
+        return "Loggable-" + hashCode();
+    }
+}
+
+public interface Trackable {
+    default String getIdentifier() {
+        return "Trackable-" + hashCode();
+    }
+}
+
+// COMPILE ERROR: class inherits unrelated defaults for getIdentifier()
+public class TestStep implements Loggable, Trackable {
+    // Which getIdentifier() should be used? Compiler can't decide.
+}
+```
+
+**Expected:** Class implements both interfaces cleanly.  
+**Actual:** Compile error — `class TestStep inherits unrelated defaults for getIdentifier() from types Loggable and Trackable`.
+
+**Root Cause:** Both interfaces provide a default implementation for the same method signature. The compiler requires the class to resolve the ambiguity.
+
+**Corrected Implementation:**
+
+
+```java
+public class TestStep implements Loggable, Trackable {
+
+    @Override
+    public String getIdentifier() {
+        // Option 1: provide your own implementation
+        return "TestStep-" + hashCode();
+
+        // Option 2: explicitly delegate to one interface's default
+        // return Loggable.super.getIdentifier();
+
+        // Option 3: combine both
+        // return Loggable.super.getIdentifier() + "|" + Trackable.super.getIdentifier();
+    }
+}
+```
+
+<BestPractice>
+
+**Prevention:** Keep default methods minimal. If two interfaces might be implemented together, avoid overlapping method names, or make the method abstract and let the implementing class decide.
+
+</BestPractice>
+
+
+### Scenario 2: Concrete Dependency Instead of Interface
+
+**Deliberately Broken Example:**
+
+
+```java
+// BAD: test class depends on concrete ChromeDriver — can't test without a browser
+public class LoginService {
+    private final ChromeDriver driver;  // concrete dependency
+
+    public LoginService() {
+        this.driver = new ChromeDriver();  // created internally — can't replace
+    }
+
+    public boolean login(String user, String pass) {
+        driver.get("https://app.example.com/login");
+        driver.findElement(By.id("username")).sendKeys(user);
+        driver.findElement(By.id("password")).sendKeys(pass);
+        driver.findElement(By.id("submit")).click();
+        return driver.getTitle().contains("Dashboard");
+    }
+}
+
+// Can't unit test this without launching a real Chrome browser
+// Can't switch to Firefox or headless for CI
+// Can't mock the driver for fast tests
+```
+
+**Corrected Implementation:**
+
+
+```java
+// GOOD: depend on the interface, inject through constructor
+public class LoginService {
+    private final WebDriver driver;  // interface — any implementation works
+
+    public LoginService(WebDriver driver) {
+        this.driver = driver;  // injected — caller decides the implementation
+    }
+
+    public boolean login(String user, String pass) {
+        driver.get("https://app.example.com/login");
+        driver.findElement(By.id("username")).sendKeys(user);
+        driver.findElement(By.id("password")).sendKeys(pass);
+        driver.findElement(By.id("submit")).click();
+        return driver.getTitle().contains("Dashboard");
+    }
+}
+
+// Now you can:
+// Production: new LoginService(new ChromeDriver())
+// CI:         new LoginService(new RemoteWebDriver(...))
+// Unit test:  new LoginService(mockDriver)
+```
+
+### Scenario 3: Over-Abstraction
+
+**Deliberately Broken Example:**
+
+
+```java
+// BAD: interface for something that will only ever have one implementation
+public interface StringCleaner {
+    String clean(String input);
+}
+
+public class DefaultStringCleaner implements StringCleaner {
+    @Override
+    public String clean(String input) {
+        return input == null ? "" : input.trim();
+    }
+}
+
+// Now every class that trims a string needs:
+// - An interface file
+// - An implementation file
+// - Constructor injection
+// - Registration in a DI container
+// All for input.trim()
+```
+
+**Why this is wrong:** Not everything needs an interface. If there's exactly one implementation and no foreseeable second one, the interface is ceremony without value. It makes the codebase harder to navigate (more files, more indirection) without adding flexibility.
+
+**Corrected — just use the class directly:**
+
+
+```java
+// GOOD: simple utility method — no interface needed
+public class StringUtils {
+    public static String clean(String input) {
+        return input == null ? "" : input.trim();
+    }
+}
+```
+
+---
+
+## Engineering Judgment
+
+### When to Create an Interface vs. Use a Concrete Class
+
+| Scenario | Use Interface | Use Concrete Class |
+|----------|--------------|-------------------|
+| Multiple implementations exist or are likely | Yes — `BrowserProvider` | No |
+| You need testability (mocking dependencies) | Yes — inject interface, mock in tests | Only if mocking isn't needed |
+| Defining a contract between teams/modules | Yes — agreed API surface | No |
+| Simple utility with one implementation | No — over-engineering | Yes — `StringUtils.clean()` |
+| Internal helper used in one class | No | Yes — private helper method |
+
+**Rule of thumb:** If there will be 2+ implementations OR you need testability (mocking), use an interface. Otherwise, start with a concrete class and extract an interface when the need arises.
+
+### When Composition Becomes Over-Engineering
+
+Composition is not free. Each composed object adds a constructor parameter, a field, and a lifecycle to manage. Signs you've gone too far:
+
+- **Single-use components** — a `UrlBuilder` class used by exactly one method that could be a 3-line helper.
+- **Dependency chain explosion** — `TestContext` needs `BrowserProvider` needs `CapabilityResolver` needs `ConfigParser` needs `FileReader` — 5 objects to start a test.
+- **Test setup is longer than the test** — if your `@BeforeMethod` is 20 lines of object wiring for a 5-line test, reconsider.
+
+**Practical balance:** Compose the things that *change independently* (browser, config, data source). Inline the things that are *stable and simple* (string formatting, URL construction).
+
+### Interface Segregation
+
+Prefer small, focused interfaces over large ones. A class should not be forced to implement methods it doesn't use.
+
+
+```java
+// BAD: monolithic interface — forces every implementation to handle everything
+public interface TestLifecycle {
+    void setupBrowser();
+    void setupDatabase();
+    void setupMockServer();
+    void teardownAll();
+}
+
+// GOOD: segregated interfaces — implement only what you need
+public interface BrowserSetup {
+    void setupBrowser();
+    void teardownBrowser();
+}
+
+public interface DatabaseSetup {
+    void setupDatabase();
+    void teardownDatabase();
+}
+
+// A UI test implements BrowserSetup only
+// A DB test implements DatabaseSetup only
+// An integration test can implement both
+```
+
+---
+
+## Interview and Revision
+
+### Fundamental Questions
+
+**Q1: What is the difference between an interface and an abstract class?**  
+**A:** An interface defines a contract of behavior — a class can implement multiple interfaces, but interfaces cannot hold instance state (only `static final` constants). An abstract class provides a partial implementation that subclasses extend — it can have instance fields, constructors, and any access modifier, but a class can extend only one abstract class. Use interfaces for defining capabilities across unrelated types; use abstract classes for sharing code among closely related types.
+
+**Q2: What is a functional interface?**  
+**A:** A functional interface has exactly one abstract method (it can have any number of default or static methods). This constraint enables lambda expressions — the compiler maps the lambda to the single abstract method. Examples: `Predicate<T>`, `Function<T,R>`, `Supplier<T>`, `Consumer<T>`. The `@FunctionalInterface` annotation is optional but recommended because it triggers a compile error if someone adds a second abstract method.
+
+**Q3: Explain composition over inheritance. Why is it preferred?**  
+**A:** Composition means building a class by holding references to other objects ("has-a") rather than extending a parent class ("is-a"). It's preferred because: (1) components are replaceable independently, (2) it avoids the fragile base class problem where changes to a parent break all children, (3) Java's single inheritance limit doesn't constrain you, and (4) dependencies are explicit in the constructor rather than hidden across an inheritance chain.
+
+**Q4: What is the strategy pattern?**  
+**A:** The strategy pattern defines a family of algorithms behind a common interface and makes them interchangeable at runtime. Instead of hardcoding behavior (e.g., retry logic), you inject the strategy through the constructor. This allows different behaviors (fixed delay, exponential backoff) without modifying the code that uses them. It's a direct application of "depend on abstractions, not concretions."
+
+**Q5: What is dependency injection and why does it matter for test automation?**  
+**A:** Dependency injection means passing an object's dependencies through its constructor (or setter) rather than creating them internally. It matters because: (1) you can inject different implementations for different environments (Chrome locally, Remote in CI), (2) you can inject mocks for unit testing, and (3) it makes dependencies explicit — reading the constructor tells you everything the class needs.
+
+**Q6: What are default methods in interfaces and when should you use them?**  
+**A:** Default methods (Java 8+) provide an implementation directly in the interface, so implementing classes don't have to override them. They were introduced primarily to evolve existing interfaces without breaking all implementations (e.g., adding `forEach` to `Iterable`). Use them for convenience methods that build on the abstract methods. Avoid using them to sneak state management into interfaces — that's what abstract classes are for.
+
+### Scenario-Based Questions
+
+**S1: "You inherited a test framework where every test extends `BaseTest extends BaseWebTest extends BaseLoginTest`. Adding API-only tests is painful because they inherit browser setup they don't need. How do you refactor?"**  
+**A:** I'd introduce composition. Create a `TestContext` class that holds optional components — `BrowserProvider`, `ApiClient`, `TestDataManager` — each injected through the constructor. API tests create a `TestContext` with only an `ApiClient`. UI tests include a `BrowserProvider`. This eliminates the forced inheritance chain and allows any combination of capabilities. I'd migrate tests incrementally, starting with new tests using the composed approach and converting existing tests as they're touched.
+
+**S2: "A colleague creates an interface for every class, even utility classes with a single static method. What's your feedback?"**  
+**A:** Over-abstraction creates noise without adding value. Interfaces exist to define contracts with multiple possible implementations or to enable testability through mocking. A utility class with a single static `trimString()` method doesn't need an interface — it will only ever have one implementation, and you'd never mock it. I'd recommend the rule of thumb: create an interface when there are 2+ implementations, when you need mocking in tests, or when defining a contract between modules. Otherwise, use a concrete class and extract an interface later if the need emerges.
+
+**S3: "You need to support running tests against Chrome, Firefox, and a remote Selenium Grid. The current code has `new ChromeDriver()` scattered across 50 test classes. How do you fix this?"**  
+**A:** First, define a `BrowserProvider` interface with a `createDriver()` method. Create implementations for `ChromeProvider`, `FirefoxProvider`, and `RemoteProvider`. Build a `DriverFactory` that reads the target browser from configuration and returns the appropriate provider. Then replace all 50 `new ChromeDriver()` calls with a factory call. Each test gets its driver from the factory, and switching browsers becomes a config change, not a code change.
+
+
+
+
+| # | Front (Question) | Back (Answer) |
+|---|---|---|
+| 1 | How many abstract methods can a functional interface have? | Exactly one. This is what enables lambda expressions — the compiler maps the lambda to that single method. Default and static methods don't count. |
+| 2 | What's the difference between `Supplier<T>` and `Callable<V>`? | Both produce a value with no input. `Supplier.get()` cannot throw checked exceptions; `Callable.call()` can. Use `Callable` when the computation might throw (e.g., I/O, network). |
+| 3 | What happens when two interfaces with the same default method are implemented by one class? | Compile error. The class must override the conflicting method and either provide its own implementation or delegate with `InterfaceName.super.methodName()`. |
+| 4 | What is the fragile base class problem? | Changing a parent class in an inheritance hierarchy can silently break child classes that depend on its behavior. Composition avoids this because components are independent. |
+| 5 | When should you inject an interface vs. a concrete class? | Inject an interface when you need flexibility (multiple implementations, mocking, environment switching). Inject a concrete class only when there's genuinely one implementation and no testing benefit from abstraction. |
+
+### Mastery Checklist
+
+- [ ] Can declare interfaces with abstract, default, static, and private methods
+- [ ] Can implement multiple interfaces in a single class and resolve default method conflicts
+- [ ] Can identify and create functional interfaces and use them with lambda expressions
+- [ ] Can name and use the key built-in functional interfaces (`Supplier`, `Consumer`, `Function`, `Predicate`)
+- [ ] Can explain the interface vs abstract class decision with concrete automation examples
+- [ ] Can refactor an inheritance hierarchy into a composition-based design
+- [ ] Can implement the strategy pattern (e.g., retry strategies, browser providers)
+- [ ] Can implement the decorator pattern to add behavior without modifying existing classes
+- [ ] Can apply constructor-based dependency injection and explain its benefits for testability
+- [ ] Can identify over-abstraction and articulate when an interface is unnecessary
+
+---
+
+*Last updated: *

@@ -1,0 +1,942 @@
+---
+title: "REST Assured — Test Organization Patterns"
+description: "What: Test organization is the architecture of your test suite — how tests share setup, how data drives test variations, how tests are grouped and filtered, and how they execute in parallel. It's the difference between 200 test methods that each do their own login and a structured suite with shared infrastructure, clear categories, and fast parallel execution."
+summary: "SDET Engineering guide: REST Assured — Test Organization Patterns"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "api-automation"
+lesson: "rest-assured-java-test-organization-patterns"
+difficulty: "intermediate"
+estimatedMinutes: 61
+prerequisites: []
+tags: ["SDET", "API", "REST", "Testing"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/api-automation/rest-assured-java-test-organization-patterns"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# REST Assured — Test Organization Patterns
+
+> **Module:** 04 — API Automation > REST Assured Java  
+> **Prerequisites:** Setup And First Tests, Advanced Request Patterns, Test Lifecycle And Fixtures  
+> **Mastery Target:** L3 (Independent) — can structure a complete API test suite with shared setup, data-driven tests, groups, parallel execution, and soft assertions
+
+---
+
+## Quick Overview (Layer 1)
+
+**What:** Test organization is the architecture of your test suite — how tests share setup, how data drives test variations, how tests are grouped and filtered, and how they execute in parallel. It's the difference between 200 test methods that each do their own login and a structured suite with shared infrastructure, clear categories, and fast parallel execution.
+
+**Why:** You can write individual REST Assured tests. But when the suite grows to 200+ tests, disorganization kills productivity. Tests duplicate setup code. There's no way to run just the smoke tests. A failure in one test cascades to ten dependents. CI takes 30 minutes because everything runs sequentially. These patterns solve each of these problems — they're what makes a test suite maintainable at scale.
+
+**Where:** Every non-trivial API test suite. `BaseApiTest` appears in every project you'll work on. `@DataProvider` appears wherever you need to test the same logic with different inputs. Test groups appear whenever QA or CI needs to run subsets. Parallel execution appears the moment your sequential suite exceeds 5 minutes.
+
+<MentalModel>
+
+Think of test organization as **organizing a kitchen for a restaurant, not a home cook**. A home cook (solo developer) can get by with a single drawer for utensils. A restaurant kitchen (team test suite) needs stations (base classes), mise en place (shared setup), recipes that scale (data providers), kitchen sections (test groups), and multiple cooks working simultaneously (parallel execution). The food is the same — the organization is what makes it work at scale.
+
+</MentalModel>
+
+
+<KeyTakeaways>
+
+1. `BaseApiTest` centralizes shared setup (base URI, logging, token management) — every test class extends it instead of duplicating configuration.
+2. `@DataProvider` drives the same test logic with multiple data sets — test the signup endpoint with valid data, missing fields, invalid emails, and duplicate emails from one test method.
+3. Test groups (`smoke`, `regression`, `negative`) let CI run the right tests at the right time — smoke tests on every commit, full regression nightly.
+4. Soft assertions (AssertJ) collect all failures before reporting — one test run finds five bugs instead of stopping at the first.
+5. Parallel execution cuts suite time proportionally — 10 minutes sequential becomes ~3 minutes with 4 threads, if tests are independent.
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation (Layer 2)
+
+### BaseApiTest — Shared Test Infrastructure
+
+Every test class extends `BaseApiTest`, which provides configuration, token management, and common helpers:
+
+
+```java
+import io.restassured.RestAssured;
+import io.restassured.builder.RequestSpecBuilder;
+import io.restassured.filter.log.LogDetail;
+import io.restassured.http.ContentType;
+import io.restassured.specification.RequestSpecification;
+import org.testng.annotations.BeforeClass;
+import org.testng.annotations.BeforeSuite;
+
+/**
+ * Base class for all API tests. Provides:
+ * - Base URI configuration from system properties
+ * - Shared RequestSpecifications (unauthenticated, guest, manager, admin)
+ * - Token management via TokenManager
+ * - Common helper methods (unique email generation, login)
+ *
+ * Every test class extends this — no test duplicates this setup.
+ */
+public abstract class BaseApiTest {
+
+    // Shared specs — initialized once per suite, used by all tests
+    protected static RequestSpecification baseSpec;
+    protected static RequestSpecification guestSpec;
+    protected static RequestSpecification managerSpec;
+
+    // Token managers — handle login, expiry, and refresh automatically
+    protected static TokenManager guestTokenManager;
+    protected static TokenManager managerTokenManager;
+
+    /**
+     * Suite-level setup — runs once before all test classes.
+     * Configures base URI and creates token managers.
+     */
+    @BeforeSuite
+    public void suiteSetup() {
+        String baseUri = System.getProperty("api.baseUri", "http://localhost:8080");
+        String basePath = System.getProperty("api.basePath", "/api/v1");
+
+        // Base spec: all tests inherit this
+        baseSpec = new RequestSpecBuilder()
+            .setBaseUri(baseUri)
+            .setBasePath(basePath)
+            .setContentType(ContentType.JSON)
+            .setAccept(ContentType.JSON)
+            .log(LogDetail.URI)
+            .build();
+
+        // Token managers: handle auth lifecycle automatically
+        guestTokenManager = new TokenManager("guest@staynest.com", "pass123");
+        managerTokenManager = new TokenManager("manager@staynest.com", "pass123");
+    }
+
+    /**
+     * Class-level setup — runs once per test class.
+     * Builds authenticated specs using current (possibly refreshed) tokens.
+     */
+    @BeforeClass
+    public void classSetup() {
+        guestSpec = new RequestSpecBuilder()
+            .addRequestSpecification(baseSpec)
+            .addHeader("Authorization", "Bearer " + guestTokenManager.getAccessToken())
+            .build();
+
+        managerSpec = new RequestSpecBuilder()
+            .addRequestSpecification(baseSpec)
+            .addHeader("Authorization", "Bearer " + managerTokenManager.getAccessToken())
+            .build();
+    }
+
+    // --- Common helper methods ---
+
+    /**
+     * Generates a unique email for test isolation.
+     * Pattern: test-{uuid}@staynest.com
+     */
+    protected String uniqueEmail() {
+        return "test-" + java.util.UUID.randomUUID().toString().substring(0, 8)
+               + "@staynest.com";
+    }
+
+    /**
+     * Generates a unique name for test data.
+     * Pattern: Test-{timestamp}
+     */
+    protected String uniqueName() {
+        return "Test-" + System.currentTimeMillis();
+    }
+
+    /**
+     * Logs in and returns an access token.
+     * For one-off logins in specific tests (e.g., newly created users).
+     */
+    protected String loginAndGetToken(String email, String password) {
+        return io.restassured.RestAssured.given()
+            .spec(baseSpec)
+            .body(String.format("{\"email\":\"%s\",\"password\":\"%s\"}", email, password))
+        .when()
+            .post("/auth/login")
+        .then()
+            .statusCode(200)
+            .extract().path("data.accessToken");
+    }
+}
+```
+
+**Why abstract:** `BaseApiTest` should never be instantiated directly — it exists only as a parent. Making it `abstract` enforces this and clearly communicates its role.
+
+### @DataProvider for Data-Driven API Tests
+
+`@DataProvider` feeds multiple data sets into a single test method. Each data set is a separate test execution:
+
+
+```java
+import org.testng.annotations.DataProvider;
+import org.testng.annotations.Test;
+import static io.restassured.RestAssured.given;
+import static org.hamcrest.Matchers.*;
+
+public class SignupValidationTest extends BaseApiTest {
+
+    /**
+     * Data provider: each row is one test case.
+     * Columns: test case name, request body, expected status, expected error message.
+     * 
+     * The first column (name) makes test reports readable:
+     * "testSignupValidation[missing_email]" instead of "testSignupValidation[0]"
+     */
+    @DataProvider(name = "signupValidationData")
+    public Object[][] signupValidationData() {
+        return new Object[][] {
+            // Test name          | Request body                              | Expected status | Expected error
+            { "missing_email",
+              """{"name":"Test","password":"Test@12345","dateOfBirth":"1990-01-01","gender":"MALE","role":"GUEST"}""",
+              400, "email" },
+
+            { "missing_password",
+              """{"name":"Test","email":"%UNIQUE_EMAIL%","dateOfBirth":"1990-01-01","gender":"MALE","role":"GUEST"}""",
+              400, "password" },
+
+            { "invalid_email_format",
+              """{"name":"Test","email":"not-an-email","password":"Test@12345","dateOfBirth":"1990-01-01","gender":"MALE","role":"GUEST"}""",
+              400, "email" },
+
+            { "password_too_short",
+              """{"name":"Test","email":"%UNIQUE_EMAIL%","password":"123","dateOfBirth":"1990-01-01","gender":"MALE","role":"GUEST"}""",
+              400, "password" },
+
+            { "missing_name",
+              """{"email":"%UNIQUE_EMAIL%","password":"Test@12345","dateOfBirth":"1990-01-01","gender":"MALE","role":"GUEST"}""",
+              400, "name" },
+        };
+    }
+
+    /**
+     * Single test method exercised with 5 different data sets.
+     * Each row from the DataProvider becomes a separate test execution.
+     * TestNG reports show: testSignupValidation[missing_email], testSignupValidation[missing_password], etc.
+     */
+    @Test(dataProvider = "signupValidationData", groups = {"regression", "negative"})
+    public void testSignupValidation(String testCase, String body, int expectedStatus,
+                                      String expectedErrorField) {
+        // Replace placeholder with unique email to prevent collisions
+        String resolvedBody = body.replace("%UNIQUE_EMAIL%", uniqueEmail());
+
+        given()
+            .spec(baseSpec)
+            .body(resolvedBody)
+        .when()
+            .post("/auth/signup")
+        .then()
+            .statusCode(expectedStatus)
+            .body("error", containsString(expectedErrorField));
+    }
+}
+```
+
+**DataProvider patterns:**
+
+| Pattern | When to Use |
+|---------|------------|
+| Inline `Object[][]` | Small data sets (&lt; 10 rows), data is test-specific |
+| External method returning `Object[][]` | Shared data across test classes |
+| CSV/JSON file → `@DataProvider` | Large data sets (50+ rows), data managed by non-developers |
+| `Iterator<Object[]>` return type | Very large or generated data (lazy loading) |
+
+### Test Groups — Running Subsets
+
+Groups tag tests by category so CI can run the right tests at the right time:
+
+
+```java
+/**
+ * Groups strategy:
+ * - smoke:      Critical paths — run on every commit (< 2 minutes)
+ * - regression: Full validation — run nightly or on PR merge (< 15 minutes)
+ * - negative:   Error handling — run in regression, skip in smoke
+ * - performance: Response time checks — run on dedicated infrastructure
+ */
+public class BookingApiTest extends BaseApiTest {
+
+    @Test(groups = {"smoke", "regression"})
+    public void testCreateBookingSuccess() {
+        // Critical path — must work on every build
+        given()
+            .spec(guestSpec)
+            .body(validBookingBody())
+        .when()
+            .post("/bookings/init")
+        .then()
+            .statusCode(201)
+            .body("data.status", equalTo("PENDING"));
+    }
+
+    @Test(groups = {"regression"})
+    public void testCreateBookingDuplicateDates() {
+        // Edge case — only in full regression
+        // Create a booking, then try to create another for the same dates
+        given()
+            .spec(guestSpec)
+            .body(duplicateDateBookingBody())
+        .when()
+            .post("/bookings/init")
+        .then()
+            .statusCode(409);  // Conflict — dates already booked
+    }
+
+    @Test(groups = {"regression", "negative"})
+    public void testCreateBookingPastDate() {
+        // Negative test — check-in date in the past
+        given()
+            .spec(guestSpec)
+            .body(pastDateBookingBody())
+        .when()
+            .post("/bookings/init")
+        .then()
+            .statusCode(400)
+            .body("error", containsString("date"));
+    }
+
+    @Test(groups = {"performance"})
+    public void testBookingListPerformance() {
+        given()
+            .spec(guestSpec)
+        .when()
+            .get("/bookings")
+        .then()
+            .statusCode(200)
+            .time(lessThan(2000L));
+    }
+}
+```
+
+### Soft Assertions with AssertJ
+
+Standard TestNG/Hamcrest assertions stop at the first failure. Soft assertions collect all failures and report them together:
+
+
+```java
+import org.assertj.core.api.SoftAssertions;
+import io.restassured.response.Response;
+
+public class ProfileApiTest extends BaseApiTest {
+
+    /**
+     * Without soft assertions: first failure stops the test.
+     * If email assertion fails, you never find out about name and gender.
+     * You fix email, re-run, discover name is wrong, fix it, re-run...
+     * 
+     * With soft assertions: all failures reported in one run.
+     */
+    @Test(groups = {"regression"})
+    public void testProfileFieldsWithSoftAssertions() {
+        Response response = given()
+            .spec(guestSpec)
+        .when()
+            .get("/users/profile")
+        .then()
+            .statusCode(200)
+            .extract().response();
+
+        SoftAssertions soft = new SoftAssertions();
+
+        // All assertions run regardless of individual failures
+        soft.assertThat(response.jsonPath().getString("data.email"))
+            .as("User email")
+            .contains("@staynest.com");
+
+        soft.assertThat(response.jsonPath().getString("data.name"))
+            .as("User name")
+            .isNotBlank();
+
+        soft.assertThat(response.jsonPath().getString("data.gender"))
+            .as("User gender")
+            .isIn("MALE", "FEMALE", "OTHER");
+
+        soft.assertThat(response.jsonPath().getString("data.dateOfBirth"))
+            .as("Date of birth")
+            .matches("\\d{4}-\\d{2}-\\d{2}");  // ISO date format
+
+        soft.assertThat(response.jsonPath().getInt("data.id"))
+            .as("User ID")
+            .isPositive();
+
+        // This line triggers all collected assertion failures at once
+        soft.assertAll();
+    }
+}
+```
+
+**AssertJ Maven dependency:**
+
+
+```xml
+<dependency>
+    <groupId>org.assertj</groupId>
+    <artifactId>assertj-core</artifactId>
+    <version>3.25.3</version>
+    <scope>test</scope>
+</dependency>
+```
+
+---
+
+## Practical Implementation (Layer 3)
+
+### Complete testng.xml Configuration
+
+The `testng.xml` file controls which tests run, in what order, and with what parallelism:
+
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE suite SYSTEM "https://testng.org/testng-1.0.dtd">
+
+<!--
+    Master test suite for StayNest API tests.
+    Run specific profiles:
+      mvn test -DsuiteXmlFile=testng.xml                    (full regression)
+      mvn test -DsuiteXmlFile=testng.xml -Dgroups=smoke     (smoke only via Maven)
+-->
+<suite name="StayNest API Test Suite"
+       parallel="classes"
+       thread-count="4"
+       verbose="1">
+
+    <!-- Global parameters available to all tests via @Parameters -->
+    <parameter name="environment" value="local"/>
+    <parameter name="baseUri" value="http://localhost:8080/api/v1"/>
+
+    <!-- Listeners for custom reporting and retry -->
+    <listeners>
+        <listener class-name="com.staynest.tests.listeners.TestReportListener"/>
+        <listener class-name="com.staynest.tests.listeners.RetryAnalyzer"/>
+    </listeners>
+
+    <!--
+        SMOKE TEST SUITE
+        Critical paths only — runs on every commit.
+        Target: < 2 minutes.
+    -->
+    <test name="Smoke Tests">
+        <groups>
+            <run>
+                <include name="smoke"/>
+            </run>
+        </groups>
+        <classes>
+            <class name="com.staynest.tests.api.AuthApiTest"/>
+            <class name="com.staynest.tests.api.BookingApiTest"/>
+            <class name="com.staynest.tests.api.HotelSearchTest"/>
+        </classes>
+    </test>
+
+    <!--
+        REGRESSION TEST SUITE
+        Full validation — runs on PR merge or nightly.
+        Includes smoke + regression + negative groups.
+    -->
+    <test name="Regression Tests">
+        <groups>
+            <run>
+                <include name="regression"/>
+                <include name="negative"/>
+            </run>
+        </groups>
+        <packages>
+            <package name="com.staynest.tests.api.*"/>
+        </packages>
+    </test>
+
+    <!--
+        PERFORMANCE TEST SUITE
+        Response time validation — runs on dedicated infrastructure.
+        Runs sequentially to avoid resource contention affecting timings.
+    -->
+    <test name="Performance Tests" parallel="none">
+        <groups>
+            <run>
+                <include name="performance"/>
+            </run>
+        </groups>
+        <packages>
+            <package name="com.staynest.tests.api.*"/>
+        </packages>
+    </test>
+
+</suite>
+```
+
+### Complete BaseApiTest + BookingApiTest Structure
+
+
+```java
+package com.staynest.tests.api;
+
+import io.restassured.builder.RequestSpecBuilder;
+import io.restassured.filter.log.LogDetail;
+import io.restassured.http.ContentType;
+import io.restassured.specification.RequestSpecification;
+import org.testng.annotations.*;
+
+import java.util.UUID;
+
+/**
+ * Base class for all StayNest API tests.
+ * Provides: configuration, auth specs, helper methods.
+ * 
+ * Test classes extend this and get a fully configured test environment.
+ */
+public abstract class BaseApiTest {
+
+    protected static RequestSpecification baseSpec;
+    protected static RequestSpecification guestSpec;
+    protected static RequestSpecification managerSpec;
+    private static TokenManager guestTokenManager;
+    private static TokenManager managerTokenManager;
+
+    @BeforeSuite(alwaysRun = true)
+    public void suiteSetup() {
+        String baseUri = System.getProperty("api.baseUri", "http://localhost:8080");
+        String basePath = System.getProperty("api.basePath", "/api/v1");
+
+        baseSpec = new RequestSpecBuilder()
+            .setBaseUri(baseUri)
+            .setBasePath(basePath)
+            .setContentType(ContentType.JSON)
+            .setAccept(ContentType.JSON)
+            .log(LogDetail.URI)
+            .build();
+
+        guestTokenManager = new TokenManager("guest@staynest.com", "pass123");
+        managerTokenManager = new TokenManager("manager@staynest.com", "pass123");
+    }
+
+    @BeforeClass(alwaysRun = true)
+    public void classSetup() {
+        // Rebuild specs each class in case tokens were refreshed
+        guestSpec = buildAuthSpec(guestTokenManager.getAccessToken());
+        managerSpec = buildAuthSpec(managerTokenManager.getAccessToken());
+    }
+
+    private RequestSpecification buildAuthSpec(String token) {
+        return new RequestSpecBuilder()
+            .addRequestSpecification(baseSpec)
+            .addHeader("Authorization", "Bearer " + token)
+            .build();
+    }
+
+    protected String uniqueEmail() {
+        return "test-" + UUID.randomUUID().toString().substring(0, 8) + "@staynest.com";
+    }
+
+    protected String loginAndGetToken(String email, String password) {
+        return io.restassured.RestAssured.given()
+            .spec(baseSpec)
+            .body(String.format("{\"email\":\"%s\",\"password\":\"%s\"}", email, password))
+        .when()
+            .post("/auth/login")
+        .then()
+            .statusCode(200)
+            .extract().path("data.accessToken");
+    }
+}
+```
+
+
+```java
+package com.staynest.tests.api;
+
+import io.restassured.response.Response;
+import org.assertj.core.api.SoftAssertions;
+import org.testng.annotations.*;
+
+import java.time.LocalDate;
+
+import static io.restassured.RestAssured.given;
+import static org.hamcrest.Matchers.*;
+
+/**
+ * Booking API tests for StayNest.
+ * Covers: create, retrieve, cancel booking flows.
+ * Uses: DataProvider, groups, soft assertions, BaseApiTest infrastructure.
+ */
+public class BookingApiTest extends BaseApiTest {
+
+    private int testHotelId;
+    private int testRoomId;
+    private int createdBookingId;
+
+    @BeforeClass(alwaysRun = true)
+    @Override
+    public void classSetup() {
+        super.classSetup();
+        // Get test hotel and room — assumes seed data exists
+        testHotelId = getFirstHotelId();
+        testRoomId = getFirstRoomId(testHotelId);
+    }
+
+    // --- Smoke Tests: Critical Paths ---
+
+    @Test(groups = {"smoke", "regression"}, priority = 1)
+    public void testCreateBookingSuccess() {
+        String bookingBody = createBookingBody(
+            testHotelId, testRoomId,
+            LocalDate.now().plusDays(30).toString(),
+            LocalDate.now().plusDays(33).toString(),
+            2
+        );
+
+        Response response = given()
+            .spec(guestSpec)
+            .body(bookingBody)
+        .when()
+            .post("/bookings/init")
+        .then()
+            .statusCode(201)
+            .body("data.status", equalTo("PENDING"))
+            .body("data.id", notNullValue())
+            .body("error", nullValue())
+            .extract().response();
+
+        createdBookingId = response.jsonPath().getInt("data.id");
+    }
+
+    @Test(groups = {"smoke", "regression"}, priority = 2,
+          dependsOnMethods = "testCreateBookingSuccess")
+    public void testGetBookingById() {
+        Response response = given()
+            .spec(guestSpec)
+            .pathParam("bookingId", createdBookingId)
+        .when()
+            .get("/bookings/{bookingId}")
+        .then()
+            .statusCode(200)
+            .extract().response();
+
+        // Soft assertions: verify all fields in one pass
+        SoftAssertions soft = new SoftAssertions();
+        soft.assertThat(response.jsonPath().getInt("data.id"))
+            .as("Booking ID").isEqualTo(createdBookingId);
+        soft.assertThat(response.jsonPath().getString("data.status"))
+            .as("Booking status").isEqualTo("PENDING");
+        soft.assertThat(response.jsonPath().getString("data.checkInDate"))
+            .as("Check-in date").isNotBlank();
+        soft.assertThat(response.jsonPath().getString("data.checkOutDate"))
+            .as("Check-out date").isNotBlank();
+        soft.assertAll();
+    }
+
+    // --- Data-Driven Negative Tests ---
+
+    @DataProvider(name = "invalidBookingData")
+    public Object[][] invalidBookingData() {
+        String futureDate = LocalDate.now().plusDays(30).toString();
+        String pastDate = LocalDate.now().minusDays(5).toString();
+        String endDate = LocalDate.now().plusDays(33).toString();
+
+        return new Object[][] {
+            { "past_checkin_date",
+              createBookingBody(testHotelId, testRoomId, pastDate, endDate, 2),
+              400 },
+            { "checkout_before_checkin",
+              createBookingBody(testHotelId, testRoomId, endDate, futureDate, 2),
+              400 },
+            { "zero_guests",
+              createBookingBody(testHotelId, testRoomId, futureDate, endDate, 0),
+              400 },
+            { "invalid_hotel_id",
+              createBookingBody(99999, testRoomId, futureDate, endDate, 2),
+              404 },
+        };
+    }
+
+    @Test(dataProvider = "invalidBookingData", groups = {"regression", "negative"})
+    public void testCreateBookingValidation(String testCase, String body,
+                                             int expectedStatus) {
+        given()
+            .spec(guestSpec)
+            .body(body)
+        .when()
+            .post("/bookings/init")
+        .then()
+            .statusCode(expectedStatus)
+            .body("error", notNullValue());
+    }
+
+    // --- Performance Test ---
+
+    @Test(groups = {"performance"})
+    public void testBookingListResponseTime() {
+        given()
+            .spec(guestSpec)
+            .queryParam("page", 0)
+            .queryParam("size", 20)
+        .when()
+            .get("/bookings")
+        .then()
+            .statusCode(200)
+            .time(lessThan(2000L));
+    }
+
+    // --- Helper Methods ---
+
+    private int getFirstHotelId() {
+        return given()
+            .spec(baseSpec)
+            .queryParam("page", 0).queryParam("size", 1)
+        .when()
+            .get("/hotels/search")
+        .then()
+            .statusCode(200)
+            .extract().path("data[0].id");
+    }
+
+    private int getFirstRoomId(int hotelId) {
+        return given()
+            .spec(managerSpec)
+            .pathParam("hotelId", hotelId)
+        .when()
+            .get("/admin/hotels/{hotelId}/rooms")
+        .then()
+            .statusCode(200)
+            .extract().path("data[0].id");
+    }
+
+    private String createBookingBody(int hotelId, int roomId,
+                                      String checkIn, String checkOut, int guests) {
+        return String.format("""
+            {
+                "hotelId": %d,
+                "roomId": %d,
+                "checkInDate": "%s",
+                "checkOutDate": "%s",
+                "numberOfGuests": %d
+            }
+            """, hotelId, roomId, checkIn, checkOut, guests);
+    }
+}
+```
+
+### Parallel Execution Configuration
+
+
+```xml
+<!--
+    Parallel execution strategies:
+    
+    parallel="methods"  — methods from ALL classes run in parallel.
+                          Fastest, but requires fully independent methods.
+                          Breaks if methods share state (instance variables).
+    
+    parallel="classes"   — each class runs in its own thread.
+                          Methods within a class run sequentially.
+                          Safest for tests with @BeforeClass setup.
+    
+    parallel="tests"     — each <test> element runs in its own thread.
+                          Coarsest granularity. Good when <test> groups are independent.
+    
+    parallel="instances" — each class INSTANCE runs in parallel.
+                          Relevant when using @Factory to create multiple instances.
+-->
+
+<!-- Recommended for API tests: parallel by class -->
+<suite name="API Suite" parallel="classes" thread-count="4">
+    <!-- ... -->
+</suite>
+```
+
+**Thread safety considerations for API tests:**
+
+
+```java
+/**
+ * Thread-safe API test pattern:
+ * - BaseApiTest specs are initialized in @BeforeSuite (runs once, before threading)
+ * - RequestSpecification is immutable after building — safe to share
+ * - Token is fetched once per class in @BeforeClass
+ * - Test data (IDs, emails) is stored in instance fields (each class gets its own)
+ *
+ * UNSAFE patterns:
+ * - RestAssured.baseURI (global static — race condition in parallel)
+ * - Shared mutable state between test classes
+ * - Tests that modify data another test depends on
+ */
+public class ThreadSafeApiTest extends BaseApiTest {
+
+    // Instance fields — each parallel class instance has its own copy
+    private int myBookingId;
+    private String myUniqueEmail;
+
+    @BeforeClass
+    @Override
+    public void classSetup() {
+        super.classSetup();
+        myUniqueEmail = uniqueEmail();  // Unique per class instance
+    }
+
+    @Test(groups = "regression")
+    public void testCreateAndRetrieve() {
+        // Uses instance-specific data — no collision with parallel tests
+        myBookingId = createBooking(myUniqueEmail);
+        verifyBooking(myBookingId);
+    }
+}
+```
+
+---
+
+## Failure and Debugging (Layer 4)
+
+### Failure 1: @DataProvider Test Names Are Unreadable
+
+**The Problem:** TestNG reports show `testSignupValidation[0]`, `testSignupValidation[1]` — you can't tell which test case failed.
+
+**The fix:** Make the first DataProvider column the test case name:
+
+
+```java
+// The test name in reports comes from the first parameter
+@DataProvider(name = "data")
+public Object[][] data() {
+    return new Object[][] {
+        { "missing_email", body1, 400 },   // Reports as: testMethod[missing_email]
+        { "invalid_format", body2, 400 },  // Reports as: testMethod[invalid_format]
+    };
+}
+
+// Test method receives the name but doesn't need to use it in logic
+@Test(dataProvider = "data")
+public void testMethod(String testCase, String body, int status) {
+    // testCase is just for reporting — the actual test uses body and status
+}
+```
+
+### Failure 2: Parallel Tests Fail with 409 Conflict
+
+**The Problem:** Two parallel test classes both try to create a booking for the same hotel and room on the same dates. One succeeds, the other gets 409 Conflict.
+
+**Root cause:** Tests share data — they both use the same hotel, room, and hardcoded dates.
+
+**The fix:** Make each test create its own isolated data:
+
+
+```java
+@BeforeClass
+public void classSetup() {
+    super.classSetup();
+    // Each class uses unique dates offset by a random amount
+    int offset = new Random().nextInt(365) + 30;
+    myCheckIn = LocalDate.now().plusDays(offset).toString();
+    myCheckOut = LocalDate.now().plusDays(offset + 3).toString();
+}
+```
+
+### Failure 3: @BeforeSuite Runs Multiple Times in Parallel
+
+**The Problem:** With `parallel="classes"`, `@BeforeSuite` in `BaseApiTest` appears to run multiple times — token managers are re-initialized, causing race conditions.
+
+**Root cause:** TestNG runs `@BeforeSuite` once per `<suite>`, but if multiple `<suite>` files are loaded (e.g., Maven Surefire forks), each fork gets its own `@BeforeSuite`.
+
+**The fix:** Make suite setup idempotent:
+
+
+```java
+private static volatile boolean suiteInitialized = false;
+
+@BeforeSuite(alwaysRun = true)
+public synchronized void suiteSetup() {
+    if (suiteInitialized) return;  // Only run once even if called multiple times
+
+    // ... initialization logic ...
+
+    suiteInitialized = true;
+}
+```
+
+---
+
+## Engineering Judgment (Layer 5)
+
+### How to Design Test Groups
+
+| Group | What Goes In | When It Runs | Target Time |
+|-------|-------------|-------------|-------------|
+| `smoke` | 10-15 critical path tests (login, create booking, search) | Every commit, every PR | &lt; 2 minutes |
+| `regression` | All tests including edge cases and validation | Nightly or PR merge | &lt; 15 minutes |
+| `negative` | Error handling, invalid input, auth failures | Part of regression | Included in regression time |
+| `performance` | Response time checks, throughput tests | Dedicated infra, not in standard CI | &lt; 5 minutes |
+
+**Guideline:** Every test should belong to at least one group. If you can't decide, it's `regression`. Promote to `smoke` only if the flow is critical to business value and breaks frequently enough to warrant fast feedback.
+
+### @DataProvider vs Parameterized Tests: When to Use
+
+| Factor | @DataProvider | Separate @Test methods |
+|--------|-------------|----------------------|
+| Same logic, different data (5+ variations) | Use @DataProvider | Too much duplication |
+| Different logic per case | Forced and unreadable | Use separate methods |
+| Reporting granularity | Shows as separate entries | Naturally separate |
+| Readability | Great for validation matrices | Better for complex flows |
+
+### When Soft Assertions Help vs When They Don't
+
+| Scenario | Use Soft Assertions | Use Hard Assertions |
+|----------|-------------------|-------------------|
+| Verifying multiple fields in a response | Yes — find all wrong fields in one run | No benefit — hard stops on first |
+| Sequential dependent steps (create → verify → delete) | No — if create fails, verify is meaningless | Yes — fail fast, skip dependents |
+| Contract validation (checking 20 fields) | Yes — report all contract violations at once | Wastes time re-running for each fix |
+| Authentication checks | No — 401 means everything after is invalid | Yes — stop immediately |
+
+---
+
+## Interview and Revision (Layer 6)
+
+### Fundamental Questions
+
+**Q1: How do you organize a REST Assured test suite for a team of 5 SDETs working in parallel?**
+
+**A:** I use a `BaseApiTest` abstract class with shared setup — base URI from system properties, token management, and common specs. Each SDET writes test classes that extend `BaseApiTest` and focus on one API domain (auth, bookings, hotels). Tests are tagged with groups (`smoke`, `regression`, `negative`) and configured in `testng.xml`. Parallel execution runs at the class level (`parallel="classes"`) so each class runs independently. Each test creates its own data with unique identifiers (UUID emails, random dates) to prevent collisions. The `testng.xml` defines separate `<test>` sections for smoke and regression so CI can run the appropriate subset.
+
+**Q2: What is @DataProvider and when would you use it vs separate test methods?**
+
+**A:** `@DataProvider` feeds multiple data sets into one test method. Each data set is a separate test execution in reports. I use it when the same test logic applies to many inputs — validation testing (10 invalid input combinations), role-based access (GUEST, MANAGER, ADMIN see different results), or pagination edge cases (page 0, page 1, page beyond total). I use separate test methods when the logic differs per case — a create-then-verify flow is different from a delete-then-verify-gone flow, even if they share setup. The key criterion: if I'd copy-paste the test body and only change the data, it should be a DataProvider.
+
+**Q3: How do you handle parallel test execution with REST Assured?**
+
+**A:** I use TestNG's `parallel="classes"` with 4-8 threads. Each class has its own instance fields, so parallel classes don't share state. `RequestSpecification` is immutable after building, making it safe to share. I avoid `RestAssured.baseURI` (global mutable state) in favor of per-class specs. Test data isolation is critical — each class creates data with unique identifiers so parallel runs don't collide. For token management, I initialize `TokenManager` in `@BeforeSuite` (before threading starts) and use `synchronized` methods for token refresh.
+
+
+
+
+| # | Front (Question) | Back (Answer) |
+|---|---|---|
+| 1 | What's the difference between `parallel="methods"` and `parallel="classes"` in TestNG? | `methods` — methods from all classes run in parallel (fastest, requires fully independent methods). `classes` — each class runs in its own thread, methods within a class are sequential (safer, recommended for API tests with `@BeforeClass` setup) |
+| 2 | How do you make @DataProvider test names readable in reports? | Make the first parameter a descriptive string (e.g., `"missing_email"`). TestNG uses it as the test suffix: `testMethod[missing_email]` |
+| 3 | What does `alwaysRun = true` do on @BeforeClass? | Ensures the setup method runs even if it's not in the included test groups. Without it, `@BeforeClass` may be skipped if only specific groups are selected, causing null specs and NPEs |
+| 4 | What is the purpose of soft assertions? | Collect all assertion failures in a test before reporting, instead of stopping at the first failure. Use `SoftAssertions soft = new SoftAssertions(); soft.assertThat(...); soft.assertAll();` from AssertJ |
+| 5 | Why should BaseApiTest be abstract? | It should never be instantiated directly — it exists only as infrastructure for real test classes. `abstract` enforces this and prevents TestNG from trying to run it as a test class |
+
+### Mastery Checklist
+
+- [ ] Can build a `BaseApiTest` with shared specs, token management, and helper methods
+- [ ] Can use `@DataProvider` for data-driven tests with readable test names
+- [ ] Can define and use test groups (`smoke`, `regression`, `negative`, `performance`)
+- [ ] Can write `testng.xml` with groups, parallel execution, and multiple test sections
+- [ ] Can implement soft assertions with AssertJ for multi-field validation
+- [ ] Can configure parallel execution and ensure thread safety in tests
+- [ ] Can explain the trade-offs between different parallel strategies
+
+---
+
+**Related:** Advanced Request Patterns, Setup And First Tests, Parallel Execution, Test Lifecycle And Fixtures
+
+*Last updated: *

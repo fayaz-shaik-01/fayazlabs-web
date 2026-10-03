@@ -1,0 +1,696 @@
+---
+title: "API Client Design"
+description: "What: API client design is the architecture for making HTTP calls within your test framework — structured request building, response validation, auth management, and service-layer abstraction. It's the API equivalent of the Page Object Model: instead of scattering raw HTTP calls across tests, you encapsulate them in service classes that expose clean, readable methods."
+summary: "SDET Engineering guide: API Client Design"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "framework-engineering"
+lesson: "api-client-design"
+difficulty: "intermediate"
+estimatedMinutes: 44
+prerequisites: []
+tags: ["SDET", "Framework", "Architecture"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/framework-engineering/api-client-design"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# API Client Design
+
+> **Module:** 03 — Framework Engineering > API Client Design  
+> **Prerequisites:** Framework Architecture, Page And Screen Objects, Configuration And Environments  
+> **Mastery Target:** L3 (Independent) → L4 (Engineering Judgment)
+
+---
+
+## Quick Overview (Layer 1)
+
+**What:** API client design is the architecture for making HTTP calls within your test framework — structured request building, response validation, auth management, and service-layer abstraction. It's the API equivalent of the Page Object Model: instead of scattering raw HTTP calls across tests, you encapsulate them in service classes that expose clean, readable methods.
+
+**Why it matters:** API tests without structure end up with raw REST Assured calls in every test method — duplicated base URIs, repeated auth headers, inconsistent content types. When the API version changes from `/v1/bookings` to `/v2/bookings`, you hunt through 60 test files. A well-designed API client centralizes these details, just like POM centralizes locators. Change the endpoint in one service class, and all tests follow.
+
+**Where you encounter it:** API test automation (obviously), but also in UI test frameworks for test data setup (creating users via API before running UI tests), test cleanup (deleting data via API after tests), and hybrid test flows (API login to get tokens, then UI navigation).
+
+<MentalModel>
+
+Think of your API client layer as a **postal service**. Tests are people writing letters — they specify *what* to say (the request body) and *who* to send it to (the endpoint). The postal service (API client) handles the envelope (headers), the stamp (auth token), the address format (base URI), and delivery tracking (logging). The letter writer doesn't format the envelope — the postal service has a standard process for that.
+
+</MentalModel>
+
+
+<KeyTakeaways>
+
+1. **Test API clients are not production API clients** — they prioritize readability, debugging, and test setup speed over resilience, caching, or retry logic.
+2. **Base request specification centralizes shared config** — base URI, content type, auth headers, and logging are set once, not per-request.
+3. **Service layer mirrors the API domain** — `UserService`, `BookingService`, `HotelService` each wrap one API resource, just as page objects wrap one page.
+4. **Request/response models (POJOs) replace raw JSON** — type-safe objects catch errors at compile time, not at runtime when a JSON field name is misspelled.
+5. **Auth token management is automatic** — the client handles login, token storage, and refresh. Tests never manually manage tokens.
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation (Layer 2)
+
+### Test API Client vs Production API Client
+
+A production API client is built for resilience — it retries, caches, handles circuit breaking, and gracefully degrades. A test API client is built for clarity — it makes the test's intent obvious, fails fast with clear error messages, and logs everything for debugging.
+
+| Concern | Production Client | Test Client |
+|---------|-------------------|-------------|
+| Error handling | Retry, fallback, degrade gracefully | Fail fast with descriptive error |
+| Logging | Structured production logs | Verbose request/response logging for debugging |
+| Auth | Secure token storage, rotation | Fetch token once per suite, store in memory |
+| Response handling | Parse only what's needed | Log full response body for failure analysis |
+| Performance | Connection pooling, caching | Not a concern — clarity over performance |
+
+### Base Request Specification
+
+Every API call in a test framework shares common configuration: the base URI, content type, auth headers, and logging. REST Assured's `RequestSpecification` centralizes these:
+
+
+```java
+import io.restassured.builder.RequestSpecBuilder;
+import io.restassured.filter.log.RequestLoggingFilter;
+import io.restassured.filter.log.ResponseLoggingFilter;
+import io.restassured.specification.RequestSpecification;
+
+public class BaseApiClient {
+
+    protected final RequestSpecification baseSpec;
+
+    public BaseApiClient(String baseUrl) {
+        this.baseSpec = new RequestSpecBuilder()
+            .setBaseUri(baseUrl)
+            .setContentType("application/json")
+            .addFilter(new RequestLoggingFilter())    // logs every request
+            .addFilter(new ResponseLoggingFilter())   // logs every response
+            .build();
+    }
+
+    public BaseApiClient(String baseUrl, String authToken) {
+        this.baseSpec = new RequestSpecBuilder()
+            .setBaseUri(baseUrl)
+            .setContentType("application/json")
+            .addHeader("Authorization", "Bearer " + authToken)
+            .addFilter(new RequestLoggingFilter())
+            .addFilter(new ResponseLoggingFilter())
+            .build();
+    }
+}
+```
+
+**Why centralize?** Without it, every test method sets the base URI, content type, and auth header independently. One test forgets the auth header — 401 error. Another misspells the base URI — connection refused. Centralizing eliminates these inconsistencies.
+
+### Request/Response Models (POJOs)
+
+Instead of constructing JSON strings manually, use POJOs that serialize/deserialize automatically:
+
+
+```java
+// Request model — what you send TO the API
+public class BookingRequest {
+
+    private String propertyId;
+    private String checkIn;
+    private String checkOut;
+    private int guests;
+
+    public BookingRequest() {}
+
+    public BookingRequest(String propertyId, String checkIn,
+                          String checkOut, int guests) {
+        this.propertyId = propertyId;
+        this.checkIn = checkIn;
+        this.checkOut = checkOut;
+        this.guests = guests;
+    }
+
+    // Getters and setters (required for Jackson serialization)
+    public String getPropertyId() { return propertyId; }
+    public void setPropertyId(String propertyId) { this.propertyId = propertyId; }
+    public String getCheckIn() { return checkIn; }
+    public void setCheckIn(String checkIn) { this.checkIn = checkIn; }
+    public String getCheckOut() { return checkOut; }
+    public void setCheckOut(String checkOut) { this.checkOut = checkOut; }
+    public int getGuests() { return guests; }
+    public void setGuests(int guests) { this.guests = guests; }
+}
+
+// Response model — what you get FROM the API
+public class BookingResponse {
+
+    private String id;
+    private String propertyId;
+    private String checkIn;
+    private String checkOut;
+    private int guests;
+    private String status;
+    private double totalPrice;
+
+    // Getters (setters needed for deserialization)
+    public String getId() { return id; }
+    public String getStatus() { return status; }
+    public double getTotalPrice() { return totalPrice; }
+    // ... remaining getters/setters
+}
+```
+
+**Why POJOs over raw JSON?** `new BookingRequest("prop-123", "2025-09-01", "2025-09-05", 2)` catches a missing field at compile time. `"{\"propertyId\": \"prop-123\", \"chekIn\": \"2025-09-01\"}"` has a typo (`chekIn`) that the compiler can't catch — it becomes a 400 error at runtime.
+
+### Service Layer Pattern
+
+Each API resource gets its own service class that wraps CRUD operations:
+
+
+```java
+import io.restassured.response.Response;
+import static io.restassured.RestAssured.given;
+
+public class BookingService extends BaseApiClient {
+
+    public BookingService(String baseUrl, String authToken) {
+        super(baseUrl, authToken);
+    }
+
+    public BookingResponse createBooking(BookingRequest request) {
+        return given()
+            .spec(baseSpec)
+            .body(request)
+        .when()
+            .post("/api/bookings")
+        .then()
+            .statusCode(201)
+            .extract()
+            .as(BookingResponse.class);
+    }
+
+    public BookingResponse getBooking(String bookingId) {
+        return given()
+            .spec(baseSpec)
+        .when()
+            .get("/api/bookings/{id}", bookingId)
+        .then()
+            .statusCode(200)
+            .extract()
+            .as(BookingResponse.class);
+    }
+
+    public BookingResponse updateBooking(String bookingId,
+                                          BookingRequest request) {
+        return given()
+            .spec(baseSpec)
+            .body(request)
+        .when()
+            .put("/api/bookings/{id}", bookingId)
+        .then()
+            .statusCode(200)
+            .extract()
+            .as(BookingResponse.class);
+    }
+
+    public void deleteBooking(String bookingId) {
+        given()
+            .spec(baseSpec)
+        .when()
+            .delete("/api/bookings/{id}", bookingId)
+        .then()
+            .statusCode(204);
+    }
+
+    // Method that returns raw Response for flexible assertions in tests
+    public Response createBookingRaw(BookingRequest request) {
+        return given()
+            .spec(baseSpec)
+            .body(request)
+        .when()
+            .post("/api/bookings");
+    }
+}
+```
+
+**Design decisions:**
+- **Status code assertions in service methods:** `createBooking()` asserts `201` because any other status means the operation failed. This fails fast with a clear message rather than letting a 500 error propagate into a confusing deserialization failure.
+- **`Raw` variant for flexible tests:** `createBookingRaw()` returns the raw `Response` so negative tests can assert on error status codes and error messages.
+- **POJO deserialization:** `.extract().as(BookingResponse.class)` automatically converts JSON to a typed object.
+
+### Auth Integration: Token Management
+
+Auth should be transparent to test methods. The service layer handles login, token storage, and refresh.
+
+
+```java
+public class AuthService extends BaseApiClient {
+
+    private String currentToken;
+
+    public AuthService(String baseUrl) {
+        super(baseUrl);
+    }
+
+    public String login(String email, String password) {
+        currentToken = given()
+            .spec(baseSpec)
+            .body(new LoginRequest(email, password))
+        .when()
+            .post("/api/auth/login")
+        .then()
+            .statusCode(200)
+            .extract()
+            .jsonPath().getString("token");
+
+        return currentToken;
+    }
+
+    public String getToken() {
+        if (currentToken == null) {
+            throw new IllegalStateException(
+                "Not authenticated. Call login() first.");
+        }
+        return currentToken;
+    }
+
+    // Create an authenticated service for any resource
+    public BookingService bookingService() {
+        return new BookingService(baseSpec.getBaseUri(), getToken());
+    }
+
+    public UserService userService() {
+        return new UserService(baseSpec.getBaseUri(), getToken());
+    }
+}
+```
+
+**Usage in tests:**
+
+
+```java
+public class BookingApiTest extends BaseApiTest {
+
+    private BookingService bookingService;
+
+    @BeforeClass
+    public void authenticate() {
+        AuthService auth = new AuthService(config.get("api.base.url"));
+        auth.login(config.get("test.user.email"),
+                   config.get("test.user.password"));
+        bookingService = auth.bookingService();
+    }
+
+    @Test
+    public void shouldCreateBooking() {
+        BookingRequest request = new BookingRequest(
+            "prop-001", "2025-09-01", "2025-09-05", 2);
+
+        BookingResponse response = bookingService.createBooking(request);
+
+        assertThat(response.getStatus()).isEqualTo("CONFIRMED");
+        assertThat(response.getTotalPrice()).isGreaterThan(0);
+    }
+}
+```
+
+### Response Validation Helpers
+
+Common validation patterns can be centralized:
+
+
+```java
+public class ResponseValidator {
+
+    public static void assertStatus(Response response, int expectedStatus) {
+        if (response.getStatusCode() != expectedStatus) {
+            throw new AssertionError(String.format(
+                "Expected status %d but got %d. Response body: %s",
+                expectedStatus, response.getStatusCode(), response.getBody().asString()
+            ));
+        }
+    }
+
+    public static void assertJsonSchema(Response response, String schemaPath) {
+        response.then().assertThat()
+            .body(JsonSchemaValidator
+                .matchesJsonSchemaInClasspath(schemaPath));
+    }
+
+    public static void assertFieldEquals(Response response,
+                                          String jsonPath,
+                                          Object expectedValue) {
+        Object actual = response.jsonPath().get(jsonPath);
+        assertThat(actual).isEqualTo(expectedValue);
+    }
+}
+```
+
+---
+
+## Practical Implementation (Layer 3)
+
+### Example: Complete API Client for StayNest
+
+A full service layer with auth, CRUD operations, and test helpers.
+
+
+```java
+// === UserService — user CRUD ===
+
+public class UserService extends BaseApiClient {
+
+    public UserService(String baseUrl, String authToken) {
+        super(baseUrl, authToken);
+    }
+
+    public UserResponse createUser(UserRequest request) {
+        return given()
+            .spec(baseSpec)
+            .body(request)
+        .when()
+            .post("/api/users")
+        .then()
+            .statusCode(201)
+            .extract()
+            .as(UserResponse.class);
+    }
+
+    public UserResponse getUser(String userId) {
+        return given()
+            .spec(baseSpec)
+        .when()
+            .get("/api/users/{id}", userId)
+        .then()
+            .statusCode(200)
+            .extract()
+            .as(UserResponse.class);
+    }
+
+    public void deleteUser(String userId) {
+        given()
+            .spec(baseSpec)
+        .when()
+            .delete("/api/users/{id}", userId)
+        .then()
+            .statusCode(204);
+    }
+
+    // Convenience method for tests — creates and returns ID for cleanup
+    public String createTestUser(String email, String role) {
+        UserRequest request = new UserRequest();
+        request.setEmail(email);
+        request.setName("Test User " + email);
+        request.setRole(role);
+        request.setPassword("TestPass123!");
+        return createUser(request).getId();
+    }
+}
+```
+
+
+```java
+// === HotelService — property/hotel operations ===
+
+public class HotelService extends BaseApiClient {
+
+    public HotelService(String baseUrl, String authToken) {
+        super(baseUrl, authToken);
+    }
+
+    public List<HotelResponse> searchHotels(String destination, int guests) {
+        return given()
+            .spec(baseSpec)
+            .queryParam("destination", destination)
+            .queryParam("guests", guests)
+        .when()
+            .get("/api/hotels/search")
+        .then()
+            .statusCode(200)
+            .extract()
+            .jsonPath()
+            .getList("results", HotelResponse.class);
+    }
+
+    public HotelResponse getHotel(String hotelId) {
+        return given()
+            .spec(baseSpec)
+        .when()
+            .get("/api/hotels/{id}", hotelId)
+        .then()
+            .statusCode(200)
+            .extract()
+            .as(HotelResponse.class);
+    }
+}
+```
+
+### Example: Test Using the Service Layer
+
+
+```java
+public class BookingApiTest extends BaseApiTest {
+
+    private BookingService bookingService;
+    private String testBookingId;
+
+    @BeforeClass
+    public void setup() {
+        AuthService auth = new AuthService(config.get("api.base.url"));
+        auth.login(config.get("test.user.email"),
+                   config.get("test.user.password"));
+        bookingService = auth.bookingService();
+    }
+
+    @Test
+    public void shouldCreateBookingWithValidData() {
+        BookingRequest request = new BookingRequest(
+            "prop-001", "2025-09-01", "2025-09-05", 2);
+
+        BookingResponse response = bookingService.createBooking(request);
+        testBookingId = response.getId();
+
+        assertThat(response.getId()).isNotNull();
+        assertThat(response.getStatus()).isEqualTo("CONFIRMED");
+        assertThat(response.getTotalPrice()).isGreaterThan(0);
+    }
+
+    @Test
+    public void shouldRejectBookingWithPastDates() {
+        BookingRequest request = new BookingRequest(
+            "prop-001", "2020-01-01", "2020-01-05", 2);
+
+        Response response = bookingService.createBookingRaw(request);
+
+        assertThat(response.getStatusCode()).isEqualTo(400);
+        assertThat(response.jsonPath().getString("error"))
+            .contains("past date");
+    }
+
+    @Test
+    public void shouldRejectBookingWithCheckoutBeforeCheckin() {
+        BookingRequest request = new BookingRequest(
+            "prop-001", "2025-09-05", "2025-09-01", 2);
+
+        Response response = bookingService.createBookingRaw(request);
+
+        assertThat(response.getStatusCode()).isEqualTo(400);
+    }
+
+    @AfterMethod(alwaysRun = true)
+    public void cleanup() {
+        if (testBookingId != null) {
+            bookingService.deleteBooking(testBookingId);
+            testBookingId = null;
+        }
+    }
+}
+```
+
+---
+
+## Failure and Debugging (Layer 4)
+
+### Failure 1: Raw REST Assured Calls Scattered Across Tests
+
+**The Problem:**
+
+
+```java
+@Test
+public void testCreateBooking() {
+    given()
+        .baseUri("https://staging.staynest.com")
+        .contentType("application/json")
+        .header("Authorization", "Bearer " + token)
+        .body("{\"propertyId\": \"p1\", \"checkIn\": \"2025-09-01\"}")
+    .when()
+        .post("/api/bookings")
+    .then()
+        .statusCode(201);
+}
+```
+
+**What happens:** 30 tests duplicate the base URI, content type, auth header, and endpoint. The base URI changes — 30 edits. The auth header format changes from `Bearer` to `Token` — 30 edits. A request body has a typo in a field name — no compile-time error, just a 400 at runtime.
+
+**The fix:** Extract to service layer with POJO models:
+
+
+```java
+@Test
+public void testCreateBooking() {
+    BookingRequest request = new BookingRequest("p1", "2025-09-01", "2025-09-05", 2);
+    BookingResponse response = bookingService.createBooking(request);
+    assertThat(response.getStatus()).isEqualTo("CONFIRMED");
+}
+```
+
+### Failure 2: Auth Token Hardcoded or Expired
+
+**The Problem:**
+
+
+```java
+public class BookingApiTest {
+    // Hardcoded token — expires in 1 hour
+    private static final String TOKEN = "eyJhbGciOiJIUzI1NiJ9.eyJzdWI...";
+
+    @Test
+    public void testGetBooking() {
+        given()
+            .header("Authorization", "Bearer " + TOKEN)
+        // ...
+    }
+}
+```
+
+**What happens:** Tests pass for the developer who generated the token. They fail for everyone else, or they fail after an hour. Nobody knows the token is expired — the error is a 401, which looks like an auth bug in the application.
+
+**The fix — authenticate programmatically:**
+
+
+```java
+@BeforeClass
+public void authenticate() {
+    AuthService auth = new AuthService(config.get("api.base.url"));
+    String token = auth.login(
+        config.get("test.user.email"),
+        config.get("test.user.password"));
+    bookingService = new BookingService(config.get("api.base.url"), token);
+}
+```
+
+### Failure 3: No Request/Response Logging
+
+**The Problem:** A test fails with `Expected status 201 but got 400`. The developer has no idea what request was sent or what error message the API returned.
+
+**The fix — log everything in test clients:**
+
+
+```java
+// In BaseApiClient constructor
+this.baseSpec = new RequestSpecBuilder()
+    .setBaseUri(baseUrl)
+    .addFilter(new RequestLoggingFilter())   // logs full request
+    .addFilter(new ResponseLoggingFilter())  // logs full response
+    .build();
+```
+
+Now every API call produces output like:
+
+```
+Request method: POST
+Request URI:    https://staging.staynest.com/api/bookings
+Body:           {"propertyId":"p1","checkIn":"2025-09-01","guests":2}
+
+Response status: 400
+Response body:   {"error":"checkOut is required","code":"VALIDATION_ERROR"}
+```
+
+The failure reason is immediately obvious.
+
+---
+
+## Engineering Judgment (Layer 5)
+
+### Status Code Assertions: In Service Methods or in Tests?
+
+| Approach | When to Use |
+|----------|-------------|
+| **Assert in service method** (`statusCode(201)`) | Happy-path methods like `createBooking()`. A 500 here is always wrong — fail fast. |
+| **Return raw Response** (`createBookingRaw()`) | Negative tests, error-scenario tests. The test decides what status code to expect. |
+| **Provide both** | Recommended. Happy path gets convenience; negative tests get flexibility. |
+
+### When to Use JSON Schema Validation
+
+| Situation | Use Schema Validation? |
+|-----------|----------------------|
+| Critical API contracts (public API, cross-team) | Yes — schema changes should break tests |
+| Internal API tested by the same team | Optional — field-level assertions often suffice |
+| Response with 50+ fields | Yes — asserting every field individually is impractical |
+| Response with 3-5 fields | No — direct field assertions are clearer |
+
+### POJO Models vs JsonPath
+
+| Approach | Pros | Cons | Use When |
+|----------|------|------|----------|
+| **POJO models** | Type-safe, compile-time field checking, reusable | More classes to maintain, breaks if API adds unexpected fields | Stable APIs, response used in multiple tests |
+| **JsonPath** | No model classes, flexible, handles dynamic fields | Field name typos caught only at runtime | Exploratory tests, responses with dynamic structure |
+
+**Recommendation:** Use POJOs for core resources (User, Booking, Hotel) that appear across many tests. Use JsonPath for one-off validations or deeply nested fields you don't want to model fully.
+
+---
+
+## Interview and Revision (Layer 6)
+
+### Fundamental Questions
+
+**Q1: How do you structure your API test framework?**
+
+**A:** I use a service layer pattern similar to Page Object Model for UI. A `BaseApiClient` sets the base URI, content type, auth headers, and request/response logging. Resource-specific services — `BookingService`, `UserService`, `AuthService` — extend it and wrap CRUD operations. Request and response bodies are modeled as POJOs for type safety. Auth is handled by `AuthService`, which authenticates once per class and provides the token to other services. Tests read like specifications: `bookingService.createBooking(request)` rather than raw `given().baseUri(...)`.
+
+**Q2: How do you handle authentication in API tests?**
+
+**A:** I authenticate programmatically in `@BeforeClass`. An `AuthService.login()` call retrieves a token and stores it in memory. Other service classes receive this token through their constructors and include it in the `Authorization` header via the base request spec. Tests never see or manage tokens directly. If the token expires mid-suite, the auth service can re-authenticate. Credentials come from config (never hardcoded), and the config reads credentials from environment variables.
+
+**Q3: Why do you use POJO models instead of raw JSON strings?**
+
+**A:** Three reasons. First, type safety — a missing field or wrong type in a POJO is a compile error, while a JSON string typo is a runtime 400 error. Second, readability — `new BookingRequest("prop-1", "2025-09-01", "2025-09-05", 2)` is clearer than a multi-line JSON string. Third, reusability — the same POJO works across creation, assertion, and test data builders. The trade-off is more classes to maintain, but for core domain objects (User, Booking), the compile-time safety is worth it.
+
+**Q4: What's the difference between a test API client and a production API client?**
+
+**A:** A production client prioritizes resilience — retry logic, circuit breakers, graceful degradation, connection pooling. A test client prioritizes debuggability — verbose request/response logging, fail-fast behavior, and clear error messages. A production client handles errors silently; a test client should scream when something goes wrong. Test clients also don't need caching or connection pooling because test performance is dominated by server response time, not client overhead.
+
+
+
+
+| # | Front (Question) | Back (Answer) |
+|---|---|---|
+| 1 | What goes in a `BaseApiClient`? | Base URI, content type (`application/json`), auth header, request/response logging filters. Set once, inherited by all service classes. |
+| 2 | Why provide both `createBooking()` and `createBookingRaw()` methods? | `createBooking()` asserts status 201 and deserializes — convenient for happy-path tests. `createBookingRaw()` returns the raw `Response` — needed for negative tests that expect 400 or 500. |
+| 3 | Why is request/response logging critical in test API clients? | When a test fails with "expected 201 got 400," the logged request body and response error message immediately explain why. Without logging, debugging requires reproducing the call manually. |
+| 4 | Where should auth tokens come from in API tests? | Programmatic login in `@BeforeClass` — `AuthService.login()` retrieves a fresh token. Never hardcoded (expires), never from config files (security risk). Credentials come from env vars via config. |
+| 5 | When should you use JsonPath instead of POJO models? | For one-off validations, deeply nested fields you don't want to fully model, or responses with dynamic structure. Use POJOs for core domain objects that appear across many tests. |
+
+### Mastery Checklist
+
+- [ ] Can build a `BaseApiClient` with centralized base URI, headers, and logging
+- [ ] Can implement a service layer (`BookingService`, `UserService`) with typed CRUD methods
+- [ ] Can create request/response POJOs with proper serialization for REST Assured
+- [ ] Can implement automatic auth token management via `AuthService`
+- [ ] Can provide both typed (POJO) and raw (Response) variants for flexibility
+- [ ] Can add request/response logging for debugging failed tests
+- [ ] Can validate responses using JSON schema when appropriate
+- [ ] Can explain the difference between test API clients and production API clients
+
+---
+
+**Next:** Test Data Builders | **Related:** Page And Screen Objects, Framework Architecture
+
+*Last updated: *

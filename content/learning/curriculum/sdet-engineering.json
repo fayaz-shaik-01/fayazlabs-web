@@ -1,0 +1,322 @@
+{
+  "id": "track_sdet_engineering",
+  "slug": "sdet-engineering",
+  "title": "SDET Engineering — Test Automation Mastery",
+  "description": "A comprehensive, practical roadmap for mastering test automation engineering — from Java and DSA foundations to framework design, API/Web/Mobile automation, CI/CD, and interview preparation.",
+  "icon": "FlaskConical",
+  "order": 2,
+  "difficulty": "intermediate",
+  "premium": false,
+  "tags": ["SDET", "Test Automation", "Java", "Selenium", "Playwright", "Appium", "REST Assured", "CI/CD"],
+  "modules": [
+    {
+      "id": "module_java",
+      "slug": "java",
+      "title": "Java for Test Automation",
+      "description": "Core Java from syntax to concurrency — everything an SDET needs to build and debug automation frameworks.",
+      "icon": "Code",
+      "order": 1,
+      "premium": false,
+      "prerequisites": [],
+      "lessons": [
+        { "id": "lesson_syntax_and_control_flow", "slug": "syntax-and-control-flow", "title": "Syntax and Control Flow", "order": 1, "status": "published", "difficulty": "beginner", "estimatedMinutes": 45, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_methods_and_parameters", "slug": "methods-and-parameters", "title": "Methods and Parameters", "order": 2, "status": "published", "difficulty": "beginner", "estimatedMinutes": 40, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_oop_fundamentals", "slug": "oop-fundamentals", "title": "OOP Fundamentals", "order": 3, "status": "published", "difficulty": "beginner", "estimatedMinutes": 50, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_collections_and_generics", "slug": "collections-and-generics", "title": "Collections and Generics", "order": 4, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 50, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_equals_and_hashcode", "slug": "equals-and-hashcode", "title": "Equals and HashCode", "order": 5, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 35, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_interfaces_and_composition", "slug": "interfaces-and-composition", "title": "Interfaces and Composition", "order": 6, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 45, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_exception_handling", "slug": "exception-handling", "title": "Exception Handling", "order": 7, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 40, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_lambdas_and_streams", "slug": "lambdas-and-streams", "title": "Lambdas and Streams", "order": 8, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 45, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_arrays_and_strings", "slug": "arrays-and-strings", "title": "Arrays and Strings", "order": 9, "status": "published", "difficulty": "beginner", "estimatedMinutes": 40, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_file_io_and_serialization", "slug": "file-io-and-serialization", "title": "File I/O and Serialization", "order": 10, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 40, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_immutability_and_records", "slug": "immutability-and-records", "title": "Immutability and Records", "order": 11, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 35, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_concurrency_and_threadlocal", "slug": "concurrency-and-threadlocal", "title": "Concurrency and ThreadLocal", "order": 12, "status": "published", "difficulty": "advanced", "estimatedMinutes": 50, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_debugging_and_profiling", "slug": "debugging-and-profiling", "title": "Debugging and Profiling", "order": 13, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 40, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_coding_exercises", "slug": "coding-exercises", "title": "Coding Exercises", "order": 14, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 90, "premium": false, "lessonType": "lab", "hasContent": true }
+      ]
+    },
+    {
+      "id": "module_dsa",
+      "slug": "dsa",
+      "title": "Data Structures & Algorithms",
+      "description": "DSA essentials tailored for SDET interviews and automation problem-solving.",
+      "icon": "Network",
+      "order": 2,
+      "premium": false,
+      "prerequisites": ["module_java"],
+      "lessons": [
+        { "id": "lesson_complexity_analysis", "slug": "complexity-analysis", "title": "Complexity Analysis", "order": 1, "status": "published", "difficulty": "beginner", "estimatedMinutes": 40, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_dsa_arrays_and_strings", "slug": "arrays-and-strings", "title": "Arrays and Strings", "order": 2, "status": "published", "difficulty": "beginner", "estimatedMinutes": 45, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_hashmaps_and_hashsets", "slug": "hashmaps-and-hashsets", "title": "HashMaps and HashSets", "order": 3, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 40, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_two_pointers", "slug": "two-pointers-and-sliding-window", "title": "Two Pointers and Sliding Window", "order": 4, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 45, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_binary_search", "slug": "binary-search", "title": "Binary Search", "order": 5, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 40, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_sorting_and_searching", "slug": "sorting-and-searching", "title": "Sorting and Searching", "order": 6, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 45, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_stacks_and_queues", "slug": "stacks-and-queues", "title": "Stacks and Queues", "order": 7, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 40, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_linked_lists", "slug": "linked-lists", "title": "Linked Lists", "order": 8, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 40, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_trees_and_graphs", "slug": "trees-and-graphs", "title": "Trees and Graphs", "order": 9, "status": "published", "difficulty": "advanced", "estimatedMinutes": 50, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_recursion", "slug": "recursion-and-backtracking", "title": "Recursion and Backtracking", "order": 10, "status": "published", "difficulty": "advanced", "estimatedMinutes": 45, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_automation_problems", "slug": "automation-oriented-problems", "title": "Automation-Oriented Problems", "order": 11, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 60, "premium": false, "lessonType": "lab", "hasContent": true }
+      ]
+    },
+    {
+      "id": "module_typescript",
+      "slug": "typescript",
+      "title": "TypeScript for Automation",
+      "description": "TypeScript essentials for Playwright and modern test framework development.",
+      "icon": "FileCode",
+      "order": 3,
+      "premium": false,
+      "prerequisites": [],
+      "lessons": [
+        { "id": "lesson_language_fundamentals", "slug": "language-fundamentals", "title": "Language Fundamentals", "order": 1, "status": "published", "difficulty": "beginner", "estimatedMinutes": 40, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_types_and_interfaces", "slug": "types-and-interfaces", "title": "Types and Interfaces", "order": 2, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 45, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_promises_and_async", "slug": "promises-and-async-await", "title": "Promises and Async/Await", "order": 3, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 45, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_modules_and_errors", "slug": "modules-and-error-handling", "title": "Modules and Error Handling", "order": 4, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 35, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_test_patterns", "slug": "test-automation-patterns", "title": "Test Automation Patterns", "order": 5, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 50, "premium": false, "lessonType": "learn", "hasContent": true }
+      ]
+    },
+    {
+      "id": "module_software_engineering",
+      "slug": "software-engineering",
+      "title": "Software Engineering Practices",
+      "description": "Clean code, design patterns, Git, and code review — the engineering discipline behind quality automation.",
+      "icon": "Settings2",
+      "order": 4,
+      "premium": false,
+      "prerequisites": [],
+      "lessons": [
+        { "id": "lesson_clean_code", "slug": "clean-code", "title": "Clean Code", "order": 1, "status": "published", "difficulty": "beginner", "estimatedMinutes": 40, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_design_patterns", "slug": "design-patterns", "title": "Design Patterns", "order": 2, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 50, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_git_and_branching", "slug": "git-and-branching", "title": "Git and Branching", "order": 3, "status": "published", "difficulty": "beginner", "estimatedMinutes": 35, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_dependency_management", "slug": "dependency-management", "title": "Dependency Management", "order": 4, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 35, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_debugging_methodology", "slug": "debugging-methodology", "title": "Debugging Methodology", "order": 5, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 40, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_code_review", "slug": "code-review", "title": "Code Review", "order": 6, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 35, "premium": false, "lessonType": "learn", "hasContent": true }
+      ]
+    },
+    {
+      "id": "module_testing_foundations",
+      "slug": "testing-foundations",
+      "title": "Testing Foundations",
+      "description": "Core testing theory — principles, pyramid, design techniques, flaky tests, and test data management.",
+      "icon": "Shield",
+      "order": 5,
+      "premium": false,
+      "prerequisites": [],
+      "lessons": [
+        { "id": "lesson_testing_principles", "slug": "testing-principles", "title": "Testing Principles", "order": 1, "status": "published", "difficulty": "beginner", "estimatedMinutes": 40, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_test_levels", "slug": "test-levels-and-pyramid", "title": "Test Levels and Pyramid", "order": 2, "status": "published", "difficulty": "beginner", "estimatedMinutes": 35, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_test_design", "slug": "test-design-techniques", "title": "Test Design Techniques", "order": 3, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 50, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_assertions", "slug": "assertions-and-test-oracles", "title": "Assertions and Test Oracles", "order": 4, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 35, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_isolation", "slug": "isolation-and-determinism", "title": "Isolation and Determinism", "order": 5, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 40, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_flaky_tests", "slug": "flaky-tests", "title": "Flaky Tests", "order": 6, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 45, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_test_data", "slug": "test-data-management", "title": "Test Data Management", "order": 7, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 40, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_risk_testing", "slug": "risk-based-testing", "title": "Risk-Based Testing", "order": 8, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 35, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_exploratory", "slug": "exploratory-testing", "title": "Exploratory Testing", "order": 9, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 35, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_automation_selection", "slug": "automation-candidate-selection", "title": "Automation Candidate Selection", "order": 10, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 35, "premium": false, "lessonType": "learn", "hasContent": true }
+      ]
+    },
+    {
+      "id": "module_framework_engineering",
+      "slug": "framework-engineering",
+      "title": "Framework Engineering",
+      "description": "How to design, build, and maintain test automation frameworks — from architecture to extensibility.",
+      "icon": "Layers",
+      "order": 6,
+      "premium": false,
+      "prerequisites": ["module_java", "module_testing_foundations"],
+      "lessons": [
+        { "id": "lesson_framework_architecture", "slug": "framework-architecture", "title": "Framework Architecture", "order": 1, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 50, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_project_structure", "slug": "project-structure", "title": "Project Structure", "order": 2, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 35, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_test_lifecycle", "slug": "test-lifecycle-and-fixtures", "title": "Test Lifecycle and Fixtures", "order": 3, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 40, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_configuration", "slug": "configuration-and-environments", "title": "Configuration and Environments", "order": 4, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 35, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_di", "slug": "dependency-injection-and-composition", "title": "Dependency Injection and Composition", "order": 5, "status": "published", "difficulty": "advanced", "estimatedMinutes": 45, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_page_objects", "slug": "page-and-screen-objects", "title": "Page and Screen Objects", "order": 6, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 45, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_api_client", "slug": "api-client-design", "title": "API Client Design", "order": 7, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 40, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_test_data_builders", "slug": "test-data-builders", "title": "Test Data Builders", "order": 8, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 35, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_logging", "slug": "logging-and-reporting", "title": "Logging and Reporting", "order": 9, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 35, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_parallel", "slug": "parallel-execution", "title": "Parallel Execution", "order": 10, "status": "published", "difficulty": "advanced", "estimatedMinutes": 45, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_retries", "slug": "retries-and-timeouts", "title": "Retries and Timeouts", "order": 11, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 35, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_thread_safety", "slug": "thread-safety-and-resource-ownership", "title": "Thread Safety and Resource Ownership", "order": 12, "status": "published", "difficulty": "advanced", "estimatedMinutes": 40, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_secrets", "slug": "secrets-and-security", "title": "Secrets and Security", "order": 13, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 35, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_diagnostics", "slug": "failure-diagnostics", "title": "Failure Diagnostics", "order": 14, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 35, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_extensibility", "slug": "framework-extensibility", "title": "Framework Extensibility", "order": 15, "status": "published", "difficulty": "advanced", "estimatedMinutes": 40, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_adr", "slug": "architecture-decision-records", "title": "Architecture Decision Records", "order": 16, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 30, "premium": false, "lessonType": "learn", "hasContent": true }
+      ]
+    },
+    {
+      "id": "module_api_automation",
+      "slug": "api-automation",
+      "title": "API Automation",
+      "description": "REST API testing from HTTP fundamentals to advanced patterns with REST Assured and Playwright.",
+      "icon": "Globe",
+      "order": 7,
+      "premium": false,
+      "prerequisites": ["module_java", "module_testing_foundations"],
+      "lessons": [
+        { "id": "lesson_http_rest", "slug": "http-and-rest-fundamentals", "title": "HTTP and REST Fundamentals", "order": 1, "status": "published", "difficulty": "beginner", "estimatedMinutes": 40, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_status_codes", "slug": "status-codes-headers-and-json", "title": "Status Codes, Headers, and JSON", "order": 2, "status": "published", "difficulty": "beginner", "estimatedMinutes": 35, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_auth", "slug": "authentication-and-authorization", "title": "Authentication and Authorization", "order": 3, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 45, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_schema", "slug": "schema-validation", "title": "Schema Validation", "order": 4, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 35, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_contract", "slug": "contract-testing", "title": "Contract Testing", "order": 5, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 40, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_db_validation", "slug": "database-validation", "title": "Database Validation", "order": 6, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 35, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_service_integration", "slug": "service-integration-testing", "title": "Service Integration Testing", "order": 7, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 40, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_api_test_data", "slug": "api-test-data-and-cleanup", "title": "API Test Data and Cleanup", "order": 8, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 35, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_api_perf", "slug": "api-performance-basics", "title": "API Performance Basics", "order": 9, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 35, "premium": false, "lessonType": "learn", "hasContent": true }
+      ]
+    },
+    {
+      "id": "module_web_automation",
+      "slug": "web-automation",
+      "title": "Web Automation",
+      "description": "Browser automation from DOM fundamentals to cross-browser testing with Selenium and Playwright.",
+      "icon": "Monitor",
+      "order": 8,
+      "premium": false,
+      "prerequisites": ["module_testing_foundations"],
+      "lessons": [
+        { "id": "lesson_browser_dom", "slug": "browser-and-dom-fundamentals", "title": "Browser and DOM Fundamentals", "order": 1, "status": "published", "difficulty": "beginner", "estimatedMinutes": 40, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_locator", "slug": "locator-strategy", "title": "Locator Strategy", "order": 2, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 45, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_waits", "slug": "synchronization-and-waits", "title": "Synchronization and Waits", "order": 3, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 40, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_contexts", "slug": "browser-contexts-and-isolation", "title": "Browser Contexts and Isolation", "order": 4, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 35, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_network", "slug": "network-and-downloads", "title": "Network and Downloads", "order": 5, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 35, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_cross_browser", "slug": "cross-browser-testing", "title": "Cross-Browser Testing", "order": 6, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 35, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_web_debug", "slug": "web-debugging", "title": "Web Debugging", "order": 7, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 35, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_visual_regression", "slug": "visual-regression-testing", "title": "Visual Regression Testing", "order": 8, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 35, "premium": false, "lessonType": "learn", "hasContent": true }
+      ]
+    },
+    {
+      "id": "module_mobile_automation",
+      "slug": "mobile-automation",
+      "title": "Mobile Automation",
+      "description": "Native mobile testing across Android and iOS with Appium and MobileWright.",
+      "icon": "Smartphone",
+      "order": 9,
+      "premium": false,
+      "prerequisites": ["module_testing_foundations"],
+      "lessons": [
+        { "id": "lesson_mobile_fundamentals", "slug": "native-mobile-fundamentals", "title": "Native Mobile Fundamentals", "order": 1, "status": "published", "difficulty": "beginner", "estimatedMinutes": 40, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_mobile_locators", "slug": "locators-and-accessibility-ids", "title": "Locators and Accessibility IDs", "order": 2, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 35, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_gestures", "slug": "gestures-and-touch-actions", "title": "Gestures and Touch Actions", "order": 3, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 35, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_app_lifecycle", "slug": "app-lifecycle-and-permissions", "title": "App Lifecycle and Permissions", "order": 4, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 35, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_capabilities", "slug": "device-capabilities", "title": "Device Capabilities", "order": 5, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 30, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_emulator", "slug": "emulator-vs-real-device", "title": "Emulator vs Real Device", "order": 6, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 30, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_browserstack", "slug": "browserstack-device-cloud", "title": "BrowserStack Device Cloud", "order": 7, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 35, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_mobile_debug", "slug": "mobile-debugging", "title": "Mobile Debugging", "order": 8, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 35, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_mobile_patterns", "slug": "mobile-test-patterns", "title": "Mobile Test Patterns", "order": 9, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 40, "premium": false, "lessonType": "learn", "hasContent": true }
+      ]
+    },
+    {
+      "id": "module_test_data",
+      "slug": "test-data-and-integration",
+      "title": "Test Data & Integration",
+      "description": "Test data strategies, database patterns, mocking, and environment seeding.",
+      "icon": "Database",
+      "order": 10,
+      "premium": false,
+      "prerequisites": ["module_testing_foundations"],
+      "lessons": [
+        { "id": "lesson_data_strategies", "slug": "test-data-strategies", "title": "Test Data Strategies", "order": 1, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 35, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_db_patterns", "slug": "database-testing-patterns", "title": "Database Testing Patterns", "order": 2, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 40, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_api_db", "slug": "api-database-integration", "title": "API-Database Integration", "order": 3, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 35, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_mocking", "slug": "external-service-mocking", "title": "External Service Mocking", "order": 4, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 40, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_queues", "slug": "message-queues-and-events", "title": "Message Queues and Events", "order": 5, "status": "published", "difficulty": "advanced", "estimatedMinutes": 35, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_seeding", "slug": "test-environment-seeding", "title": "Test Environment Seeding", "order": 6, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 35, "premium": false, "lessonType": "learn", "hasContent": true }
+      ]
+    },
+    {
+      "id": "module_cicd",
+      "slug": "ci-cd-and-infrastructure",
+      "title": "CI/CD & Infrastructure",
+      "description": "Jenkins, Docker, pipeline-as-code, and the infrastructure that runs your tests.",
+      "icon": "Workflow",
+      "order": 11,
+      "premium": false,
+      "prerequisites": ["module_framework_engineering"],
+      "lessons": [
+        { "id": "lesson_jenkins", "slug": "jenkins-fundamentals", "title": "Jenkins Fundamentals", "order": 1, "status": "published", "difficulty": "beginner", "estimatedMinutes": 40, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_pipeline", "slug": "pipeline-as-code", "title": "Pipeline as Code", "order": 2, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 45, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_docker", "slug": "docker-for-testing", "title": "Docker for Testing", "order": 3, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 45, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_env_mgmt", "slug": "environment-management", "title": "Environment Management", "order": 4, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 35, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_orchestration", "slug": "test-orchestration", "title": "Test Orchestration", "order": 5, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 40, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_artifacts", "slug": "artifact-management", "title": "Artifact Management", "order": 6, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 30, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_notifications", "slug": "notifications-and-alerting", "title": "Notifications and Alerting", "order": 7, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 30, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_monitoring", "slug": "monitoring-and-observability", "title": "Monitoring and Observability", "order": 8, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 35, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_security", "slug": "security-testing-basics", "title": "Security Testing Basics", "order": 9, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 35, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_troubleshooting", "slug": "infrastructure-troubleshooting", "title": "Infrastructure Troubleshooting", "order": 10, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 35, "premium": false, "lessonType": "learn", "hasContent": true }
+      ]
+    },
+    {
+      "id": "module_advanced_qe",
+      "slug": "advanced-quality-engineering",
+      "title": "Advanced Quality Engineering",
+      "description": "Shift-left testing, strategy, performance, accessibility, chaos engineering, and architecture patterns.",
+      "icon": "Target",
+      "order": 12,
+      "premium": false,
+      "prerequisites": ["module_framework_engineering"],
+      "lessons": [
+        { "id": "lesson_shift_left", "slug": "shift-left-testing", "title": "Shift-Left Testing", "order": 1, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 35, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_strategy", "slug": "test-strategy-and-planning", "title": "Test Strategy and Planning", "order": 2, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 40, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_metrics", "slug": "metrics-and-kpis", "title": "Metrics and KPIs", "order": 3, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 35, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_continuous", "slug": "continuous-testing", "title": "Continuous Testing", "order": 4, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 35, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_perf_overview", "slug": "performance-testing-overview", "title": "Performance Testing Overview", "order": 5, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 40, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_a11y", "slug": "accessibility-testing", "title": "Accessibility Testing", "order": 6, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 35, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_chaos", "slug": "chaos-and-resilience-testing", "title": "Chaos and Resilience Testing", "order": 7, "status": "published", "difficulty": "advanced", "estimatedMinutes": 40, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_test_arch", "slug": "test-architecture-patterns", "title": "Test Architecture Patterns", "order": 8, "status": "published", "difficulty": "advanced", "estimatedMinutes": 45, "premium": false, "lessonType": "learn", "hasContent": true }
+      ]
+    },
+    {
+      "id": "module_ai_testing",
+      "slug": "ai-assisted-testing",
+      "title": "AI-Assisted Testing",
+      "description": "Using AI tools responsibly and effectively in test automation — from generation to guardrails.",
+      "icon": "Sparkles",
+      "order": 13,
+      "premium": false,
+      "prerequisites": ["module_framework_engineering"],
+      "lessons": [
+        { "id": "lesson_ai_dev", "slug": "ai-assisted-development", "title": "AI-Assisted Development", "order": 1, "status": "published", "difficulty": "beginner", "estimatedMinutes": 35, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_ai_gen", "slug": "ai-test-generation", "title": "AI Test Generation", "order": 2, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 40, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_eval", "slug": "evaluating-generated-tests", "title": "Evaluating Generated Tests", "order": 3, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 35, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_flaky_analysis", "slug": "flaky-test-analysis", "title": "Flaky Test Analysis", "order": 4, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 35, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_agents", "slug": "agent-workflows-and-subagents", "title": "Agent Workflows and Subagents", "order": 5, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 35, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_mcp", "slug": "mcp-fundamentals", "title": "MCP Fundamentals", "order": 6, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 35, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_tool_security", "slug": "tool-security-and-permissions", "title": "Tool Security and Permissions", "order": 7, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 30, "premium": false, "lessonType": "learn", "hasContent": true },
+        { "id": "lesson_guardrails", "slug": "human-review-and-guardrails", "title": "Human Review and Guardrails", "order": 8, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 30, "premium": false, "lessonType": "learn", "hasContent": true }
+      ]
+    },
+    {
+      "id": "module_staynest",
+      "slug": "staynest-lab",
+      "title": "StayNest Lab",
+      "description": "Hands-on labs using the StayNest hotel booking application — from first test to full framework.",
+      "icon": "FlaskConical",
+      "order": 14,
+      "premium": false,
+      "prerequisites": ["module_api_automation"],
+      "lessons": [
+        { "id": "lesson_sut", "slug": "system-under-test", "title": "System Under Test", "order": 1, "status": "published", "difficulty": "beginner", "estimatedMinutes": 30, "premium": false, "lessonType": "reference", "hasContent": true },
+        { "id": "lesson_requirements", "slug": "requirements-and-business-rules", "title": "Requirements and Business Rules", "order": 2, "status": "published", "difficulty": "beginner", "estimatedMinutes": 30, "premium": false, "lessonType": "reference", "hasContent": true },
+        { "id": "lesson_api_contract", "slug": "api-contract", "title": "API Contract", "order": 3, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 35, "premium": false, "lessonType": "reference", "hasContent": true },
+        { "id": "lesson_scenarios", "slug": "test-scenarios", "title": "Test Scenarios", "order": 4, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 40, "premium": false, "lessonType": "reference", "hasContent": true },
+        { "id": "lesson_first_lab", "slug": "first-lab", "title": "First Lab", "order": 5, "status": "published", "difficulty": "beginner", "estimatedMinutes": 60, "premium": false, "lessonType": "lab", "hasContent": true },
+        { "id": "lesson_lab_arch", "slug": "architecture", "title": "Architecture", "order": 6, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 30, "premium": false, "lessonType": "reference", "hasContent": true },
+        { "id": "lesson_debug_challenges", "slug": "debugging-challenges", "title": "Debugging Challenges", "order": 7, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 45, "premium": false, "lessonType": "lab", "hasContent": true },
+        { "id": "lesson_milestones", "slug": "implementation-milestones", "title": "Implementation Milestones", "order": 8, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 25, "premium": false, "lessonType": "reference", "hasContent": true }
+      ]
+    },
+    {
+      "id": "module_interview_prep",
+      "slug": "interview-preparation",
+      "title": "Interview Preparation",
+      "description": "Structured interview prep — mock interviews, topic-wise questions, coding exercises, and debugging scenarios.",
+      "icon": "GraduationCap",
+      "order": 15,
+      "premium": false,
+      "prerequisites": [],
+      "lessons": [
+        { "id": "lesson_mock_interviews", "slug": "mock-interviews", "title": "Mock Interviews", "order": 1, "status": "published", "difficulty": "intermediate", "estimatedMinutes": 45, "premium": false, "lessonType": "learn", "hasContent": true }
+      ]
+    }
+  ]
+}

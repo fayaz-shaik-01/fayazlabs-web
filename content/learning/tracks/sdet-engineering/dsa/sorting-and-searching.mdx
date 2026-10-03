@@ -1,0 +1,346 @@
+---
+title: "Sorting and Searching"
+description: "What: Sorting arranges elements in order; searching finds elements within data. Understanding sorting algorithms, their trade-offs, and Java's built-in sorting is essential for both interviews and practical automation work."
+summary: "SDET Engineering guide: Sorting and Searching"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "dsa"
+lesson: "sorting-and-searching"
+difficulty: "intermediate"
+estimatedMinutes: 30
+prerequisites: []
+tags: ["SDET", "DSA", "Algorithms"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/dsa/sorting-and-searching"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Sorting and Searching
+
+> **Module:** 01-programming-foundations / dsa
+> **Prerequisites:** Arrays And Strings, Complexity Analysis, Recursion And Backtracking
+> **Mastery Target:** L3
+
+---
+
+## Quick Overview (2-minute read)
+
+**What:** Sorting arranges elements in order; searching finds elements within data. Understanding sorting algorithms, their trade-offs, and Java's built-in sorting is essential for both interviews and practical automation work.
+
+**Why:** Sorting is a prerequisite for many algorithms (binary search, merge intervals, two pointers on sorted data). In interviews, you're expected to know trade-offs, not memorize implementations. In automation, sorting test results, merging reports, and comparing datasets are daily tasks.
+
+**Where:** Sorting test results by duration/status, merging test reports from parallel runs, comparing expected vs actual data, ranking flaky tests, scheduling test execution.
+
+<MentalModel>
+
+**Bubble Sort (conceptual):** Repeatedly swap adjacent elements if they're out of order. Like bubbles rising to the surface — simple to understand but slow. O(n^2). Know it exists, don't use it.
+
+</MentalModel>
+
+
+**Merge Sort:** Split the list in half, sort each half, merge them back. Like sorting two decks of cards separately then interleaving them. O(n log n), stable, uses extra space.
+
+**Quick Sort:** Pick a pivot, partition elements into "less than" and "greater than" groups, recurse. O(n log n) average, O(n^2) worst case, in-place.
+
+<KeyTakeaways>
+
+1. **Don't memorize sorting implementations** — know the trade-offs and when to use each.
+2. `Arrays.sort()` uses dual-pivot quicksort for primitives, TimSort (merge sort variant) for objects.
+3. **Stable sort** preserves the relative order of equal elements. Merge sort and TimSort are stable; quicksort is not.
+4. Use `Comparator` and `Comparable` for custom sorting — this is the most practical interview/work skill.
+5. O(n log n) is the best possible for comparison-based sorting. Special cases (counting sort, radix sort) can do O(n) but require constraints on the data.
+
+</KeyTakeaways>
+
+
+---
+
+## Key Patterns and Techniques
+
+### Sorting Complexity Comparison
+
+
+| Algorithm | Best | Average | Worst | Space | Stable | Notes |
+|---|---|---|---|---|---|---|
+| Bubble Sort | O(n) | O(n^2) | O(n^2) | O(1) | Yes | Educational only |
+| Merge Sort | O(n log n) | O(n log n) | O(n log n) | O(n) | Yes | Consistent, extra space |
+| Quick Sort | O(n log n) | O(n log n) | O(n^2) | O(log n) | No | Fast in practice, worst case rare |
+| TimSort | O(n) | O(n log n) | O(n log n) | O(n) | Yes | Java's Arrays.sort() for objects |
+
+### Java Built-in Sorting
+
+
+```java
+// Primitive arrays — dual-pivot quicksort
+int[] numbers = {3, 1, 4, 1, 5};
+Arrays.sort(numbers); // [1, 1, 3, 4, 5]
+
+// Object arrays — TimSort (stable)
+String[] names = {"Charlie", "Alice", "Bob"};
+Arrays.sort(names); // [Alice, Bob, Charlie] — natural ordering
+
+// Collections — also TimSort
+List<Integer> list = Arrays.asList(3, 1, 4, 1, 5);
+Collections.sort(list);
+// or: list.sort(Comparator.naturalOrder());
+
+// Custom Comparator
+List<String> tests = Arrays.asList("testC", "testA", "testB");
+tests.sort(Comparator.reverseOrder()); // [testC, testB, testA]
+tests.sort(String::compareToIgnoreCase); // case-insensitive
+```
+
+### Comparable vs Comparator
+
+
+```java
+// Comparable — the object defines its OWN natural ordering
+public class TestResult implements Comparable<TestResult> {
+    private String name;
+    private long duration;
+
+    @Override
+    public int compareTo(TestResult other) {
+        return Long.compare(this.duration, other.duration);
+    }
+}
+// Usage: Collections.sort(results); — sorts by duration
+
+// Comparator — EXTERNAL sorting logic, can have multiple strategies
+results.sort(Comparator.comparing(TestResult::getDuration));                // by duration
+results.sort(Comparator.comparing(TestResult::getName));                    // by name
+results.sort(Comparator.comparing(TestResult::getStatus)
+    .thenComparing(TestResult::getDuration));                               // by status, then duration
+results.sort(Comparator.comparing(TestResult::getDuration).reversed());    // longest first
+```
+
+### Merge Sort Concept (Understand, Don't Memorize)
+
+
+```java
+// Conceptual merge sort — understand the divide-and-conquer structure
+public void mergeSort(int[] arr, int left, int right) {
+    if (left >= right) return;          // base case: single element
+
+    int mid = left + (right - left) / 2;
+    mergeSort(arr, left, mid);          // sort left half
+    mergeSort(arr, mid + 1, right);     // sort right half
+    merge(arr, left, mid, right);       // merge sorted halves
+}
+
+// The merge step: two sorted halves → one sorted array
+// This is where the O(n) work per level happens
+// log n levels × O(n) work = O(n log n) total
+```
+
+---
+
+## Problems with Solutions
+
+### Problem 1: Sort Colors — Dutch National Flag (LeetCode 75)
+
+**Task:** Given an array with values 0, 1, and 2 (red, white, blue), sort them in-place in one pass.
+
+**Hint:** Three-pointer approach. `low` marks the boundary for 0s, `high` marks the boundary for 2s, `mid` scans through. Swap 0s to `low`, 2s to `high`.
+
+
+
+
+```java
+public void sortColors(int[] nums) {
+    int low = 0, mid = 0, high = nums.length - 1;
+    while (mid <= high) {
+        if (nums[mid] == 0) {
+            swap(nums, low, mid);
+            low++;
+            mid++;
+        } else if (nums[mid] == 1) {
+            mid++;
+        } else { // nums[mid] == 2
+            swap(nums, mid, high);
+            high--;
+            // don't advance mid — swapped element needs checking
+        }
+    }
+}
+
+private void swap(int[] nums, int i, int j) {
+    int temp = nums[i];
+    nums[i] = nums[j];
+    nums[j] = temp;
+}
+// Time: O(n) — single pass | Space: O(1)
+```
+
+
+
+### Problem 2: Merge Intervals (LeetCode 56)
+
+**Task:** Given a collection of intervals, merge all overlapping intervals.
+
+**Hint:** Sort by start time. Then iterate — if the current interval overlaps with the last merged one, extend. Otherwise, add as a new interval.
+
+
+
+
+```java
+public int[][] merge(int[][] intervals) {
+    Arrays.sort(intervals, Comparator.comparingInt(a -> a[0])); // sort by start
+    List<int[]> merged = new ArrayList<>();
+
+    for (int[] interval : intervals) {
+        if (merged.isEmpty() || merged.get(merged.size() - 1)[1] < interval[0]) {
+            merged.add(interval); // no overlap, add new
+        } else {
+            merged.get(merged.size() - 1)[1] =
+                Math.max(merged.get(merged.size() - 1)[1], interval[1]); // extend
+        }
+    }
+    return merged.toArray(new int[0][]);
+}
+// Time: O(n log n) for sorting | Space: O(n) for result
+```
+
+
+
+### Problem 3: Kth Largest Element (LeetCode 215)
+
+**Task:** Find the kth largest element in an unsorted array.
+
+**Hint:** The simplest approach: sort and return `nums[nums.length - k]`. For interviews, mention that QuickSelect can do it in O(n) average, but sorting is acceptable and clear.
+
+
+
+
+```java
+// Approach 1: Sort — O(n log n)
+public int findKthLargest(int[] nums, int k) {
+    Arrays.sort(nums);
+    return nums[nums.length - k];
+}
+
+// Approach 2: Min-heap of size k — O(n log k)
+public int findKthLargestHeap(int[] nums, int k) {
+    PriorityQueue<Integer> minHeap = new PriorityQueue<>();
+    for (int num : nums) {
+        minHeap.offer(num);
+        if (minHeap.size() > k) {
+            minHeap.poll(); // remove smallest, keeping k largest
+        }
+    }
+    return minHeap.peek();
+}
+// Time: O(n log k) | Space: O(k)
+```
+
+
+
+---
+
+## Common Mistakes
+
+### Mistake 1: Modifying a List While Sorting by a Mutable Property
+
+
+```java
+// WRONG: if comparator accesses a property that changes during sort, behavior is undefined
+// Ensure the sort key is stable during the sort operation.
+```
+
+### Mistake 2: Wrong Comparator Return Values
+
+
+```java
+// WRONG: returning true/false instead of negative/zero/positive
+list.sort((a, b) -> a.getDuration() > b.getDuration() ? 1 : 0);
+// Missing the negative case! Equal elements and smaller elements are treated the same.
+
+// RIGHT: use compare methods
+list.sort(Comparator.comparing(TestResult::getDuration));
+// or manually:
+list.sort((a, b) -> Long.compare(a.getDuration(), b.getDuration()));
+```
+
+### Mistake 3: Integer Overflow in Custom Comparator
+
+
+```java
+// WRONG: a.val - b.val can overflow if values are near Integer.MAX/MIN
+list.sort((a, b) -> a.getValue() - b.getValue());
+
+// RIGHT: use Integer.compare or Long.compare
+list.sort((a, b) -> Integer.compare(a.getValue(), b.getValue()));
+```
+
+---
+
+## Automation Connections
+
+| Concept | Automation Use Case |
+|---|---|
+| Custom sorting | Sorting test results by status, duration, or priority |
+| Merge intervals | Merging overlapping test execution time windows |
+| Comparator chains | Multi-level sorting (by status, then by duration) |
+| Kth largest | Finding the slowest k tests for performance analysis |
+| Stability | Preserving original order when tests have equal priority |
+
+
+```java
+// Example: Sort and merge test execution reports from parallel runners
+public List<TestResult> mergeAndSortReports(List<List<TestResult>> reports) {
+    return reports.stream()
+        .flatMap(List::stream)
+        .sorted(Comparator.comparing(TestResult::getSuiteName)
+            .thenComparing(TestResult::getName))
+        .collect(Collectors.toList());
+}
+
+// Example: Find top N slowest tests
+public List<TestResult> findSlowest(List<TestResult> results, int n) {
+    return results.stream()
+        .sorted(Comparator.comparing(TestResult::getDuration).reversed())
+        .limit(n)
+        .collect(Collectors.toList());
+}
+```
+
+---
+
+## Interview and Revision
+
+
+
+
+**Q:** What sorting algorithm does Java's `Arrays.sort()` use?
+**A:** Dual-pivot quicksort for primitives (fast, not stable). TimSort (merge sort variant) for objects (stable, O(n log n) guaranteed).
+
+**Q:** What does "stable sort" mean and why does it matter?
+**A:** A stable sort preserves the relative order of equal elements. It matters when sorting by multiple keys — sort by secondary key first, then primary key, and the secondary ordering is preserved within equal primary groups.
+
+**Q:** What is the time complexity of merge sort and why?
+**A:** O(n log n). The array is split in half log n times (levels), and merging each level takes O(n) work. Total: O(n) * O(log n) = O(n log n).
+
+**Q:** When would you use a heap instead of sorting to find the kth largest?
+**A:** When you need the kth largest from a stream of data (elements arriving one at a time), or when n is very large but k is small — O(n log k) beats O(n log n).
+
+### Mastery Checklist
+
+- [ ] Can explain the trade-offs between merge sort, quick sort, and TimSort
+- [ ] Can use `Comparator` and `Comparable` for custom sorting
+- [ ] Can solve Merge Intervals with sort-then-scan
+- [ ] Can implement the Dutch National Flag partition
+- [ ] Can explain stable vs unstable sorting
+- [ ] Can apply sorting to automation scenarios (reports, test prioritization)
+
+---
+
+**Next:** Automation Oriented Problems | **Related:** Arrays And Strings, Complexity Analysis

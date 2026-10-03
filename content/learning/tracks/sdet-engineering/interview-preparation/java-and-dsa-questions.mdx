@@ -1,0 +1,830 @@
+---
+title: "Java and DSA Interview Questions"
+description: "Each question includes: the question itself, a detailed expected answer, follow-up questions an interviewer might ask, and common mistakes candidates make. Questions are organized by difficulty. Code examples are marked `` and should be validated in your IDE before relying on them."
+summary: "SDET Engineering guide: Java and DSA Interview Questions"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "interview-preparation"
+lesson: "java-and-dsa-questions"
+difficulty: "intermediate"
+estimatedMinutes: 53
+prerequisites: []
+tags: ["SDET", "Interview", "Preparation"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/interview-preparation/java-and-dsa-questions"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Java and DSA Interview Questions
+
+> **Module:** 13 — Interview Preparation
+> **Focus:** 15 curated Java + DSA questions with detailed answers, plus 3 coding problems
+> **Audience:** SDET with ~3 years experience targeting senior roles
+> **Complements:** Fastenal-Prep covers question banks without inline answers; this file provides deep self-contained explanations
+
+---
+
+## How to Use This File
+
+Each question includes: the question itself, a detailed expected answer, follow-up questions an interviewer might ask, and common mistakes candidates make. Questions are organized by difficulty. Code examples are marked `` and should be validated in your IDE before relying on them.
+
+**Difficulty scale:** Easy = expected from any SDET, Medium = differentiates mid from senior, Hard = demonstrates deep understanding.
+
+---
+
+## Easy (5 Questions)
+
+### Q1: What is the difference between `==` and `.equals()` in Java? How does this affect test assertions?
+
+**Expected Answer:**
+
+`==` compares **reference equality** — whether two variables point to the same object in memory. `.equals()` compares **value equality** — whether two objects are logically equivalent based on how the class implements the `equals()` method.
+
+For primitives, `==` compares values directly (there are no references). For objects, `==` almost never does what you want in test assertions.
+
+```java
+<!-- unverified -->
+String a = new String("hello");
+String b = new String("hello");
+
+System.out.println(a == b);      // false — different objects
+System.out.println(a.equals(b)); // true  — same content
+```
+
+**Why this matters for SDETs:** In test assertions, you almost always want `.equals()`. Using `==` on API response strings or deserialized POJOs will give false negatives — your test fails even though the values match.
+
+The String pool adds a wrinkle:
+
+```java
+<!-- unverified -->
+String x = "hello";  // from pool
+String y = "hello";  // same pool reference
+System.out.println(x == y); // true — but this is an accident of optimization, not correctness
+```
+
+**Follow-up Questions:**
+- What happens if you forget to override `equals()` in a custom class?
+- How does this relate to `hashCode()`?
+- How do assertion libraries like AssertJ handle this?
+
+**Common Mistakes:**
+- Saying "`==` compares values" without clarifying it only does so for primitives
+- Not connecting this to real testing scenarios (comparing API response POJOs)
+- Forgetting that `Integer` has a cache for -128 to 127, making `==` work "sometimes"
+
+---
+
+### Q2: Explain the `equals()` and `hashCode()` contract. Why must you override both?
+
+**Expected Answer:**
+
+The contract states: **if two objects are equal according to `equals()`, they must have the same `hashCode()`**. The reverse is not required — two objects can have the same hash code but not be equal (hash collision).
+
+If you override `equals()` but not `hashCode()`, hash-based collections (`HashMap`, `HashSet`) will break:
+
+```java
+<!-- unverified -->
+public class TestCase {
+    private String id;
+    private String name;
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        TestCase that = (TestCase) o;
+        return Objects.equals(id, that.id);
+    }
+
+    // If you forget hashCode():
+    // new HashSet<>().add(new TestCase("TC1", "Login"))
+    // set.contains(new TestCase("TC1", "Login")) => FALSE — different hashCode, different bucket
+    
+    @Override
+    public int hashCode() {
+        return Objects.hash(id);
+    }
+}
+```
+
+**Why this matters for SDETs:** When you create POJOs for API response deserialization and put them in Sets or Maps (e.g., to find duplicates in test results), broken equals/hashCode means broken deduplication.
+
+**Follow-up Questions:**
+- What fields should you include in `equals()` and `hashCode()`?
+- What happens if `hashCode()` always returns 1?
+- How does Lombok's `@EqualsAndHashCode` help?
+
+**Common Mistakes:**
+- Saying "they must be overridden together" without explaining *why* (hash-based collections)
+- Not mentioning the performance impact of bad `hashCode()` implementations (everything in one bucket = O(n) lookup)
+- Forgetting that mutable fields in `hashCode()` cause "lost" objects in HashMaps
+
+---
+
+### Q3: What is the difference between `ArrayList` and `LinkedList`? When would you choose each in test automation?
+
+**Expected Answer:**
+
+| Operation | ArrayList | LinkedList |
+| --- | --- | --- |
+| Random access (`get(i)`) | O(1) — backed by array | O(n) — must traverse |
+| Add at end | O(1) amortized | O(1) |
+| Add at beginning/middle | O(n) — shifts elements | O(1) if you have the node reference |
+| Memory | Compact, contiguous | Higher — each node stores prev/next pointers |
+
+**In test automation, `ArrayList` is almost always the right choice.** Test data lists, collected web elements, API response arrays — you're reading sequentially or by index far more than inserting at the beginning.
+
+`LinkedList` makes sense when you genuinely need a queue/deque (e.g., BFS in a graph problem) and want `addFirst()`/`removeFirst()` at O(1). But even then, `ArrayDeque` is usually faster due to cache locality.
+
+**Follow-up Questions:**
+- What is the initial capacity of ArrayList? What happens when it's exceeded?
+- Why is ArrayList faster in practice even for sequential access?
+- How does `Collections.unmodifiableList()` differ from `List.of()`?
+
+**Common Mistakes:**
+- Saying "LinkedList is better for insertions" without qualifying *where* the insertion happens
+- Not mentioning cache locality as a practical performance factor
+- Suggesting LinkedList for test data scenarios where ArrayList is clearly better
+
+---
+
+### Q4: What are Java generics and why are they useful in test frameworks?
+
+**Expected Answer:**
+
+Generics enable **type-safe, reusable code** by parameterizing classes and methods with types. Without generics, you'd cast everything from `Object`, risking `ClassCastException` at runtime.
+
+```java
+<!-- unverified -->
+// Without generics — dangerous
+List rawList = new ArrayList();
+rawList.add("hello");
+rawList.add(42);
+String s = (String) rawList.get(1); // ClassCastException at runtime!
+
+// With generics — compile-time safety
+List<String> typedList = new ArrayList<>();
+typedList.add("hello");
+// typedList.add(42); // Compile error — caught before runtime
+```
+
+**In test frameworks, generics are everywhere:**
+
+```java
+<!-- unverified -->
+// Generic base page class
+public abstract class BasePage<T extends BasePage<T>> {
+    @SuppressWarnings("unchecked")
+    protected T self() { return (T) this; }
+}
+
+// Generic API response wrapper
+public class ApiResponse<T> {
+    private int statusCode;
+    private T body;
+    public T getBody() { return body; }
+}
+
+// Usage: ApiResponse<BookingResponse> response = apiClient.createBooking(request);
+```
+
+**Key concepts:** Type erasure means generics are a compile-time feature — at runtime, `List<String>` and `List<Integer>` are both just `List`. This is why you can't do `new T()` or `instanceof T`.
+
+**Follow-up Questions:**
+- What is type erasure and what limitations does it create?
+- What is the difference between `<? extends T>` and `<? super T>`?
+- How do you create a generic method?
+
+**Common Mistakes:**
+- Not mentioning type erasure when discussing generics
+- Confusing `List<Object>` with `List<?>` (the former accepts only Object, the latter is a wildcard)
+- Unable to give a real framework example of generics usage
+
+---
+
+### Q5: Explain the `final` keyword in Java — for variables, methods, and classes.
+
+**Expected Answer:**
+
+`final` has three contexts:
+
+1. **Final variable:** Value cannot be reassigned after initialization. For reference types, the *reference* is fixed but the *object's state* can still change.
+
+```java
+<!-- unverified -->
+final List<String> tests = new ArrayList<>();
+tests.add("Login Test");     // OK — modifying the list object
+// tests = new ArrayList<>(); // Compile error — cannot reassign reference
+```
+
+2. **Final method:** Cannot be overridden by subclasses. Useful when a base class method's behavior must be preserved.
+
+3. **Final class:** Cannot be extended. `String`, `Integer`, and all wrapper classes are final. This prevents subclass modifications that could break immutability.
+
+**SDET relevance:** Constants in test configuration (`final String BASE_URL`), immutable test data objects, and preventing accidental override of critical framework methods (like driver initialization in a base test class).
+
+**Follow-up Questions:**
+- What is an effectively final variable in lambda expressions?
+- Can a final variable be null?
+- What is the difference between `final` and immutability?
+
+**Common Mistakes:**
+- Saying "final makes objects immutable" — it only prevents reassignment of the reference
+- Confusing `final` with `static final` (constants)
+- Not knowing that local variables used in lambdas must be effectively final
+
+---
+
+## Medium (5 Questions)
+
+### Q6: How does HashMap work internally in Java? Walk through a `put()` and `get()` operation.
+
+**Expected Answer:**
+
+HashMap uses an **array of buckets** (default size 16). Each bucket can hold a linked list (or a balanced tree after Java 8 when a bucket exceeds 8 entries).
+
+**`put(key, value)` operation:**
+
+1. Compute `hashCode()` of the key
+2. Apply a spread function: `hash = hashCode ^ (hashCode >>> 16)` — mixes high bits into low bits to reduce collisions
+3. Compute bucket index: `index = hash & (capacity - 1)` — bitwise AND acts as modulo for power-of-2 sizes
+4. If bucket is empty, create a new `Node` and place it there
+5. If bucket has entries, traverse the linked list:
+   - If a node with the same key exists (checked via `equals()`), replace the value
+   - Otherwise, append a new node to the list
+6. If size exceeds `capacity * loadFactor` (default 0.75), **rehash** — double the array, redistribute all entries
+
+**`get(key)` operation:**
+
+1. Compute hash, find bucket index (same as above)
+2. Traverse the bucket's linked list, comparing each node's key using `equals()`
+3. Return the matching value, or `null` if not found
+
+**Time complexity:** O(1) average, O(n) worst case (all keys in one bucket). After Java 8, worst case is O(log n) because long chains become red-black trees.
+
+**Follow-up Questions:**
+- Why must the capacity always be a power of 2?
+- What happens if two different keys have the same hashCode?
+- Why did Java 8 introduce tree bins?
+- What is the load factor and how does it affect performance?
+
+**Common Mistakes:**
+- Saying "HashMap uses hashing" without explaining the actual bucket/index mechanism
+- Not knowing about the linked-list-to-tree optimization in Java 8
+- Forgetting that `equals()` is called during both `put()` and `get()`, not just `hashCode()`
+
+---
+
+### Q7: Explain Java Streams. How would you use them to process test results?
+
+**Expected Answer:**
+
+Streams provide a **declarative, functional pipeline** for processing collections. A stream pipeline has three parts: **source**, **intermediate operations** (lazy), and **terminal operation** (triggers execution).
+
+```java
+<!-- unverified -->
+List<TestResult> results = getTestResults();
+
+// Find all failed tests, sorted by duration (longest first)
+List<TestResult> slowFailures = results.stream()
+    .filter(r -> r.getStatus() == Status.FAILED)
+    .sorted(Comparator.comparingLong(TestResult::getDuration).reversed())
+    .collect(Collectors.toList());
+
+// Group test results by status
+Map<Status, List<TestResult>> byStatus = results.stream()
+    .collect(Collectors.groupingBy(TestResult::getStatus));
+
+// Calculate average execution time of passing tests
+double avgPassTime = results.stream()
+    .filter(r -> r.getStatus() == Status.PASSED)
+    .mapToLong(TestResult::getDuration)
+    .average()
+    .orElse(0.0);
+```
+
+**Key stream concepts:**
+- **Lazy evaluation:** Intermediate operations (`filter`, `map`, `sorted`) don't execute until a terminal operation (`collect`, `forEach`, `count`) is called
+- **Short-circuiting:** Operations like `findFirst()`, `anyMatch()`, `limit()` can stop processing early
+- **Stateless vs. stateful:** `filter()` and `map()` are stateless (process one element at a time). `sorted()` and `distinct()` are stateful (need to see all elements)
+
+**Follow-up Questions:**
+- What is the difference between `map()` and `flatMap()`?
+- When would you use `parallelStream()`? What are the risks?
+- What is the difference between `reduce()` and `collect()`?
+- Can you reuse a stream? Why not?
+
+**Common Mistakes:**
+- Not understanding lazy evaluation — thinking `filter()` processes the entire list immediately
+- Using streams for simple operations where a for-loop is clearer
+- Not handling `Optional` returned by `findFirst()`, `reduce()`, etc.
+
+---
+
+### Q8: What are the differences between `Runnable`, `Callable`, and `Future` in Java concurrency?
+
+**Expected Answer:**
+
+| Feature | Runnable | Callable`<V>` | Future`<V>` |
+| --- | --- | --- | --- |
+| Returns value | No (`void run()`) | Yes (`V call()`) | Holds the result of Callable |
+| Throws checked exception | No | Yes | Can retrieve exception via `get()` |
+| Introduced | Java 1.0 | Java 5 | Java 5 |
+| Usage | Fire-and-forget tasks | Tasks that produce results | Access result of async computation |
+
+```java
+<!-- unverified -->
+ExecutorService executor = Executors.newFixedThreadPool(3);
+
+// Runnable — no return value
+executor.submit(() -> System.out.println("Running test setup"));
+
+// Callable — returns a value
+Future<Boolean> future = executor.submit(() -> {
+    // Run API health check
+    int statusCode = apiClient.healthCheck();
+    return statusCode == 200;
+});
+
+// Future — get the result (blocks until complete)
+try {
+    boolean isHealthy = future.get(10, TimeUnit.SECONDS);
+    System.out.println("API healthy: " + isHealthy);
+} catch (TimeoutException e) {
+    System.out.println("Health check timed out");
+}
+
+executor.shutdown();
+```
+
+**SDET relevance:** Parallel test execution, async API calls during test setup, waiting for background processes with timeouts. Understanding these is essential for writing thread-safe frameworks.
+
+**Follow-up Questions:**
+- What is `CompletableFuture` and how does it improve over `Future`?
+- What is the difference between `submit()` and `execute()` on ExecutorService?
+- How do you handle exceptions from a `Callable`?
+
+**Common Mistakes:**
+- Confusing `Runnable.run()` (direct call, runs on current thread) with `Thread.start()` (new thread)
+- Not mentioning `Future.get()` is blocking and needs a timeout
+- Not knowing that `CompletableFuture` supports non-blocking composition
+
+---
+
+### Q9: What is the `volatile` keyword and when would you use it in test automation?
+
+**Expected Answer:**
+
+`volatile` ensures that a variable's value is always **read from and written to main memory**, not from a thread's local CPU cache. It provides **visibility** but not **atomicity**.
+
+Without `volatile`, Thread A might update a variable, but Thread B sees the stale cached value:
+
+```java
+<!-- unverified -->
+// Without volatile — Thread B might loop forever
+// because it reads the cached value of 'running'
+private boolean running = true;
+
+// With volatile — Thread B sees the update immediately
+private volatile boolean running = true;
+
+// Common pattern: graceful shutdown flag
+public void stop() { running = false; }
+
+public void run() {
+    while (running) {
+        // do work
+    }
+}
+```
+
+**SDET relevance:** In test frameworks with parallel execution, a volatile flag can signal test threads to stop (e.g., when a critical setup step fails). However, for most thread-safety needs in test automation, `synchronized`, `AtomicReference`, or `ThreadLocal` are more appropriate.
+
+**What volatile does NOT do:** It doesn't make compound operations (like `count++`) thread-safe. `count++` is read-then-write — two threads can read the same value before either writes.
+
+**Follow-up Questions:**
+- What is the difference between `volatile` and `synchronized`?
+- When would you use `AtomicInteger` instead of `volatile int`?
+- How does `ThreadLocal` solve the problem differently?
+
+**Common Mistakes:**
+- Saying volatile makes operations "thread-safe" without qualifying that it only provides visibility
+- Not knowing that `volatile` prevents instruction reordering (happens-before relationship)
+- Confusing volatile with synchronized
+
+---
+
+### Q10: What is the difference between `Comparable` and `Comparator`? Give a testing example.
+
+**Expected Answer:**
+
+`Comparable<T>` defines a **natural ordering** inside the class itself (one way to sort). `Comparator<T>` defines an **external ordering** (multiple ways to sort).
+
+```java
+<!-- unverified -->
+// Comparable — natural ordering by test ID
+public class TestResult implements Comparable<TestResult> {
+    private String testId;
+    private long duration;
+    private Status status;
+    
+    @Override
+    public int compareTo(TestResult other) {
+        return this.testId.compareTo(other.testId);
+    }
+}
+
+// Comparator — sort by duration, then by status
+Comparator<TestResult> byDuration = Comparator.comparingLong(TestResult::getDuration);
+Comparator<TestResult> byStatus = Comparator.comparing(TestResult::getStatus);
+Comparator<TestResult> byDurationThenStatus = byDuration.thenComparing(byStatus);
+
+// Usage
+List<TestResult> results = getResults();
+results.sort(byDurationThenStatus);
+
+// Or inline with stream
+results.stream()
+    .sorted(Comparator.comparingLong(TestResult::getDuration).reversed())
+    .collect(Collectors.toList());
+```
+
+**Rule of thumb:** Use `Comparable` when there's one obvious natural ordering (e.g., test cases by ID). Use `Comparator` when you need multiple sort strategies (by duration, by status, by name).
+
+**Follow-up Questions:**
+- What happens if `compareTo()` is inconsistent with `equals()`?
+- How do you sort in reverse order?
+- How does `Comparator.comparing()` simplify code?
+
+**Common Mistakes:**
+- Saying "Comparable is for the class, Comparator is external" without explaining *when* each is appropriate
+- Not knowing the `Comparator.comparing()` factory methods added in Java 8
+- Returning `this.value - other.value` in `compareTo()` (overflow risk for large integers)
+
+---
+
+## Hard (5 Questions)
+
+### Q11: Explain Java's memory model — stack vs. heap, garbage collection generations, and how this affects test frameworks.
+
+**Expected Answer:**
+
+**Stack vs. Heap:**
+- **Stack:** Each thread gets its own stack. Stores local variables, method parameters, and return addresses. LIFO structure, very fast. Variables are destroyed when the method returns.
+- **Heap:** Shared across all threads. Stores objects created with `new`. Managed by the garbage collector. This is where your Page Objects, API clients, and test data live.
+
+**Garbage Collection Generations:**
+- **Young Generation (Eden + Survivor spaces):** New objects are allocated in Eden. Short-lived objects (like temporary strings in assertions) are collected quickly via Minor GC.
+- **Old Generation (Tenured):** Objects that survive multiple Minor GCs are promoted here. Collected less frequently via Major GC.
+- **Metaspace (Java 8+):** Stores class metadata, replacing the old PermGen.
+
+**How this affects test frameworks:**
+- **Memory leaks in tests:** If a test creates WebDriver instances without calling `quit()`, those objects accumulate in the Old Generation. After enough tests, you get `OutOfMemoryError`.
+- **ThreadLocal leaks:** `ThreadLocal<WebDriver>` in parallel execution — if threads are pooled (e.g., TestNG thread pool), the ThreadLocal value persists. You must call `threadLocal.remove()` in `@AfterMethod`.
+- **Large test data:** Loading a huge JSON file into memory for data-driven tests can pressure the Young Generation, causing frequent Minor GCs and slowing execution.
+
+**Follow-up Questions:**
+- What is a memory leak in Java? How would you detect one in a test suite?
+- What GC algorithms do you know (G1, ZGC, Shenandoah)?
+- How does `-Xmx` affect test execution in CI?
+
+**Common Mistakes:**
+- Describing stack/heap without connecting to real test automation scenarios
+- Not knowing that Java's GC is generational
+- Saying "Java doesn't have memory leaks" (it does — when objects are unintentionally referenced)
+
+---
+
+### Q12: How does `ConcurrentHashMap` work and when would you use it instead of `HashMap` in test automation?
+
+**Expected Answer:**
+
+`ConcurrentHashMap` is a **thread-safe HashMap** that uses **segment-level locking** (Java 7) or **CAS operations + synchronized on individual bins** (Java 8+).
+
+**Java 8+ internals:**
+- The table is an array of `Node` objects (same as HashMap)
+- `put()`: Uses CAS (Compare-And-Swap) to insert into empty bins; `synchronized` on the first node of the bin if it's occupied
+- `get()`: Lock-free in most cases (volatile reads)
+- No locking on reads, fine-grained locking on writes — far better concurrency than `Collections.synchronizedMap()`
+
+**When to use in test automation:**
+
+```java
+<!-- unverified -->
+// Shared test result collector across parallel threads
+private static final ConcurrentHashMap<String, TestResult> results = new ConcurrentHashMap<>();
+
+// Each test thread writes its result
+public void recordResult(String testId, TestResult result) {
+    results.put(testId, result);  // Thread-safe without external sync
+}
+
+// Aggregate after all tests complete
+public Map<Status, Long> summarize() {
+    return results.values().stream()
+        .collect(Collectors.groupingBy(TestResult::getStatus, Collectors.counting()));
+}
+```
+
+**Key limitation:** `ConcurrentHashMap` does NOT allow null keys or values (unlike HashMap). This is by design — `null` would be ambiguous: does `get(key) == null` mean "key not found" or "value is null"?
+
+**Follow-up Questions:**
+- What is the difference between `ConcurrentHashMap` and `Collections.synchronizedMap()`?
+- What are CAS operations?
+- When would you use `ConcurrentHashMap.compute()` or `merge()`?
+
+**Common Mistakes:**
+- Saying ConcurrentHashMap "locks the whole map" (that's synchronizedMap)
+- Not knowing about the null restriction
+- Using `HashMap` with external synchronization when `ConcurrentHashMap` is simpler
+
+---
+
+### Q13: Explain how `ThreadLocal` works and why it's critical for parallel test execution.
+
+**Expected Answer:**
+
+`ThreadLocal` gives each thread its own **isolated copy** of a variable. When Thread A calls `threadLocal.get()`, it gets Thread A's value; Thread B gets a completely different value.
+
+**Internal mechanism:** Each `Thread` object has a `ThreadLocalMap` — a map from `ThreadLocal` instances to values. When you call `threadLocal.get()`, it looks up the value in the current thread's map.
+
+```java
+<!-- unverified -->
+public class DriverManager {
+    private static final ThreadLocal<WebDriver> driverThread = new ThreadLocal<>();
+    
+    public static WebDriver getDriver() {
+        return driverThread.get();
+    }
+    
+    public static void setDriver(WebDriver driver) {
+        driverThread.set(driver);
+    }
+    
+    public static void quitDriver() {
+        WebDriver driver = driverThread.get();
+        if (driver != null) {
+            driver.quit();
+            driverThread.remove(); // CRITICAL — prevents memory leak
+        }
+    }
+}
+```
+
+**Why `remove()` is critical:** If the thread is reused (thread pool), the old WebDriver reference stays in the ThreadLocalMap. This causes:
+1. Memory leak — old driver objects are never garbage collected
+2. Stale state — next test on this thread might interact with a quit driver
+
+**SDET interview context:** If someone asks "how do you handle WebDriver in parallel execution?", the answer is `ThreadLocal`. This is arguably the most important concurrency concept for SDETs.
+
+**Follow-up Questions:**
+- What is `InheritableThreadLocal` and when would you use it?
+- What is the memory leak risk with ThreadLocal in thread pools?
+- How does TestNG's `@BeforeMethod` / `@AfterMethod` relate to ThreadLocal driver management?
+
+**Common Mistakes:**
+- Explaining ThreadLocal without emphasizing the `remove()` call
+- Not connecting ThreadLocal to the specific problem it solves (parallel WebDriver management)
+- Thinking ThreadLocal replaces synchronization (it doesn't — it avoids shared state entirely)
+
+---
+
+### Q14: What is the Diamond Problem in Java and how does Java 8 handle it with default methods?
+
+**Expected Answer:**
+
+The Diamond Problem occurs when a class inherits from two sources that have the same method. In classic OOP (C++ with multiple inheritance), this creates ambiguity about which method to use.
+
+Java avoids this with **single class inheritance** — you can extend only one class. But Java 8 introduced **default methods in interfaces**, bringing the problem back:
+
+```java
+<!-- unverified -->
+interface Loggable {
+    default void log(String msg) {
+        System.out.println("[LOG] " + msg);
+    }
+}
+
+interface Reportable {
+    default void log(String msg) {
+        System.out.println("[REPORT] " + msg);
+    }
+}
+
+// This DOES NOT compile — diamond conflict
+class TestBase implements Loggable, Reportable {
+    // Must override to resolve ambiguity
+    @Override
+    public void log(String msg) {
+        Loggable.super.log(msg); // Explicitly choose which default to use
+    }
+}
+```
+
+**Resolution rules:**
+1. **Class methods win over interface defaults** — if the class (or its superclass) has the method, interface defaults are ignored
+2. **More specific interface wins** — if interface B extends interface A, B's default overrides A's
+3. **If still ambiguous, the class must override** — compiler forces explicit resolution
+
+**SDET relevance:** When designing test framework interfaces (e.g., `Loggable`, `Screenshotable`, `Retryable`), default methods enable mixin-like behavior without abstract classes. Understanding the diamond problem prevents confusing compilation errors.
+
+**Follow-up Questions:**
+- Why doesn't Java support multiple class inheritance?
+- What is the difference between abstract classes and interfaces after Java 8?
+- Can default methods have state?
+
+**Common Mistakes:**
+- Saying "Java doesn't have the diamond problem" (it does, since Java 8)
+- Not knowing the resolution rules
+- Confusing default methods with abstract methods
+
+---
+
+### Q15: Explain the `Optional` class. How does it prevent NullPointerException in test code?
+
+**Expected Answer:**
+
+`Optional<T>` is a container that may or may not hold a non-null value. It forces you to **explicitly handle the absence of a value** instead of risking `NullPointerException`.
+
+```java
+<!-- unverified -->
+// Bad — NullPointerException if findElement returns null
+String text = driver.findElement(By.id("error-msg")).getText().trim();
+
+// Better — Optional forces handling of absence
+public Optional<String> getErrorMessage() {
+    List<WebElement> elements = driver.findElements(By.id("error-msg"));
+    return elements.isEmpty() 
+        ? Optional.empty() 
+        : Optional.of(elements.get(0).getText().trim());
+}
+
+// Usage
+String errorMsg = page.getErrorMessage()
+    .orElse("No error message displayed");
+
+// Or conditionally act on it
+page.getErrorMessage().ifPresent(msg -> {
+    logger.warn("Unexpected error: " + msg);
+    Assert.fail("Error displayed: " + msg);
+});
+```
+
+**Key methods:**
+- `Optional.of(value)` — wraps a non-null value (throws NPE if null)
+- `Optional.ofNullable(value)` — wraps a value that might be null
+- `Optional.empty()` — represents absence
+- `orElse(default)` — return value or default
+- `orElseThrow()` — return value or throw exception
+- `map()` / `flatMap()` — transform the value if present
+
+**Anti-patterns:**
+- `optional.get()` without `isPresent()` — defeats the purpose
+- Using Optional for method parameters — use overloading instead
+- `Optional` in fields — use null checks or `@Nullable` annotation
+
+**Follow-up Questions:**
+- What is the difference between `orElse()` and `orElseGet()`?
+- When should you NOT use Optional?
+- How does Optional chain with Streams?
+
+**Common Mistakes:**
+- Using `optional.get()` directly (same NPE risk as before, just `NoSuchElementException` instead)
+- Creating Optional of a collection (return empty collection instead)
+- Saying Optional "prevents all null errors" — it only helps where you use it
+
+---
+
+## DSA Coding Problems for SDETs
+
+### Problem 1: Find Duplicate Test IDs in a Test Suite
+
+**Difficulty:** Easy | **Time Complexity:** O(n) | **Space Complexity:** O(n)
+
+**Problem:** Given a list of test IDs (strings), return all IDs that appear more than once. Order doesn't matter.
+
+**Why this is asked:** Tests frequency counting, HashSet usage, basic problem-solving.
+
+```java
+<!-- unverified -->
+public List<String> findDuplicateTestIds(List<String> testIds) {
+    Set<String> seen = new HashSet<>();
+    Set<String> duplicates = new HashSet<>();
+    
+    for (String id : testIds) {
+        if (!seen.add(id)) {
+            duplicates.add(id);
+        }
+    }
+    return new ArrayList<>(duplicates);
+}
+
+// Test cases:
+// ["TC1", "TC2", "TC1", "TC3", "TC2"] => ["TC1", "TC2"]
+// ["TC1", "TC2", "TC3"] => []
+// [] => []
+// ["TC1", "TC1", "TC1"] => ["TC1"]
+```
+
+**Key insight:** `HashSet.add()` returns `false` if the element already exists — this is a clean single-pass solution.
+
+**Follow-up:** What if you also need the count of each duplicate? Use a `HashMap<String, Integer>`.
+
+---
+
+### Problem 2: Merge Two Sorted Test Execution Logs
+
+**Difficulty:** Medium | **Time Complexity:** O(n + m) | **Space Complexity:** O(n + m)
+
+**Problem:** Two test environments produce sorted logs (by timestamp). Merge them into a single sorted list.
+
+**Why this is asked:** Tests the two-pointer technique, understanding of sorted data.
+
+```java
+<!-- unverified -->
+public List<LogEntry> mergeSortedLogs(List<LogEntry> log1, List<LogEntry> log2) {
+    List<LogEntry> merged = new ArrayList<>(log1.size() + log2.size());
+    int i = 0, j = 0;
+    
+    while (i < log1.size() && j < log2.size()) {
+        if (log1.get(i).getTimestamp() <= log2.get(j).getTimestamp()) {
+            merged.add(log1.get(i));
+            i++;
+        } else {
+            merged.add(log2.get(j));
+            j++;
+        }
+    }
+    
+    // Add remaining entries
+    while (i < log1.size()) { merged.add(log1.get(i++)); }
+    while (j < log2.size()) { merged.add(log2.get(j++)); }
+    
+    return merged;
+}
+```
+
+**Key insight:** Two pointers moving through sorted lists — compare current elements, advance the pointer with the smaller value. This is the merge step of merge sort.
+
+**Follow-up:** What if there are N logs instead of 2? Use a min-heap (PriorityQueue) with one entry per log, always extracting the minimum.
+
+---
+
+### Problem 3: Detect Circular Dependencies in a Test Suite
+
+**Difficulty:** Hard | **Time Complexity:** O(V + E) | **Space Complexity:** O(V)
+
+**Problem:** Given a map of test dependencies (test -> list of tests it depends on), determine if there's a circular dependency that would prevent execution ordering.
+
+**Why this is asked:** Tests graph knowledge, DFS, real-world test orchestration understanding.
+
+```java
+<!-- unverified -->
+public boolean hasCircularDependency(Map<String, List<String>> dependencies) {
+    Set<String> visited = new HashSet<>();
+    Set<String> inProgress = new HashSet<>();
+    
+    for (String test : dependencies.keySet()) {
+        if (hasCycleDFS(test, dependencies, visited, inProgress)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+private boolean hasCycleDFS(String test, Map<String, List<String>> deps,
+                            Set<String> visited, Set<String> inProgress) {
+    if (inProgress.contains(test)) return true;  // Cycle detected
+    if (visited.contains(test)) return false;     // Already fully explored
+    
+    inProgress.add(test);
+    
+    List<String> neighbors = deps.getOrDefault(test, Collections.emptyList());
+    for (String dep : neighbors) {
+        if (hasCycleDFS(dep, deps, visited, inProgress)) {
+            return true;
+        }
+    }
+    
+    inProgress.remove(test);
+    visited.add(test);
+    return false;
+}
+```
+
+**Key insight:** Three states per node — **unvisited**, **in-progress** (on the current DFS path), and **visited** (fully explored). A cycle exists if DFS reaches a node that's already in-progress.
+
+**Follow-up:** If no cycle, return a valid execution order (topological sort). Use the same DFS but push to a stack when marking visited — the reverse gives the execution order.
+
+---
+
+**Related:** Java Collections And Generics, Lambdas And Streams, DSA Arrays And Strings

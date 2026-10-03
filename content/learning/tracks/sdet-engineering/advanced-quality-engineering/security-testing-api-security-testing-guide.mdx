@@ -1,0 +1,535 @@
+---
+title: "API Security Testing Guide"
+description: "What: API security testing verifies that an API is protected against common attack patterns: unauthorized access, injection attacks, data exposure, and abuse. Unlike functional testing (does the API return correct data?), security testing asks: can an attacker bypass authentication, access another user's data, inject malicious payloads, or overwhelm the system? The OWASP API Security Top 10 defines the most critical risks."
+summary: "SDET Engineering guide: API Security Testing Guide"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "advanced-quality-engineering"
+lesson: "security-testing-api-security-testing-guide"
+difficulty: "advanced"
+estimatedMinutes: 34
+prerequisites: []
+tags: ["SDET", "Quality Engineering", "Advanced"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/advanced-quality-engineering/security-testing-api-security-testing-guide"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# API Security Testing Guide
+
+> **Module:** 09 — Advanced Quality Engineering / Security Testing  
+> **Prerequisites:** Authentication And Authorization, Http And Rest Fundamentals  
+> **Mastery Target:** L2 (Guided) → L3 (Independent) — can identify common API security vulnerabilities, write security test cases, and automate OWASP Top 10 checks with REST Assured
+
+---
+
+## Quick Overview (Layer 1)
+
+**What:** API security testing verifies that an API is protected against common attack patterns: unauthorized access, injection attacks, data exposure, and abuse. Unlike functional testing (does the API return correct data?), security testing asks: can an attacker bypass authentication, access another user's data, inject malicious payloads, or overwhelm the system? The OWASP API Security Top 10 defines the most critical risks.
+
+**Why:** APIs are the primary attack surface for modern applications. StayNest's booking API handles payment data, personal information, and reservation details — a breach exposes customer data, triggers regulatory penalties, and destroys trust. SDETs are uniquely positioned to catch security bugs because they already write API tests — extending those tests to include security assertions is a natural evolution, not a separate discipline.
+
+**Where:** Every authenticated endpoint, every user-input field, every endpoint that returns sensitive data. In StayNest: authentication endpoints (brute force, credential stuffing), booking APIs (IDOR — accessing another user's bookings), search APIs (injection via query params), and admin APIs (privilege escalation).
+
+<KeyTakeaways>
+
+1. **OWASP API Security Top 10** is your checklist. Focus on: Broken Object-Level Authorization (BOLA/IDOR), Broken Authentication, Excessive Data Exposure, Injection, and Rate Limiting.
+2. Security testing doesn't require a "hacker mindset" — it requires testing what should NOT happen, not just what should.
+3. Most security tests are negative test cases: send a valid request with another user's ID, send SQL in an input field, call an admin endpoint as a regular user.
+4. Automate repeatable security checks in your existing test suite. Leave penetration testing to specialists.
+5. Security headers (CORS, CSP, HSTS) are easily automated and frequently missed.
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation (Layer 2)
+
+### OWASP API Security Top 10 — What SDETs Should Test
+
+| # | Risk | What It Means | SDET Test Approach |
+|---|------|--------------|-------------------|
+| **API1** | Broken Object-Level Authorization (BOLA) | User A accesses User B's data by changing the ID in the URL | Request `/bookings/456` with User A's token (booking belongs to User B) |
+| **API2** | Broken Authentication | Weak auth mechanisms allow account takeover | Test missing tokens, expired tokens, brute force login |
+| **API3** | Broken Object Property-Level Authorization | API returns more data than the user should see | Check response for fields like `password`, `ssn`, `internalId` |
+| **API4** | Unrestricted Resource Consumption | No rate limiting allows abuse | Send 1000 rapid requests, verify 429 responses |
+| **API5** | Broken Function-Level Authorization | Regular user accesses admin endpoints | Call `/admin/users` with regular user token |
+| **API6** | Server-Side Request Forgery (SSRF) | API can be tricked into making internal requests | Send URLs pointing to internal services in input fields |
+| **API7** | Security Misconfiguration | Default configs, verbose errors, missing headers | Check error responses for stack traces, check security headers |
+| **API8** | Lack of Protection from Automated Threats | No bot protection on critical flows | Automated booking creation without CAPTCHA/rate limit |
+| **API9** | Improper Inventory Management | Undocumented/deprecated APIs still accessible | Test old API versions (`/v1/`) still responding |
+| **API10** | Unsafe Consumption of APIs | Blind trust of third-party API responses | Validate data from external APIs before processing |
+
+### Authentication vs Authorization Testing
+
+```
+Authentication: WHO are you?
+─────────────────────────────
+  ✓ Valid credentials → 200 + token
+  ✗ Invalid credentials → 401
+  ✗ Missing token → 401
+  ✗ Expired token → 401
+  ✗ Malformed token → 401
+  ✗ Brute force (10 wrong passwords) → 429 or account lock
+
+Authorization: WHAT can you do?
+─────────────────────────────
+  ✓ User accessing own data → 200
+  ✗ User accessing another user's data → 403
+  ✗ Regular user calling admin endpoint → 403
+  ✗ Read-only user calling write endpoint → 403
+  ✗ Deleted/deactivated user with valid token → 401 or 403
+```
+
+### SQL Injection Mechanics
+
+```
+Normal request:
+  GET /hotels/search?city=NYC
+  → SQL: SELECT * FROM hotels WHERE city = 'NYC'
+
+Injection attempt:
+  GET /hotels/search?city=NYC' OR '1'='1
+  → SQL: SELECT * FROM hotels WHERE city = 'NYC' OR '1'='1'
+  → Returns ALL hotels (bypassed filter)
+
+Destructive injection:
+  GET /hotels/search?city=NYC'; DROP TABLE bookings;--
+  → SQL: SELECT * FROM hotels WHERE city = 'NYC'; DROP TABLE bookings;--'
+  → Deletes the bookings table
+```
+
+Modern ORMs and parameterized queries prevent this, but the SDET's job is to verify that protection is actually in place.
+
+---
+
+## Practical Implementation (Layer 3)
+
+### 10 Security Test Cases for StayNest API (REST Assured)
+
+
+```java
+import io.restassured.RestAssured;
+import io.restassured.response.Response;
+import org.testng.annotations.*;
+import static io.restassured.RestAssured.*;
+import static org.hamcrest.Matchers.*;
+
+/**
+ * API security test suite for StayNest.
+ * Covers OWASP API Top 10 risks relevant to an SDET's scope.
+ */
+public class ApiSecurityTests {
+
+    private String userAToken;
+    private String userBToken;
+    private String adminToken;
+    private int userABookingId;
+
+    @BeforeClass
+    public void setup() {
+        RestAssured.baseURI = "http://localhost:8080/api";
+
+        // Login as three different users
+        userAToken = loginAndGetToken("usera@staynest.com", "UserAPass123!");
+        userBToken = loginAndGetToken("userb@staynest.com", "UserBPass123!");
+        adminToken = loginAndGetToken("admin@staynest.com", "AdminPass123!");
+
+        // Create a booking as User A (for IDOR tests)
+        userABookingId = given()
+            .header("Authorization", "Bearer " + userAToken)
+            .contentType("application/json")
+            .body("""
+                {"hotelId": 1, "checkIn": "2025-08-01",
+                 "checkOut": "2025-08-05", "guests": 2}
+            """)
+            .post("/bookings")
+            .jsonPath().getInt("data.bookingId");
+    }
+
+    // ── Test 1: IDOR — User B cannot access User A's booking ──
+    @Test
+    public void test01_idor_userCannotAccessAnotherUsersBooking() {
+        given()
+            .header("Authorization", "Bearer " + userBToken)
+        .when()
+            .get("/bookings/" + userABookingId)
+        .then()
+            .statusCode(403)
+            .body("error.message", containsString("not authorized"));
+    }
+
+    // ── Test 2: IDOR — User B cannot cancel User A's booking ──
+    @Test
+    public void test02_idor_userCannotCancelAnotherUsersBooking() {
+        given()
+            .header("Authorization", "Bearer " + userBToken)
+        .when()
+            .patch("/bookings/" + userABookingId + "/cancel")
+        .then()
+            .statusCode(403);
+    }
+
+    // ── Test 3: Missing authentication token ──
+    @Test
+    public void test03_missingToken_returns401() {
+        // No Authorization header
+        when()
+            .get("/bookings/" + userABookingId)
+        .then()
+            .statusCode(401)
+            .body("error.message", containsString("authentication required"));
+    }
+
+    // ── Test 4: Expired/invalid token ──
+    @Test
+    public void test04_invalidToken_returns401() {
+        given()
+            .header("Authorization", "Bearer invalid.token.here")
+        .when()
+            .get("/bookings/" + userABookingId)
+        .then()
+            .statusCode(401);
+    }
+
+    // ── Test 5: Privilege escalation — regular user calls admin endpoint ──
+    @Test
+    public void test05_regularUserCannotAccessAdminEndpoints() {
+        given()
+            .header("Authorization", "Bearer " + userAToken)
+        .when()
+            .get("/admin/users")
+        .then()
+            .statusCode(403)
+            .body("error.message", containsString("insufficient permissions"));
+    }
+
+    // ── Test 6: SQL injection in search parameter ──
+    @Test
+    public void test06_sqlInjection_inSearchParam() {
+        String[] sqlPayloads = {
+            "NYC' OR '1'='1",
+            "NYC'; DROP TABLE hotels;--",
+            "NYC' UNION SELECT * FROM users--",
+            "NYC\" OR \"\"=\""
+        };
+
+        for (String payload : sqlPayloads) {
+            Response response = given()
+                .queryParam("city", payload)
+            .when()
+                .get("/hotels/search");
+
+            // Should either return 400 (rejected) or 200 with no data
+            // Should NOT return 500 (unhandled SQL error)
+            org.testng.Assert.assertNotEquals(response.getStatusCode(), 500,
+                "SQL injection payload caused server error: " + payload);
+
+            // Should NOT leak SQL error details
+            String body = response.getBody().asString();
+            org.testng.Assert.assertFalse(
+                body.toLowerCase().contains("sql") ||
+                body.toLowerCase().contains("syntax error") ||
+                body.toLowerCase().contains("query"),
+                "Response leaks SQL details for payload: " + payload);
+        }
+    }
+
+    // ── Test 7: XSS payload in user input ──
+    @Test
+    public void test07_xssPayload_isSanitized() {
+        String[] xssPayloads = {
+            "<script>alert('xss')</script>",
+            "<img src=x onerror=alert('xss')>",
+            "javascript:alert('xss')",
+            "'; alert('xss'); //",
+        };
+
+        for (String payload : xssPayloads) {
+            Response response = given()
+                .header("Authorization", "Bearer " + userAToken)
+                .contentType("application/json")
+                .body("{\"name\": \"" + payload + "\"}")
+            .when()
+                .put("/users/profile");
+
+            String body = response.getBody().asString();
+            // Response should not reflect raw script tags
+            org.testng.Assert.assertFalse(
+                body.contains("<script>"),
+                "XSS payload reflected in response: " + payload);
+        }
+    }
+
+    // ── Test 8: Excessive data exposure — response should not contain sensitive fields ──
+    @Test
+    public void test08_noSensitiveDataInResponse() {
+        Response response = given()
+            .header("Authorization", "Bearer " + userAToken)
+        .when()
+            .get("/users/profile");
+
+        String body = response.getBody().asString().toLowerCase();
+        org.testng.Assert.assertFalse(body.contains("password"), "Response contains password field");
+        org.testng.Assert.assertFalse(body.contains("password_hash"), "Response contains password hash");
+        org.testng.Assert.assertFalse(body.contains("ssn"), "Response contains SSN field");
+        org.testng.Assert.assertFalse(body.contains("credit_card"), "Response contains credit card");
+        org.testng.Assert.assertFalse(body.contains("internal_id"), "Response contains internal ID");
+    }
+
+    // ── Test 9: Security headers are present ──
+    @Test
+    public void test09_securityHeaders_arePresent() {
+        given()
+            .header("Authorization", "Bearer " + userAToken)
+        .when()
+            .get("/users/profile")
+        .then()
+            .header("X-Content-Type-Options", "nosniff")
+            .header("X-Frame-Options", anyOf(equalTo("DENY"), equalTo("SAMEORIGIN")))
+            .header("Strict-Transport-Security", notNullValue())
+            .header("Cache-Control", containsString("no-store"))
+            .header("Content-Type", containsString("application/json"));
+
+        // Verify no server version leakage
+        Response response = get("/hotels/search?city=NYC");
+        String serverHeader = response.getHeader("Server");
+        if (serverHeader != null) {
+            org.testng.Assert.assertFalse(
+                serverHeader.matches(".*\\d+\\.\\d+.*"),
+                "Server header leaks version: " + serverHeader);
+        }
+    }
+
+    // ── Test 10: Rate limiting — rapid requests trigger 429 ──
+    @Test
+    public void test10_rateLimiting_returns429() {
+        int tooManyRequests = 0;
+
+        // Send 100 rapid login attempts
+        for (int i = 0; i < 100; i++) {
+            Response response = given()
+                .contentType("application/json")
+                .body("{\"email\":\"usera@staynest.com\",\"password\":\"wrong\"}")
+            .when()
+                .post("/auth/login");
+
+            if (response.getStatusCode() == 429) {
+                tooManyRequests++;
+                // Verify Retry-After header is present
+                org.testng.Assert.assertNotNull(
+                    response.getHeader("Retry-After"),
+                    "429 response should include Retry-After header");
+                break;
+            }
+        }
+
+        org.testng.Assert.assertTrue(tooManyRequests > 0,
+            "Rate limiting was not triggered after 100 rapid requests");
+    }
+
+    // ── Helper ──
+    private String loginAndGetToken(String email, String password) {
+        return given()
+            .contentType("application/json")
+            .body(String.format("{\"email\":\"%s\",\"password\":\"%s\"}", email, password))
+        .when()
+            .post("/auth/login")
+        .then()
+            .statusCode(200)
+            .extract().jsonPath().getString("data.token");
+    }
+}
+```
+
+### Security Header Validation Utility
+
+
+```java
+/**
+ * Reusable security header assertions for any API response.
+ * Add to your base API test class.
+ */
+public class SecurityHeaderValidator {
+
+    private static final Map<String, String> REQUIRED_HEADERS = Map.of(
+        "X-Content-Type-Options", "nosniff",
+        "X-Frame-Options", "DENY",
+        "Cache-Control", "no-store"
+    );
+
+    private static final List<String> SHOULD_NOT_LEAK = List.of(
+        "X-Powered-By",  // Reveals tech stack (Express, ASP.NET)
+        "X-AspNet-Version",
+        "X-AspNetMvc-Version"
+    );
+
+    public static void validateSecurityHeaders(Response response) {
+        // Required headers must be present
+        REQUIRED_HEADERS.forEach((header, expectedValue) -> {
+            String actual = response.getHeader(header);
+            assertNotNull(actual, "Missing security header: " + header);
+            assertTrue(actual.contains(expectedValue),
+                header + " expected '" + expectedValue + "' but was '" + actual + "'");
+        });
+
+        // Leaky headers must be absent
+        SHOULD_NOT_LEAK.forEach(header -> {
+            assertNull(response.getHeader(header),
+                "Header should not be present (leaks tech stack): " + header);
+        });
+    }
+}
+```
+
+---
+
+## Failure and Debugging (Layer 4)
+
+### Failure 1: IDOR Test Passes Because API Returns 200 with Empty Body
+
+**The Problem:** You expect 403 for User B accessing User A's booking, but the API returns 200 with an empty `data` field. The test fails because status is 200, not 403.
+
+**Root cause:** The API silently filters results by user — it returns "no data found" instead of "not authorized." This is actually a valid security pattern (don't reveal that the resource exists), but your assertion was wrong.
+
+**The fix:** Accept both 403 and "200 with no data" as valid secure responses. The real risk is 200 with User A's actual data:
+
+
+```java
+@Test
+public void idor_userCannotAccessAnotherUsersData() {
+    Response response = given()
+        .header("Authorization", "Bearer " + userBToken)
+    .when()
+        .get("/bookings/" + userABookingId);
+
+    // Either 403 (explicit deny) or 404 (resource hidden) is acceptable
+    int status = response.getStatusCode();
+    assertTrue(status == 403 || status == 404,
+        "Expected 403 or 404 but got " + status);
+
+    // Critical: if 200, verify it does NOT contain User A's data
+    if (status == 200) {
+        assertNull(response.jsonPath().get("data.guestEmail"),
+            "IDOR vulnerability: User B received User A's booking data");
+    }
+}
+```
+
+### Failure 2: Rate Limiting Test is Flaky in CI
+
+**The Problem:** The rate limiting test passes locally but fails in CI. The 100 rapid requests complete too slowly in CI to trigger the rate limiter.
+
+**Root cause:** CI network latency means requests aren't "rapid" enough. The rate limiter uses a sliding window, and CI's slower requests don't exceed the threshold within the window.
+
+**The fix:** Use parallel threads to send truly concurrent requests, or ask the backend team for the exact rate limit configuration and adjust your test:
+
+
+```java
+// Send requests in parallel to guarantee rapid-fire delivery
+ExecutorService executor = Executors.newFixedThreadPool(20);
+AtomicInteger rateLimited = new AtomicInteger(0);
+
+List<Future<?>> futures = IntStream.range(0, 100)
+    .mapToObj(i -> executor.submit(() -> {
+        Response r = given().contentType("application/json")
+            .body("{\"email\":\"user@test.com\",\"password\":\"wrong\"}")
+            .post("/auth/login");
+        if (r.getStatusCode() == 429) rateLimited.incrementAndGet();
+    }))
+    .toList();
+
+futures.forEach(f -> { try { f.get(); } catch (Exception e) {} });
+assertTrue(rateLimited.get() > 0, "Rate limiting not triggered");
+```
+
+---
+
+## Engineering Judgment (Layer 5)
+
+### What SDETs Should vs Shouldn't Test
+
+| SDET Scope (Automate These) | Security Specialist Scope (Leave to Them) |
+|------------------------------|------------------------------------------|
+| IDOR — accessing other users' resources | Advanced penetration testing |
+| Missing/invalid auth tokens → 401 | Zero-day vulnerability scanning |
+| Privilege escalation (user → admin) | Network-level security (TLS config, cipher suites) |
+| SQL injection payloads → no 500 errors | Advanced injection (blind SQL, time-based) |
+| XSS payloads sanitized in responses | Browser exploit chains |
+| Security headers present | Infrastructure hardening (firewall rules) |
+| Rate limiting on auth endpoints | DDoS protection and mitigation |
+| Sensitive data not in responses | Encryption at rest verification |
+
+### Building Security Into Your Existing Test Suite
+
+Don't create a separate "security test suite." Integrate security assertions into existing functional tests:
+
+
+```java
+// Before (functional test only):
+@Test
+public void getBooking_returnsBookingDetails() {
+    given().header("Authorization", "Bearer " + token)
+        .get("/bookings/1")
+        .then().statusCode(200)
+        .body("data.hotelName", equalTo("Grand Hotel"));
+}
+
+// After (functional + security assertions):
+@Test
+public void getBooking_returnsBookingDetails() {
+    Response response = given()
+        .header("Authorization", "Bearer " + token)
+    .when()
+        .get("/bookings/1");
+
+    // Functional assertions
+    response.then().statusCode(200)
+        .body("data.hotelName", equalTo("Grand Hotel"));
+
+    // Security assertions (added — zero extra API calls)
+    SecurityHeaderValidator.validateSecurityHeaders(response);
+    assertFalse(response.getBody().asString().contains("password"));
+}
+```
+
+---
+
+## Interview and Revision (Layer 6)
+
+
+
+
+| # | Front | Back |
+|---|-------|------|
+| 1 | What is IDOR and how do you test for it? | Insecure Direct Object Reference — accessing another user's data by changing the ID in the URL. Test by requesting User A's resource using User B's auth token. Expect 403 or 404, never 200 with User A's data |
+| 2 | What security headers should every API response include? | X-Content-Type-Options: nosniff, X-Frame-Options: DENY, Strict-Transport-Security (HSTS), Cache-Control: no-store for sensitive data. Should NOT include X-Powered-By (leaks tech stack) |
+| 3 | How do you test for SQL injection as an SDET? | Send injection payloads (`' OR '1'='1`, `'; DROP TABLE x;--`) in input fields. Verify: no 500 errors (unhandled), no SQL error details in response, no unexpected data returned |
+| 4 | What's the difference between authentication and authorization testing? | Authentication testing = verify identity checks (missing token → 401, wrong password → 401). Authorization testing = verify permission checks (user accessing admin endpoint → 403, user accessing other user's data → 403) |
+| 5 | Should SDETs do penetration testing? | No. SDETs automate repeatable security checks (IDOR, auth, injection payloads, headers, rate limiting). Penetration testing is a specialized discipline requiring dedicated security expertise |
+
+### Mastery Checklist
+
+- [ ] Can list the OWASP API Top 10 and identify which are testable by SDETs
+- [ ] Can write IDOR test cases for any API with user-scoped resources
+- [ ] Can test authentication flows (missing, invalid, expired tokens)
+- [ ] Can send SQL injection and XSS payloads and verify safe handling
+- [ ] Can validate security headers programmatically in API tests
+- [ ] Can test rate limiting behavior and verify 429 responses
+- [ ] Can integrate security assertions into existing functional test suites
+
+---
+
+**Related:** Security Testing Basics
+
+*Last updated: *

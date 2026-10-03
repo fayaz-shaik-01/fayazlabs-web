@@ -1,0 +1,601 @@
+---
+title: "HTTP and REST Fundamentals"
+description: "What: HTTP (HyperText Transfer Protocol) is the request-response protocol that powers the web. REST (Representational State Transfer) is an architectural style for designing APIs that leverages HTTP's native semantics — methods, status codes, and URLs — to expose resources. Every API test you write sends an HTTP request and asserts against the HTTP response."
+summary: "SDET Engineering guide: HTTP and REST Fundamentals"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "api-automation"
+lesson: "http-and-rest-fundamentals"
+difficulty: "intermediate"
+estimatedMinutes: 38
+prerequisites: []
+tags: ["SDET", "API", "REST", "Testing"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/api-automation/http-and-rest-fundamentals"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# HTTP and REST Fundamentals
+
+> **Module:** 04 — API Automation  
+> **Prerequisites:** Basic networking concepts, familiarity with web applications  
+> **Mastery Target:** L3 (Independent) — can trace, explain, and debug any HTTP request/response without guidance
+
+---
+
+## Quick Overview (Layer 1)
+
+**What:** HTTP (HyperText Transfer Protocol) is the request-response protocol that powers the web. REST (Representational State Transfer) is an architectural style for designing APIs that leverages HTTP's native semantics — methods, status codes, and URLs — to expose resources. Every API test you write sends an HTTP request and asserts against the HTTP response.
+
+**Why:** You already use REST Assured at work, so you know *how* to send requests. But when a test fails with a 403 instead of a 401, or a PUT behaves differently from a PATCH, or a query parameter silently gets URL-encoded and breaks, you need to understand what's happening *at the protocol level*. The difference between an SDET who can diagnose "the server returned 502" and one who just re-runs the test is HTTP literacy.
+
+**Where:** Every API test, every curl command, every network tab investigation, every Postman collection, every service-to-service call in a microservices architecture. HTTP is the language; REST is the grammar.
+
+<MentalModel>
+
+Think of HTTP as a **postal system**. A client writes a letter (request) with a destination address (URL), a type of action (method — "please deliver this" vs "please return what's at this address"), includes contents (body), and attaches metadata on the envelope (headers). The server receives the letter, processes it, and sends back a reply (response) with a status stamp ("delivered successfully" / "address not found" / "you don't have permission") and the requested contents.
+
+</MentalModel>
+
+
+REST adds a convention on top of this postal system: every "thing" in your system (a user, a hotel, a booking) has a unique address (URL), and you use the standard letter types (GET, POST, PUT, DELETE) to interact with those things. You don't invent custom letter types — you use the ones everyone already understands.
+
+<KeyTakeaways>
+
+1. HTTP is stateless — every request is independent; the server doesn't remember previous requests unless you send identifying information (tokens, cookies) with each one.
+2. HTTP methods have defined semantics: GET reads, POST creates, PUT replaces, PATCH modifies, DELETE removes. Using them correctly is what makes an API RESTful.
+3. REST is about resources (nouns), not actions (verbs). The URL identifies *what*, the method specifies *what to do with it*.
+4. Every HTTP message has the same anatomy: start line, headers, blank line, optional body. Learn this structure once and you can read any request or response.
+5. Understanding URL anatomy — scheme, host, port, path, query parameters — prevents an entire category of bugs involving encoding, routing, and environment switching.
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation (Layer 2)
+
+### The Client-Server Model
+
+HTTP follows a strict client-server architecture. The client (your test, a browser, a mobile app) initiates a request. The server (the StayNest backend) processes it and returns a response. The client never receives data it didn't ask for, and the server never pushes data without being asked (HTTP/1.1 — WebSocket and Server-Sent Events are different protocols/mechanisms).
+
+```
+Client (REST Assured)              Server (StayNest)
+       |                                  |
+       |--- HTTP Request (POST /auth/login) -->|
+       |                                  |  [validate credentials]
+       |                                  |  [generate JWT]
+       |<-- HTTP Response (200 + token) ---|
+       |                                  |
+```
+
+This matters for testing because every API test is exactly this exchange — nothing more. Your test constructs a request, sends it, and asserts on the response. If you understand the structure of both, you can test any API.
+
+### HTTP Statelessness
+
+Each HTTP request is completely independent. The server does not remember that you logged in on the previous request. If you need the server to know who you are, you must include proof of identity (an `Authorization` header with a JWT, a session cookie) with *every* request.
+
+**Why this matters for API testing:** You can't just call `/auth/login` in one test and expect the next test's `/bookings` call to "remember" you're logged in. You must explicitly pass the token with every authenticated request. This is why REST Assured's `RequestSpecification` with a reusable auth header is essential.
+
+### HTTP Methods — Semantics, Safety, and Idempotency
+
+Every HTTP method has two important properties:
+
+- **Safe:** The method does not modify server state. Calling it has no side effects.
+- **Idempotent:** Calling the method multiple times produces the same result as calling it once.
+
+| Method | Purpose | Safe | Idempotent | Request Body | StayNest Example |
+|--------|---------|------|------------|-------------|------------------|
+| GET | Read a resource | Yes | Yes | No (typically) | `GET /users/profile` |
+| POST | Create a resource or trigger an action | No | No | Yes | `POST /auth/signup` |
+| PUT | Replace a resource entirely | No | Yes | Yes | `PUT /admin/hotels/{hotelId}` |
+| PATCH | Partially update a resource | No | No* | Yes | `PATCH /users/profile` |
+| DELETE | Remove a resource | No | Yes | No (typically) | `DELETE /admin/hotels/{hotelId}` |
+
+*PATCH is not guaranteed idempotent — it depends on the operation (e.g., "set name to X" is idempotent; "append to list" is not).
+
+**Why idempotency matters for testing:** If your test sends a DELETE twice (because of a retry or flaky network), an idempotent DELETE returns the same result both times (204 or 404). A non-idempotent POST called twice creates two resources — which is why POST requests need deduplication logic in production and why your tests must account for duplicate creation.
+
+**PUT vs PATCH — the distinction that trips up SDETs:**
+
+```
+PUT /users/profile
+{
+  "name": "Updated Name",
+  "email": "user@staynest.com",
+  "gender": "MALE",
+  "dateOfBirth": "1990-01-01"
+}
+// Replaces the ENTIRE resource — every field must be present.
+// If you omit "gender", it becomes null.
+
+PATCH /users/profile
+{
+  "name": "Updated Name"
+}
+// Modifies ONLY the fields you send.
+// "gender" and "dateOfBirth" remain unchanged.
+```
+
+### REST — Resource-Based Architecture
+
+REST treats everything as a **resource** — a noun with a unique URL. You interact with resources using HTTP methods (verbs). The URL identifies *what*, the method specifies *the action*.
+
+**RESTful URL patterns:**
+
+| Pattern | Meaning | Example |
+|---------|---------|---------|
+| `/resources` | Collection | `/admin/hotels` — all hotels |
+| `/resources/{id}` | Single resource | `/admin/hotels/42` — hotel #42 |
+| `/resources/{id}/sub-resources` | Nested collection | `/admin/hotels/42/rooms` — rooms in hotel #42 |
+| `/resources/{id}/sub-resources/{id}` | Nested single | `/admin/hotels/42/rooms/7` — room #7 in hotel #42 |
+
+**Anti-pattern — verbs in URLs:** `/getHotel`, `/createBooking`, `/deleteUser`. REST uses the HTTP method as the verb. The URL should be a noun: `GET /hotels/42`, `POST /bookings`, `DELETE /users/5`.
+
+### REST Maturity Model (Richardson)
+
+The REST maturity model describes four levels of how well an API uses HTTP:
+
+| Level | Description | Example |
+|-------|-------------|---------|
+| Level 0 | Single endpoint, one method (typically POST) for everything | `POST /api` with action in body: `{"action": "getHotel", "id": 42}` |
+| Level 1 | Individual resources with unique URLs, but still one method | `POST /hotels/42` for both reading and updating |
+| Level 2 | Correct HTTP methods + status codes for each resource | `GET /hotels/42` returns 200, `POST /hotels` returns 201, `DELETE /hotels/42` returns 204 |
+| Level 3 | HATEOAS — responses include links to related actions | Response includes `"_links": {"rooms": "/hotels/42/rooms", "book": "/bookings/init"}` |
+
+Most production APIs (including StayNest) operate at Level 2. HATEOAS (Level 3) is rare in practice — it's worth knowing the concept for interviews but you won't test it often.
+
+### URL Anatomy
+
+Every URL you test has a precise structure. Understanding each part prevents a class of bugs around encoding, routing, and configuration.
+
+```
+https://api.staynest.com:8080/api/v1/hotels/search?city=New+York&page=0#results
+|____|  |_______________|____|________________________|__________________|_______|
+scheme       host        port         path              query params     fragment
+```
+
+| Component | Purpose | Testing Relevance |
+|-----------|---------|-------------------|
+| **Scheme** | Protocol (`http` or `https`) | Ensure tests hit `https` in staging/prod; `http` locally |
+| **Host** | Server domain or IP | Environment switching: `localhost` vs `staging.staynest.com` |
+| **Port** | Network port (default: 80 for HTTP, 443 for HTTPS) | StayNest runs on `8080` locally — don't hardcode it |
+| **Path** | Resource location | `/api/v1/hotels/42` — path parameters are part of the path |
+| **Query params** | Filtering, pagination, options | `?city=New+York&page=0` — key-value pairs after `?` |
+| **Fragment** | Client-side anchor (never sent to server) | Irrelevant for API testing — browsers use it, APIs don't |
+
+**Query parameter encoding:** Spaces become `+` or `%20`. Special characters get percent-encoded. REST Assured handles this automatically, but if you're constructing URLs manually (e.g., in curl), encoding bugs cause silent failures — `city=New York` (unencoded) may result in the server receiving only `city=New`.
+
+### Request Anatomy
+
+Every HTTP request has four parts:
+
+```
+POST /api/v1/auth/login HTTP/1.1        ← Request line: method + path + version
+Host: localhost:8080                     ← Headers (key: value pairs)
+Content-Type: application/json
+Accept: application/json
+                                         ← Blank line separates headers from body
+{"email":"guest@staynest.com","password":"pass123"}  ← Body (optional, depends on method)
+```
+
+| Part | Content | Required |
+|------|---------|----------|
+| **Request line** | Method, URL path, HTTP version | Always |
+| **Headers** | Metadata: content type, auth, accepted formats | At least `Host` |
+| **Blank line** | Separator between headers and body | Always |
+| **Body** | Data payload (JSON, form data, etc.) | Only for POST, PUT, PATCH |
+
+### Response Anatomy
+
+Every HTTP response has the same four-part structure:
+
+```
+HTTP/1.1 200 OK                          ← Status line: version + code + reason phrase
+Content-Type: application/json           ← Headers
+Set-Cookie: refreshToken=abc; HttpOnly
+                                          ← Blank line
+{"timeStamp":"2025-01-15T10:30:00","data":{"accessToken":"eyJhb..."},"error":null}  ← Body
+```
+
+| Part | Content | Testing Relevance |
+|------|---------|-------------------|
+| **Status line** | HTTP version, status code, reason phrase | Assert the status code: `response.statusCode()` |
+| **Headers** | Server metadata, cookies, cache directives | Assert headers: `response.header("Content-Type")` |
+| **Body** | Response payload | Assert body fields: `response.jsonPath().getString("data.accessToken")` |
+
+### Content Types
+
+The `Content-Type` header tells the server what format the body is in. The `Accept` header tells the server what format you want the response in.
+
+| Content-Type | When Used | Example |
+|-------------|-----------|---------|
+| `application/json` | Most API requests/responses | `{"email": "user@staynest.com"}` |
+| `application/x-www-form-urlencoded` | HTML form submissions, some OAuth token endpoints | `email=user%40staynest.com&password=pass123` |
+| `multipart/form-data` | File uploads (photos, documents) | Binary file data with boundary separators |
+
+In StayNest, every API request and response uses `application/json`. You'll encounter `application/x-www-form-urlencoded` when working with OAuth token endpoints in other systems, and `multipart/form-data` if you ever test file upload APIs.
+
+---
+
+## Practical Implementation (Layer 3)
+
+### Tracing a StayNest Login Request with curl
+
+Before writing REST Assured code, understand what's happening at the wire level. The `-v` flag in curl shows the full request and response:
+
+```bash
+curl -v -X POST http://localhost:8080/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"guest@staynest.com","password":"pass123"}'
+```
+
+**What you'll see (annotated):**
+
+```
+> POST /api/v1/auth/login HTTP/1.1       ← Your request line
+> Host: localhost:8080                    ← Request headers (curl adds these)
+> Content-Type: application/json
+> Content-Length: 52
+>
+> {"email":"guest@staynest.com","password":"pass123"}  ← Request body
+
+< HTTP/1.1 200 OK                        ← Response status line
+< Content-Type: application/json          ← Response headers
+< Set-Cookie: refreshToken=eyJhb...; Path=/; HttpOnly
+<
+< {"timeStamp":"...","data":{"accessToken":"eyJhb..."},"error":null}  ← Response body
+```
+
+### The Same Request in REST Assured
+
+
+```java
+import io.restassured.RestAssured;
+import io.restassured.response.Response;
+import static io.restassured.RestAssured.*;
+import static org.hamcrest.Matchers.*;
+
+public class HttpFundamentalsDemo {
+
+    // Base URL configured once — matches curl's target
+    static {
+        RestAssured.baseURI = "http://localhost:8080/api/v1";
+    }
+
+    /**
+     * Demonstrates the exact same request as the curl command above.
+     * Maps each HTTP concept to its REST Assured equivalent.
+     */
+    public void loginRequest() {
+        Response response =
+            given()                                    // Build the request
+                .contentType("application/json")       // Content-Type header
+                .accept("application/json")            // Accept header
+                .body("{\"email\":\"guest@staynest.com\",\"password\":\"pass123\"}")  // Request body
+            .when()
+                .post("/auth/login")                   // HTTP method + path
+            .then()
+                .statusCode(200)                       // Assert status code
+                .header("Content-Type", containsString("application/json"))  // Assert header
+                .body("data.accessToken", notNullValue())  // Assert body field
+                .extract().response();                 // Extract for further use
+
+        // Extract the token for subsequent requests
+        String accessToken = response.jsonPath().getString("data.accessToken");
+        // Extract the refresh token cookie
+        String refreshCookie = response.getCookie("refreshToken");
+    }
+}
+```
+
+### Demonstrating HTTP Methods Against StayNest
+
+
+```java
+import io.restassured.http.ContentType;
+import io.restassured.response.Response;
+import static io.restassured.RestAssured.*;
+
+/**
+ * Demonstrates each HTTP method with its correct StayNest endpoint.
+ * Each method maps to a CRUD operation on a resource.
+ */
+public class HttpMethodsDemo {
+
+    private String managerToken;  // Obtained from login
+
+    // POST — Create a new resource
+    // Not idempotent: calling twice creates two hotels
+    public void postExample() {
+        String hotelBody = """
+            {
+                "name": "Grand Hotel",
+                "city": "New York",
+                "photos": [],
+                "amenities": [],
+                "contactInfo": {
+                    "address": "123 Main St",
+                    "phoneNumber": "555-0100",
+                    "email": "grand@staynest.com",
+                    "location": "Downtown"
+                }
+            }
+            """;
+
+        Response response = given()
+            .contentType(ContentType.JSON)
+            .header("Authorization", "Bearer " + managerToken)
+            .body(hotelBody)
+        .when()
+            .post("/admin/hotels")
+        .then()
+            .statusCode(201)   // 201 Created — resource was created
+            .extract().response();
+
+        int hotelId = response.jsonPath().getInt("data.id");
+    }
+
+    // GET — Read a resource (safe, idempotent)
+    // Calling 100 times has the same effect as calling once
+    public void getExample(int hotelId) {
+        given()
+            .header("Authorization", "Bearer " + managerToken)
+        .when()
+            .get("/admin/hotels/" + hotelId)
+        .then()
+            .statusCode(200)   // 200 OK — resource returned
+            .body("data.name", equalTo("Grand Hotel"));
+    }
+
+    // PUT — Replace a resource entirely (idempotent)
+    // Must send ALL fields — omitted fields may become null
+    public void putExample(int hotelId) {
+        String updatedHotel = """
+            {
+                "name": "Grand Hotel Renovated",
+                "city": "New York",
+                "photos": [],
+                "amenities": ["WIFI", "POOL"],
+                "contactInfo": {
+                    "address": "123 Main St",
+                    "phoneNumber": "555-0100",
+                    "email": "grand@staynest.com",
+                    "location": "Downtown"
+                }
+            }
+            """;
+
+        given()
+            .contentType(ContentType.JSON)
+            .header("Authorization", "Bearer " + managerToken)
+            .body(updatedHotel)
+        .when()
+            .put("/admin/hotels/" + hotelId)
+        .then()
+            .statusCode(200);   // 200 OK — resource replaced
+    }
+
+    // PATCH — Partially update (not necessarily idempotent)
+    // Only the fields you send are modified
+    public void patchExample() {
+        given()
+            .contentType(ContentType.JSON)
+            .header("Authorization", "Bearer " + managerToken)
+            .body("{\"name\": \"Updated Name\"}")
+        .when()
+            .patch("/users/profile")
+        .then()
+            .statusCode(204);   // 204 No Content — updated, nothing to return
+    }
+
+    // DELETE — Remove a resource (idempotent)
+    // First call removes it (204), second call returns 404 — both are "correct"
+    public void deleteExample(int hotelId) {
+        given()
+            .header("Authorization", "Bearer " + managerToken)
+        .when()
+            .delete("/admin/hotels/" + hotelId)
+        .then()
+            .statusCode(204);   // 204 No Content — resource deleted
+    }
+}
+```
+
+---
+
+## Failure and Debugging (Layer 4)
+
+### Failure 1: Wrong Content-Type Causes 415 or Malformed Body
+
+**The Problem:**
+
+
+```java
+// Sending JSON without telling the server it's JSON
+given()
+    // Missing: .contentType(ContentType.JSON)
+    .body("{\"email\":\"user@staynest.com\",\"password\":\"pass123\"}")
+.when()
+    .post("/auth/login")
+.then()
+    .statusCode(200);  // FAILS — server returns 415 Unsupported Media Type
+```
+
+**Root cause:** Without `Content-Type: application/json`, the server doesn't know how to parse the body. Some servers default to `application/x-www-form-urlencoded` and try to parse your JSON as form data — producing garbled results and a 400 Bad Request instead of a clear 415.
+
+**The fix:** Always set `Content-Type` explicitly, or configure it in a `RequestSpecification`:
+
+
+```java
+// Fix: set content type
+given()
+    .contentType(ContentType.JSON)
+    .body("{\"email\":\"user@staynest.com\",\"password\":\"pass123\"}")
+.when()
+    .post("/auth/login")
+.then()
+    .statusCode(200);
+```
+
+<BestPractice>
+
+**Prevention:** Use a shared `RequestSpecification` that sets `Content-Type` and `Accept` globally so no individual test can forget.
+
+</BestPractice>
+
+
+### Failure 2: Query Parameter Encoding Breaks the Request
+
+**The Problem:**
+
+
+```java
+// Manually building a URL with spaces — encoding error
+given()
+.when()
+    .get("/hotels/search?city=New York")  // Space in URL — invalid!
+.then()
+    .statusCode(200);  // May return 400 or match no results
+```
+
+**Root cause:** Spaces in URLs are invalid. The server may reject the request, silently truncate the value at the space, or interpret it as two separate parameters.
+
+**The fix:** Use REST Assured's `queryParam()` method, which handles encoding automatically:
+
+
+```java
+given()
+    .queryParam("city", "New York")  // REST Assured encodes to "New+York"
+.when()
+    .get("/hotels/search")
+.then()
+    .statusCode(200);
+```
+
+### Failure 3: Confusing Path Parameters with Query Parameters
+
+**The Problem:**
+
+
+```java
+// Trying to pass hotelId as a query parameter instead of a path parameter
+given()
+    .queryParam("hotelId", 42)
+.when()
+    .get("/admin/hotels")       // Sends: /admin/hotels?hotelId=42
+.then()
+    .statusCode(200);           // Returns ALL hotels, not hotel 42!
+```
+
+**Root cause:** The API expects `GET /admin/hotels/42` (path parameter), not `GET /admin/hotels?hotelId=42` (query parameter). Path parameters identify the resource; query parameters filter or modify the request.
+
+**The fix:**
+
+
+```java
+// Correct: path parameter
+given()
+    .pathParam("hotelId", 42)
+.when()
+    .get("/admin/hotels/{hotelId}")  // Sends: /admin/hotels/42
+.then()
+    .statusCode(200)
+    .body("data.id", equalTo(42));
+```
+
+---
+
+## Engineering Judgment (Layer 5)
+
+### When to Use curl vs REST Assured vs Postman
+
+| Tool | Best For | Not For |
+|------|----------|---------|
+| **curl** | Quick one-off checks, debugging CI issues, verifying server is up, sharing reproducible commands in bug reports | Automated tests, complex assertions, data extraction |
+| **Postman** | Manual exploration, team collaboration on API collections, documenting endpoints | Automated CI/CD testing, version-controlled tests |
+| **REST Assured** | Automated test suites, CI/CD pipelines, complex assertions, data-driven tests | Quick ad-hoc exploration (too much boilerplate for one-off checks) |
+
+**The pragmatic approach:** Explore with Postman or curl first. Once you understand the behavior, automate with REST Assured. Don't write REST Assured code to *discover* how an API works — that's what exploration tools are for.
+
+### REST Purity vs Practical Testing
+
+Not every API is perfectly RESTful. You'll encounter:
+
+- `POST /auth/login` — not truly RESTful (it's an action, not a resource creation), but universal and practical
+- `POST /bookings/init` — StayNest uses POST for initiating a booking (an action on a collection) rather than `POST /bookings` (pure resource creation)
+- `PATCH /admin/hotels/{hotelId}/activate` — uses PATCH for a state change, which is a common pragmatic choice
+
+**Your job as an SDET:** Test the API as it exists, not as REST theory says it should be. Document deviations if they cause confusion, but don't refuse to test an endpoint because "that's not proper REST."
+
+### When HTTP Knowledge Prevents Misguided Tests
+
+Understanding HTTP prevents you from writing tests that assert the wrong thing:
+
+- **Don't assert that GET has no side effects** — that's the server's responsibility to implement correctly. Your test should assert the *response*, not the server's implementation.
+- **Don't test idempotency unless it's a requirement** — calling PUT twice and checking the result is a valid integration test, but only if the spec says "PUT must be idempotent."
+- **Do test that the correct status codes are returned** — a 200 on a creation endpoint (should be 201) is a real bug that affects API consumers.
+
+---
+
+## Interview and Revision (Layer 6)
+
+### Fundamental Questions
+
+**Q1: Explain the difference between PUT and PATCH with an example.**
+
+**A:** PUT replaces the entire resource — you must send all fields, and any omitted field may be set to null. PATCH modifies only the fields you send — unmentioned fields remain unchanged. For StayNest's user profile: `PUT /users/profile` with only `{"name": "New Name"}` would clear `gender` and `dateOfBirth`. `PATCH /users/profile` with the same body updates only the name, leaving other fields intact. In practice, I test both: PUT with partial payloads to verify the server correctly nullifies omitted fields, and PATCH to verify it preserves unmentioned fields.
+
+**Q2: What does stateless mean in HTTP, and how does it affect API testing?**
+
+**A:** Stateless means the server retains no memory of previous requests between calls. Each request must carry everything the server needs to process it — including authentication credentials. In API testing, this means I can't rely on a login call "sticking" — every subsequent request must include the token in the `Authorization` header. It also means I can run API tests in any order and in parallel, because no test depends on server-side session state from a previous test.
+
+**Q3: What is idempotency and why does it matter for testing?**
+
+**A:** An idempotent operation produces the same result whether you call it once or multiple times. GET, PUT, and DELETE are idempotent; POST is not. For testing, this matters in retry scenarios: if a network timeout causes my test's POST to be sent twice, I may create duplicate resources. For DELETE, calling it twice should return 204 then 404 (or 204 both times) — but never create side effects. I test idempotency explicitly for critical endpoints like payment processing where duplicate calls could charge a customer twice.
+
+### Scenario-Based Questions
+
+**S1: "Your API test sends a POST request and gets back a 200 instead of the expected 201. Is this a bug?"**
+
+**A:** It depends on the API contract. If the spec says `POST /resource` should return 201 Created, then 200 is a deviation — it might work functionally but violates REST conventions and could confuse API consumers. I'd check the API contract, file a bug if the spec says 201, and verify the resource was actually created (not just returned from cache). Some APIs intentionally return 200 for POST — it's not "wrong" per se, but it's unconventional.
+
+**S2: "A teammate hardcodes the full URL in every REST Assured call: `get('http://localhost:8080/api/v1/hotels')`. What's the problem?"**
+
+**A:** Three problems. (1) Environment coupling — these tests can only run against localhost:8080; switching to staging means changing every test file. (2) Maintenance — if the base URL or API version changes, every test breaks. (3) Readability — the important part (the endpoint path) is buried in a long string. The fix is to set `RestAssured.baseURI` or use a `RequestSpecification` with the base URL from config, so tests only specify the path: `get("/hotels")`.
+
+
+
+
+| # | Front (Question) | Back (Answer) |
+|---|---|---|
+| 1 | What are the four parts of an HTTP request? | Request line (method + URL + version), headers, blank line, optional body |
+| 2 | Which HTTP methods are idempotent? | GET, PUT, DELETE, HEAD, OPTIONS. POST and PATCH are not (generally) |
+| 3 | What is the difference between a path parameter and a query parameter? | Path parameter identifies a specific resource (`/hotels/42`). Query parameter filters or modifies the request (`/hotels?city=NYC`). Path params are part of the URL structure; query params are appended after `?`. |
+| 4 | What REST maturity level do most production APIs implement? | Level 2 — correct use of HTTP methods and status codes with resource-based URLs. Level 3 (HATEOAS) is rare in practice. |
+| 5 | Why does HTTP statelessness matter for parallel test execution? | Since the server remembers nothing between requests, tests don't share server-side state. Each test sends its own auth token and operates independently, making parallel execution safe by default. |
+
+### Mastery Checklist
+
+- [ ] Can draw the anatomy of an HTTP request and response from memory
+- [ ] Can explain the semantics, safety, and idempotency of each HTTP method
+- [ ] Can trace a request with `curl -v` and map each line to its HTTP component
+- [ ] Can explain REST maturity levels and identify which level a given API implements
+- [ ] Can identify URL encoding issues and use REST Assured's parameter handling correctly
+- [ ] Can articulate the difference between PUT and PATCH in an interview with a concrete example
+- [ ] Can explain why statelessness matters for both API design and test design
+
+---
+
+**Next:** Status Codes Headers And Json | **Related:** Testing Testing Principles
+
+*Last updated: *

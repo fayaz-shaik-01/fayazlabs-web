@@ -1,0 +1,541 @@
+---
+title: "JMeter and Gatling Primer"
+description: "What: JMeter, Gatling, and k6 are the three dominant performance testing tools. JMeter is GUI-driven with XML test plans, Gatling uses a Scala DSL for code-as-test, and k6 uses JavaScript for developer-friendly load scripting. Each creates virtual users that send concurrent requests to your application, measuring response times, throughput, and error rates under load."
+summary: "SDET Engineering guide: JMeter and Gatling Primer"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "advanced-quality-engineering"
+lesson: "performance-testing-jmeter-and-gatling-primer"
+difficulty: "advanced"
+estimatedMinutes: 34
+prerequisites: []
+tags: ["SDET", "Quality Engineering", "Advanced"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/advanced-quality-engineering/performance-testing-jmeter-and-gatling-primer"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# JMeter and Gatling Primer
+
+> **Module:** 09 — Advanced Quality Engineering / Performance Testing  
+> **Prerequisites:** Performance Testing Overview, Http And Rest Fundamentals  
+> **Mastery Target:** L2 (Guided) → L3 (Independent) — can create and execute load tests with JMeter, Gatling, and k6 against real APIs
+
+---
+
+## Quick Overview (Layer 1)
+
+**What:** JMeter, Gatling, and k6 are the three dominant performance testing tools. JMeter is GUI-driven with XML test plans, Gatling uses a Scala DSL for code-as-test, and k6 uses JavaScript for developer-friendly load scripting. Each creates virtual users that send concurrent requests to your application, measuring response times, throughput, and error rates under load.
+
+**Why:** The Performance Testing Overview teaches *what* to measure and *why*. This guide teaches *how* — the specific tool syntax, project setup, and execution patterns you need to write and run real load tests. Choosing the wrong tool wastes weeks: JMeter's GUI doesn't fit CI pipelines, Gatling's Scala intimidates Python teams, k6's ecosystem lacks protocol breadth. Understanding all three lets you pick correctly.
+
+**Where:** Load testing StayNest's high-traffic endpoints — hotel search (GET), booking creation (POST), authentication (POST). In CI pipelines as performance gates. During capacity planning before peak seasons.
+
+<KeyTakeaways>
+
+1. **JMeter** is best for teams with non-coders or diverse protocol needs (JDBC, JMS, LDAP). Its GUI is approachable but test plans are hard to version-control.
+2. **Gatling** is best for Java/Scala teams wanting code-as-test with beautiful HTML reports. Excellent CI integration.
+3. **k6** is best for JavaScript-savvy teams wanting lightweight, developer-friendly load testing with modern CLI tooling.
+4. All three support the same core concept: define virtual users, define their behavior (HTTP requests), ramp them up over time, and measure the results.
+5. Start with one tool, learn it deeply, then understand the others conceptually for interview and recommendation contexts.
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation (Layer 2)
+
+### JMeter Architecture
+
+```
+JMeter Test Plan Structure:
+┌─────────────────────────────┐
+│  Test Plan                  │
+│  ├── Thread Group           │  ← Virtual users (threads)
+│  │   ├── HTTP Sampler       │  ← The actual request
+│  │   ├── HTTP Sampler       │  ← Another request
+│  │   ├── CSV Data Set       │  ← Test data feeder
+│  │   ├── Response Assertion │  ← Validate response
+│  │   └── Timer              │  ← Think time between requests
+│  ├── Listener: Summary      │  ← Aggregate results
+│  └── Listener: HTML Report  │  ← Detailed report
+└─────────────────────────────┘
+```
+
+| JMeter Concept | What It Does | Example |
+|----------------|-------------|---------|
+| **Thread Group** | Defines virtual users, ramp-up time, loop count | 100 users, 30s ramp-up, 5 iterations |
+| **Sampler** | Sends the actual request (HTTP, JDBC, JMS, etc.) | GET /hotels/search?city=NYC |
+| **Assertion** | Validates the response | Status code = 200, body contains "hotels" |
+| **Listener** | Collects and displays results | Summary Report, View Results Tree |
+| **Timer** | Adds delay between requests (think time) | Uniform Random Timer: 1-3 seconds |
+| **Config Element** | Shared configuration (headers, cookies, data) | HTTP Header Manager, CSV Data Set Config |
+
+### Gatling Architecture
+
+```
+Gatling Simulation Structure:
+┌──────────────────────────────────┐
+│  Simulation (extends Simulation) │
+│  ├── HTTP Protocol Config        │  ← Base URL, headers, timeouts
+│  ├── Feeder                      │  ← Test data source (CSV, JSON)
+│  ├── Scenario                    │  ← User behavior chain
+│  │   ├── exec(http("name")...)   │  ← HTTP request
+│  │   ├── pause(duration)         │  ← Think time
+│  │   └── check(status.is(200))   │  ← Assertion
+│  └── setUp                       │  ← Load profile (ramp, constant)
+│      └── inject(rampUsers(100)   │
+│          .during(30.seconds))    │
+└──────────────────────────────────┘
+```
+
+### k6 Architecture
+
+```
+k6 Script Structure:
+┌──────────────────────────────┐
+│  export const options = {    │  ← Load profile configuration
+│    stages: [                 │
+│      { duration: '30s',      │
+│        target: 100 },        │  ← Ramp to 100 VUs in 30s
+│    ],                        │
+│    thresholds: {             │  ← Pass/fail criteria
+│      http_req_duration:      │
+│        ['p(95)<500'],        │
+│    },                        │
+│  };                          │
+│  export default function() { │  ← Virtual user behavior
+│    http.get(url);            │
+│    check(res, {...});        │
+│    sleep(1);                 │  ← Think time
+│  }                           │
+└──────────────────────────────┘
+```
+
+### Tool Comparison
+
+| Criteria | JMeter | Gatling | k6 |
+|----------|--------|---------|-----|
+| **Language** | GUI + XML | Scala DSL | JavaScript |
+| **Learning Curve** | Low (GUI) / High (scripting) | Medium (Scala) | Low (JS) |
+| **Version Control** | Hard (XML blobs) | Easy (code) | Easy (code) |
+| **CI Integration** | Moderate (CLI mode) | Excellent (Maven/Gradle) | Excellent (single binary) |
+| **Reports** | Basic (plugins for better) | Beautiful HTML built-in | Basic (Grafana for better) |
+| **Protocol Support** | Extensive (HTTP, JDBC, JMS, LDAP, FTP) | HTTP-focused | HTTP, WebSocket, gRPC |
+| **Resource Usage** | Heavy (JVM per thread) | Light (Akka actors) | Very light (Go runtime) |
+| **Distributed Testing** | Built-in master/slave | Clustering supported | k6 Cloud or custom |
+| **Best For** | Protocol variety, non-coder teams | Java/Scala teams, CI pipelines | DevOps teams, API testing |
+
+---
+
+## Practical Implementation (Layer 3)
+
+### JMeter: API Load Test for StayNest Search
+
+JMeter test plans are XML, but you create them through the GUI. Here's the equivalent CLI-runnable JMX structure:
+
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<jmeterTestPlan version="1.2">
+  <hashTree>
+    <TestPlan guiclass="TestPlanGui" testname="StayNest Search Load Test">
+      <boolProp name="TestPlan.functional_mode">false</boolProp>
+    </TestPlan>
+    <hashTree>
+      <!-- Thread Group: 50 users, 30s ramp-up, 5 minutes duration -->
+      <ThreadGroup guiclass="ThreadGroupGui" testname="Search Users">
+        <stringProp name="ThreadGroup.num_threads">50</stringProp>
+        <stringProp name="ThreadGroup.ramp_time">30</stringProp>
+        <boolProp name="ThreadGroup.scheduler">true</boolProp>
+        <stringProp name="ThreadGroup.duration">300</stringProp>
+        <elementProp name="ThreadGroup.main_controller" elementType="LoopController">
+          <boolProp name="LoopController.continue_forever">true</boolProp>
+          <intProp name="LoopController.loops">-1</intProp>
+        </elementProp>
+      </ThreadGroup>
+      <hashTree>
+        <!-- HTTP Header Manager -->
+        <HeaderManager guiclass="HeaderPanel" testname="HTTP Headers">
+          <collectionProp name="HeaderManager.headers">
+            <elementProp name="Content-Type" elementType="Header">
+              <stringProp name="Header.name">Content-Type</stringProp>
+              <stringProp name="Header.value">application/json</stringProp>
+            </elementProp>
+          </collectionProp>
+        </HeaderManager>
+        <hashTree/>
+
+        <!-- HTTP Sampler: Search Hotels -->
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui"
+                          testname="Search Hotels">
+          <stringProp name="HTTPSampler.domain">localhost</stringProp>
+          <stringProp name="HTTPSampler.port">8080</stringProp>
+          <stringProp name="HTTPSampler.path">/api/hotels/search</stringProp>
+          <stringProp name="HTTPSampler.method">GET</stringProp>
+          <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+            <collectionProp name="Arguments.arguments">
+              <elementProp name="city" elementType="HTTPArgument">
+                <stringProp name="Argument.name">city</stringProp>
+                <stringProp name="Argument.value">NYC</stringProp>
+              </elementProp>
+              <elementProp name="checkIn" elementType="HTTPArgument">
+                <stringProp name="Argument.name">checkIn</stringProp>
+                <stringProp name="Argument.value">2025-08-01</stringProp>
+              </elementProp>
+            </collectionProp>
+          </elementProp>
+        </HTTPSamplerProxy>
+        <hashTree>
+          <!-- Response Assertion: Status 200 -->
+          <ResponseAssertion guiclass="AssertionGui" testname="Assert 200">
+            <stringProp name="Assertion.test_field">Assertion.response_code</stringProp>
+            <stringProp name="Assertion.test_type">2</stringProp>
+            <collectionProp name="Asserion.test_strings">
+              <stringProp>200</stringProp>
+            </collectionProp>
+          </ResponseAssertion>
+          <hashTree/>
+        </hashTree>
+
+        <!-- Uniform Random Timer: 1-3 second think time -->
+        <UniformRandomTimer guiclass="UniformRandomTimerGui"
+                            testname="Think Time">
+          <stringProp name="ConstantTimer.delay">1000</stringProp>
+          <stringProp name="RandomTimer.range">2000</stringProp>
+        </UniformRandomTimer>
+        <hashTree/>
+      </hashTree>
+    </hashTree>
+  </hashTree>
+</jmeterTestPlan>
+```
+
+**Run from CLI (CI-friendly):**
+
+
+```bash
+# Run JMeter in non-GUI mode with HTML report generation
+jmeter -n -t staynest-search-load-test.jmx \
+  -l results.jtl \
+  -e -o reports/ \
+  -Jthreads=50 -Jrampup=30 -Jduration=300
+
+# View report: open reports/index.html
+```
+
+### Gatling: Load Test Simulation for StayNest Booking API
+
+
+```scala
+package simulations
+
+import io.gatling.core.Predef._
+import io.gatling.http.Predef._
+import scala.concurrent.duration._
+
+/**
+ * Gatling simulation for StayNest booking API.
+ * Tests search → view hotel → create booking flow.
+ */
+class StayNestBookingSimulation extends Simulation {
+
+  // HTTP protocol configuration
+  val httpProtocol = http
+    .baseUrl("http://localhost:8080/api")
+    .acceptHeader("application/json")
+    .contentTypeHeader("application/json")
+    .userAgentHeader("Gatling/LoadTest")
+
+  // Test data feeder — reads from CSV
+  val cityFeeder = csv("cities.csv").random   // city column
+  val userFeeder = csv("users.csv").queue     // email, password columns
+
+  // Scenario 1: Search Hotels (highest traffic)
+  val searchScenario = scenario("Hotel Search")
+    .feed(cityFeeder)
+    .exec(
+      http("Search Hotels")
+        .get("/hotels/search")
+        .queryParam("city", "#{city}")
+        .queryParam("checkIn", "2025-08-01")
+        .queryParam("checkOut", "2025-08-05")
+        .check(status.is(200))
+        .check(jsonPath("$.data").exists)
+        .check(jsonPath("$.data[0].id").saveAs("hotelId"))
+    )
+    .pause(2, 5)  // Think time: 2-5 seconds
+    .exec(
+      http("View Hotel Details")
+        .get("/hotels/#{hotelId}")
+        .check(status.is(200))
+        .check(jsonPath("$.data.name").exists)
+    )
+
+  // Scenario 2: Create Booking (critical path)
+  val bookingScenario = scenario("Create Booking")
+    .feed(userFeeder)
+    .exec(
+      http("Login")
+        .post("/auth/login")
+        .body(StringBody("""{"email":"#{email}","password":"#{password}"}"""))
+        .check(status.is(200))
+        .check(jsonPath("$.data.token").saveAs("authToken"))
+    )
+    .pause(1, 3)
+    .exec(
+      http("Create Booking")
+        .post("/bookings")
+        .header("Authorization", "Bearer #{authToken}")
+        .body(StringBody("""{
+          "hotelId": 1,
+          "checkIn": "2025-08-01",
+          "checkOut": "2025-08-05",
+          "guests": 2
+        }"""))
+        .check(status.is(201))
+        .check(jsonPath("$.data.bookingId").exists)
+    )
+
+  // Load profile: ramp up users over time
+  setUp(
+    searchScenario.inject(
+      rampUsers(200).during(60.seconds),        // Ramp to 200 search users in 60s
+      constantUsersPerSec(10).during(5.minutes)  // Sustain 10 users/sec for 5 min
+    ),
+    bookingScenario.inject(
+      rampUsers(50).during(60.seconds),          // Ramp to 50 booking users in 60s
+      constantUsersPerSec(2).during(5.minutes)   // Sustain 2 bookings/sec for 5 min
+    )
+  ).protocols(httpProtocol)
+   .assertions(
+     global.responseTime.percentile(95).lt(500),  // p95 < 500ms
+     global.successfulRequests.percent.gt(99.0),   // >99% success rate
+     forAll.responseTime.percentile(99).lt(2000)   // p99 < 2s for all requests
+   )
+}
+```
+
+**Run Gatling with Maven:**
+
+
+```xml
+<!-- pom.xml — Gatling Maven Plugin -->
+<plugin>
+  <groupId>io.gatling</groupId>
+  <artifactId>gatling-maven-plugin</artifactId>
+  <version>4.9.0</version>
+  <configuration>
+    <simulationClass>simulations.StayNestBookingSimulation</simulationClass>
+  </configuration>
+</plugin>
+```
+
+
+```bash
+# Run from command line
+mvn gatling:test
+
+# Reports generated at: target/gatling/staynestbookingsimulation-*/index.html
+```
+
+### k6: Quick Load Test for StayNest Search
+
+
+```javascript
+import http from 'k6/http';
+import { check, sleep } from 'k6';
+import { Rate, Trend } from 'k6/metrics';
+
+// Custom metrics
+const errorRate = new Rate('errors');
+const searchDuration = new Trend('search_duration');
+
+// Load profile configuration
+export const options = {
+  stages: [
+    { duration: '30s', target: 50 },   // Ramp to 50 VUs in 30s
+    { duration: '3m',  target: 50 },   // Stay at 50 VUs for 3 min
+    { duration: '30s', target: 100 },  // Ramp to 100 VUs
+    { duration: '2m',  target: 100 },  // Stay at 100 VUs for 2 min
+    { duration: '30s', target: 0 },    // Ramp down to 0
+  ],
+  thresholds: {
+    http_req_duration: ['p(95)<500', 'p(99)<2000'],  // p95 < 500ms, p99 < 2s
+    errors: ['rate<0.01'],                             // Error rate < 1%
+    search_duration: ['avg<300'],                      // Avg search < 300ms
+  },
+};
+
+const BASE_URL = 'http://localhost:8080/api';
+
+export default function () {
+  // Search hotels
+  const searchRes = http.get(`${BASE_URL}/hotels/search`, {
+    tags: { name: 'SearchHotels' },
+    params: { city: 'NYC', checkIn: '2025-08-01', checkOut: '2025-08-05' },
+  });
+
+  check(searchRes, {
+    'search status is 200': (r) => r.status === 200,
+    'search has results': (r) => JSON.parse(r.body).data.length > 0,
+  });
+
+  errorRate.add(searchRes.status !== 200);
+  searchDuration.add(searchRes.timings.duration);
+
+  sleep(Math.random() * 3 + 1); // Think time: 1-4 seconds
+}
+```
+
+
+```bash
+# Run k6
+k6 run staynest-search-load.js
+
+# Run with custom VUs and duration (override script options)
+k6 run --vus 100 --duration 5m staynest-search-load.js
+
+# Output to JSON for CI parsing
+k6 run --out json=results.json staynest-search-load.js
+```
+
+---
+
+## Failure and Debugging (Layer 4)
+
+### Failure 1: JMeter Thread Count Doesn't Match Actual Concurrent Users
+
+**The Problem:** You configure 100 threads in JMeter, but the server logs show only 30-40 concurrent connections. Throughput is far lower than expected.
+
+**Root cause:** JMeter threads are synchronous — each thread waits for the response before sending the next request. If your API takes 500ms and think time is 2 seconds, each thread completes ~24 requests/minute. For 100 concurrent *connections*, you need more threads than 100.
+
+**The fix:** Calculate required threads: `threads = target_rps × (avg_response_time + think_time)`. For 100 rps with 0.5s response and 2s think time: `100 × 2.5 = 250 threads`. Or reduce think time for higher concurrency per thread.
+
+### Failure 2: Gatling Simulation Fails with "Connection Refused"
+
+**The Problem:** Gatling starts ramping users, then logs explode with `java.net.ConnectException: Connection refused`. The target server didn't crash — it's still responding to manual requests.
+
+**Root cause:** The test machine's OS hit its maximum open file/socket limit. Each virtual user holds an open connection. Linux defaults to ~1024 open files per process.
+
+**The fix:**
+
+
+```bash
+# Check current limit
+ulimit -n
+
+# Increase for the current session
+ulimit -n 65536
+
+# Permanent fix: /etc/security/limits.conf
+# gatling_user  soft  nofile  65536
+# gatling_user  hard  nofile  65536
+```
+
+### Failure 3: k6 Thresholds Pass Locally but Fail in CI
+
+**The Problem:** Load test passes on your machine (p95 = 400ms) but fails in the CI runner (p95 = 1200ms).
+
+**Root cause:** CI runners have limited CPU/memory, and the k6 process itself competes for resources. The test machine is the bottleneck, not the server.
+
+**The fix:** Run load tests from a dedicated performance testing machine or cloud runner, never from the same machine as the application. Use k6 Cloud or a dedicated CI runner with sufficient resources.
+
+---
+
+## Engineering Judgment (Layer 5)
+
+### Tool Selection Decision Matrix
+
+| Your Situation | Recommended Tool | Why |
+|---------------|-----------------|-----|
+| Java/Scala team, Maven/Gradle build | **Gatling** | Native integration, code-as-test, great reports |
+| Team includes manual testers creating load tests | **JMeter** | GUI is approachable, no coding required for basics |
+| JavaScript/TypeScript team | **k6** | Familiar language, lightweight, modern CLI |
+| Need to test JDBC, JMS, LDAP, SMTP | **JMeter** | Only tool with built-in protocol samplers for these |
+| Running in CI with strict resource limits | **k6** | Smallest footprint, single Go binary |
+| Need beautiful executive reports out-of-the-box | **Gatling** | HTML reports are publication-quality |
+| Quick proof-of-concept, minimal setup | **k6** | Install → write JS → run in under 10 minutes |
+
+### When NOT to Use Each Tool
+
+- **JMeter:** Don't use for CI-integrated, version-controlled test suites. The XML is merge-conflict-prone and unreadable in diffs.
+- **Gatling:** Don't use if nobody on the team knows Scala or is willing to learn. The DSL is powerful but unfamiliar syntax causes frustration.
+- **k6:** Don't use for non-HTTP protocol testing (JDBC, JMS). Its protocol support is narrower than JMeter's.
+
+### Load Test in CI: Pipeline Integration Pattern
+
+
+```yaml
+# GitHub Actions example — Gatling performance gate
+performance-test:
+  runs-on: ubuntu-latest
+  needs: deploy-staging
+  steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+
+    - name: Run Gatling Load Test
+      run: mvn gatling:test -Dgatling.simulationClass=simulations.StayNestBookingSimulation
+      env:
+        TARGET_URL: ${{ secrets.STAGING_URL }}
+
+    - name: Upload Gatling Report
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: gatling-report
+        path: target/gatling/**/index.html
+
+    - name: Check Performance Gate
+      run: |
+        # Parse Gatling simulation.log for assertion results
+        if grep -q "Global: percentage of successful requests is greater than 99.0 : false" target/gatling/*/simulation.log; then
+          echo "Performance gate FAILED: success rate below 99%"
+          exit 1
+        fi
+```
+
+---
+
+## Interview and Revision (Layer 6)
+
+
+
+
+| # | Front | Back |
+|---|-------|------|
+| 1 | What are the core components of a JMeter test plan? | Thread Group (virtual users), Samplers (requests), Assertions (validations), Listeners (results), Timers (think time), Config Elements (headers, data) |
+| 2 | How does Gatling achieve higher virtual user counts than JMeter? | JMeter uses one OS thread per virtual user (heavy). Gatling uses Akka actors with non-blocking I/O — thousands of virtual users share a small thread pool |
+| 3 | What is a Gatling feeder and why is it needed? | A data source (CSV, JSON, JDBC) that provides unique test data to each virtual user. Without feeders, all users send identical requests, which isn't realistic and may be cached |
+| 4 | How do k6 thresholds work? | Thresholds are pass/fail criteria defined in the options object (e.g., `http_req_duration: ['p(95)<500']`). If any threshold is breached, k6 exits with code 99 — ideal for CI gates |
+| 5 | When would you choose JMeter over Gatling? | When the team lacks coding skills (JMeter's GUI doesn't require code), when testing non-HTTP protocols (JDBC, JMS, LDAP), or when using JMeter plugins for niche protocols |
+
+### Mastery Checklist
+
+- [ ] Can create a JMeter test plan with thread group, HTTP sampler, assertions, and timer
+- [ ] Can run JMeter in non-GUI mode for CI integration
+- [ ] Can write a Gatling simulation with scenarios, feeders, and load injection profiles
+- [ ] Can write a k6 script with stages, thresholds, and checks
+- [ ] Can explain the architectural differences between JMeter (thread-per-user) and Gatling (actor model)
+- [ ] Can recommend the right tool given team skills, protocol needs, and CI requirements
+- [ ] Can integrate any of these tools into a CI pipeline as a performance gate
+
+---
+
+**Related:** Performance Testing Overview
+
+*Last updated: *

@@ -1,0 +1,408 @@
+---
+title: "Trees and Graphs"
+description: "What: Trees are hierarchical data structures where each node has children. Graphs are networks of nodes connected by edges. Trees are actually a special case of graphs (connected, acyclic)."
+summary: "SDET Engineering guide: Trees and Graphs"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "dsa"
+lesson: "trees-and-graphs"
+difficulty: "intermediate"
+estimatedMinutes: 30
+prerequisites: []
+tags: ["SDET", "DSA", "Algorithms"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/dsa/trees-and-graphs"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Trees and Graphs
+
+> **Module:** 01-programming-foundations / dsa
+> **Prerequisites:** Recursion And Backtracking, Stacks And Queues, Complexity Analysis
+> **Mastery Target:** L3
+
+---
+
+## Quick Overview (2-minute read)
+
+**What:** Trees are hierarchical data structures where each node has children. Graphs are networks of nodes connected by edges. Trees are actually a special case of graphs (connected, acyclic).
+
+**Why:** Trees and graphs model real-world structures everywhere in testing — the DOM is a tree, dependency relationships form graphs, test suites are organized hierarchically. These problems are interview staples (~25% of coding questions).
+
+**Where:** DOM traversal, test dependency resolution, file system navigation, org chart modeling, network topology, route finding.
+
+<MentalModel>
+
+**Tree** — An upside-down family tree. One root at the top, branches going down. Each node has exactly one parent (except the root) and zero or more children.
+
+</MentalModel>
+
+
+**Graph** — A subway map. Stations (nodes) connected by tracks (edges). Tracks can be one-way (directed) or two-way (undirected), and you can have cycles (loops).
+
+<KeyTakeaways>
+
+1. **Binary tree:** Each node has at most 2 children (left, right). Most interview tree problems use binary trees.
+2. **BST (Binary Search Tree):** Left child &lt; parent &lt; right child. Enables O(log n) search.
+3. **Tree traversals:** Inorder (left-root-right), Preorder (root-left-right), Postorder (left-right-root), Level-order (BFS).
+4. **Graph representations:** Adjacency list (most common) or adjacency matrix.
+5. **DFS** uses a stack (or recursion). **BFS** uses a queue. Both visit every node: O(V + E).
+
+</KeyTakeaways>
+
+
+---
+
+## Key Patterns and Techniques
+
+### Tree Node Definition
+
+
+```java
+public class TreeNode {
+    int val;
+    TreeNode left;
+    TreeNode right;
+
+    TreeNode(int val) {
+        this.val = val;
+    }
+}
+```
+
+### Tree Traversals
+
+
+```java
+// Inorder: Left → Root → Right (gives sorted order for BST)
+public void inorder(TreeNode node) {
+    if (node == null) return;
+    inorder(node.left);
+    System.out.print(node.val + " ");  // process
+    inorder(node.right);
+}
+
+// Preorder: Root → Left → Right (good for copying/serializing a tree)
+public void preorder(TreeNode node) {
+    if (node == null) return;
+    System.out.print(node.val + " ");  // process
+    preorder(node.left);
+    preorder(node.right);
+}
+
+// Postorder: Left → Right → Root (good for deletion, calculating sizes)
+public void postorder(TreeNode node) {
+    if (node == null) return;
+    postorder(node.left);
+    postorder(node.right);
+    System.out.print(node.val + " ");  // process
+}
+
+// Level-order (BFS): level by level, using a queue
+public List<List<Integer>> levelOrder(TreeNode root) {
+    List<List<Integer>> result = new ArrayList<>();
+    if (root == null) return result;
+
+    Queue<TreeNode> queue = new LinkedList<>();
+    queue.offer(root);
+    while (!queue.isEmpty()) {
+        int levelSize = queue.size();
+        List<Integer> level = new ArrayList<>();
+        for (int i = 0; i < levelSize; i++) {
+            TreeNode node = queue.poll();
+            level.add(node.val);
+            if (node.left != null) queue.offer(node.left);
+            if (node.right != null) queue.offer(node.right);
+        }
+        result.add(level);
+    }
+    return result;
+}
+```
+
+### Graph Representation — Adjacency List
+
+
+```java
+// Building a graph from edges
+Map<Integer, List<Integer>> graph = new HashMap<>();
+int[][] edges = {{0, 1}, {0, 2}, {1, 3}, {2, 3}};
+
+for (int[] edge : edges) {
+    graph.computeIfAbsent(edge[0], k -> new ArrayList<>()).add(edge[1]);
+    graph.computeIfAbsent(edge[1], k -> new ArrayList<>()).add(edge[0]); // undirected
+}
+```
+
+### Graph BFS and DFS
+
+
+```java
+// BFS — uses queue, finds shortest path in unweighted graph
+public void bfs(Map<Integer, List<Integer>> graph, int start) {
+    Set<Integer> visited = new HashSet<>();
+    Queue<Integer> queue = new LinkedList<>();
+    queue.offer(start);
+    visited.add(start);
+
+    while (!queue.isEmpty()) {
+        int node = queue.poll();
+        System.out.print(node + " ");
+        for (int neighbor : graph.getOrDefault(node, List.of())) {
+            if (!visited.contains(neighbor)) {
+                visited.add(neighbor);
+                queue.offer(neighbor);
+            }
+        }
+    }
+}
+
+// DFS — uses recursion (or explicit stack), explores deeply before backtracking
+public void dfs(Map<Integer, List<Integer>> graph, int node, Set<Integer> visited) {
+    if (visited.contains(node)) return;
+    visited.add(node);
+    System.out.print(node + " ");
+    for (int neighbor : graph.getOrDefault(node, List.of())) {
+        dfs(graph, neighbor, visited);
+    }
+}
+```
+
+---
+
+## Problems with Solutions
+
+### Problem 1: Maximum Depth of Binary Tree (LeetCode 104)
+
+**Task:** Find the maximum depth (number of nodes along the longest root-to-leaf path).
+
+**Hint:** Recursion — the depth of a tree is 1 + max(depth of left subtree, depth of right subtree). Base case: null node has depth 0.
+
+
+
+
+```java
+public int maxDepth(TreeNode root) {
+    if (root == null) return 0;
+    return 1 + Math.max(maxDepth(root.left), maxDepth(root.right));
+}
+// Time: O(n) — visit every node | Space: O(h) — recursion stack, h = height
+```
+
+
+
+### Problem 2: Invert Binary Tree (LeetCode 226)
+
+**Task:** Mirror a binary tree — swap every left and right child.
+
+**Hint:** Recursion — swap left and right children, then recursively invert both subtrees. Base case: null node.
+
+
+
+
+```java
+public TreeNode invertTree(TreeNode root) {
+    if (root == null) return null;
+    TreeNode temp = root.left;
+    root.left = invertTree(root.right);
+    root.right = invertTree(temp);
+    return root;
+}
+// Time: O(n) | Space: O(h)
+```
+
+
+
+### Problem 3: Validate Binary Search Tree (LeetCode 98)
+
+**Task:** Determine if a binary tree is a valid BST (every node's value is within valid range).
+
+**Hint:** Pass min/max bounds down the tree. Left child must be less than parent, right child must be greater. Don't just check immediate children — a node deep in the left subtree must be less than ALL its ancestors.
+
+
+
+
+```java
+public boolean isValidBST(TreeNode root) {
+    return validate(root, Long.MIN_VALUE, Long.MAX_VALUE);
+}
+
+private boolean validate(TreeNode node, long min, long max) {
+    if (node == null) return true;
+    if (node.val <= min || node.val >= max) return false;
+    return validate(node.left, min, node.val) &&
+           validate(node.right, node.val, max);
+}
+// Time: O(n) | Space: O(h)
+```
+
+
+
+### Problem 4: Number of Islands (LeetCode 200)
+
+**Task:** Given a 2D grid of '1's (land) and '0's (water), count the number of islands.
+
+**Hint:** Iterate through the grid. When you find a '1', increment count and use DFS/BFS to mark all connected '1's as visited (change to '0'). Each DFS/BFS call explores one complete island.
+
+
+
+
+```java
+public int numIslands(char[][] grid) {
+    int count = 0;
+    for (int i = 0; i < grid.length; i++) {
+        for (int j = 0; j < grid[0].length; j++) {
+            if (grid[i][j] == '1') {
+                count++;
+                dfs(grid, i, j);
+            }
+        }
+    }
+    return count;
+}
+
+private void dfs(char[][] grid, int i, int j) {
+    if (i < 0 || i >= grid.length || j < 0 || j >= grid[0].length
+            || grid[i][j] == '0') {
+        return;
+    }
+    grid[i][j] = '0'; // mark visited
+    dfs(grid, i + 1, j);
+    dfs(grid, i - 1, j);
+    dfs(grid, i, j + 1);
+    dfs(grid, i, j - 1);
+}
+// Time: O(m * n) | Space: O(m * n) worst case for recursion stack
+```
+
+
+
+---
+
+## Common Mistakes
+
+### Mistake 1: Only Checking Immediate Children for BST Validation
+
+
+```java
+// WRONG: only checks parent vs direct children
+public boolean isValidBST(TreeNode root) {
+    if (root == null) return true;
+    if (root.left != null && root.left.val >= root.val) return false;
+    if (root.right != null && root.right.val <= root.val) return false;
+    return isValidBST(root.left) && isValidBST(root.right);
+}
+// Fails for:    5
+//              / \
+//             1   7
+//                / \
+//               3   8   ← 3 < 5 but this passes the wrong check
+
+// RIGHT: pass min/max bounds (see Problem 3 solution above)
+```
+
+### Mistake 2: Forgetting the Visited Set in Graph Traversal
+
+
+```java
+// WRONG: infinite loop if graph has cycles
+public void dfs(Map<Integer, List<Integer>> graph, int node) {
+    for (int neighbor : graph.get(node)) {
+        dfs(graph, neighbor); // will revisit nodes endlessly
+    }
+}
+
+// RIGHT: track visited nodes
+Set<Integer> visited = new HashSet<>();
+```
+
+### Mistake 3: Confusing Tree Height vs Depth
+
+
+```java
+// Height: distance from a node DOWN to the farthest leaf (leaf height = 0)
+// Depth: distance from the root DOWN to the node (root depth = 0)
+// Max depth of tree = height of root
+// Interview tip: clarify which convention the problem uses
+```
+
+---
+
+## Automation Connections
+
+| Concept | Automation Use Case |
+|---|---|
+| DOM as a tree | Selenium traverses the DOM tree to find elements |
+| Level-order traversal | Validating UI hierarchy level by level |
+| Dependency graph | Test fixture dependencies, module dependency resolution |
+| DFS/BFS | Crawling web pages, exploring all links |
+| BST | Binary search on sorted test data |
+| Cycle detection | Detecting circular imports or dependency loops |
+
+
+```java
+// Example: Find all elements at a specific depth in a DOM-like tree
+public List<Element> findElementsAtDepth(Element root, int targetDepth) {
+    List<Element> result = new ArrayList<>();
+    Queue<Element> queue = new LinkedList<>();
+    queue.offer(root);
+    int depth = 0;
+
+    while (!queue.isEmpty() && depth <= targetDepth) {
+        int levelSize = queue.size();
+        for (int i = 0; i < levelSize; i++) {
+            Element current = queue.poll();
+            if (depth == targetDepth) {
+                result.add(current);
+            }
+            for (Element child : current.getChildren()) {
+                queue.offer(child);
+            }
+        }
+        depth++;
+    }
+    return result;
+}
+```
+
+---
+
+## Interview and Revision
+
+
+
+
+**Q:** What are the four tree traversal orders?
+**A:** Inorder (left-root-right, sorted for BST), Preorder (root-left-right, serialize), Postorder (left-right-root, delete), Level-order (BFS with queue).
+
+**Q:** When do you use BFS vs DFS?
+**A:** BFS: shortest path, level-by-level processing. DFS: exploring all paths, checking if a path exists, problems that need backtracking.
+
+**Q:** What's the time complexity of BFS/DFS on a graph?
+**A:** O(V + E) where V = vertices and E = edges. Every node and edge is visited once.
+
+**Q:** How is the DOM related to trees?
+**A:** The DOM is a tree where the root is `<html>`, each tag is a node, and child tags are children. Selenium's element finding is essentially tree traversal.
+
+### Mastery Checklist
+
+- [ ] Can implement all four tree traversal orders
+- [ ] Can solve Max Depth and Invert Binary Tree recursively
+- [ ] Can validate a BST with min/max bounds
+- [ ] Can build a graph from an edge list and run BFS/DFS
+- [ ] Can solve Number of Islands with DFS
+- [ ] Can explain DFS vs BFS trade-offs
+- [ ] Can relate tree/graph concepts to DOM and dependency graphs
+
+---
+
+**Next:** Sorting And Searching | **Related:** Recursion And Backtracking, Stacks And Queues

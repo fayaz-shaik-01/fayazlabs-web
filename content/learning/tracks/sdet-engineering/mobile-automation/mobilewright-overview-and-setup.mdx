@@ -1,0 +1,475 @@
+---
+title: "Overview and Setup — Mobilewright"
+description: "What: Mobilewright is a mobile testing framework that brings Playwright's developer experience to native iOS and Android apps. It provides a TypeScript API with screen.getByRole(), screen.getByLabel(), screen.getByTestId() — the same locator patterns you know from Playwright — but targeting native mobile elements instead of DOM nodes. It runs on real devices, emulators, and simulators without needing an Appium server, separate driver installations, or capabilities JSON. One npm inst..."
+summary: "SDET Engineering guide: Overview and Setup — Mobilewright"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "mobile-automation"
+lesson: "mobilewright-overview-and-setup"
+difficulty: "intermediate"
+estimatedMinutes: 30
+prerequisites: []
+tags: ["SDET", "Mobile", "Appium"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/mobile-automation/mobilewright-overview-and-setup"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Overview and Setup — Mobilewright
+
+> **Module:** 06 — Mobile Automation > Mobilewright > Overview and Setup  
+> **Prerequisites:** Native Mobile Fundamentals, Setup And First Tests (Playwright), Locators And Accessibility Ids  
+> **Mastery Target:** L2 (Guided) → L3 (Independent)
+
+---
+
+## Quick Overview (Layer 1)
+
+**What:** Mobilewright is a mobile testing framework that brings Playwright's developer experience to native iOS and Android apps. It provides a TypeScript API with `screen.getByRole()`, `screen.getByLabel()`, `screen.getByTestId()` — the same locator patterns you know from Playwright — but targeting native mobile elements instead of DOM nodes. It runs on real devices, emulators, and simulators without needing an Appium server, separate driver installations, or capabilities JSON. One `npm install` and you're testing.
+
+**Why:** If you know Playwright and you know Appium, Mobilewright sits at the intersection. It takes Playwright's auto-waiting, semantic locators, fixtures, and HTML reporting and applies them to mobile. Instead of Appium's server-based architecture with UiAutomator2/XCUITest driver management, Mobilewright communicates directly with devices via its `mobilecli` binary. This means less infrastructure, faster setup, and a familiar API — but it's a newer tool with a smaller community, so evaluation is critical before adopting it on a team.
+
+**Where:** Teams with existing Playwright web tests who want a consistent testing API across web and mobile. Projects where Appium's setup complexity is a friction point. Teams evaluating modern alternatives for native mobile automation.
+
+<MentalModel>
+
+Think of Mobilewright as **Playwright teleported to mobile**. In Playwright, you have `page` (a browser tab) and locators like `page.getByRole('button')`. In Mobilewright, you have `screen` (a device screen) and locators like `screen.getByRole('button')`. The locator resolves to a native view (Android `Button` or iOS `XCUIElementTypeButton`) instead of an HTML element. Auto-waiting works the same — every action waits for the element to exist, be visible, be enabled, and be stable before acting. If you've written a Playwright test, you can write a Mobilewright test.
+
+</MentalModel>
+
+
+<KeyTakeaways>
+
+1. **Playwright-style API for mobile** — `screen.getByRole()`, `screen.getByLabel()`, `screen.getByTestId()`, `expect(locator).toBeVisible()` — same patterns, different platform.
+2. **No server, no drivers, no capabilities JSON** — install via npm, run `npm init mobilewright@latest`, and you get a scaffold with a config file and passing test.
+3. **Auto-waiting on every action** — `locator.tap()` waits for the element to exist, be visible, be enabled, and be stable (not animating). No explicit waits needed.
+4. **Cross-platform roles** — `getByRole('button')` maps to `android.widget.Button` on Android and `XCUIElementTypeButton` on iOS. One locator, both platforms.
+5. **Built-in test runner** — `@mobilewright/test` extends Playwright Test with `screen` and `device` fixtures, giving you parallel workers, HTML reports, and video recording.
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation (Layer 2)
+
+### How Mobilewright Differs from Appium
+
+```
+Appium Architecture:
+Test Code → HTTP → Appium Server (Node.js) → Platform Driver → Device
+              (W3C WebDriver Protocol)    (UiAutomator2/XCUITest)
+
+Mobilewright Architecture:
+Test Code → mobilecli binary → Device
+            (Direct communication — no intermediate server)
+```
+
+**Key architectural differences:**
+- **No server process** — Appium requires a running Node.js server (`appium --port 4723`). Mobilewright embeds its device communication in the `mobilecli` binary that ships with the npm package.
+- **No driver management** — Appium requires `appium driver install uiautomator2`. Mobilewright handles platform interaction internally.
+- **No capabilities JSON** — Appium sessions are configured via capabilities objects. Mobilewright uses a `mobilewright.config.ts` file with TypeScript types and autocompletion.
+- **Locator model** — Appium uses WebDriver-style `findElement(By)`. Mobilewright uses Playwright-style semantic locators (`getByRole`, `getByLabel`, `getByText`).
+
+### Installation and Project Setup
+
+```bash
+# Scaffold a new Mobilewright project
+npm init mobilewright@latest
+
+# This creates:
+# mobilewright.config.ts  — configuration
+# tests/example.spec.ts   — starter test
+# package.json             — with mobilewright dependency
+
+# Or add to an existing project
+npm install --save-dev mobilewright @mobilewright/test
+```
+
+**Environment check:**
+
+```bash
+# Verify mobile toolchain is ready
+npx mobilewright doctor
+
+# Checks: Xcode (iOS), Android SDK (Android), simulators, ADB
+# Reports exactly what's missing and how to fix it
+```
+
+### mobilewright.config.ts — Configuration
+
+
+```typescript
+import { defineConfig } from 'mobilewright';
+
+export default defineConfig({
+  platform: 'ios',                         // 'ios' or 'android'
+  bundleId: 'com.staynest.app',            // app's bundle identifier
+  deviceName: /iPhone 16/,                  // regex to match a booted simulator
+  installApps: './builds/StayNest.app',     // install app before tests
+  timeout: 30_000,                          // global action timeout (30s)
+
+  // Test runner options (same as Playwright Test)
+  testDir: './tests',
+  fullyParallel: true,
+  retries: process.env.CI ? 2 : 0,
+  reporter: 'html',
+});
+```
+
+**Android configuration:**
+
+
+```typescript
+import { defineConfig } from 'mobilewright';
+
+export default defineConfig({
+  platform: 'android',
+  bundleId: 'com.staynest.app',
+  deviceName: /Pixel/,                       // matches any Pixel emulator
+  installApps: './builds/staynest.apk',
+  timeout: 30_000,
+  testDir: './tests',
+});
+```
+
+### Test Structure: screen and device Fixtures
+
+
+```typescript
+import { test, expect } from '@mobilewright/test';
+
+test.describe('StayNest Login', () => {
+
+  test('app launches and shows login screen', async ({ screen }) => {
+    // screen is the Mobilewright fixture — like Playwright's page
+    await expect(screen.getByText('Welcome to StayNest')).toBeVisible();
+    await expect(screen.getByRole('textfield', { name: 'Email' })).toBeVisible();
+    await expect(screen.getByRole('button', { name: 'Login' })).toBeEnabled();
+  });
+
+  test('successful login shows home screen', async ({ screen }) => {
+    await screen.getByRole('textfield', { name: 'Email' }).fill('user@staynest.com');
+    await screen.getByRole('textfield', { name: 'Password' }).fill('SecurePass123!');
+    await screen.getByRole('button', { name: 'Login' }).tap();
+
+    // Auto-waits for home screen to appear
+    await expect(screen.getByText('Welcome back')).toBeVisible();
+  });
+});
+```
+
+**What to notice:**
+- `screen` replaces Playwright's `page` — it represents the device screen
+- `tap()` replaces `click()` — mobile uses tap, not click
+- `fill()` works the same — taps the field to focus, then types
+- `expect(locator).toBeVisible()` auto-retries — same as Playwright
+
+### Locator Strategies
+
+Mobilewright maps semantic roles to native element types across platforms:
+
+
+```typescript
+// Semantic role — cross-platform (recommended)
+screen.getByRole('button', { name: 'Login' })
+//  Android: android.widget.Button with text "Login"
+//  iOS: XCUIElementTypeButton with label "Login"
+
+screen.getByRole('textfield', { name: 'Email' })
+//  Android: android.widget.EditText
+//  iOS: XCUIElementTypeTextField
+
+screen.getByRole('text')
+//  Android: android.widget.TextView
+//  iOS: XCUIElementTypeStaticText
+
+// By accessible label — maps to contentDescription (Android) / accessibilityLabel (iOS)
+screen.getByLabel('Search properties')
+
+// By test ID — maps to resource-id (Android) / accessibilityIdentifier (iOS)
+screen.getByTestId('login-button')
+
+// By visible text content
+screen.getByText('Forgot password?')
+screen.getByText(/welcome/i)   // regex matching
+
+// By native type (when no role mapping exists)
+screen.getByType('DatePicker')
+
+// Chaining — narrow within a parent
+const firstCard = screen.getByType('Cell').first();
+await firstCard.getByRole('button', { name: 'Book' }).tap();
+
+// Collection methods
+const count = await screen.getByRole('listitem').count();
+const firstItem = screen.getByRole('listitem').first();
+const thirdItem = screen.getByRole('listitem').nth(2);
+```
+
+### Auto-Waiting and Actionability Checks
+
+Every Mobilewright action checks four conditions before executing:
+
+1. **Exists** — element is in the view hierarchy
+2. **Visible** — `isVisible` is true (not off-screen, not hidden, not zero-size)
+3. **Enabled** — `isEnabled` is true (not greyed out / disabled)
+4. **Stable** — bounds haven't changed between two consecutive checks (not animating)
+
+
+```typescript
+// This single line handles all waiting automatically:
+await screen.getByRole('button', { name: 'Login' }).tap();
+// Equivalent Appium code:
+// WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(15));
+// wait.until(ExpectedConditions.elementToBeClickable(
+//     AppiumBy.accessibilityId("loginButton")
+// )).click();
+
+// Explicit waitFor when you need to wait without acting
+await screen.getByText('Loading complete').waitFor({ state: 'visible' });
+```
+
+### The device Fixture
+
+For device-level controls beyond the screen:
+
+
+```typescript
+import { test, expect } from '@mobilewright/test';
+
+test('deep link opens property detail', async ({ device, screen }) => {
+  await device.openUrl('staynest://property/123');
+  await expect(screen.getByText('Lakeside Cabin')).toBeVisible();
+});
+
+test('test with device controls', async ({ device, screen }) => {
+  // Take a screenshot
+  await device.screenshot({ path: 'screenshots/home.png' });
+
+  // Open a URL / deep link
+  await device.openUrl('staynest://search');
+
+  // Install an app
+  await device.installApp('./builds/staynest.apk');
+
+  // Launch/terminate an app
+  await device.launchApp('com.staynest.app');
+  await device.terminateApp('com.staynest.app');
+});
+```
+
+---
+
+## Practical Implementation (Layer 3)
+
+### Setting Up Mobilewright for StayNest
+
+**Step 1: Scaffold the project**
+
+```bash
+npm init mobilewright@latest
+# Choose TypeScript, tests directory, enter com.staynest.app as bundle ID
+```
+
+**Step 2: Configure for StayNest Android**
+
+
+```typescript
+// mobilewright.config.ts
+import { defineConfig } from 'mobilewright';
+
+export default defineConfig({
+  platform: 'android',
+  bundleId: 'com.staynest.app',
+  deviceName: /Pixel_7/,
+  installApps: './builds/staynest.apk',
+  timeout: 30_000,
+  testDir: './tests',
+  fullyParallel: true,
+  retries: process.env.CI ? 2 : 0,
+  reporter: [['html'], ['list']],
+});
+```
+
+**Step 3: Write the first test**
+
+
+```typescript
+// tests/login.spec.ts
+import { test, expect } from '@mobilewright/test';
+
+test.describe('StayNest Login', () => {
+
+  test('login screen displays all elements', async ({ screen }) => {
+    await expect(screen.getByRole('textfield', { name: 'Email' })).toBeVisible();
+    await expect(screen.getByRole('textfield', { name: 'Password' })).toBeVisible();
+    await expect(screen.getByRole('button', { name: 'Login' })).toBeEnabled();
+    await expect(screen.getByText(/sign up/i)).toBeVisible();
+  });
+
+  test('successful login navigates to home', async ({ screen }) => {
+    await screen.getByRole('textfield', { name: 'Email' }).fill('user@staynest.com');
+    await screen.getByRole('textfield', { name: 'Password' }).fill('SecurePass123!');
+    await screen.getByRole('button', { name: 'Login' }).tap();
+
+    await expect(screen.getByText('Welcome back')).toBeVisible();
+  });
+
+  test('invalid credentials show error', async ({ screen }) => {
+    await screen.getByRole('textfield', { name: 'Email' }).fill('wrong@email.com');
+    await screen.getByRole('textfield', { name: 'Password' }).fill('BadPassword!');
+    await screen.getByRole('button', { name: 'Login' }).tap();
+
+    await expect(screen.getByText('Invalid email or password')).toBeVisible();
+  });
+});
+```
+
+**Step 4: Run the test**
+
+```bash
+npx mobilewright test tests/login.spec.ts
+```
+
+### Using the Inspector
+
+```bash
+# Launch Mobilewright Inspector — shows live device screenshot with element hierarchy
+npx mobilewright inspect
+
+# Shows every element on screen with its best locator:
+# getByTestId > getByRole > getByLabel > getByText
+# Duplicate locators are flagged before they cause flaky tests
+```
+
+---
+
+## Failure and Debugging (Layer 4)
+
+### Failure: `mobilewright doctor` Reports Missing Tools
+
+**Symptom:** `npx mobilewright doctor` shows Android SDK or Xcode not found.
+
+**Root Cause:** Environment variables (`ANDROID_HOME`, `JAVA_HOME`) aren't set, or Xcode command line tools aren't installed.
+
+**Fix:**
+```bash
+# Android: set ANDROID_HOME
+export ANDROID_HOME=$HOME/Library/Android/sdk
+export PATH=$PATH:$ANDROID_HOME/platform-tools
+
+# iOS: install Xcode command line tools
+xcode-select --install
+```
+
+### Failure: `getByRole('button')` Matches Multiple Elements
+
+**Symptom:** `Error: locator resolved to 4 elements` — strict mode violation (same as Playwright).
+
+
+```typescript
+// BROKEN: too many buttons on screen
+await screen.getByRole('button').tap();
+
+// FIXED: narrow with name
+await screen.getByRole('button', { name: 'Login' }).tap();
+
+// ALTERNATIVE: use first() if you intentionally want the first match
+await screen.getByRole('button').first().tap();
+
+// ALTERNATIVE: chain within a parent
+await screen.getByTestId('login-form').getByRole('button').tap();
+```
+
+### Failure: Element Not Found After Screen Transition
+
+**Symptom:** `LocatorError: Element not found` after tapping a button that navigates to a new screen.
+
+**Root Cause:** The transition animation hasn't completed. Although Mobilewright auto-waits, the timeout may be too short for slow animations.
+
+
+```typescript
+// Increase timeout for this specific assertion
+await expect(screen.getByText('Welcome back')).toBeVisible({ timeout: 15_000 });
+```
+
+---
+
+## Engineering Judgment (Layer 5)
+
+### When to Consider Mobilewright
+
+**Good fit when:**
+- Your team already uses Playwright for web testing and wants a consistent API
+- You're frustrated with Appium's setup complexity (server, drivers, capabilities)
+- You value auto-waiting, semantic locators, and TypeScript-first tooling
+- Your app has good accessibility labels (needed for `getByRole`/`getByLabel`)
+
+**Not the best fit when:**
+- Your team is Java-centric — Mobilewright is TypeScript-only
+- You need a battle-tested tool with years of production use — Mobilewright is newer
+- You need extensive community resources, Stack Overflow answers, and plugins
+- You need platform-specific capabilities that Mobilewright doesn't expose yet
+
+### Maturity Assessment
+
+| Dimension | Status |
+|---|---|
+| API stability | Active development — API may evolve |
+| Platform coverage | iOS and Android (simulators, emulators, real devices) |
+| Language support | TypeScript/JavaScript only |
+| Community size | Small but growing |
+| CI/CD integration | HTML reports, JUnit XML — same as Playwright |
+| Cloud device support | Via Mobile Next Cloud and compatible providers |
+| Documentation | Growing — covers core features, some gaps |
+
+---
+
+## Interview and Revision (Layer 6)
+
+### Fundamental Questions
+
+**Q1: What is Mobilewright and how does it differ from Appium?**
+
+**A:** Mobilewright is a mobile testing framework that applies Playwright's API patterns to native iOS and Android apps. Unlike Appium, which uses a server-based architecture (test code → HTTP → Appium server → platform driver → device), Mobilewright communicates directly with devices via its `mobilecli` binary — no server process, no driver installation. It uses Playwright-style semantic locators (`getByRole`, `getByLabel`) instead of Appium's `AppiumBy.accessibilityId`, and has built-in auto-waiting on every action. The trade-off: it's TypeScript-only and newer, with a smaller ecosystem.
+
+**Q2: How does Mobilewright's auto-waiting compare to Playwright's?**
+
+**A:** Nearly identical. Both check that elements exist, are visible, are enabled, and are stable (not animating) before executing actions. Both retry these checks until a timeout. The difference is the underlying mechanism — Playwright checks DOM state via browser protocol, Mobilewright checks native view hierarchy properties. Both eliminate the need for explicit waits that Selenium and Appium require.
+
+
+
+
+| # | Front (Question) | Back (Answer) |
+|---|---|---|
+| 1 | What does `screen.getByRole('button', { name: 'Login' })` do in Mobilewright? | Creates a locator that finds a native button element (Android `Button` / iOS `XCUIElementTypeButton`) with the accessible name "Login". Lazy — doesn't query until an action is performed. |
+| 2 | How does Mobilewright handle cross-platform locators? | Maps semantic roles to native types: `getByRole('button')` matches `android.widget.Button` on Android and `XCUIElementTypeButton` on iOS. One locator, both platforms. |
+| 3 | What is `mobilewright doctor`? | A CLI command that checks your mobile toolchain (Xcode, Android SDK, simulators, ADB) and reports exactly what's missing and how to fix it. |
+| 4 | How does Mobilewright's `screen` differ from Playwright's `page`? | `screen` represents the device screen (native view hierarchy). `page` represents a browser tab (DOM). Same API patterns (`getByRole`, `expect`, `tap`/`click`) but different underlying targets. |
+| 5 | What is `mobilecli`? | The binary that ships with the Mobilewright npm package. It handles direct communication with iOS/Android devices without needing an Appium server. |
+
+### Mastery Checklist
+
+- [ ] Can scaffold a Mobilewright project with `npm init mobilewright@latest`
+- [ ] Can configure `mobilewright.config.ts` for Android and iOS targets
+- [ ] Can write tests using `screen` and `device` fixtures with semantic locators
+- [ ] Can use Mobilewright Inspector to discover locators
+- [ ] Can explain how Mobilewright differs from Appium architecturally
+- [ ] Can articulate when Mobilewright is a good fit and when Appium is better
+- [ ] Can run `mobilewright doctor` and resolve environment issues
+
+---
+
+**Next:** Comparison With Appium | **Related:** Native Mobile Fundamentals, Setup And First Tests (Playwright)
+
+*Last updated: *

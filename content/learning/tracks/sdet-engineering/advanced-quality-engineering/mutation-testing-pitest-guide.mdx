@@ -1,0 +1,578 @@
+---
+title: "PITest Guide — Mutation Testing for Java"
+description: "What: Mutation testing evaluates the quality of your tests by deliberately injecting bugs (mutations) into your production code and checking whether your tests catch them. PIT (PITest) is the most popular mutation testing tool for Java. It modifies your bytecode — negating conditions, changing operators, removing statements — and reruns your tests. If a test fails, the mutant is \"killed\" (good — your tests caught the bug). If all tests still pass, the mutant \"survived\" (bad — yo..."
+summary: "SDET Engineering guide: PITest Guide — Mutation Testing for Java"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "advanced-quality-engineering"
+lesson: "mutation-testing-pitest-guide"
+difficulty: "advanced"
+estimatedMinutes: 36
+prerequisites: []
+tags: ["SDET", "Quality Engineering", "Advanced"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/advanced-quality-engineering/mutation-testing-pitest-guide"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# PITest Guide — Mutation Testing for Java
+
+> **Module:** 09 — Advanced Quality Engineering / Mutation Testing  
+> **Prerequisites:** Test Levels And Pyramid, Testing Fundamentals  
+> **Mastery Target:** L2 (Guided) → L3 (Independent) — can configure PIT, run mutation tests, interpret reports, and use results to improve test quality
+
+---
+
+## Quick Overview (Layer 1)
+
+**What:** Mutation testing evaluates the quality of your *tests* by deliberately injecting bugs (mutations) into your production code and checking whether your tests catch them. PIT (PITest) is the most popular mutation testing tool for Java. It modifies your bytecode — negating conditions, changing operators, removing statements — and reruns your tests. If a test fails, the mutant is "killed" (good — your tests caught the bug). If all tests still pass, the mutant "survived" (bad — your tests missed a real bug).
+
+**Why:** Code coverage (line coverage, branch coverage) tells you *what code your tests execute* — but executing a line doesn't mean you're *verifying* it. A test that calls a method but has no assertions achieves 100% coverage with 0% verification. Mutation testing closes this gap: it answers "if this line of code were broken, would any test notice?" A mutation score of 85% means your tests actually detect 85% of possible bugs — far more meaningful than 95% line coverage.
+
+**Where:** Service-layer classes with business logic. In StayNest: pricing calculators (discount logic, tax computation), booking validation (date overlap, guest limits), availability checkers (room inventory logic). Don't run mutation testing on controllers, DTOs, or trivial getters/setters — the cost outweighs the value.
+
+<KeyTakeaways>
+
+1. **Mutation testing tests your tests.** High code coverage with low mutation score means your tests execute code but don't verify outcomes.
+2. **Mutants** are small code changes: negate a condition (`>` → `<=`), change an operator (`+` → `-`), replace a return value, remove a method call.
+3. A **killed mutant** means your test caught the change (good). A **survived mutant** means your test missed it (investigate).
+4. PIT modifies Java bytecode, not source code — it's non-destructive and your code is never changed.
+5. Mutation testing is expensive (reruns tests per mutant). Use it selectively on critical business logic, not the entire codebase.
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation (Layer 2)
+
+### How Mutation Testing Works
+
+```
+Original Code:                    Mutant (changed operator):
+───────────────                    ────────────────────────────
+if (guests > room.capacity) {      if (guests >= room.capacity) {
+    throw new OverCapacity();          throw new OverCapacity();
+}                                  }
+
+Your test:
+  @Test void allows_exact_capacity() {
+      booking.setGuests(4);          // room.capacity = 4
+      assertDoesNotThrow(...)        // passes with original
+  }                                  // passes with mutant too!
+                                     // Mutant SURVIVED — your test
+                                     // doesn't test the boundary
+
+Fix: add a test for guests = capacity + 1 to kill the mutant
+```
+
+### Types of Mutations PIT Applies
+
+| Mutator | What It Does | Example | Test Kills It When |
+|---------|-------------|---------|-------------------|
+| **Conditionals Boundary** | Changes boundary operators | `>` → `>=`, `<` → `<=` | Boundary value tests exist |
+| **Negate Conditionals** | Flips conditions | `==` → `!=`, `>` → `<=` | Both branches are tested |
+| **Math** | Changes arithmetic operators | `+` → `-`, `*` → `/` | Calculated values are asserted |
+| **Increments** | Changes increment/decrement | `i++` → `i--` | Loop iteration counts are verified |
+| **Return Values** | Changes return values | `return true` → `return false` | Return values are asserted |
+| **Void Method Calls** | Removes void method calls | `list.add(item)` → removed | Side effects are verified |
+| **Empty Returns** | Returns default for return type | `return obj` → `return null` | Null returns are caught |
+
+### Mutation Score vs Code Coverage
+
+```
+                    Code Coverage    Mutation Score
+                    ─────────────    ──────────────
+  Meaning:          "Tests execute    "Tests would catch
+                     this code"       bugs in this code"
+
+  A test with no    Can be 100%      Will be 0%
+  assertions:       (all lines run)  (no mutant killed)
+
+  A test with       90%              85%
+  good assertions:  (most lines run) (most bugs caught)
+
+  The gap between coverage and mutation score
+  reveals weak tests: code that's executed but
+  not meaningfully verified.
+```
+
+### PIT Report Structure
+
+```
+PIT Mutation Report:
+══════════════════════════════════════════════
+  Class: BookingValidator
+  Line Coverage: 95% (19/20 lines)
+  Mutation Coverage: 72% (18/25 mutants killed)
+  ──────────────────────────────────────────
+  Line 24: if (checkIn.isAfter(checkOut))
+    ✓ KILLED  — negated conditional
+    ✗ SURVIVED — changed boundary (isAfter → !isBefore)
+      → Test doesn't cover checkIn == checkOut
+
+  Line 31: totalPrice = nights * pricePerNight
+    ✓ KILLED  — replaced * with /
+    ✓ KILLED  — replaced * with +
+
+  Line 38: notificationService.sendConfirmation(booking)
+    ✗ SURVIVED — removed method call
+      → No test verifies confirmation was sent
+══════════════════════════════════════════════
+```
+
+---
+
+## Practical Implementation (Layer 3)
+
+### Maven Plugin Configuration
+
+
+```xml
+<build>
+    <plugins>
+        <plugin>
+            <groupId>org.pitest</groupId>
+            <artifactId>pitest-maven</artifactId>
+            <version>1.16.1</version>
+            <dependencies>
+                <!-- JUnit 5 support -->
+                <dependency>
+                    <groupId>org.pitest</groupId>
+                    <artifactId>pitest-junit5-plugin</artifactId>
+                    <version>1.2.1</version>
+                </dependency>
+            </dependencies>
+            <configuration>
+                <!-- Classes to mutate (production code) -->
+                <targetClasses>
+                    <param>com.staynest.service.*</param>
+                    <param>com.staynest.validator.*</param>
+                </targetClasses>
+
+                <!-- Test classes that verify the mutations -->
+                <targetTests>
+                    <param>com.staynest.service.*Test</param>
+                    <param>com.staynest.validator.*Test</param>
+                </targetTests>
+
+                <!-- Mutation operators to use -->
+                <mutators>
+                    <mutator>DEFAULTS</mutator>
+                    <!-- DEFAULTS includes: conditionals boundary, negate
+                         conditionals, math, increments, invert negatives,
+                         return values, void method calls -->
+                </mutators>
+
+                <!-- Performance tuning -->
+                <threads>4</threads>
+                <timeoutConstant>3000</timeoutConstant>
+                <timeoutFactor>1.25</timeoutFactor>
+
+                <!-- Exclusions — skip trivial code -->
+                <excludedClasses>
+                    <param>com.staynest.dto.*</param>
+                    <param>com.staynest.config.*</param>
+                    <param>com.staynest.entity.*</param>
+                </excludedClasses>
+
+                <!-- Output format -->
+                <outputFormats>
+                    <param>HTML</param>
+                    <param>XML</param>
+                </outputFormats>
+            </configuration>
+        </plugin>
+    </plugins>
+</build>
+```
+
+### StayNest Service Class — Target for Mutation
+
+
+```java
+package com.staynest.service;
+
+import com.staynest.entity.Booking;
+import com.staynest.entity.Hotel;
+import com.staynest.exception.BookingException;
+import com.staynest.repository.BookingRepository;
+import com.staynest.service.NotificationService;
+
+import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
+
+/**
+ * Booking service with business logic that PIT will mutate.
+ */
+public class BookingService {
+
+    private final BookingRepository bookingRepository;
+    private final NotificationService notificationService;
+    private static final double TAX_RATE = 0.12;
+    private static final int MAX_STAY_DAYS = 30;
+
+    public BookingService(BookingRepository repo, NotificationService notifier) {
+        this.bookingRepository = repo;
+        this.notificationService = notifier;
+    }
+
+    public Booking createBooking(Hotel hotel, LocalDate checkIn,
+                                  LocalDate checkOut, int guests) {
+        // Validation — mutations will negate these conditions
+        if (checkIn.isAfter(checkOut)) {
+            throw new BookingException("Check-in must be before check-out");
+        }
+
+        long nights = ChronoUnit.DAYS.between(checkIn, checkOut);
+        if (nights > MAX_STAY_DAYS) {
+            throw new BookingException("Maximum stay is " + MAX_STAY_DAYS + " days");
+        }
+
+        if (guests > hotel.getMaxGuests()) {
+            throw new BookingException("Exceeds maximum guests: " + hotel.getMaxGuests());
+        }
+
+        if (guests <= 0) {
+            throw new BookingException("At least 1 guest required");
+        }
+
+        // Pricing — mutations will change operators
+        double subtotal = nights * hotel.getPricePerNight();
+        double tax = subtotal * TAX_RATE;
+        double total = subtotal + tax;
+
+        // Apply discount for long stays
+        if (nights >= 7) {
+            total = total * 0.9;  // 10% discount for 7+ nights
+        }
+
+        // Persist and notify
+        Booking booking = new Booking(hotel, checkIn, checkOut, guests, total);
+        bookingRepository.save(booking);
+        notificationService.sendConfirmation(booking);
+
+        return booking;
+    }
+}
+```
+
+### Tests That Kill Mutants
+
+
+```java
+package com.staynest.service;
+
+import com.staynest.entity.Booking;
+import com.staynest.entity.Hotel;
+import com.staynest.exception.BookingException;
+import com.staynest.repository.BookingRepository;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
+
+import java.time.LocalDate;
+
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
+
+/**
+ * Tests designed to achieve high mutation score.
+ * Each test targets specific mutation operators.
+ */
+class BookingServiceTest {
+
+    private BookingService service;
+    private BookingRepository mockRepo;
+    private NotificationService mockNotifier;
+    private Hotel hotel;
+
+    @BeforeEach
+    void setUp() {
+        mockRepo = mock(BookingRepository.class);
+        mockNotifier = mock(NotificationService.class);
+        service = new BookingService(mockRepo, mockNotifier);
+
+        hotel = new Hotel();
+        hotel.setPricePerNight(100.0);
+        hotel.setMaxGuests(4);
+    }
+
+    // ── Kills: negate conditional on checkIn.isAfter(checkOut) ──
+    @Test
+    void rejects_checkin_after_checkout() {
+        assertThrows(BookingException.class, () ->
+            service.createBooking(hotel,
+                LocalDate.of(2025, 8, 10),  // after checkout
+                LocalDate.of(2025, 8, 5),
+                2));
+    }
+
+    // ── Kills: boundary mutation on isAfter (same day) ──
+    @Test
+    void rejects_checkin_equals_checkout() {
+        LocalDate sameDay = LocalDate.of(2025, 8, 5);
+        // Depending on business rule: same day might be invalid (0 nights)
+        // This test kills the boundary mutant
+        assertThrows(BookingException.class, () ->
+            service.createBooking(hotel, sameDay, sameDay, 2));
+    }
+
+    // ── Kills: boundary mutation on guests > maxGuests ──
+    @Test
+    void allows_exactly_max_guests() {
+        Booking booking = service.createBooking(hotel,
+            LocalDate.of(2025, 8, 1),
+            LocalDate.of(2025, 8, 3),
+            4);  // exactly maxGuests
+        assertNotNull(booking);
+    }
+
+    @Test
+    void rejects_guests_exceeding_max() {
+        assertThrows(BookingException.class, () ->
+            service.createBooking(hotel,
+                LocalDate.of(2025, 8, 1),
+                LocalDate.of(2025, 8, 3),
+                5));  // maxGuests + 1
+    }
+
+    // ── Kills: boundary mutation on guests <= 0 ──
+    @Test
+    void rejects_zero_guests() {
+        assertThrows(BookingException.class, () ->
+            service.createBooking(hotel,
+                LocalDate.of(2025, 8, 1),
+                LocalDate.of(2025, 8, 3),
+                0));
+    }
+
+    // ── Kills: math mutations on pricing ──
+    @Test
+    void calculates_correct_total_without_discount() {
+        Booking booking = service.createBooking(hotel,
+            LocalDate.of(2025, 8, 1),
+            LocalDate.of(2025, 8, 4),  // 3 nights
+            2);
+
+        // 3 nights * $100 = $300 + 12% tax = $336
+        assertEquals(336.0, booking.getTotal(), 0.01);
+    }
+
+    // ── Kills: boundary mutation on nights >= 7 discount ──
+    @Test
+    void applies_discount_for_7_night_stay() {
+        Booking booking = service.createBooking(hotel,
+            LocalDate.of(2025, 8, 1),
+            LocalDate.of(2025, 8, 8),  // exactly 7 nights
+            2);
+
+        // 7 * $100 = $700 + 12% tax = $784 * 0.9 discount = $705.60
+        assertEquals(705.60, booking.getTotal(), 0.01);
+    }
+
+    @Test
+    void no_discount_for_6_night_stay() {
+        Booking booking = service.createBooking(hotel,
+            LocalDate.of(2025, 8, 1),
+            LocalDate.of(2025, 8, 7),  // 6 nights — no discount
+            2);
+
+        // 6 * $100 = $600 + 12% tax = $672 — no discount
+        assertEquals(672.0, booking.getTotal(), 0.01);
+    }
+
+    // ── Kills: void method call removal (save + notify) ──
+    @Test
+    void saves_booking_to_repository() {
+        service.createBooking(hotel,
+            LocalDate.of(2025, 8, 1),
+            LocalDate.of(2025, 8, 3),
+            2);
+
+        verify(mockRepo, times(1)).save(any(Booking.class));
+    }
+
+    @Test
+    void sends_confirmation_notification() {
+        service.createBooking(hotel,
+            LocalDate.of(2025, 8, 1),
+            LocalDate.of(2025, 8, 3),
+            2);
+
+        verify(mockNotifier, times(1)).sendConfirmation(any(Booking.class));
+    }
+
+    // ── Kills: MAX_STAY_DAYS boundary ──
+    @Test
+    void allows_exactly_30_night_stay() {
+        Booking booking = service.createBooking(hotel,
+            LocalDate.of(2025, 8, 1),
+            LocalDate.of(2025, 8, 31),  // exactly 30 nights
+            2);
+        assertNotNull(booking);
+    }
+
+    @Test
+    void rejects_31_night_stay() {
+        assertThrows(BookingException.class, () ->
+            service.createBooking(hotel,
+                LocalDate.of(2025, 8, 1),
+                LocalDate.of(2025, 9, 1),  // 31 nights
+                2));
+    }
+}
+```
+
+### Running PIT and Interpreting Results
+
+
+```bash
+# Run mutation testing
+mvn org.pitest:pitest-maven:mutationCoverage
+
+# Report location
+# target/pit-reports/YYYYMMDDHHMI/index.html
+
+# Run with stricter mutation threshold (fail build if below 80%)
+mvn org.pitest:pitest-maven:mutationCoverage \
+  -DmutationThreshold=80
+
+# Run only for changed code (incremental — faster)
+mvn org.pitest:pitest-maven:mutationCoverage \
+  -DwithHistory
+```
+
+---
+
+## Failure and Debugging (Layer 4)
+
+### Failure 1: PIT Takes Too Long (30+ Minutes)
+
+**The Problem:** PIT generates hundreds of mutants and reruns the full test suite for each one. On a large project, this takes hours.
+
+**Root cause:** PIT is computationally expensive by nature — each mutant requires running the tests that cover that line. If you target the entire codebase, it explodes.
+
+**The fix:** Scope PIT to critical business logic only. Exclude trivial code:
+
+
+```xml
+<configuration>
+    <!-- Only mutate service and validator classes -->
+    <targetClasses>
+        <param>com.staynest.service.*</param>
+        <param>com.staynest.validator.*</param>
+    </targetClasses>
+    <!-- Exclude from mutation -->
+    <excludedClasses>
+        <param>com.staynest.dto.*</param>
+        <param>com.staynest.config.*</param>
+        <param>com.staynest.entity.*</param>
+        <param>com.staynest.*Application</param>
+    </excludedClasses>
+    <!-- Use incremental analysis -->
+    <withHistory>true</withHistory>
+    <!-- Parallelize -->
+    <threads>4</threads>
+</configuration>
+```
+
+### Failure 2: Equivalent Mutant — Can't Be Killed
+
+**The Problem:** PIT reports a survived mutant, but examining the mutation reveals it's functionally equivalent to the original code. No test can kill it because the behavior is identical.
+
+**Example:** Changing `i++` to `++i` in a statement where the return value isn't used — both produce the same result.
+
+**The fix:** Equivalent mutants are a known limitation of mutation testing. Accept that ~5-10% of survived mutants may be equivalent. Focus on the ones that reveal genuine test gaps. If a survived mutant clearly represents a behavior change and no test catches it, write the test.
+
+---
+
+## Engineering Judgment (Layer 5)
+
+### When Mutation Testing Is Worth the Cost
+
+| Scenario | Worth It? | Why |
+|----------|-----------|-----|
+| Pricing/billing logic | **Yes** | Bugs here cost real money. High mutation score = high confidence. |
+| Validation rules (dates, limits) | **Yes** | Boundary bugs are common. PIT specifically targets boundary mutations. |
+| Algorithm implementations | **Yes** | Operator and conditional mutations catch subtle logic errors. |
+| CRUD controllers | **No** | Trivial delegation code. Mutation testing reveals nothing useful. |
+| DTOs and entity classes | **No** | Getters/setters generate noise. Exclude them. |
+| Third-party integration wrappers | **No** | You can't control external behavior. Mock-heavy tests are weak here. |
+
+### Mutation Score Targets
+
+| Category | Acceptable Score | Target Score |
+|----------|-----------------|-------------|
+| Critical business logic (payments, pricing) | 80%+ | 90%+ |
+| Important validation logic | 70%+ | 85%+ |
+| General service logic | 60%+ | 75%+ |
+| Utility classes | 50%+ | 70%+ |
+
+### Integrating PIT in CI (Incremental Only)
+
+Running full mutation testing on every PR is too slow. Use incremental mode or limit to changed files:
+
+
+```yaml
+# GitHub Actions — mutation testing on critical changes only
+mutation-test:
+  runs-on: ubuntu-latest
+  if: contains(github.event.pull_request.labels.*.name, 'business-logic')
+  steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Needed for incremental analysis
+    - uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+    - name: Run PIT (incremental)
+      run: mvn org.pitest:pitest-maven:mutationCoverage -DwithHistory -DmutationThreshold=75
+    - name: Upload PIT Report
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: pit-report
+        path: target/pit-reports/
+```
+
+---
+
+## Interview and Revision (Layer 6)
+
+
+
+
+| # | Front | Back |
+|---|-------|------|
+| 1 | What is mutation testing and how does it differ from code coverage? | Mutation testing injects bugs into code and checks if tests detect them. Code coverage measures which lines tests *execute*; mutation testing measures which bugs tests *catch*. 100% coverage with no assertions = 0% mutation score |
+| 2 | What does it mean when a mutant "survives"? | The mutation (e.g., changing `>` to `>=`) was applied and all tests still passed — meaning no test verifies that specific behavior. Either write a missing test or determine it's an equivalent mutant |
+| 3 | Name three types of mutations PIT applies | Conditionals boundary (`>` → `>=`), math operators (`+` → `-`), void method call removal (deletes `save()` or `notify()` calls), negate conditionals (`==` → `!=`), return value changes (`true` → `false`) |
+| 4 | Why not run mutation testing on every class? | It's computationally expensive — each mutant reruns affected tests. DTOs, configs, and controllers add noise. Target critical business logic (pricing, validation) for maximum value with reasonable execution time |
+| 5 | What is an equivalent mutant? | A mutation that produces functionally identical behavior to the original code (e.g., `i++` vs `++i` when the return value isn't used). No test can kill it because there's no behavioral difference. Accept ~5-10% equivalent mutants |
+
+### Mastery Checklist
+
+- [ ] Can explain what mutation testing measures and how it differs from code coverage
+- [ ] Can configure PIT Maven plugin with target classes, exclusions, and mutators
+- [ ] Can run PIT and read the HTML report (killed vs survived mutants per line)
+- [ ] Can identify survived mutants that indicate missing test cases and write the fix
+- [ ] Can distinguish equivalent mutants from genuine test gaps
+- [ ] Can scope mutation testing to critical business logic for practical CI integration
+- [ ] Can set mutation score thresholds appropriate to code criticality
+
+---
+
+**Related:** Test Design Techniques, Shift Left Testing
+
+*Last updated: *

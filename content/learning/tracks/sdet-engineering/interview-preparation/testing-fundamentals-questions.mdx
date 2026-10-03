@@ -1,0 +1,684 @@
+---
+title: "Testing Fundamentals Interview Questions"
+description: "Each question includes: the question, a detailed answer, what the interviewer is evaluating, and red flags that signal a weak candidate. The goal is not just to know the answer but to understand why interviewers ask each question and what differentiates a senior-level response."
+summary: "SDET Engineering guide: Testing Fundamentals Interview Questions"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "interview-preparation"
+lesson: "testing-fundamentals-questions"
+difficulty: "intermediate"
+estimatedMinutes: 43
+prerequisites: []
+tags: ["SDET", "Interview", "Preparation"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/interview-preparation/testing-fundamentals-questions"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Testing Fundamentals Interview Questions
+
+> **Module:** 13 — Interview Preparation
+> **Focus:** 15 testing theory questions with detailed answers and interviewer perspective
+> **Audience:** SDET with ~3 years experience targeting senior roles
+> **Complements:** Fastenal-Prep covers testing terminology and definitions; this file focuses on deep reasoning, trade-offs, and what interviewers evaluate
+
+---
+
+## How to Use This File
+
+Each question includes: the question, a detailed answer, what the interviewer is evaluating, and red flags that signal a weak candidate. The goal is not just to know the answer but to understand *why* interviewers ask each question and *what* differentiates a senior-level response.
+
+---
+
+## Easy (5 Questions)
+
+### Q1: Explain the Test Pyramid. How do you decide the ratio of unit, integration, and E2E tests?
+
+**Expected Answer:**
+
+The Test Pyramid (Mike Cohn, 2009) suggests that a healthy test suite has:
+
+- **Many unit tests** (base) — fast, cheap, test individual methods/classes in isolation
+- **Some integration tests** (middle) — test how components work together (API calls, database interactions)
+- **Few E2E/UI tests** (top) — test full user flows through the actual UI, slow and brittle
+
+**Typical ratio:** 70% unit / 20% integration / 10% E2E. But this ratio depends on the application type:
+
+- **API-heavy microservice:** More integration tests, fewer UI tests. Maybe 60/30/10.
+- **UI-heavy consumer app:** Slightly more E2E, but still keep the pyramid shape. Maybe 60/25/15.
+- **Legacy monolith with no unit tests:** Start with integration/E2E tests to create a safety net, then add unit tests as you refactor.
+
+**Key principle:** Push testing down. If you can verify behavior at a lower level, do it there. Don't test API validation through the UI when you can test it with an API call.
+
+**Interviewer's Perspective:** They want to see that you don't blindly automate everything at the UI level. A senior SDET should articulate *why* a specific test belongs at a specific level.
+
+**Red Flags:**
+- "We automate everything through the UI because that's what users see" — ignores cost/speed trade-offs
+- Unable to explain when to test at API level vs. UI level
+- Quoting the pyramid without mentioning that ratios vary by application type
+
+---
+
+### Q2: What is the difference between verification and validation?
+
+**Expected Answer:**
+
+- **Verification:** "Are we building the product *right*?" — checking that the software meets the technical specifications and design documents. Static analysis, code reviews, inspections.
+- **Validation:** "Are we building the *right* product?" — checking that the software meets the user's actual needs and requirements. Testing, UAT, user feedback.
+
+**Practical example for an SDET:**
+- **Verification:** Reviewing an API spec and confirming the implementation returns the correct JSON structure, status codes, and headers. Schema validation is verification.
+- **Validation:** Running end-to-end booking flow tests and confirming a user can actually complete a reservation — the feature works from the user's perspective.
+
+**The subtle point:** A feature can pass all verification checks (matches the spec perfectly) but fail validation (the spec itself was wrong — users needed something different).
+
+**Interviewer's Perspective:** This tests whether you understand the bigger picture of quality beyond "does my test pass."
+
+**Red Flags:**
+- Confusing the two or saying they're the same thing
+- Only thinking in terms of automated tests without mentioning requirements review or UAT
+- No practical example
+
+---
+
+### Q3: What is boundary value analysis and equivalence partitioning? Give a concrete example.
+
+**Expected Answer:**
+
+**Equivalence Partitioning (EP):** Divide input into groups (partitions) where all values in a group should produce the same behavior. Test one value from each partition instead of testing every possible input.
+
+**Boundary Value Analysis (BVA):** Test at the edges of each partition, where bugs are most likely to occur. Off-by-one errors live at boundaries.
+
+**Example — Age field that accepts 18-65:**
+
+| Partition | Valid/Invalid | Representative Values | Boundary Values |
+| --- | --- | --- | --- |
+| Below minimum | Invalid | 10 | 17 |
+| At/near minimum | Valid boundary | 18, 19 | 18 |
+| Middle of range | Valid | 30, 45 | — |
+| At/near maximum | Valid boundary | 64, 65 | 65 |
+| Above maximum | Invalid | 70 | 66 |
+
+**Minimum test set using BVA:** 17, 18, 19, 64, 65, 66 — six tests that cover all critical boundaries.
+
+**SDET application:** When writing parameterized tests, use EP to reduce data sets from hundreds to a representative few, then add BVA for edge cases:
+
+```java
+<!-- unverified -->
+@DataProvider(name = "ageValidation")
+public Object[][] ageData() {
+    return new Object[][] {
+        {17, false, "Below minimum boundary"},
+        {18, true,  "Minimum boundary"},
+        {65, true,  "Maximum boundary"},
+        {66, false, "Above maximum boundary"},
+        {-1, false, "Negative value"},
+        {0,  false, "Zero"},
+    };
+}
+```
+
+**Interviewer's Perspective:** They want to see structured thinking about test design, not random test case selection.
+
+**Red Flags:**
+- Can define the terms but can't apply them to a concrete example
+- Doesn't connect to parameterized tests or data-driven testing
+- Missing negative boundaries (what about -1? null? non-numeric?)
+
+---
+
+### Q4: What is the difference between smoke testing and regression testing?
+
+**Expected Answer:**
+
+**Smoke testing:** A quick, shallow test of the most critical functionality to verify the build is stable enough for further testing. Think of it as "does the application boot and can a user log in?" Named after hardware testing — if you plug it in and smoke comes out, stop.
+
+- **When:** After every new build/deployment
+- **Scope:** 5-15 critical flows (login, core feature, payment)
+- **Time:** 5-15 minutes
+- **Goal:** Fast feedback — reject broken builds immediately
+
+**Regression testing:** A broader test suite that verifies existing functionality hasn't been broken by new changes. Covers all previously working features.
+
+- **When:** Before releases, after significant changes
+- **Scope:** All stable, automated test cases (hundreds to thousands)
+- **Time:** 30 minutes to several hours
+- **Goal:** Confidence that nothing is broken before release
+
+**How they relate in CI/CD:**
+
+```
+Commit → Build → Smoke Tests (5 min, must pass) → Deploy to QA → Regression Tests (30 min)
+              ↓                                                           ↓
+         If fail: reject build                                   If fail: block release
+```
+
+**Interviewer's Perspective:** They want to see you understand test strategy and how different test types fit into the CI/CD pipeline.
+
+**Red Flags:**
+- Saying "smoke testing is just a subset of regression testing" — true technically, but misses the *purpose* distinction
+- Not connecting to CI/CD pipeline
+- Not knowing when each type should run
+
+---
+
+### Q5: What is test coverage? Why is 100% code coverage not a guarantee of quality?
+
+**Expected Answer:**
+
+Test coverage measures how much of the codebase is exercised by tests. Common metrics:
+- **Line coverage:** Percentage of code lines executed
+- **Branch coverage:** Percentage of decision branches (if/else) exercised
+- **Path coverage:** Percentage of possible execution paths covered (exponential, impractical for full coverage)
+
+**Why 100% line coverage is misleading:**
+
+1. **Covers execution, not correctness:** A test that calls a method but doesn't assert the result gives coverage with zero confidence.
+2. **Misses interaction bugs:** Each line is covered individually, but the specific combination of conditions that triggers a bug might not be tested.
+3. **Ignores missing code:** Coverage measures what's there, not what's absent. If error handling is missing entirely, coverage doesn't flag it.
+4. **Encourages gaming:** Teams write trivial tests to hit numbers rather than meaningful tests.
+
+**What matters more:**
+- **Assertion density:** How many meaningful assertions per test?
+- **Mutation testing:** If you inject bugs into the code, do existing tests catch them?
+- **Risk-based coverage:** Are the critical business flows thoroughly tested?
+
+**A senior SDET's perspective:** "I aim for 80-85% coverage as a guideline, but I focus on covering critical paths thoroughly with strong assertions rather than hitting 100% with weak tests."
+
+**Interviewer's Perspective:** They're checking if you chase vanity metrics or think critically about what coverage actually means.
+
+**Red Flags:**
+- "We should always aim for 100% coverage" — shows lack of practical experience
+- Cannot explain what coverage *misses*
+- No mention of assertion quality or mutation testing
+
+---
+
+## Medium (5 Questions)
+
+### Q6: How do you handle flaky tests? Walk me through your approach.
+
+**Expected Answer:**
+
+**Definition:** A flaky test is one that passes and fails non-deterministically on the same code. It erodes trust in the entire test suite.
+
+**Step 1: Identify and quarantine**
+- Track pass rates per test over time (CI dashboard, Allure history)
+- If a test has &lt; 95% pass rate over 30 runs, it's flaky
+- Move it to a quarantine group — still runs but doesn't block the pipeline
+
+**Step 2: Categorize root causes**
+
+| Category | Frequency | Example |
+| --- | --- | --- |
+| Timing/synchronization | 40% | Element not loaded, API response delayed |
+| Shared test data | 25% | Two parallel tests modify the same user |
+| Environment issues | 15% | CI server resource contention, DNS resolution |
+| Order dependency | 10% | Test B passes only if Test A runs first |
+| Non-deterministic logic | 10% | Tests involving dates, random values, clock skew |
+
+**Step 3: Fix by category**
+- **Timing:** Replace implicit waits with explicit waits; add API readiness checks
+- **Test data:** Each test creates its own data (unique emails, API-generated IDs); cleanup in @AfterMethod
+- **Environment:** Run in Docker for consistency; health-check before test execution
+- **Order dependency:** Ensure each test is independent; use @BeforeMethod for setup, not other tests
+- **Non-deterministic:** Mock external dependencies (clocks, random generators); freeze time in tests
+
+**Step 4: Prevent recurrence**
+- Add flakiness checks to PR review (run new tests 5x before merge)
+- Monitor flaky rate as a team metric (target &lt; 2%)
+- Maximum 1 retry for UI tests, 0 retries for API tests (retries mask problems)
+
+**Interviewer's Perspective:** This is a "have you actually dealt with real problems" question. They want a structured approach, not "just add a retry."
+
+**Red Flags:**
+- "Just add retry logic" as the primary answer — retries mask, not fix
+- No categorization of root causes
+- No mention of tracking or prevention
+
+---
+
+### Q7: Explain risk-based testing. How do you decide what to automate first?
+
+**Expected Answer:**
+
+Risk-based testing prioritizes test effort based on two dimensions:
+- **Likelihood of failure:** How likely is this area to have defects? (Code complexity, frequent changes, new features, integration points)
+- **Business impact of failure:** How bad is it if this breaks? (Revenue impact, user-facing, regulatory, data loss)
+
+**Risk matrix:**
+
+```
+High Impact  |  P2 - Monitor    |  P0 - Test First
+             |  (stable but     |  (critical and
+             |   critical)      |   volatile)
+-------------+------------------+------------------
+Low Impact   |  P3 - Deprioritize | P1 - Automate
+             |  (stable, low    |  (volatile but
+             |   risk)          |   low impact)
+             +------------------+------------------
+              Low Likelihood      High Likelihood
+```
+
+**Practical application for an SDET joining a new team:**
+
+1. **Week 1-2:** Map the application's critical user journeys (login, core workflow, payment, data integrity)
+2. **Week 3-4:** Automate P0 smoke tests — these gate every deployment
+3. **Month 2:** Build out P1 regression coverage for volatile areas
+4. **Ongoing:** P2 tests for stable critical paths; P3 gets manual spot checks
+
+**Example:** For a hotel booking app:
+- **P0:** Booking flow (high impact + frequently changing pricing logic)
+- **P1:** Search filters (frequently changing, moderate impact)
+- **P2:** User profile page (high impact if broken, but rarely changes)
+- **P3:** Footer links (low impact, rarely changes)
+
+**Interviewer's Perspective:** This tests strategic thinking. Junior SDETs automate what's easy. Senior SDETs automate what matters.
+
+**Red Flags:**
+- "I automate everything starting from the top of the backlog" — no prioritization
+- Cannot articulate how to rank features by risk
+- No mention of business impact
+
+---
+
+### Q8: What is test isolation and why is it important for reliable automation?
+
+**Expected Answer:**
+
+Test isolation means each test is **completely independent** — it doesn't depend on any other test's execution, order, or side effects. A test creates its own preconditions, performs its assertions, and cleans up after itself.
+
+**The FIRST principle (from unit testing):**
+- **F**ast
+- **I**ndependent ← this is test isolation
+- **R**epeatable
+- **S**elf-validating
+- **T**imely
+
+**What breaks isolation:**
+
+| Problem | Example | Fix |
+| --- | --- | --- |
+| Shared test data | Test A creates a user, Test B relies on it | Each test creates its own user |
+| Shared state | Tests share a static variable | Use ThreadLocal or instance variables |
+| Database pollution | Test A inserts rows that affect Test B's query | API-based setup + teardown per test |
+| Login state | Tests share a browser session with a logged-in user | Fresh browser/context per test |
+| Order dependency | Test B assumes Test A ran first | Each test handles its own setup |
+
+**In practice:**
+
+```java
+<!-- unverified -->
+// ISOLATED: Each test creates and cleans up its own data
+@BeforeMethod
+public void setup() {
+    testUser = apiClient.createUser(UserBuilder.random().build());
+    testBooking = apiClient.createBooking(testUser, BookingBuilder.random().build());
+}
+
+@Test
+public void shouldCancelBooking() {
+    apiClient.cancelBooking(testBooking.getId());
+    assertThat(apiClient.getBooking(testBooking.getId()).getStatus()).isEqualTo("CANCELLED");
+}
+
+@AfterMethod
+public void cleanup() {
+    apiClient.deleteUser(testUser.getId());
+}
+```
+
+**Interviewer's Perspective:** This is fundamental to framework engineering. They want evidence that you understand why tests fail in CI but pass locally (shared state).
+
+**Red Flags:**
+- "Tests should share setup for efficiency" — shared setup across tests, not within a test
+- No mention of parallel execution as a driver for isolation
+- Cannot give a specific example of an isolation violation they've fixed
+
+---
+
+### Q9: What is test data management? How do you ensure tests have the right data?
+
+**Expected Answer:**
+
+Test data management is the strategy for creating, maintaining, and cleaning up the data your tests need. Bad test data management is the #1 cause of brittle tests.
+
+**Strategies (from best to worst for automation):**
+
+1. **API-generated per test** (best) — each test creates exactly the data it needs via API calls, with unique identifiers
+
+```java
+<!-- unverified -->
+// Each test gets a unique user — no conflicts in parallel execution
+User testUser = apiClient.createUser(
+    new UserBuilder()
+        .withEmail("test-" + UUID.randomUUID() + "@test.com")
+        .withRole("GUEST")
+        .build()
+);
+```
+
+2. **Builder pattern** — fluent API for constructing test objects with sensible defaults
+
+```java
+<!-- unverified -->
+Booking booking = BookingBuilder.aBooking()
+    .withCheckIn(LocalDate.now().plusDays(1))
+    .withCheckOut(LocalDate.now().plusDays(3))
+    .withGuest(GuestBuilder.aGuest().withFirstName("John").build())
+    .build();
+```
+
+3. **Database seeding** — SQL scripts that populate known data. Fast but creates coupling to DB schema.
+
+4. **Shared static data** — fixtures/CSV files with pre-defined data. Simple but brittle — data can become stale.
+
+5. **Production data copy** (worst) — copy of prod database. Privacy concerns, data drift, unpredictable state.
+
+**Cleanup strategies:**
+- **API-based teardown:** Delete what you created in @AfterMethod
+- **Transaction rollback:** Wrap each test in a DB transaction that rolls back (for integration tests)
+- **Unique identifiers:** Use UUIDs so tests never conflict, even without cleanup
+- **Environment reset:** Reset the entire environment periodically (works for CI ephemeral environments)
+
+**Interviewer's Perspective:** They're checking if your tests would survive in a real CI pipeline with parallel execution, or if they rely on a hand-crafted database.
+
+**Red Flags:**
+- "We use a shared test database with known data" — fragile and doesn't support parallelism
+- No mention of unique identifiers or data isolation
+- Can't explain how test data cleanup works
+
+---
+
+### Q10: What is the difference between positive testing, negative testing, and destructive testing?
+
+**Expected Answer:**
+
+**Positive testing:** Verify the system works correctly with valid inputs and expected conditions.
+- "Does login work with correct credentials?"
+- "Does the booking API return 201 with valid data?"
+
+**Negative testing:** Verify the system handles invalid inputs and error conditions gracefully.
+- "Does login show an error with wrong password?"
+- "Does the API return 400 when required fields are missing?"
+- "Does the system handle SQL injection attempts safely?"
+
+**Destructive testing:** Deliberately try to break the system to find its limits and failure modes.
+- "What happens when 10,000 users hit the login endpoint simultaneously?"
+- "What happens if the database goes down mid-transaction?"
+- "What happens if the network has 50% packet loss?"
+
+**Distribution in a test suite:**
+
+| Type | Typical % | Focus |
+| --- | --- | --- |
+| Positive | 40% | Happy paths, core workflows |
+| Negative | 45% | Error handling, validation, edge cases |
+| Destructive | 15% | Performance limits, resilience, chaos testing |
+
+**Key insight for SDETs:** Junior testers focus on positive testing ("does it work?"). Senior testers invest heavily in negative testing ("how does it fail?"). The best bugs are found in negative and destructive testing because developers naturally focus on the happy path.
+
+**Interviewer's Perspective:** They want to see that you test beyond the happy path. SDET interviews value candidates who think about *how things break*.
+
+**Red Flags:**
+- Only describes positive testing
+- Can't give examples of negative test cases
+- Has never thought about destructive/chaos testing
+
+---
+
+## Hard (5 Questions)
+
+### Q11: Your team has zero test automation. How do you build a test strategy from scratch?
+
+**Expected Answer:**
+
+**Phase 1: Assessment (Week 1-2)**
+- Map the application architecture: monolith vs. microservices, tech stack, deployment process
+- Identify critical user journeys with stakeholders (product, dev, support)
+- Catalog existing manual test cases and their execution frequency
+- Assess the CI/CD pipeline — what exists? What's possible?
+
+**Phase 2: Foundation (Week 3-6)**
+- Choose tools based on tech stack, not hype (Selenium for web, REST Assured for API, Appium for mobile)
+- Build a minimal framework: driver management, configuration, basic reporting
+- Automate 5-10 P0 smoke tests for the most critical flows
+- Integrate with CI — smoke tests run on every commit
+
+**Phase 3: Scale (Month 2-3)**
+- Expand to P1 regression tests, starting with the most volatile features
+- Add API test coverage (faster, more reliable than UI for backend validation)
+- Implement test data management (builders, API-generated data)
+- Set up reporting (Allure, Slack notifications)
+
+**Phase 4: Mature (Month 4+)**
+- Add parallel execution to keep suite fast as it grows
+- Implement contract testing for microservice boundaries
+- Add visual regression for UI-heavy features
+- Track metrics: flaky rate, coverage trends, execution time trends
+
+**Key decisions to make early:**
+- **Test at the lowest possible level** — API tests before UI tests
+- **Parallel from day one** — design for ThreadLocal, isolated data from the start
+- **Don't automate unstable features** — wait until the feature is stable
+- **Set realistic targets** — 60% coverage of P0/P1 in 3 months, not 100% of everything
+
+**Interviewer's Perspective:** This is a "can you think strategically" question. They want a phased approach, not "install Selenium and write tests."
+
+**Red Flags:**
+- Starting with tools before understanding the application
+- No mention of prioritization or risk assessment
+- Planning to automate everything at once
+- No consideration of CI/CD integration
+
+---
+
+### Q12: How do you measure the effectiveness of your test automation? What metrics do you track?
+
+**Expected Answer:**
+
+**Leading metrics** (predict future quality):
+
+| Metric | What It Measures | Target |
+| --- | --- | --- |
+| Automation coverage | % of test cases automated (by risk tier) | 80%+ for P0/P1 |
+| Flaky test rate | % of tests with inconsistent results | &lt; 2% |
+| Test execution time | Total suite runtime | &lt; 15 min for regression |
+| Mean time to detect (MTTD) | How quickly automation catches bugs | Same day as code merge |
+
+**Lagging metrics** (reflect past results):
+
+| Metric | What It Measures | Target |
+| --- | --- | --- |
+| Escaped defects | Bugs found in production that tests should have caught | Decreasing trend |
+| Bug detection rate | % of bugs found by automation vs. manual | > 40% |
+| Release confidence | Team's willingness to deploy after green suite | Qualitative — high |
+| Manual regression time saved | Hours saved per release cycle | Track monthly |
+
+**Metrics to avoid:**
+- **Number of test cases** — more tests doesn't mean better quality. 50 well-designed tests beat 500 shallow ones.
+- **100% coverage target** — leads to gaming and low-value tests.
+- **Pass rate alone** — 100% pass rate might mean tests are too shallow or environment is too controlled.
+
+**How to present metrics:**
+
+```
+Monthly Report:
+- P0 smoke coverage: 95% (target: 90%) ✓
+- Flaky rate: 3.2% (target: <2%) ✗ — 4 flaky tests identified, 2 fixed
+- Regression time: 12 min (target: <15 min) ✓
+- Escaped defects: 1 (down from 3 last month)
+- Manual regression hours saved: 16 hours/sprint
+```
+
+**Interviewer's Perspective:** This separates senior SDETs from mid-level. They want to see that you think about the *value* of testing, not just the *volume*.
+
+**Red Flags:**
+- Only metrics are "number of tests" and "pass rate"
+- Cannot explain how to measure whether automation is actually helping
+- No concept of escaped defects or MTTD
+
+---
+
+### Q13: Explain contract testing. How does it differ from integration testing and when would you use it?
+
+**Expected Answer:**
+
+**Contract testing** verifies that two services (consumer and provider) agree on the API contract — the request/response format, status codes, and behavior — without requiring both services to be running simultaneously.
+
+**How it works (Pact-style):**
+
+1. **Consumer writes a contract:** "When I send GET /users/123, I expect {'{'}id: 123, name: string, email: string{'}'} with status 200"
+2. **Contract is shared** (via a Pact Broker or artifact repository)
+3. **Provider verifies the contract:** Runs the contract against its actual API and confirms it meets expectations
+
+**Comparison:**
+
+| Aspect | Integration Test | Contract Test |
+| --- | --- | --- |
+| Both services running? | Yes | No — tested independently |
+| Speed | Slow (spin up services, DB) | Fast (mock one side) |
+| Failure diagnosis | "Something broke somewhere" | "Provider changed the response format" |
+| Maintenance | High (environment setup) | Medium (maintain contracts) |
+| Deployment coupling | High (both must be deployable) | Low (test independently) |
+
+**When to use contract testing:**
+- Microservice architecture with multiple teams
+- Consumer and provider have different release schedules
+- Integration tests are slow or unreliable
+- You want to prevent breaking changes at API boundaries
+
+**When NOT to use:**
+- Monolithic application (no service boundaries)
+- Small team that owns both consumer and provider
+- Simple CRUD APIs with no complex behavior
+
+**Interviewer's Perspective:** Contract testing shows you understand modern microservice testing beyond "hit the API and check the response."
+
+**Red Flags:**
+- Confusing contract testing with schema validation (schema = structure, contract = behavior + structure)
+- Has never heard of Pact or contract testing
+- Cannot articulate when integration tests are sufficient
+
+---
+
+### Q14: How do you test microservices differently from a monolithic application?
+
+**Expected Answer:**
+
+**Monolith testing model:**
+- Unit tests for individual classes
+- Integration tests with the database
+- E2E tests through the UI
+- One deployment, one database, one test environment
+
+**Microservice testing model (add new layers):**
+
+```
+Unit Tests (per service)
+    ↓
+Component Tests (service in isolation with stubs)
+    ↓
+Contract Tests (verify API agreements between services)
+    ↓
+Integration Tests (2-3 services together)
+    ↓
+E2E Tests (full system, minimal — happy paths only)
+```
+
+**Key differences:**
+
+| Challenge | Monolith Approach | Microservice Approach |
+| --- | --- | --- |
+| Service boundaries | N/A | Contract testing at each boundary |
+| Data consistency | Single DB, simple | Distributed data, eventual consistency |
+| Test environment | One app to deploy | Docker Compose or K8s for N services |
+| Failure modes | App crashes or doesn't | Partial failures, timeouts, retries |
+| Test data | Seed one database | Seed multiple databases, handle async |
+
+**Strategies specific to microservices:**
+- **Service virtualization (WireMock):** Test one service by mocking its dependencies
+- **Consumer-driven contracts (Pact):** Ensure services agree on API format
+- **Docker Compose for integration:** Spin up required services as containers
+- **Health check endpoints:** Verify all services are ready before testing
+- **Chaos testing:** Test resilience when a dependent service is down
+
+**Interviewer's Perspective:** Microservice testing is a differentiator for senior roles. They want to see you understand the added complexity.
+
+**Red Flags:**
+- Testing microservices exactly like a monolith (only E2E tests)
+- No mention of service virtualization or contract testing
+- Not understanding eventual consistency and its testing implications
+
+---
+
+### Q15: What is mutation testing and how does it measure test quality?
+
+**Expected Answer:**
+
+Mutation testing evaluates how effective your tests are at catching bugs by **intentionally injecting small bugs (mutants) into the code** and checking whether existing tests detect them.
+
+**How it works:**
+
+1. Start with green tests (all passing)
+2. Create mutants — small modifications to the source code:
+   - Change `>` to `>=` (boundary mutant)
+   - Change `+` to `-` (arithmetic mutant)
+   - Remove a method call (statement deletion)
+   - Change `true` to `false` (boolean mutant)
+   - Replace return value with null (return value mutant)
+3. Run tests against each mutant
+4. If a test fails → mutant is **killed** (good — tests caught the bug)
+5. If all tests pass → mutant **survived** (bad — tests missed the bug)
+
+**Mutation score = killed mutants / total mutants**
+
+**Example:**
+
+```java
+<!-- unverified -->
+// Original code
+public boolean isEligible(int age) {
+    return age >= 18 && age <= 65;
+}
+
+// Mutant 1: Change >= to >
+public boolean isEligible(int age) {
+    return age > 18 && age <= 65;  // Mutant: excludes exactly 18
+}
+// If no test checks age=18, this mutant SURVIVES → gap in test suite
+
+// Mutant 2: Change && to ||
+public boolean isEligible(int age) {
+    return age >= 18 || age <= 65;  // Mutant: accepts everything
+}
+// Tests with age=10 (expect false) would KILL this mutant
+```
+
+**Tools:** PIT (Java), Stryker (JavaScript/TypeScript), mutmut (Python)
+
+**Practical use for SDETs:**
+- Run mutation testing on critical business logic (pricing, eligibility, validation)
+- Don't run on the entire codebase — too slow
+- Use it to find weak assertions: "This test covers the line but doesn't actually check the result"
+- Mutation score > 80% for critical code is a good target
+
+**Interviewer's Perspective:** This is a "do you go beyond basic coverage" question. Most candidates don't know mutation testing — knowing it signals deep quality engineering thinking.
+
+**Red Flags:**
+- Never heard of mutation testing
+- Confusing it with fuzzing (fuzzing = random inputs, mutation testing = code changes)
+- Saying code coverage is sufficient to measure test quality
+
+---
+
+**Related:** Testing Principles, Test Design Techniques, Flaky Tests

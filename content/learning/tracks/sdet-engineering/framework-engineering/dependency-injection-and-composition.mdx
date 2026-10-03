@@ -1,0 +1,659 @@
+---
+title: "Dependency Injection and Composition"
+description: "What: Dependency Injection (DI) is a design technique where an object receives its dependencies from the outside rather than creating them internally. Composition is the practice of building complex behavior by combining simple, focused objects rather than inheriting from deep class hierarchies. Together, they produce framework code that's flexible, testable, and resistant to change."
+summary: "SDET Engineering guide: Dependency Injection and Composition"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "framework-engineering"
+lesson: "dependency-injection-and-composition"
+difficulty: "intermediate"
+estimatedMinutes: 42
+prerequisites: []
+tags: ["SDET", "Framework", "Architecture"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/framework-engineering/dependency-injection-and-composition"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Dependency Injection and Composition
+
+> **Module:** 03 — Framework Engineering > Dependency Injection and Composition  
+> **Prerequisites:** Framework Architecture, Interfaces And Composition, Test Lifecycle And Fixtures  
+> **Mastery Target:** L3 (Independent) → L4 (Engineering Judgment)
+
+---
+
+## Quick Overview (Layer 1)
+
+**What:** Dependency Injection (DI) is a design technique where an object receives its dependencies from the outside rather than creating them internally. Composition is the practice of building complex behavior by combining simple, focused objects rather than inheriting from deep class hierarchies. Together, they produce framework code that's flexible, testable, and resistant to change.
+
+**Why it matters:** When a `LoginTest` internally creates `new ChromeDriver()`, it's welded to Chrome. When a `BasePage` internally reads `ConfigManager.getInstance()`, it can't be tested without the real config. When `BaseTest → BaseUITest → BaseAuthTest → BaseAdminTest` forms a 4-level inheritance chain, changing `BaseUITest` breaks every test in the suite. DI and composition eliminate these couplings — dependencies are injected, not hardcoded; capabilities are composed, not inherited.
+
+**Where you encounter it:** Every time you pass `WebDriver` to a page object constructor. Every time you decide whether a test class should *extend* a base class or *contain* a helper object. Every time you write a factory that returns an interface instead of a concrete class.
+
+<MentalModel>
+
+Think of DI as **ordering from a menu vs cooking your own food**. When a class creates its own dependencies (`new ChromeDriver()`), it's cooking — it controls every ingredient and can't easily swap them. When a class receives dependencies through its constructor (`LoginPage(WebDriver driver)`), it's ordering — it specifies *what* it needs (a driver) but not *how* it's made (Chrome, Firefox, or a mock). The kitchen (the framework setup) decides which implementation to serve.
+
+</MentalModel>
+
+
+Composition is **building with LEGO blocks vs carving from a single piece of wood**. Inheritance carves — every subclass is shaped by every parent above it. Composition assembles — snap the pieces you need, leave out the ones you don't.
+
+<KeyTakeaways>
+
+1. **Inject dependencies through constructors** — don't let classes create their own. This makes them flexible (swap implementations) and testable (inject mocks).
+2. **Composition over inheritance** — assemble capabilities from independent components rather than building deep base class hierarchies.
+3. **Program to interfaces, not implementations** — declare `WebDriver`, not `ChromeDriver`. Accept `ConfigProvider`, not `PropertiesFileConfigLoader`.
+4. **For test frameworks, manual DI is usually enough** — you rarely need Spring, Guice, or PicoContainer. Constructor injection with factory methods covers 95% of cases.
+5. **Factories create, constructors receive** — factories decide *which* implementation to create; constructors declare *what* dependencies are needed.
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation (Layer 2)
+
+### The Problem: Tight Coupling
+
+Consider a test that creates everything it needs internally:
+
+
+```java
+public class LoginTest {
+
+    @Test
+    public void shouldLoginSuccessfully() {
+        // Test creates its own driver — coupled to Chrome
+        WebDriver driver = new ChromeDriver();
+
+        // Test reads config directly — coupled to file system
+        Properties props = new Properties();
+        props.load(new FileInputStream("config.properties"));
+
+        driver.get(props.getProperty("base.url") + "/login");
+
+        // Test creates page object — fine, but page is coupled to the driver above
+        LoginPage loginPage = new LoginPage(driver);
+        loginPage.loginAs("admin", "pass");
+
+        assertThat(driver.getTitle()).contains("Dashboard");
+
+        driver.quit();
+    }
+}
+```
+
+Problems with this approach:
+- **Browser lock-in:** Switching to Firefox means editing every test file.
+- **No parallel safety:** Each test manages its own driver lifecycle — inconsistently.
+- **Untestable page objects:** `LoginPage` can't be unit-tested without a real browser.
+- **Config coupling:** Every test reads config independently, possibly inconsistently.
+- **No cleanup guarantee:** If the assertion fails, `driver.quit()` never runs.
+
+### Manual DI: Constructor Injection Without a Framework
+
+The simplest form of DI is passing dependencies through constructors:
+
+
+```java
+public class LoginPage {
+
+    private final WebDriver driver;
+    private final WebDriverWait wait;
+
+    // Dependencies are RECEIVED, not created
+    public LoginPage(WebDriver driver) {
+        this.driver = driver;
+        this.wait = new WebDriverWait(driver, Duration.ofSeconds(10));
+    }
+
+    public DashboardPage loginAs(String email, String password) {
+        wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("email")));
+        driver.findElement(By.id("email")).sendKeys(email);
+        driver.findElement(By.id("password")).sendKeys(password);
+        driver.findElement(By.id("login-btn")).click();
+        return new DashboardPage(driver);  // passes the SAME driver to the next page
+    }
+}
+```
+
+`LoginPage` doesn't know if `driver` is Chrome, Firefox, or a remote Grid driver. It doesn't care. It works with the `WebDriver` interface — any implementation works. This is the essence of DI: **the caller decides the implementation, the callee declares the contract.**
+
+### Composition Over Inheritance
+
+**The inheritance trap in test frameworks:**
+
+```
+BaseTest
+  └── BaseUITest (adds driver setup)
+        └── BaseAuthTest (adds login)
+              └── BaseAdminTest (adds admin login)
+                    └── AdminDashboardTest (the actual test)
+```
+
+Problems:
+- **Fragile base class:** Changing `BaseUITest.setUp()` affects every test in the suite — hundreds of tests break for a change to one class.
+- **Rigid hierarchy:** What if you need an admin API test (no browser)? It can't extend `BaseUITest` because that creates a browser it doesn't need.
+- **Hidden behavior:** To understand what runs before `AdminDashboardTest`, you trace through four `@BeforeMethod` methods across four files.
+- **Diamond problem avoidance:** Java doesn't allow multiple inheritance. If you need both `BaseUITest` and `BaseApiTest` behavior, you can't inherit from both.
+
+**The composition alternative:**
+
+
+```java
+public class TestContext {
+    private final WebDriver driver;
+    private final ConfigManager config;
+    private final AuthHelper authHelper;
+
+    // Assemble only what this test needs
+    public TestContext(WebDriver driver, ConfigManager config, AuthHelper authHelper) {
+        this.driver = driver;
+        this.config = config;
+        this.authHelper = authHelper;
+    }
+
+    public WebDriver getDriver() { return driver; }
+    public ConfigManager getConfig() { return config; }
+    public AuthHelper getAuth() { return authHelper; }
+}
+```
+
+A UI test creates a context with a driver. An API test creates a context without a driver. An admin test creates a context with an admin auth helper. No inheritance hierarchy — just assembling the pieces you need.
+
+### Interface-Based Design
+
+Interfaces define contracts. Implementations deliver behavior. Callers depend on the contract, not the delivery.
+
+
+```java
+// Contract: "I provide a WebDriver"
+public interface DriverProvider {
+    WebDriver createDriver();
+    void quitDriver();
+}
+
+// Implementation 1: Chrome
+public class ChromeDriverProvider implements DriverProvider {
+    @Override
+    public WebDriver createDriver() {
+        ChromeOptions options = new ChromeOptions();
+        options.addArguments("--disable-gpu");
+        return new ChromeDriver(options);
+    }
+
+    @Override
+    public void quitDriver() { /* ... */ }
+}
+
+// Implementation 2: Remote Grid
+public class RemoteDriverProvider implements DriverProvider {
+    private final String gridUrl;
+
+    public RemoteDriverProvider(String gridUrl) {
+        this.gridUrl = gridUrl;
+    }
+
+    @Override
+    public WebDriver createDriver() {
+        return new RemoteWebDriver(new URL(gridUrl), new ChromeOptions());
+    }
+
+    @Override
+    public void quitDriver() { /* ... */ }
+}
+```
+
+The test framework depends on `DriverProvider`, not on `ChromeDriverProvider`. Swapping from local Chrome to Selenium Grid means changing the factory that creates the provider — zero changes to tests or page objects.
+
+### Factory Pattern: Creating the Right Implementation
+
+Factories encapsulate the "which implementation?" decision:
+
+
+```java
+public class DriverFactory {
+
+    public static WebDriver createDriver(ConfigManager config) {
+        String browser = config.getBrowser();
+        boolean headless = config.isHeadless();
+
+        switch (browser.toLowerCase()) {
+            case "chrome":
+                ChromeOptions chromeOpts = new ChromeOptions();
+                if (headless) chromeOpts.addArguments("--headless=new");
+                return new ChromeDriver(chromeOpts);
+
+            case "firefox":
+                FirefoxOptions firefoxOpts = new FirefoxOptions();
+                if (headless) firefoxOpts.addArguments("--headless");
+                return new FirefoxDriver(firefoxOpts);
+
+            case "remote":
+                ChromeOptions remoteOpts = new ChromeOptions();
+                return new RemoteWebDriver(
+                    new URL(config.get("grid.url")), remoteOpts);
+
+            default:
+                throw new IllegalArgumentException(
+                    "Unsupported browser: " + browser
+                    + ". Supported: chrome, firefox, remote");
+        }
+    }
+}
+```
+
+**Why a factory and not just `new ChromeDriver()` in setup?** Because the decision about *which* browser to use belongs in one place. If 50 test classes each have `new ChromeDriver()`, adding Firefox support means editing 50 files. With a factory, it's one `case` statement.
+
+### When to Use a DI Framework vs Manual DI
+
+| Approach | When to Use | Examples |
+|----------|-------------|---------|
+| **Manual DI (constructor injection)** | Test frameworks with &lt;20 injectable components. Most SDET work. | Pass `WebDriver` and `ConfigManager` through constructors. |
+| **DI framework (Spring, Guice, PicoContainer)** | Large frameworks with 50+ components, complex object graphs, or when the application under test already uses Spring. | Guice `@Inject`, Spring `@Autowired` for test context. |
+
+**For test frameworks, manual DI is almost always enough.** Your dependency graph is simple: `Config` → `DriverFactory` → `Driver` → `PageObjects`. You don't have circular dependencies, you don't need lazy initialization graphs, and you don't need aspect-oriented proxies. Adding Spring or Guice for this is like using a forklift to move a chair.
+
+---
+
+## Practical Implementation (Layer 3)
+
+### Example 1: Refactoring a Tightly-Coupled Test to Use DI
+
+**Before — everything hardcoded:**
+
+
+```java
+public class BookingTest {
+
+    @Test
+    public void shouldCreateBooking() {
+        // Tightly coupled: creates its own driver, reads its own config
+        WebDriver driver = new ChromeDriver();
+        driver.get("https://staging.staynest.com/login");
+
+        driver.findElement(By.id("email")).sendKeys("user@test.com");
+        driver.findElement(By.id("password")).sendKeys("pass123");
+        driver.findElement(By.id("login-btn")).click();
+
+        driver.get("https://staging.staynest.com/booking/new");
+        driver.findElement(By.id("property")).sendKeys("Tokyo Suite");
+        driver.findElement(By.id("checkin")).sendKeys("2025-09-01");
+        driver.findElement(By.id("checkout")).sendKeys("2025-09-05");
+        driver.findElement(By.id("submit")).click();
+
+        assertThat(driver.findElement(By.id("status")).getText())
+            .isEqualTo("Confirmed");
+
+        driver.quit();
+    }
+}
+```
+
+**After — DI and composition:**
+
+
+```java
+public class BookingTest extends BaseTest {
+
+    @Test
+    public void shouldCreateBooking() {
+        // Driver comes from BaseTest (injected via ThreadLocal)
+        // Config comes from BaseTest (loaded in @BeforeSuite)
+
+        LoginPage loginPage = new LoginPage(getDriver());
+        loginPage.loginAs(config.get("test.user.email"),
+                          config.get("test.user.password"));
+
+        BookingPage bookingPage = new BookingPage(getDriver());
+        bookingPage.createBooking("Tokyo Suite", "2025-09-01", "2025-09-05");
+
+        assertThat(bookingPage.getConfirmationStatus())
+            .isEqualTo("Confirmed");
+
+        // Cleanup handled by BaseTest.tearDown() — guaranteed even on failure
+    }
+}
+```
+
+**What changed:**
+- Driver creation moved to `BaseTest` → browser is configurable, not hardcoded.
+- URL comes from config → same test runs against any environment.
+- Page objects encapsulate locators → UI changes affect one class, not every test.
+- Teardown is guaranteed → no leaked browsers.
+
+### Example 2: Composed Test Context (No Inheritance)
+
+For teams that want to avoid even the single-level `BaseTest` inheritance:
+
+
+```java
+public class TestContext implements AutoCloseable {
+
+    private final WebDriver driver;
+    private final ConfigManager config;
+
+    private TestContext(WebDriver driver, ConfigManager config) {
+        this.driver = driver;
+        this.config = config;
+    }
+
+    public static TestContext forUITest(ConfigManager config) {
+        WebDriver driver = DriverFactory.createDriver(config);
+        driver.manage().window().maximize();
+        driver.get(config.getBaseUrl());
+        return new TestContext(driver, config);
+    }
+
+    public static TestContext forAPITest(ConfigManager config) {
+        // No driver — API tests don't need a browser
+        return new TestContext(null, config);
+    }
+
+    public WebDriver getDriver() { return driver; }
+    public ConfigManager getConfig() { return config; }
+
+    @Override
+    public void close() {
+        if (driver != null) {
+            driver.quit();
+        }
+    }
+}
+```
+
+**Usage in a test — no extends:**
+
+
+```java
+public class BookingTest {
+
+    private static ConfigManager config;
+
+    @BeforeSuite
+    public void loadConfig() {
+        config = ConfigManager.load(System.getProperty("env", "local"));
+    }
+
+    @Test
+    public void shouldCreateBooking() {
+        // try-with-resources guarantees cleanup
+        try (TestContext ctx = TestContext.forUITest(config)) {
+            LoginPage loginPage = new LoginPage(ctx.getDriver());
+            loginPage.loginAs("user@test.com", "pass");
+
+            BookingPage bookingPage = new BookingPage(ctx.getDriver());
+            bookingPage.createBooking("Tokyo Suite", "2025-09-01", "2025-09-05");
+
+            assertThat(bookingPage.getConfirmationStatus()).isEqualTo("Confirmed");
+        }
+        // driver.quit() runs automatically when try block exits
+    }
+}
+```
+
+### Example 3: PageObjectFactory for Centralized Creation
+
+
+```java
+public class PageObjectFactory {
+
+    private final WebDriver driver;
+
+    public PageObjectFactory(WebDriver driver) {
+        this.driver = driver;
+    }
+
+    public LoginPage loginPage() {
+        return new LoginPage(driver);
+    }
+
+    public DashboardPage dashboardPage() {
+        return new DashboardPage(driver);
+    }
+
+    public BookingPage bookingPage() {
+        return new BookingPage(driver);
+    }
+
+    public SearchPage searchPage() {
+        return new SearchPage(driver);
+    }
+}
+```
+
+**Usage:** Tests create one factory and get all page objects from it, ensuring every page object shares the same driver instance:
+
+
+```java
+@Test
+public void shouldSearchAndBook() {
+    PageObjectFactory pages = new PageObjectFactory(getDriver());
+
+    pages.loginPage().loginAs("user@test.com", "pass");
+    pages.searchPage().searchFor("Tokyo");
+    pages.bookingPage().createBooking("Tokyo Suite", "2025-09-01", "2025-09-05");
+
+    assertThat(pages.bookingPage().getConfirmationStatus()).isEqualTo("Confirmed");
+}
+```
+
+---
+
+## Failure and Debugging (Layer 4)
+
+### Failure 1: Page Object Creates Its Own Driver
+
+**The Problem:**
+
+
+```java
+public class LoginPage {
+    private WebDriver driver = new ChromeDriver();  // creates its OWN driver
+
+    public void loginAs(String email, String password) {
+        driver.get("https://staging.staynest.com/login");
+        driver.findElement(By.id("email")).sendKeys(email);
+        // ...
+    }
+}
+```
+
+**What happens:** The test creates a driver in `@BeforeMethod`. `LoginPage` creates a *second* driver. Two Chrome browsers open. The test interacts with one browser; the page object interacts with another. Assertions fail because they check the wrong browser. The page object's browser is never cleaned up — zombie process.
+
+**The fix — receive, don't create:**
+
+
+```java
+public class LoginPage {
+    private final WebDriver driver;
+
+    public LoginPage(WebDriver driver) {  // RECEIVES driver
+        this.driver = driver;
+    }
+}
+```
+
+### Failure 2: Deep Inheritance Causing Setup Confusion
+
+**The Problem:**
+
+
+```java
+public class BaseTest {
+    @BeforeMethod
+    public void baseSetUp() { /* creates driver */ }
+}
+
+public class BaseAuthTest extends BaseTest {
+    @BeforeMethod
+    public void authSetUp() { /* logs in */ }
+}
+
+public class BaseAdminTest extends BaseAuthTest {
+    @BeforeMethod
+    public void adminSetUp() { /* navigates to admin panel */ }
+}
+
+public class AdminDashboardTest extends BaseAdminTest {
+    @Test
+    public void shouldShowUserList() {
+        // Which @BeforeMethod runs first? In what order?
+        // What if baseSetUp fails — does authSetUp still run?
+        // Answer: TestNG doesn't guarantee order across inheritance levels
+    }
+}
+```
+
+**What happens:** The test author expects `baseSetUp → authSetUp → adminSetUp → test`. But TestNG's execution order for `@BeforeMethod` across inheritance levels is not always intuitive. If `authSetUp` fails, `adminSetUp` may or may not run depending on `alwaysRun`. Debugging requires reading four files.
+
+**The fix — flatten with composition:**
+
+
+```java
+public class AdminDashboardTest extends BaseTest {
+
+    private AuthHelper auth;
+
+    @BeforeMethod
+    public void setUp() {
+        // One setup method — clear, explicit, no hidden behavior
+        auth = new AuthHelper(getDriver(), config);
+        auth.loginAsAdmin();
+        new NavigationHelper(getDriver()).goToAdminDashboard();
+    }
+
+    @Test
+    public void shouldShowUserList() {
+        AdminDashboardPage dashboard = new AdminDashboardPage(getDriver());
+        assertThat(dashboard.getUserCount()).isGreaterThan(0);
+    }
+}
+```
+
+### Failure 3: Static Factory with Hidden State
+
+**The Problem:**
+
+
+```java
+public class DriverFactory {
+    private static WebDriver driver;  // static = shared across all threads
+
+    public static WebDriver getDriver() {
+        if (driver == null) {
+            driver = new ChromeDriver();
+        }
+        return driver;
+    }
+}
+```
+
+**What happens in parallel:** Thread-1 creates a driver. Thread-2 finds `driver != null` and reuses Thread-1's browser. Both tests fight over one browser. Random failures. This is not DI — this is a service locator with global mutable state.
+
+**The fix — factory creates, caller stores:**
+
+
+```java
+public class DriverFactory {
+    // No state — just a creation method
+    public static WebDriver createDriver(ConfigManager config) {
+        return switch (config.getBrowser()) {
+            case "chrome" -> new ChromeDriver();
+            case "firefox" -> new FirefoxDriver();
+            default -> throw new IllegalArgumentException("Unknown browser");
+        };
+    }
+}
+```
+
+The caller (BaseTest) stores the driver in `ThreadLocal`. The factory is stateless — it creates and returns, holding nothing.
+
+---
+
+## Engineering Judgment (Layer 5)
+
+### Inheritance vs Composition Decision Matrix
+
+| Situation | Use Inheritance | Use Composition |
+|-----------|----------------|-----------------|
+| All tests share identical setup/teardown | `BaseTest` with `@Before/@After` — one level only | Not needed if truly identical |
+| Some tests need a browser, some don't | — | Compose `TestContext` with optional driver |
+| Some tests need auth, some don't | — | Compose `AuthHelper` only when needed |
+| All pages share `click()`, `type()`, `waitFor()` | `BasePage` — one level only | — |
+| Pages share partial components (header, modal) | — | Compose `HeaderComponent`, `ModalComponent` |
+| More than 2 levels of inheritance needed | Stop — switch to composition | Compose from independent helpers |
+
+### When to Introduce Interfaces
+
+**Don't introduce an interface when:**
+- You have exactly one implementation and no foreseeable second one.
+- The interface would be 1:1 identical to the class — zero abstraction benefit.
+
+**Introduce an interface when:**
+- You have 2+ implementations today (Chrome + Firefox → `DriverProvider` interface).
+- You need to mock a dependency in tests (mock `ConfigProvider` for unit testing page objects).
+- You want to enforce a contract across team members (everyone implements `PageObject` interface).
+
+**The rule:** You can always extract an interface later when the second implementation appears. The refactoring cost is low. The cost of maintaining a premature interface (extra files, extra indirection, extra cognitive load) is ongoing.
+
+---
+
+## Interview and Revision (Layer 6)
+
+### Fundamental Questions
+
+**Q1: What is dependency injection and why is it important in test frameworks?**
+
+**A:** Dependency injection means a class receives its dependencies through its constructor rather than creating them internally. In test frameworks, this is critical because it decouples tests from specific implementations. A `LoginPage` that receives `WebDriver` works with Chrome, Firefox, or a mock. A `LoginPage` that internally creates `new ChromeDriver()` is locked to Chrome forever. DI also enables parallel execution — the framework injects a thread-specific driver into each page object, ensuring isolation.
+
+**Q2: Why do you prefer composition over inheritance for test infrastructure?**
+
+**A:** Three reasons. First, flexibility — a UI test composes a driver + config, an API test composes only config + HTTP client. With inheritance, an API test extending `BaseUITest` gets a browser it never uses. Second, stability — changing a composed component only affects code that uses it, while changing a `BaseTest` affects every test in the suite. Third, debuggability — with composition, one setup method shows all dependencies. With deep inheritance, I trace through four parent classes to understand what `@BeforeMethod` hooks run.
+
+**Q3: When would you use a DI framework like Spring or Guice in a test automation project?**
+
+**A:** Almost never for test automation specifically. Test frameworks have simple dependency graphs — config, driver, pages, utilities. Manual constructor injection handles this perfectly. I'd use a DI framework only if the test project is part of a larger Spring application where Spring context is already available, or if the framework has 50+ injectable components with complex initialization order. For the typical SDET project with 10-20 classes, a DI framework adds complexity without proportional benefit.
+
+**Q4: Explain the Factory pattern in context of driver management.**
+
+**A:** The Factory pattern encapsulates the decision of which browser implementation to create. A `DriverFactory.createDriver(config)` method reads the browser type from configuration and returns the appropriate `WebDriver` — Chrome, Firefox, or Remote. Tests receive a `WebDriver` interface and don't know which browser they got. Adding a new browser means adding one case to the factory, not modifying any test. The factory itself is stateless — it creates and returns, holding no references.
+
+
+
+
+| # | Front (Question) | Back (Answer) |
+|---|---|---|
+| 1 | What does "program to interfaces, not implementations" mean? | Declare variables and parameters as interface types (`WebDriver`, not `ChromeDriver`). This lets you swap implementations without changing consuming code. |
+| 2 | Why is manual DI usually sufficient for test frameworks? | Test frameworks have simple dependency graphs (config → driver → pages). No circular dependencies, no complex initialization order. Constructor injection covers 95% of cases without a framework. |
+| 3 | What is the fragile base class problem? | When many classes inherit from a deep hierarchy, changing a base class breaks all subclasses. In test frameworks, changing `BaseUITest` affects every UI test in the suite — potentially hundreds. |
+| 4 | Factory creates, constructor receives — what does this mean? | Factories (`DriverFactory.createDriver()`) decide *which* implementation to instantiate. Constructors (`LoginPage(WebDriver driver)`) declare *what* dependencies are needed. Separate the "what" from the "which." |
+| 5 | When should you extract an interface? | When you have 2+ implementations, need to mock for testing, or want to enforce a contract. Don't extract for a single implementation with no foreseeable second — you can always extract later at low cost. |
+
+### Mastery Checklist
+
+- [ ] Can refactor a tightly-coupled test to use constructor injection
+- [ ] Can explain why page objects should receive `WebDriver`, not create it
+- [ ] Can design a `TestContext` using composition instead of deep inheritance
+- [ ] Can implement a `DriverFactory` that creates drivers based on config
+- [ ] Can articulate when manual DI is sufficient vs when a DI framework is warranted
+- [ ] Can identify the fragile base class problem and propose a composition-based alternative
+- [ ] Can implement interface-based design for driver and config providers
+- [ ] Can explain the difference between a factory (creates) and DI (receives)
+
+---
+
+**Next:** Page And Screen Objects | **Related:** Framework Architecture, Test Lifecycle And Fixtures
+
+*Last updated: *

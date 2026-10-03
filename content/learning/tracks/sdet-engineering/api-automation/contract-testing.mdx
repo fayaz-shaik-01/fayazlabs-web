@@ -1,0 +1,561 @@
+---
+title: "Contract Testing"
+description: "What: Contract testing verifies that two services (a producer and a consumer) agree on the format and behavior of their interactions. Instead of spinning up both services and testing them together (integration testing), contract testing checks each side independently against a shared agreement — the contract. If both sides honor the contract, they'll work together in production."
+summary: "SDET Engineering guide: Contract Testing"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "api-automation"
+lesson: "contract-testing"
+difficulty: "intermediate"
+estimatedMinutes: 35
+prerequisites: []
+tags: ["SDET", "API", "REST", "Testing"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "reference"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/api-automation/contract-testing"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Contract Testing
+
+> **Module:** 04 — API Automation  
+> **Prerequisites:** Schema Validation, Http And Rest Fundamentals  
+> **Mastery Target:** L3 (Independent) — can explain contract testing concepts, compare approaches, and design contract testing strategy for a microservices project
+
+---
+
+## Quick Overview (Layer 1)
+
+**What:** Contract testing verifies that two services (a producer and a consumer) agree on the format and behavior of their interactions. Instead of spinning up both services and testing them together (integration testing), contract testing checks each side independently against a shared agreement — the contract. If both sides honor the contract, they'll work together in production.
+
+**Why:** Integration tests are slow, brittle, and expensive. They require all dependent services to be running, properly configured, and populated with the right data. When a test fails, you don't know which service broke. Contract testing eliminates these problems: the producer verifies it can produce what consumers expect, and the consumer verifies it can handle what the producer sends — each independently, each fast, each clear about who broke what.
+
+**Where:** Microservices architectures where multiple services communicate via APIs. StayNest (monolith with a web frontend) is a simpler case, but the principles apply: the web frontend is a consumer of the StayNest API (producer). Contract testing ensures the frontend and backend agree on response shapes, field names, and types.
+
+<MentalModel>
+
+Think of contract testing as a **recipe agreement between a restaurant and a food supplier**. The restaurant (consumer) writes down exactly what ingredients it needs: "I need tomatoes, at least 5kg, ripe, in a standard crate." The supplier (producer) gets this spec and verifies it can fulfill it. Neither side needs to physically meet — they each verify against the written agreement. If the supplier starts sending green tomatoes, the contract check catches it before the restaurant discovers the problem at dinner service.
+
+</MentalModel>
+
+
+<KeyTakeaways>
+
+1. Contract testing is about verifying *agreements*, not end-to-end behavior. It doesn't test business logic — it tests that services speak the same language.
+2. Consumer-driven contracts (CDC) let the consumer specify what it needs. The producer verifies it can meet those needs. This flips the usual direction — consumers define the contract, not producers.
+3. Pact is the most popular CDC framework. It records consumer expectations and replays them against the producer.
+4. OpenAPI/Swagger can serve as a producer-driven contract — the API specification defines what the producer provides, and consumers validate against it.
+5. Contract testing is not a replacement for integration or E2E testing — it's a complement. Contract tests catch format/structure mismatches fast and cheap. Integration tests catch behavioral bugs that contracts can't express.
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation (Layer 2)
+
+### The Integration Testing Problem
+
+Consider testing that StayNest's web frontend correctly displays hotel search results:
+
+**With integration testing:**
+```
+1. Start the StayNest backend
+2. Start the database with seed data
+3. Start the frontend
+4. Frontend calls POST /hotels/search
+5. Backend queries database, returns results
+6. Frontend renders the results
+7. Assert the rendered results are correct
+```
+
+**Problems:**
+- All three services must be running and configured
+- Database must have specific seed data
+- Test is slow (seconds to minutes)
+- When it fails, is it the frontend, backend, database, or network?
+- Fragile — any environment change breaks the test
+
+**With contract testing:**
+```
+Consumer side (frontend):
+1. Record: "When I call POST /hotels/search with {city: 'NYC', ...},
+   I expect a 200 with body matching {content: [{id: int, name: string, ...}]}"
+2. Test frontend against this recorded expectation (mock server)
+
+Producer side (backend):
+1. Receive the consumer's expectation
+2. Replay it against the real API
+3. Verify the actual response matches what the consumer expects
+```
+
+**Benefits:**
+- Each side tests independently — no environment dependencies
+- Fast (milliseconds)
+- When it fails, you know exactly which side broke the contract
+- Runs early in the pipeline — before deployment
+
+### Consumer-Driven Contracts (CDC)
+
+In CDC, the consumer defines what it needs from the producer. This is counterintuitive — you'd expect the producer to define its API and consumers to conform. But CDC reflects reality: producers should be designed to serve their consumers, not the other way around.
+
+```
+Step 1: Consumer writes a "pact"
+  "I'm the web frontend.
+   When I call GET /users/profile with a Bearer token,
+   I expect: status 200, body with {id: integer, email: string, name: string}"
+
+Step 2: Pact is shared with the producer
+  (via a Pact Broker or as a file)
+
+Step 3: Producer verifies the pact
+  "The web frontend expects {id, email, name}. Let me run this
+   against my real API... yes, my response includes all those fields
+   with the right types. Contract honored."
+
+Step 4: If the producer changes the response
+  "I renamed 'name' to 'fullName'..."
+  → Pact verification FAILS: "Consumer expects 'name' but it's missing."
+  → Producer knows they need to coordinate with the consumer before deploying.
+```
+
+### Pact Framework — How It Works
+
+Pact is the most widely used CDC testing framework. It supports many languages (Java, JavaScript, Python, Go, etc.).
+
+**Core concepts:**
+
+| Concept | Description |
+|---------|-------------|
+| **Consumer** | The service that makes API calls (e.g., web frontend) |
+| **Provider** | The service that serves API calls (e.g., StayNest backend) |
+| **Interaction** | A single request-response pair the consumer expects |
+| **Pact file** | A JSON file containing all interactions for a consumer-provider pair |
+| **Pact Broker** | A shared server where pact files are stored and versioned |
+| **Provider verification** | Running the consumer's expectations against the real provider |
+
+**Pact workflow:**
+
+```
+  Consumer Test Suite                 Pact Broker               Provider Test Suite
+        |                                |                            |
+        |-- Generate pact file --------->|                            |
+        |   (record interactions)        |                            |
+        |                                |<-- Fetch pact file --------|
+        |                                |                            |
+        |                                |   [Replay interactions     |
+        |                                |    against real API]       |
+        |                                |                            |
+        |                                |<-- Publish results --------|
+        |                                |   (pass/fail per           |
+        |                                |    interaction)            |
+```
+
+### Contract Testing vs Other Test Types
+
+| Aspect | Contract Tests | Integration Tests | E2E Tests |
+|--------|---------------|-------------------|-----------|
+| **What they verify** | Data format agreement | Component interaction behavior | Full user journey |
+| **Speed** | Very fast (ms) | Moderate (seconds) | Slow (minutes) |
+| **Dependencies** | None (each side tested independently) | Some (connected services) | All (full environment) |
+| **Failure diagnosis** | Clear (consumer or producer) | Moderate (which service?) | Difficult (could be anything) |
+| **What they miss** | Business logic, timing, state | Some edge cases | Usually nothing (if they pass) |
+| **When they run** | Every commit, pre-merge | Pre-deployment | Pre-release, nightly |
+
+**They're complementary, not competing:**
+- Contract tests: "Do the services speak the same language?" (fast, frequent)
+- Integration tests: "Do they work together correctly?" (moderate speed, less frequent)
+- E2E tests: "Does the user flow work?" (slow, least frequent)
+
+### OpenAPI/Swagger as Contract
+
+OpenAPI (formerly Swagger) is a specification format for REST APIs. It describes endpoints, request/response schemas, authentication, and more in a machine-readable YAML/JSON file.
+
+**Using OpenAPI as a contract:**
+
+```yaml
+# openapi.yaml (simplified StayNest excerpt)
+paths:
+  /auth/login:
+    post:
+      summary: Authenticate user
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, minLength: 6 }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      accessToken: { type: string }
+        '401':
+          description: Invalid credentials
+```
+
+**Contract testing with OpenAPI:**
+- The OpenAPI spec is the contract
+- Consumer tests: validate that the consumer sends requests matching the spec
+- Producer tests: validate that the producer returns responses matching the spec
+- Tools like `swagger-request-validator` or `openapi-diff` automate this
+
+---
+
+## Practical Implementation (Layer 3)
+
+### Setting Up Contract Tests for StayNest
+
+StayNest is a monolith with a web frontend as its consumer. Here's how you'd structure contract testing:
+
+
+```java
+// Consumer side — this would normally be in the frontend's test suite.
+// For a Java-based consumer, here's how Pact interactions are defined.
+// Note: In real projects, the consumer and provider tests live in
+// separate repositories.
+
+import au.com.dius.pact.consumer.dsl.PactDslWithProvider;
+import au.com.dius.pact.consumer.dsl.DslPart;
+import au.com.dius.pact.consumer.dsl.PactDslJsonBody;
+import au.com.dius.pact.consumer.junit5.PactConsumerTestExt;
+import au.com.dius.pact.consumer.junit5.PactTestFor;
+import au.com.dius.pact.consumer.MockServer;
+import au.com.dius.pact.core.model.V4Pact;
+import au.com.dius.pact.core.model.annotations.Pact;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import static io.restassured.RestAssured.*;
+import static org.hamcrest.Matchers.*;
+
+/**
+ * Consumer-side Pact test: defines what the web frontend expects
+ * from the StayNest API for the login endpoint.
+ */
+@ExtendWith(PactConsumerTestExt.class)
+@PactTestFor(providerName = "StayNestAPI")
+public class LoginContractConsumerTest {
+
+    @Pact(consumer = "WebFrontend")
+    public V4Pact loginPact(PactDslWithProvider builder) {
+        return builder
+            .given("a user exists with email guest@staynest.com")
+            .uponReceiving("a login request with valid credentials")
+                .method("POST")
+                .path("/api/v1/auth/login")
+                .headers("Content-Type", "application/json")
+                .body(new PactDslJsonBody()
+                    .stringType("email", "guest@staynest.com")
+                    .stringType("password", "pass123"))
+            .willRespondWith()
+                .status(200)
+                .headers(Map.of("Content-Type", "application/json"))
+                .body(new PactDslJsonBody()
+                    .stringType("timeStamp")
+                    .object("data")
+                        .stringMatcher("accessToken", "^eyJ[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$", "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.sig")
+                    .closeObject()
+                    .nullValue("error"))
+            .toPact(V4Pact.class);
+    }
+
+    @Test
+    @PactTestFor(pactMethod = "loginPact")
+    void testLoginContract(MockServer mockServer) {
+        // This runs against the Pact mock server, NOT the real API
+        given()
+            .baseUri(mockServer.getUrl())
+            .contentType("application/json")
+            .body("{\"email\":\"guest@staynest.com\",\"password\":\"pass123\"}")
+        .when()
+            .post("/api/v1/auth/login")
+        .then()
+            .statusCode(200)
+            .body("data.accessToken", notNullValue());
+    }
+}
+```
+
+### Provider Verification Test
+
+
+```java
+import au.com.dius.pact.provider.junit5.PactVerificationContext;
+import au.com.dius.pact.provider.junit5.PactVerificationInvocationContextProvider;
+import au.com.dius.pact.provider.junitsupport.Provider;
+import au.com.dius.pact.provider.junitsupport.State;
+import au.com.dius.pact.provider.junitsupport.loader.PactFolder;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
+
+/**
+ * Provider-side Pact test: verifies the StayNest API meets
+ * the web frontend's expectations defined in the pact file.
+ *
+ * This runs against the REAL StayNest API (or a test instance).
+ */
+@Provider("StayNestAPI")
+@PactFolder("pacts")  // or use @PactBroker for remote pact storage
+public class StayNestProviderVerificationTest {
+
+    @BeforeEach
+    void setUp(PactVerificationContext context) {
+        // Point to the running StayNest instance
+        context.setTarget(new HttpTestTarget("localhost", 8080));
+    }
+
+    /**
+     * Provider state: set up data that the pact interaction requires.
+     * The state name must match the "given" in the consumer test.
+     */
+    @State("a user exists with email guest@staynest.com")
+    void setupUserExists() {
+        // Ensure the test user exists in the database.
+        // Could be a seed script, API call, or DB insert.
+        // If the user already exists from seed data, this can be empty.
+    }
+
+    @TestTemplate
+    @ExtendWith(PactVerificationInvocationContextProvider.class)
+    void verifyPact(PactVerificationContext context) {
+        context.verifyInteraction();
+    }
+}
+```
+
+### OpenAPI Validation Approach
+
+
+```java
+import com.atlassian.oai.validator.OpenApiInteractionValidator;
+import com.atlassian.oai.validator.restassured.OpenApiValidationFilter;
+import org.testng.annotations.Test;
+import static io.restassured.RestAssured.*;
+
+/**
+ * Validates API responses against the OpenAPI/Swagger specification.
+ * This is a producer-driven contract test — the spec defines the contract.
+ *
+ * Requires: com.atlassian.oai:oai-validator-restassured dependency
+ */
+public class OpenApiContractTests {
+
+    // Load the OpenAPI spec from file or URL
+    private final OpenApiValidationFilter validationFilter =
+        new OpenApiValidationFilter("openapi/staynest-api.yaml");
+
+    @Test
+    public void loginResponse_matchesOpenApiSpec() {
+        given()
+            .filter(validationFilter)  // Validates both request AND response
+            .contentType("application/json")
+            .body("{\"email\":\"guest@staynest.com\",\"password\":\"pass123\"}")
+        .when()
+            .post("/auth/login")
+        .then()
+            .statusCode(200);
+        // The filter automatically validates the response matches
+        // the OpenAPI spec — if it doesn't, the test fails with
+        // a detailed diff showing what doesn't match.
+    }
+
+    @Test
+    public void hotelSearch_matchesOpenApiSpec() {
+        given()
+            .filter(validationFilter)
+            .contentType("application/json")
+            .body("{\"city\":\"New York\",\"startDate\":\"2025-06-01\","
+                + "\"endDate\":\"2025-06-05\",\"roomsCount\":1}")
+        .when()
+            .post("/hotels/search")
+        .then()
+            .statusCode(200);
+    }
+}
+```
+
+### Detecting Breaking Changes with OpenAPI Diff
+
+
+```java
+/**
+ * Compare two versions of an OpenAPI spec to detect breaking changes.
+ * Run this in CI when the OpenAPI spec is modified.
+ *
+ * Uses: org.openapitools:openapi-diff dependency
+ */
+import org.openapitools.openapidiff.core.OpenApiCompare;
+import org.openapitools.openapidiff.core.model.ChangedOpenApi;
+
+public class OpenApiDiffCheck {
+
+    public static void main(String[] args) {
+        ChangedOpenApi diff = OpenApiCompare.fromLocations(
+            "openapi/staynest-api-v1.yaml",   // Previous version
+            "openapi/staynest-api-v2.yaml"    // New version
+        );
+
+        // Check for breaking changes
+        if (diff.isIncompatible()) {
+            System.err.println("BREAKING CHANGES DETECTED:");
+            diff.getNewEndpoints().forEach(e ->
+                System.out.println("  New: " + e.getMethod() + " " + e.getPathUrl()));
+            diff.getMissingEndpoints().forEach(e ->
+                System.out.println("  Removed: " + e.getMethod() + " " + e.getPathUrl()));
+            diff.getChangedOperations().forEach(op ->
+                System.out.println("  Changed: " + op.getHttpMethod() + " " + op.getPathUrl()));
+            System.exit(1);  // Fail the CI build
+        } else {
+            System.out.println("No breaking changes detected.");
+        }
+    }
+}
+```
+
+---
+
+## Failure and Debugging (Layer 4)
+
+### Failure 1: Pact Verification Fails Due to Missing Provider State
+
+**The Problem:**
+
+```
+Pact verification failed:
+  Interaction: "a login request with valid credentials"
+  State: "a user exists with email guest@staynest.com"
+  Error: No state handler found for "a user exists with email guest@staynest.com"
+```
+
+**Root cause:** The consumer defined a `given("a user exists with email guest@staynest.com")` state, but the provider verification test doesn't have a matching `@State` method. Pact can't set up the required test data.
+
+**The fix:** Add a `@State` handler that matches the exact string from the consumer's pact:
+
+
+```java
+@State("a user exists with email guest@staynest.com")
+void setupUserExists() {
+    // Create the user via API or DB if not exists
+    // This state name must EXACTLY match the consumer's .given() string
+}
+```
+
+### Failure 2: Contract Test Passes but Integration Fails
+
+**The Problem:** Contract tests pass on both sides, but the services fail when actually connected. How?
+
+**Root cause:** Contract tests validate *structure*, not *behavior*. Common mismatches that contracts can't catch:
+
+| Contract says | Reality | Result |
+|---------------|---------|--------|
+| `checkInDate` is a string | Consumer sends `"2025-06-01"`, server expects `"06/01/2025"` | 400 Bad Request |
+| `price` is a number | Consumer expects `150.00` (float), server sends `150` (int) | Possible precision loss |
+| Response has an `id` field | The `id` value must exist in another service's database | Foreign key not found |
+
+<BestPractice>
+
+**Prevention:** Contract tests handle format agreements. Integration tests verify actual behavior. Don't skip integration tests just because contract tests pass.
+
+</BestPractice>
+
+
+---
+
+## Engineering Judgment (Layer 5)
+
+### When to Adopt Contract Testing
+
+| Situation | Contract Testing? | Why |
+|-----------|------------------|-----|
+| Monolith with single frontend | **Optional** — schema validation may suffice | Low complexity; one producer, one consumer |
+| 3-5 microservices | **Recommended** | Integration tests become slow and fragile at this scale |
+| 10+ microservices | **Essential** | Can't spin up all services for every test; contract tests scale linearly |
+| Third-party API consumer | **Yes** (producer-driven) | Validate against their OpenAPI spec to catch changes early |
+| Internal API with no consumers yet | **Not yet** | No consumers = no contracts to define. Use schema validation instead |
+
+### Pact vs OpenAPI Validation — When to Use Each
+
+| Aspect | Pact (CDC) | OpenAPI Validation |
+|--------|-----------|-------------------|
+| **Direction** | Consumer defines what it needs | Producer defines what it provides |
+| **Best for** | Internal microservices where you control both sides | APIs with a published spec (OpenAPI/Swagger) |
+| **Catches** | Consumer-specific breaking changes | Any deviation from the spec |
+| **Complexity** | Higher (Pact Broker, state management, both sides must use Pact) | Lower (just validate against a YAML file) |
+| **StayNest recommendation** | Overkill for current architecture | Good fit — validate against Swagger spec |
+
+### The Right Level of Contract Testing for StayNest
+
+StayNest is currently a monolith with a web frontend. The pragmatic approach:
+
+1. **Now:** Use JSON Schema validation (already covered in Schema Validation) as a lightweight contract mechanism.
+2. **If adding a mobile app:** Consider OpenAPI validation — both web and mobile validate against the same spec.
+3. **If splitting into microservices:** Adopt Pact CDC between internal services. The cost is justified when services deploy independently.
+
+---
+
+## Interview and Revision (Layer 6)
+
+### Fundamental Questions
+
+**Q1: What is contract testing and how does it differ from integration testing?**
+
+**A:** Contract testing verifies that two services agree on the format and structure of their API interactions — request shapes, response shapes, status codes, and field types. It tests each side independently against a shared agreement (the contract). Integration testing connects the actual services and tests their behavior together. The key difference: contract tests are fast, isolated, and tell you exactly which side broke. Integration tests are slow, require full environments, and may fail for infrastructure reasons unrelated to the code. Contract tests catch "we don't speak the same language" bugs; integration tests catch "we speak the same language but misunderstand each other" bugs. They're complementary.
+
+**Q2: What are consumer-driven contracts, and why is the consumer in charge?**
+
+**A:** In consumer-driven contracts (CDC), the consumer specifies exactly what it needs from the provider — which fields, which types, which status codes. The provider then verifies it can meet these expectations. The consumer is "in charge" because API changes that don't break any consumer are safe to deploy, while changes that break even one consumer must be coordinated. This reflects a practical reality: producers exist to serve consumers. If no consumer uses a field, removing it is safe. If every consumer uses it, removing it is breaking. CDC captures this dependency explicitly.
+
+**Q3: When would you NOT recommend contract testing?**
+
+**A:** I wouldn't recommend it for: (1) A simple monolith with one consumer — schema validation provides similar benefits with less overhead. (2) Very early-stage projects where the API is changing rapidly — contracts add friction to every change when the design is still evolving. (3) Internal tools with a single developer who controls both sides — the communication overhead contract testing prevents doesn't exist when it's one person. The break-even point is typically 3+ services deploying independently where integration tests are becoming slow and fragile.
+
+### Scenario-Based Questions
+
+**S1: "Your team is splitting a monolith into three microservices. How would you introduce contract testing?"**
+
+**A:** I'd introduce it incrementally: (1) Start with the highest-traffic API boundary — the one where a breaking change would cause the most damage. (2) Write consumer tests first for the most critical interactions (e.g., authentication, core resource fetching). (3) Set up provider verification on the producing service. (4) Use a Pact Broker to share pacts between repositories. (5) Add contract verification to the CI pipeline as a required check before merge. (6) Expand to other service boundaries one at a time. I wouldn't try to cover all interactions on day one — start with the riskiest contracts and expand based on where integration bugs actually occur.
+
+
+
+
+| # | Front (Question) | Back (Answer) |
+|---|---|---|
+| 1 | What is a "pact" in Pact framework? | A JSON file containing all interactions a consumer expects from a provider — each interaction has a request (method, path, headers, body) and expected response (status, headers, body). |
+| 2 | Consumer-driven vs producer-driven contracts? | CDC: consumer defines what it needs; provider verifies. Producer-driven: provider publishes a spec (e.g., OpenAPI); consumers validate against it. CDC catches consumer-specific breakages; producer-driven catches any spec deviation. |
+| 3 | Can contract testing replace integration testing? | No. Contract tests verify format/structure agreement. Integration tests verify behavioral correctness. A contract-valid response can still be behaviorally wrong (e.g., returning the wrong user's data with the right schema). |
+| 4 | What is a provider state in Pact? | A precondition the provider must set up before verifying an interaction. E.g., "a user exists with email X" — the provider creates this user before the pact's request is replayed. |
+| 5 | When is OpenAPI validation sufficient over Pact? | When you have a single producer with a published spec and consumers don't need custom contract subsets. Pact is worth the complexity only when multiple consumers need different subsets of the API. |
+
+### Mastery Checklist
+
+- [ ] Can explain contract testing and why it exists (the integration testing problem)
+- [ ] Can describe consumer-driven contracts with a concrete example
+- [ ] Can explain the Pact workflow: consumer generates pact → broker → provider verifies
+- [ ] Can compare contract testing, integration testing, and E2E testing with trade-offs
+- [ ] Can describe how OpenAPI/Swagger serves as a contract
+- [ ] Can articulate when contract testing is overkill and when it's essential
+- [ ] Can design a contract testing strategy for a 3-service microservices project
+
+---
+
+**Next:** Database Validation | **Related:** Schema Validation
+
+*Last updated: *

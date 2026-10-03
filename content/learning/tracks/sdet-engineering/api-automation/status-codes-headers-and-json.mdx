@@ -1,0 +1,751 @@
+---
+title: "Status Codes, Headers, and JSON"
+description: "What: Every HTTP response carries three layers of information: a status code (did it work?), headers (metadata about the response), and a body (the actual data, usually JSON). Mastering all three layers — not just the body — is what separates thorough API testing from shallow \"did I get a 200?\" checks."
+summary: "SDET Engineering guide: Status Codes, Headers, and JSON"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "api-automation"
+lesson: "status-codes-headers-and-json"
+difficulty: "intermediate"
+estimatedMinutes: 48
+prerequisites: []
+tags: ["SDET", "API", "REST", "Testing"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/api-automation/status-codes-headers-and-json"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Status Codes, Headers, and JSON
+
+> **Module:** 04 — API Automation  
+> **Prerequisites:** Http And Rest Fundamentals, familiarity with REST Assured basics  
+> **Mastery Target:** L3 (Independent) — can predict, validate, and debug any status code, header, or JSON structure without consulting documentation
+
+---
+
+## Quick Overview (Layer 1)
+
+**What:** Every HTTP response carries three layers of information: a status code (did it work?), headers (metadata about the response), and a body (the actual data, usually JSON). Mastering all three layers — not just the body — is what separates thorough API testing from shallow "did I get a 200?" checks.
+
+**Why:** You already know to check `statusCode(200)`, but most real bugs hide in the details. A 200 response with an empty body is a bug. A 201 that returns `Content-Type: text/html` instead of `application/json` breaks every consumer. A missing `Cache-Control` header means browsers cache sensitive data. And a JSON response where `price` is a string `"150.00"` instead of a number `150.00` causes silent failures in frontends. Testing all three layers catches bugs that status-code-only tests miss entirely.
+
+**Where:** Every API test you write. Status codes drive conditional logic in consumers. Headers control caching, authentication, CORS, and content negotiation. JSON structure determines whether frontends, mobile apps, and other services can parse the response. All three must be validated together.
+
+<MentalModel>
+
+Think of an HTTP response as a **graded exam paper**. The status code is the grade stamped on top (A/B/C/F — pass or fail at a glance). The headers are the teacher's notes in the margin (metadata: "please review by Friday," "this supersedes the previous version"). The JSON body is the detailed feedback — the actual content you need. A student who only checks the grade misses the teacher's warning that the next submission format has changed (breaking header change). A student who reads the feedback but ignores the grade might think they passed when they didn't (trusting body content on a 500 response).
+
+</MentalModel>
+
+
+<KeyTakeaways>
+
+1. Status codes are grouped by family: 2xx = success, 4xx = client error, 5xx = server error. The specific code within each family tells you *how* it succeeded or failed.
+2. Never assert only the status code — a 200 with a corrupt body is still a bug. Assert status + relevant headers + body structure + key values.
+3. Headers are contracts: `Content-Type` tells you how to parse, `Authorization` proves identity, `Cache-Control` controls freshness. Missing or wrong headers cause real-world failures.
+4. JSON has exactly two collection types: objects (`{}`) and arrays (`[]`). Master JSONPath to navigate any nesting depth.
+5. The StayNest API wraps every response in an envelope: `{"timeStamp": "...", "data": {...}, "error": null}`. Always navigate into `data` for assertions.
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation (Layer 2)
+
+### HTTP Status Code Families
+
+Status codes are three-digit numbers grouped into five families. The first digit tells you the category:
+
+| Family | Meaning | Testing Focus |
+|--------|---------|---------------|
+| **1xx** | Informational (request received, continuing) | Rarely tested directly — `100 Continue` is handled by HTTP libraries |
+| **2xx** | Success — request was received, understood, and accepted | Verify the *correct* 2xx code: 200 vs 201 vs 204 matter |
+| **3xx** | Redirection — further action needed to complete request | Test redirect behavior: does the client follow? Is the target correct? |
+| **4xx** | Client error — the request was wrong | This is where most negative test cases live |
+| **5xx** | Server error — the server failed to process a valid request | 5xx in your tests = likely a bug (or environment issue) |
+
+### Status Codes That Matter for Testing
+
+#### 2xx — Success Codes (Positive Test Validation)
+
+| Code | Name | When Used | StayNest Example | Testing Note |
+|------|------|-----------|------------------|--------------|
+| **200** | OK | General success: reads, updates | `GET /users/profile`, `POST /auth/login` | The default success code — verify body has expected data |
+| **201** | Created | A new resource was created | `POST /auth/signup`, `POST /admin/hotels` | Assert `Location` header or returned ID; resource must exist |
+| **204** | No Content | Success, but nothing to return | `DELETE /admin/hotels/{id}`, `PATCH /users/profile` | Body must be empty — if there's a body, the code is wrong |
+
+**Why the distinction matters:** If `POST /admin/hotels` returns 200 instead of 201, a frontend that checks for 201 to show a "Created!" toast will silently fail. If `DELETE` returns 200 with an empty body instead of 204, clients parsing the body get a JSON parse error.
+
+#### 3xx — Redirection Codes
+
+| Code | Name | When Used | Testing Note |
+|------|------|-----------|--------------|
+| **301** | Moved Permanently | Resource URL has changed permanently | Test that old URLs redirect to new ones; check SEO impact |
+| **302** | Found | Temporary redirect (e.g., OAuth callback) | Verify redirect target URL contains expected parameters |
+| **304** | Not Modified | Cached response is still valid | Client sent `If-None-Match`; server confirms cache is fresh |
+
+In API testing, you encounter 301/302 during OAuth flows and when APIs version-migrate endpoints.
+
+#### 4xx — Client Errors (Negative Test Goldmine)
+
+| Code | Name | When Used | StayNest Example | Bug or Expected? |
+|------|------|-----------|------------------|------------------|
+| **400** | Bad Request | Invalid input: malformed JSON, missing required fields, wrong types | `POST /auth/signup` with no email | Expected for validation tests |
+| **401** | Unauthorized | No credentials or invalid credentials | Any endpoint without `Authorization` header | Expected — "who are you?" |
+| **403** | Forbidden | Valid credentials but insufficient permissions | Guest calling `POST /admin/hotels` | Expected — "you can't do that" |
+| **404** | Not Found | Resource doesn't exist | `GET /admin/hotels/99999` | Expected for "not found" tests; bug if resource should exist |
+| **405** | Method Not Allowed | Wrong HTTP method for this endpoint | `DELETE /auth/login` (login doesn't support DELETE) | Usually a routing bug |
+| **409** | Conflict | Business rule violation or state conflict | `POST /bookings/init` when no inventory available | Expected for business logic tests |
+| **422** | Unprocessable Entity | Syntactically valid but semantically wrong | JSON is well-formed but `checkInDate` is in the past | Some APIs use 400 instead — know which your API uses |
+| **429** | Too Many Requests | Rate limit exceeded | Sending 100 requests per second | Expected if testing rate limiting; indicates test is too aggressive if unexpected |
+
+**The 401 vs 403 Distinction — Interview Favorite:**
+
+```
+401 Unauthorized: "I don't know who you are. Provide valid credentials."
+   → Missing token, expired token, invalid token
+   → Response: "Please authenticate"
+
+403 Forbidden: "I know who you are, but you don't have permission."
+   → Valid GUEST token used on HOTEL_MANAGER endpoint
+   → Response: "Access denied for your role"
+```
+
+**Common testing mistake:** Asserting 401 when 403 is correct (or vice versa). If you send a valid GUEST token to `POST /admin/hotels`, that's 403 — you're authenticated (server knows you're a guest), but forbidden from this action. If you send no token at all, that's 401.
+
+#### 5xx — Server Errors (Bugs Unless Expected)
+
+| Code | Name | When Used | Testing Note |
+|------|------|-----------|--------------|
+| **500** | Internal Server Error | Unhandled exception in server code | Almost always a bug — log it, investigate |
+| **502** | Bad Gateway | Reverse proxy can't reach the backend | Infrastructure issue — is the server running? |
+| **503** | Service Unavailable | Server overloaded or in maintenance | Retry-worthy; check `Retry-After` header |
+
+**If your test gets a 5xx:** Stop. Don't just mark the test as "failed." A 500 means the server crashed processing your request. Either your test data triggered a bug (good — you found it!) or the environment is broken (bad — fix infra before re-running).
+
+### HTTP Headers Deep Dive
+
+Headers are key-value metadata pairs that travel with every request and response. They control content negotiation, authentication, caching, security, and more.
+
+#### Request Headers You Must Know
+
+| Header | Purpose | Example | Testing Relevance |
+|--------|---------|---------|-------------------|
+| `Content-Type` | Format of the request body | `application/json` | Missing = 415 or garbled parsing |
+| `Accept` | Format you want the response in | `application/json` | Server uses this to format response |
+| `Authorization` | Authentication credentials | `Bearer eyJhbG...` | Every authenticated request needs this |
+| `Cookie` | Session/refresh tokens | `refreshToken=eyJhb...` | StayNest sends refresh token as HttpOnly cookie |
+
+#### Response Headers You Must Validate
+
+| Header | Purpose | Example | What to Assert |
+|--------|---------|---------|----------------|
+| `Content-Type` | Format of the response body | `application/json` | Always JSON for API responses; wrong type = bug |
+| `Set-Cookie` | Server sets a cookie on the client | `refreshToken=abc; HttpOnly; Secure` | Verify `HttpOnly` and `Secure` flags for security |
+| `Cache-Control` | How long to cache the response | `no-store` for sensitive data | Sensitive endpoints (profile, bookings) should have `no-store` |
+| `Location` | URL of a newly created resource | `/admin/hotels/42` | Assert after 201 Created |
+| `Retry-After` | When to retry after a 429 or 503 | `60` (seconds) or a date | Verify rate-limit responses include this |
+
+#### Custom Headers
+
+APIs often define custom headers prefixed with `X-` (convention, not required):
+
+| Header | Purpose | Example |
+|--------|---------|---------|
+| `X-Request-Id` | Trace ID for debugging | `X-Request-Id: 550e8400-e29b-41d4-a716-446655440000` |
+| `X-RateLimit-Remaining` | How many requests you have left | `X-RateLimit-Remaining: 98` |
+| `X-Total-Count` | Total items in a paginated response | `X-Total-Count: 247` |
+
+### JSON Structure Fundamentals
+
+JSON (JavaScript Object Notation) is the lingua franca of REST APIs. It has exactly six data types and two collection types.
+
+#### Data Types
+
+| Type | Example | Java Equivalent |
+|------|---------|-----------------|
+| String | `"Grand Hotel"` | `String` |
+| Number | `150.00`, `42` | `double`, `int` |
+| Boolean | `true`, `false` | `boolean` |
+| Null | `null` | `null` |
+| Object | `{"key": "value"}` | `Map<String, Object>` or POJO |
+| Array | `[1, 2, 3]` | `List<?>` |
+
+#### StayNest Response Envelope
+
+Every StayNest response wraps the actual data in an envelope:
+
+```json
+{
+  "timeStamp": "2025-01-15T10:30:00",
+  "data": {
+    "id": 1,
+    "name": "Grand Hotel",
+    "city": "New York",
+    "amenities": ["WIFI", "POOL", "PARKING"],
+    "contactInfo": {
+      "address": "123 Main St",
+      "phoneNumber": "555-0100",
+      "email": "grand@staynest.com",
+      "location": "Downtown"
+    },
+    "active": true
+  },
+  "error": null
+}
+```
+
+#### JSONPath — Navigating JSON
+
+JSONPath is a query language for extracting values from JSON. REST Assured uses GPath (Groovy's JSONPath variant), which has slightly different syntax from standard JSONPath.
+
+| Expression | Meaning | Result from above |
+|------------|---------|-------------------|
+| `data.name` | Dot notation for nested fields | `"Grand Hotel"` |
+| `data.amenities[0]` | Array index (0-based) | `"WIFI"` |
+| `data.amenities.size()` | Array length | `3` |
+| `data.contactInfo.email` | Deeply nested field | `"grand@staynest.com"` |
+| `data.active` | Boolean field | `true` |
+| `error` | Top-level field | `null` |
+
+**GPath-specific features (REST Assured uses GPath, not standard JSONPath):**
+
+| Expression | Meaning |
+|------------|---------|
+| `data.findAll { it.city == 'New York' }` | Filter array elements |
+| `data.collect { it.name }` | Extract one field from each array element |
+| `data.amenities.flatten()` | Flatten nested arrays |
+
+---
+
+## Practical Implementation (Layer 3)
+
+### Complete Response Validation Pattern
+
+The correct pattern is to validate all three layers — status code, headers, and body — in every test:
+
+
+```java
+import io.restassured.RestAssured;
+import io.restassured.response.Response;
+import static io.restassured.RestAssured.*;
+import static org.hamcrest.Matchers.*;
+
+/**
+ * Demonstrates the three-layer validation pattern:
+ * 1. Status code — did the operation succeed/fail as expected?
+ * 2. Headers — is the response metadata correct?
+ * 3. Body — is the data correct?
+ */
+public class ResponseValidationPatterns {
+
+    private String managerToken;
+
+    // ======== POSITIVE TESTS ========
+
+    /**
+     * POST /admin/hotels — validate 201 Created with full response
+     */
+    public void testCreateHotel_fullValidation() {
+        String hotelBody = """
+            {
+                "name": "Grand Hotel",
+                "city": "New York",
+                "photos": [],
+                "amenities": ["WIFI", "POOL"],
+                "contactInfo": {
+                    "address": "123 Main St",
+                    "phoneNumber": "555-0100",
+                    "email": "grand@staynest.com",
+                    "location": "Downtown"
+                }
+            }
+            """;
+
+        given()
+            .contentType("application/json")
+            .header("Authorization", "Bearer " + managerToken)
+            .body(hotelBody)
+        .when()
+            .post("/admin/hotels")
+        .then()
+            // Layer 1: Status code
+            .statusCode(201)
+            // Layer 2: Headers
+            .header("Content-Type", containsString("application/json"))
+            // Layer 3: Body — envelope structure
+            .body("timeStamp", notNullValue())
+            .body("error", nullValue())
+            // Layer 3: Body — actual data
+            .body("data.id", notNullValue())
+            .body("data.name", equalTo("Grand Hotel"))
+            .body("data.city", equalTo("New York"))
+            .body("data.amenities", hasItems("WIFI", "POOL"))
+            .body("data.amenities.size()", equalTo(2))
+            .body("data.contactInfo.email", equalTo("grand@staynest.com"))
+            .body("data.active", equalTo(false));  // New hotels start inactive
+    }
+
+    /**
+     * GET /users/profile — validate nested object structure
+     */
+    public void testGetProfile_validateStructure() {
+        given()
+            .header("Authorization", "Bearer " + managerToken)
+        .when()
+            .get("/users/profile")
+        .then()
+            .statusCode(200)
+            .header("Content-Type", containsString("application/json"))
+            // Validate data types — not just values
+            .body("data.id", instanceOf(Integer.class))
+            .body("data.email", matchesPattern("^[\\w.-]+@[\\w.-]+\\.[a-z]{2,}$"))
+            .body("data.name", not(emptyOrNullString()));
+    }
+
+    /**
+     * DELETE /admin/hotels/{id} — validate 204 has no body
+     */
+    public void testDeleteHotel_emptyBody(int hotelId) {
+        Response response = given()
+            .header("Authorization", "Bearer " + managerToken)
+        .when()
+            .delete("/admin/hotels/" + hotelId)
+        .then()
+            .statusCode(204)
+            .extract().response();
+
+        // 204 No Content — body must be empty
+        assert response.body().asString().isEmpty()
+            : "204 response should have empty body but got: " + response.body().asString();
+    }
+}
+```
+
+### Validating Paginated Responses
+
+
+```java
+/**
+ * POST /hotels/search — paginated response validation.
+ * Paginated responses have a different structure than single-resource responses.
+ */
+public void testSearchHotels_paginationValidation() {
+    String searchBody = """
+        {
+            "city": "New York",
+            "startDate": "2025-06-01",
+            "endDate": "2025-06-05",
+            "roomsCount": 1,
+            "page": 0,
+            "size": 5
+        }
+        """;
+
+    given()
+        .contentType("application/json")
+        .body(searchBody)
+    .when()
+        .post("/hotels/search")
+    .then()
+        .statusCode(200)
+        // Pagination metadata
+        .body("data.totalElements", greaterThanOrEqualTo(0))
+        .body("data.totalPages", greaterThanOrEqualTo(0))
+        .body("data.number", equalTo(0))          // Current page number
+        .body("data.size", equalTo(5))             // Requested page size
+        // Content array structure
+        .body("data.content", instanceOf(List.class))
+        .body("data.content.size()", lessThanOrEqualTo(5))  // Never more than page size
+        // Each item in the array has required fields
+        .body("data.content.every { it.id != null }", equalTo(true))
+        .body("data.content.every { it.name != null }", equalTo(true))
+        .body("data.content.every { it.city == 'New York' }", equalTo(true));
+}
+```
+
+### Header-Specific Validation Tests
+
+
+```java
+/**
+ * Tests that validate header behavior specifically.
+ * These catch bugs that body-only tests miss.
+ */
+public class HeaderValidationTests {
+
+    /**
+     * Login response must set HttpOnly cookie for refresh token.
+     * Without HttpOnly, JavaScript can steal the refresh token via XSS.
+     */
+    public void testLogin_setsSecureCookie() {
+        given()
+            .contentType("application/json")
+            .body("{\"email\":\"guest@staynest.com\",\"password\":\"pass123\"}")
+        .when()
+            .post("/auth/login")
+        .then()
+            .statusCode(200)
+            // Verify the cookie exists and has security flags
+            .cookie("refreshToken", notNullValue())
+            .header("Set-Cookie", containsString("HttpOnly"));
+    }
+
+    /**
+     * Verify Content-Type is consistent across all endpoints.
+     * A mismatch between Content-Type and actual body format
+     * causes parse failures in consumers.
+     */
+    public void testContentTypeConsistency(String token) {
+        // All these should return application/json
+        String[] endpoints = {"/users/profile", "/users/myBookings", "/users/guests"};
+
+        for (String endpoint : endpoints) {
+            given()
+                .header("Authorization", "Bearer " + token)
+            .when()
+                .get(endpoint)
+            .then()
+                .header("Content-Type", containsString("application/json"));
+        }
+    }
+}
+```
+
+### JSON Body Extraction and Chaining
+
+
+```java
+/**
+ * Demonstrates extracting values from JSON responses for use
+ * in subsequent requests (the foundation of chained API tests).
+ */
+public class JsonExtractionPatterns {
+
+    /**
+     * Extract a single value from a nested response.
+     */
+    public String extractTokenFromLogin() {
+        return given()
+            .contentType("application/json")
+            .body("{\"email\":\"guest@staynest.com\",\"password\":\"pass123\"}")
+        .when()
+            .post("/auth/login")
+        .then()
+            .statusCode(200)
+            .extract()
+            .jsonPath()
+            .getString("data.accessToken");
+    }
+
+    /**
+     * Extract from an array — get the first hotel's ID from search results.
+     */
+    public int extractFirstHotelId() {
+        return given()
+            .contentType("application/json")
+            .body("{\"city\":\"New York\",\"startDate\":\"2025-06-01\","
+                + "\"endDate\":\"2025-06-05\",\"roomsCount\":1}")
+        .when()
+            .post("/hotels/search")
+        .then()
+            .statusCode(200)
+            .extract()
+            .jsonPath()
+            .getInt("data.content[0].id");  // First element's ID
+    }
+
+    /**
+     * Extract multiple values at once using a Map.
+     */
+    public void extractMultipleFields() {
+        Response response = given()
+            .header("Authorization", "Bearer " + "token")
+        .when()
+            .get("/users/profile")
+        .then()
+            .statusCode(200)
+            .extract().response();
+
+        // Extract individual fields
+        int id = response.jsonPath().getInt("data.id");
+        String email = response.jsonPath().getString("data.email");
+        String name = response.jsonPath().getString("data.name");
+
+        // Or extract the entire data object as a Map
+        Map<String, Object> userData = response.jsonPath().getMap("data");
+    }
+}
+```
+
+---
+
+## Failure and Debugging (Layer 4)
+
+### Failure 1: Asserting the Wrong JSONPath Level
+
+**The Problem:**
+
+
+```java
+// Forgetting the StayNest response envelope
+given()
+    .header("Authorization", "Bearer " + token)
+.when()
+    .get("/users/profile")
+.then()
+    .statusCode(200)
+    .body("email", equalTo("guest@staynest.com"));  // FAILS — null!
+```
+
+**Root cause:** The response is wrapped in `{"timeStamp": "...", "data": {"email": "..."}, "error": null}`. The `email` field is inside `data`, not at the root level. `body("email", ...)` looks at the root, finds nothing, and the assertion fails with a confusing "Expected: guest@staynest.com, Actual: null."
+
+**The fix:**
+
+
+```java
+// Navigate into the envelope
+given()
+    .header("Authorization", "Bearer " + token)
+.when()
+    .get("/users/profile")
+.then()
+    .statusCode(200)
+    .body("data.email", equalTo("guest@staynest.com"));  // Correct path
+```
+
+<BestPractice>
+
+**Prevention:** Always log the full response during development: `.log().body()` after `.then()`. This shows you the actual JSON structure.
+
+</BestPractice>
+
+
+### Failure 2: Number Type Mismatch in Assertions
+
+**The Problem:**
+
+
+```java
+// Asserting an integer field with a long value
+given()
+    .header("Authorization", "Bearer " + token)
+.when()
+    .get("/admin/hotels/1")
+.then()
+    .body("data.id", equalTo(1));  // May FAIL with type mismatch!
+```
+
+**Root cause:** JSON doesn't distinguish between `int`, `long`, and `float`. REST Assured's JsonPath may parse `1` as an `Integer` or a `Long` depending on the value and the JSON parser. `equalTo(1)` creates an `Integer` matcher, but if JsonPath returns a `Long`, the comparison fails even though the values are equal.
+
+**The fix:**
+
+
+```java
+// Use a type-agnostic comparison or explicit casting
+.body("data.id", equalTo(1))            // Works for small numbers (Integer)
+.body("data.id", is(1))                 // Same as equalTo
+.body("data.id", greaterThan(0))        // Avoids type issue entirely
+
+// Or extract and compare explicitly
+int id = response.jsonPath().getInt("data.id");  // Forces int conversion
+assertEquals(1, id);
+```
+
+### Failure 3: Status Code Assertion Passes but Response Is Wrong
+
+**The Problem:**
+
+
+```java
+// Only checking status code — misses the real problem
+given()
+    .contentType("application/json")
+    .header("Authorization", "Bearer " + token)
+    .body("{\"name\":\"Updated Hotel\"}")
+.when()
+    .put("/admin/hotels/" + hotelId)
+.then()
+    .statusCode(200);  // PASSES! But the name wasn't actually updated...
+```
+
+**Root cause:** The server returned 200 but didn't apply the update (perhaps it silently ignored the partial body because PUT requires all fields). The test passes because it only checks the status code.
+
+**The fix:**
+
+
+```java
+// Assert status code AND response body AND follow-up verification
+given()
+    .contentType("application/json")
+    .header("Authorization", "Bearer " + token)
+    .body(fullHotelBody)  // PUT requires ALL fields
+.when()
+    .put("/admin/hotels/" + hotelId)
+.then()
+    .statusCode(200)
+    .body("data.name", equalTo("Updated Hotel"));
+
+// Follow-up: GET the resource to confirm persistence
+given()
+    .header("Authorization", "Bearer " + token)
+.when()
+    .get("/admin/hotels/" + hotelId)
+.then()
+    .body("data.name", equalTo("Updated Hotel"));
+```
+
+### Failure 4: Ignoring Error Response Body on 4xx
+
+**The Problem:**
+
+
+```java
+// Only asserting the error code, not the error message
+given()
+    .contentType("application/json")
+    .body("{}")  // Empty body — missing required fields
+.when()
+    .post("/auth/signup")
+.then()
+    .statusCode(400);  // Correct! But what does the error message say?
+```
+
+**Root cause:** The test validates that the server rejects invalid input (good!) but doesn't verify the error message. If the server returns `{"error": "Internal processing error"}` instead of `{"error": "Email is required"}`, the user gets useless feedback. That's a bug you missed.
+
+**The fix:**
+
+
+```java
+given()
+    .contentType("application/json")
+    .body("{}")
+.when()
+    .post("/auth/signup")
+.then()
+    .statusCode(400)
+    .body("error", notNullValue())
+    .body("error", containsString("email"));  // Error should mention what's wrong
+```
+
+---
+
+## Engineering Judgment (Layer 5)
+
+### Which Status Codes to Test vs Assume
+
+Not every status code needs a dedicated test. Prioritize based on risk:
+
+| Priority | Status Codes | Why |
+|----------|-------------|-----|
+| **Always test** | 200, 201, 204, 400, 401, 403, 404 | Core functionality — every endpoint has these paths |
+| **Test when relevant** | 409, 422, 429 | Business rules, validation semantics, rate limiting |
+| **Test if required by contract** | 301, 302, 304 | Redirect behavior, caching |
+| **Don't write tests that expect** | 500, 502, 503 | These indicate bugs, not expected behavior. If you're testing error handling, mock the downstream service to return 5xx |
+
+### How Many Header Assertions Are Enough?
+
+**Pragmatic answer:** Assert `Content-Type` on every response. Assert security headers (`Set-Cookie` flags, `Cache-Control`) on sensitive endpoints. Assert custom headers (`X-Request-Id`, pagination headers) when consumers rely on them. Don't assert `Date`, `Server`, or `Transfer-Encoding` — those are infrastructure concerns.
+
+
+```java
+// Pragmatic header validation — assert what matters, skip noise
+.then()
+    .header("Content-Type", containsString("application/json"))  // Always
+    // .header("Date", notNullValue())      // Skip — not your concern
+    // .header("Server", equalTo("nginx"))  // Skip — infrastructure detail
+```
+
+### JSONPath Assertions: Inline vs Extract-Then-Assert
+
+| Approach | Use When | Example |
+|----------|----------|---------|
+| **Inline** (`.body("path", matcher)`) | Simple assertions; most tests | `.body("data.name", equalTo("Grand Hotel"))` |
+| **Extract-then-assert** | Complex logic; value reuse; custom assertions | `String name = response.jsonPath().getString("data.name");` |
+
+**Rule of thumb:** Use inline for up to ~5 assertions. Extract when you need the value for subsequent API calls, complex comparisons, or when the JSONPath expression is too complex for inline matchers.
+
+### Validating Error Responses: How Deep?
+
+Error response validation has diminishing returns. Test in three tiers:
+
+1. **Tier 1 (Always):** Correct status code for the error condition (400, 401, 403, 404, 409)
+2. **Tier 2 (Usually):** Error response body is not null and contains a meaningful message
+3. **Tier 3 (When specified):** Error message matches the exact expected text
+
+Tier 3 is fragile — error messages change frequently. Assert the message *contains* key information rather than matching exactly:
+
+
+```java
+// Fragile — breaks when wording changes
+.body("error", equalTo("Validation failed: email must not be blank"))
+
+// Resilient — validates the message mentions the right field
+.body("error", containsString("email"))
+```
+
+---
+
+## Interview and Revision (Layer 6)
+
+### Fundamental Questions
+
+**Q1: What is the difference between 401 and 403? When would you test for each?**
+
+**A:** 401 Unauthorized means the server doesn't know who the client is — no credentials were provided, or they're invalid (expired token, wrong password). 403 Forbidden means the server knows who the client is but they lack permission for this action. In StayNest, I test 401 by calling authenticated endpoints without a token or with an expired token. I test 403 by logging in as a GUEST and calling HOTEL_MANAGER endpoints — the server authenticates the user successfully but denies access based on role. The distinction matters because different error-handling logic applies: 401 should trigger re-authentication, 403 should show "access denied."
+
+**Q2: Why should you validate response headers, not just the status code and body?**
+
+**A:** Headers carry contract-level information that consumers depend on. `Content-Type` tells the client how to parse the response — a mismatch causes parse failures. `Set-Cookie` with `HttpOnly` prevents XSS token theft — without that flag, it's a security vulnerability. `Cache-Control: no-store` prevents browsers from caching sensitive data like user profiles. I've seen a real bug where an API returned `Content-Type: text/html` for a JSON response — the body was correct, the status was 200, but every JavaScript consumer's `response.json()` threw an error.
+
+**Q3: What is the StayNest response envelope pattern, and why does it affect JSONPath assertions?**
+
+**A:** StayNest wraps every response in `{"timeStamp": "...", "data": {...}, "error": null}`. The actual response payload is always nested under `data`. This means every JSONPath assertion must start with `data.` — `body("name", ...)` won't work; it must be `body("data.name", ...)`. The envelope pattern is common in production APIs because it provides a consistent structure for error handling: on success, `data` has the payload and `error` is null; on failure, `data` is null and `error` has the message.
+
+### Scenario-Based Questions
+
+**S1: "Your test expects 404 but gets 200. What could be wrong?"**
+
+**A:** Several possibilities: (1) The resource actually exists — maybe a previous test created it and didn't clean up. (2) The endpoint is wrong — maybe `GET /admin/hotels/99999` matches a route pattern that returns an empty list instead of 404. (3) Soft delete — the API might return a "deleted" resource with a status flag instead of 404. I'd first check the response body to see what was returned, then verify the resource state in the database, then check if the endpoint uses the correct path parameter.
+
+**S2: "A teammate says 'we don't need to test 4xx responses because those are error paths, not features.' How do you respond?"**
+
+**A:** I disagree — 4xx responses ARE features. They tell consumers what went wrong and how to fix it. A 400 with a clear validation message is the difference between a user fixing their input and rage-quitting. A missing 401 on a sensitive endpoint is a security vulnerability. A 409 on a double-booking attempt is a critical business rule. I'd estimate that 40-50% of API test cases should be negative tests covering 4xx scenarios, because that's where input validation, authorization, and business rules are enforced.
+
+
+
+
+| # | Front (Question) | Back (Answer) |
+|---|---|---|
+| 1 | What's the difference between 200, 201, and 204? | 200 = general success with body. 201 = resource created (check for ID/Location). 204 = success with no body (deletes, updates that return nothing). |
+| 2 | When is a 500 response expected in a test? | Almost never. 500 means unhandled server error. If your test gets 500, it likely found a bug or the environment is broken. Don't write tests that *expect* 500 for business logic. |
+| 3 | What does the `Accept` header do? | Tells the server what response format the client wants (e.g., `application/json`). The server uses this for content negotiation — it may return JSON, XML, or 406 Not Acceptable. |
+| 4 | What is JSONPath `data.content[0].name`? | Navigates into the `data` object, accesses the `content` array, takes the first element (index 0), and extracts the `name` field. |
+| 5 | Why is `equalTo(1)` risky for JSON number assertions? | JSON doesn't distinguish int vs long. REST Assured may parse `1` as Integer or Long. `equalTo(1)` creates an Integer matcher — if the actual is Long, the assertion fails despite equal values. Use `greaterThan(0)` or extract-and-cast. |
+
+### Mastery Checklist
+
+- [ ] Can name all five status code families and their meaning from memory
+- [ ] Can explain 401 vs 403 with a concrete StayNest example
+- [ ] Can write a three-layer assertion (status + headers + body) without consulting docs
+- [ ] Can navigate any JSON structure using JSONPath/GPath dot notation
+- [ ] Can extract values from arrays, nested objects, and the StayNest envelope
+- [ ] Can articulate which status codes to test and which to skip, with justification
+- [ ] Can validate error response bodies beyond just the status code
+- [ ] Can debug a JSONPath assertion failure by logging the actual response
+
+---
+
+**Next:** Authentication And Authorization | **Related:** Http And Rest Fundamentals
+
+*Last updated: *

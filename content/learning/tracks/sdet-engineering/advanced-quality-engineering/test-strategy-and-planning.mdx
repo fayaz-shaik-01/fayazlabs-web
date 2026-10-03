@@ -1,0 +1,309 @@
+---
+title: "Test Strategy and Planning"
+description: "What: A test strategy is a high-level document defining how testing will be approached across a project or organization. It covers scope (what gets tested), approach (automation vs manual, test levels), tools (frameworks, infrastructure), environments (staging, CI), risks (what could go wrong), and schedule (when each phase runs). It's the blueprint that ensures everyone — developers, SDETs, PMs, leadership — agrees on the quality approach before testing begins."
+summary: "SDET Engineering guide: Test Strategy and Planning"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "advanced-quality-engineering"
+lesson: "test-strategy-and-planning"
+difficulty: "advanced"
+estimatedMinutes: 30
+prerequisites: []
+tags: ["SDET", "Quality Engineering", "Advanced"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/advanced-quality-engineering/test-strategy-and-planning"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Test Strategy and Planning
+
+> **Module:** 09 — Advanced Quality Engineering  
+> **Prerequisites:** Shift Left Testing, Testing Fundamentals  
+> **Mastery Target:** L3 (Independent) — can write a test strategy document, distinguish strategy from plan, and apply risk-based prioritization
+
+---
+
+## Quick Overview (Layer 1)
+
+**What:** A test strategy is a high-level document defining *how* testing will be approached across a project or organization. It covers scope (what gets tested), approach (automation vs manual, test levels), tools (frameworks, infrastructure), environments (staging, CI), risks (what could go wrong), and schedule (when each phase runs). It's the blueprint that ensures everyone — developers, SDETs, PMs, leadership — agrees on the quality approach before testing begins.
+
+**Why:** Without a strategy, testing becomes reactive and inconsistent. Team A automates everything, Team B does only manual testing, Team C skips integration tests. Bugs escape because nobody explicitly decided which areas need the most coverage. A test strategy forces those decisions upfront and provides a reference when priorities conflict ("Should we delay release to add more E2E tests?" — the strategy already answers this).
+
+**Where:** At the start of a project or major feature initiative. Reviewed quarterly or when architecture changes significantly. In StayNest: before the initial launch, before adding payment processing, before migrating to microservices.
+
+<KeyTakeaways>
+
+1. Test strategy = strategic (project-level, long-lived). Test plan = tactical (sprint/feature-level, short-lived).
+2. A good strategy answers: What are we testing? What are we NOT testing? What's the riskiest area? How do we know when quality is sufficient?
+3. Risk-based prioritization focuses testing effort where failures cause the most damage — payment processing gets more coverage than the "About Us" page.
+4. The strategy is a living document, not a one-time artifact. Review and update it as the system evolves.
+5. SDETs own the automation strategy section — tool selection, framework architecture, CI integration, and maintenance approach.
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation (Layer 2)
+
+### Test Strategy vs Test Plan
+
+| Aspect | Test Strategy | Test Plan |
+|--------|--------------|-----------|
+| **Scope** | Entire project/product | Single feature or sprint |
+| **Lifespan** | Months to years | Days to weeks |
+| **Author** | QA Lead / SDET Lead | Individual SDET / QA |
+| **Audience** | Leadership, cross-functional teams | QA team, developers |
+| **Content** | Approach, tools, environments, risks | Specific test cases, schedule, assignments |
+| **Example** | "We use a 70/20/10 test pyramid with REST Assured for API automation" | "For the booking cancellation feature: 5 API tests, 3 UI tests, run by Thursday" |
+
+### Strategy Components
+
+```
+┌─────────────────────────────────────────────────────┐
+│                  TEST STRATEGY                       │
+├─────────────────────────────────────────────────────┤
+│  1. Scope & Objectives     What we're testing, why  │
+│  2. Test Levels            Unit, Integration, E2E   │
+│  3. Automation Approach    What to automate, tools   │
+│  4. Environment Strategy   Staging, CI, data mgmt   │
+│  5. Risk Assessment        High-risk areas, mitig.  │
+│  6. Quality Gates          What must pass to release │
+│  7. Tools & Infrastructure Frameworks, CI, reports  │
+│  8. Team & Responsibilities Who does what            │
+│  9. Schedule & Milestones  When each phase runs     │
+│ 10. Metrics & Reporting    How we measure quality    │
+└─────────────────────────────────────────────────────┘
+```
+
+### Risk-Based Prioritization
+
+Risk = **Probability of failure** × **Impact if it fails**
+
+| Feature | Probability | Impact | Risk Score | Test Priority |
+|---------|------------|--------|------------|---------------|
+| Payment processing | Medium | Critical (financial loss) | **High** | Extensive: unit + API + E2E + DB |
+| Booking creation | Medium | High (core business) | **High** | Extensive: unit + API + E2E |
+| Hotel search | Low | Medium (UX degradation) | **Medium** | Moderate: API + E2E smoke |
+| User profile edit | Low | Low (minor inconvenience) | **Low** | Light: API tests only |
+| About Us page | Very Low | Very Low | **Minimal** | Visual regression only |
+
+---
+
+## Practical Implementation (Layer 3)
+
+### StayNest Test Strategy Outline
+
+
+```java
+// This is a structured representation of the strategy document.
+// In practice, this would be a Confluence page, Markdown doc, or PDF.
+
+public class StayNestTestStrategy {
+
+    /*
+    ============================================================
+    STAYNEST TEST STRATEGY v1.0
+    Author: SDET Team | Last Updated: 2025-Q3
+    ============================================================
+
+    1. SCOPE & OBJECTIVES
+    ---------------------
+    - In Scope: All API endpoints, booking UI flow, payment integration,
+      hotel management portal, authentication/authorization
+    - Out of Scope: Third-party payment gateway internals (mocked),
+      email delivery verification (verify event published only),
+      mobile native apps (Phase 2)
+    - Objective: 95% critical path coverage, <2% flaky test rate,
+      <5 min CI feedback loop
+
+    2. TEST LEVELS (Test Pyramid)
+    -----------------------------
+    - Unit (70%): Business logic, validators, calculators
+      Owned by: Developers | Framework: JUnit 5
+    - Integration (20%): API endpoints, DB persistence, external services
+      Owned by: SDET Team | Framework: REST Assured + TestNG
+    - E2E (10%): Critical user journeys (booking, payment, cancellation)
+      Owned by: SDET Team | Framework: Playwright
+
+    3. AUTOMATION APPROACH
+    ----------------------
+    - Automate: All regression tests, smoke tests, API contract tests
+    - Keep Manual: Exploratory testing, accessibility audit, UX review
+    - Framework: Layered architecture (test → page/API → utility)
+
+    4. ENVIRONMENT STRATEGY
+    -----------------------
+    - CI: Docker Compose (app + PostgreSQL + WireMock)
+    - Staging: Shared environment, seeded daily via pipeline
+    - Test Data: API-seeded accounts, factory-generated test data
+
+    5. RISK ASSESSMENT
+    ------------------
+    - HIGH: Payment processing (financial), booking conflicts (data integrity)
+    - MEDIUM: Search accuracy, availability calculations
+    - LOW: Profile management, static pages
+
+    6. QUALITY GATES
+    ----------------
+    - PR Merge: Unit tests pass, static analysis clean, API smoke pass
+    - Staging Deploy: Full API suite pass, E2E critical path pass
+    - Production Deploy: Staging gates + performance baseline met
+    */
+}
+```
+
+### Risk-Based Test Allocation — Java Implementation
+
+
+```java
+/**
+ * Maps features to their risk-based test requirements.
+ * Used by CI pipeline to determine test suite for each feature area.
+ */
+public class TestAllocationMatrix {
+
+    public enum RiskLevel { CRITICAL, HIGH, MEDIUM, LOW }
+
+    public record TestAllocation(
+        RiskLevel risk,
+        boolean unitTests,
+        boolean apiTests,
+        boolean dbValidation,
+        boolean e2eTests,
+        boolean performanceTests
+    ) {}
+
+    private static final Map<String, TestAllocation> ALLOCATIONS = Map.of(
+        "payment", new TestAllocation(RiskLevel.CRITICAL, true, true, true, true, true),
+        "booking", new TestAllocation(RiskLevel.HIGH, true, true, true, true, false),
+        "search",  new TestAllocation(RiskLevel.MEDIUM, true, true, false, true, false),
+        "profile", new TestAllocation(RiskLevel.LOW, true, true, false, false, false),
+        "static",  new TestAllocation(RiskLevel.LOW, false, false, false, false, false)
+    );
+
+    public static TestAllocation getAllocation(String feature) {
+        return ALLOCATIONS.getOrDefault(feature,
+            new TestAllocation(RiskLevel.MEDIUM, true, true, false, false, false));
+    }
+}
+```
+
+### Sprint Test Plan Template
+
+
+```java
+/**
+ * Sprint-level test plan for a specific feature.
+ * Tactical complement to the strategic test strategy.
+ */
+public class SprintTestPlan {
+
+    /*
+    SPRINT 23 — Booking Cancellation Feature
+    =========================================
+
+    Feature: Allow guests to cancel bookings up to 24h before check-in
+
+    Test Scope:
+    - API: POST /bookings/{id}/cancel
+    - Business Rules: 24h cutoff, refund calculation, status transition
+    - Side Effects: cancellation event published, email triggered
+
+    Test Cases:
+    | ID   | Scenario                           | Type | Priority |
+    |------|------------------------------------|------|----------|
+    | TC-1 | Cancel within 24h window → success | API  | Must     |
+    | TC-2 | Cancel past 24h cutoff → rejected  | API  | Must     |
+    | TC-3 | Cancel already cancelled → error   | API  | Must     |
+    | TC-4 | DB status transitions correctly    | DB   | Must     |
+    | TC-5 | Cancellation event published       | Event| Should   |
+    | TC-6 | Refund amount calculated correctly  | Unit | Must     |
+    | TC-7 | E2E cancel flow in UI              | E2E  | Should   |
+
+    Assignments:
+    - TC-1 to TC-4: SDET-1 (API + DB)
+    - TC-5: SDET-2 (event verification)
+    - TC-6: Developer (unit test, SDET reviews)
+    - TC-7: SDET-1 (after API tests pass)
+
+    Timeline: Tests ready by Sprint Day 7, execution Day 8-9
+    */
+}
+```
+
+---
+
+## Failure and Debugging (Layer 4)
+
+### Failure 1: Strategy Becomes Shelfware
+
+**The Problem:** The team writes a beautiful 20-page test strategy. Nobody reads it. Three months later, the actual testing approach has drifted completely from the strategy.
+
+**Root cause:** The strategy was written as a checkbox exercise, not a living reference. No review cadence, no connection to daily work.
+
+**The fix:** Keep the strategy concise (2-3 pages max). Link it from CI pipeline configs ("why these quality gates exist → see strategy section 6"). Review quarterly. Update when architecture changes.
+
+### Failure 2: Risk Assessment Based on Gut Feel
+
+**The Problem:** The team rates "search" as low risk because "it works fine." A search bug in production causes 40% of users to see no results — massive business impact.
+
+**The fix:** Base risk assessment on data: production incident history, code complexity metrics (cyclomatic complexity from SonarQube), deployment frequency, and business impact analysis from product managers.
+
+---
+
+## Engineering Judgment (Layer 5)
+
+### When to Write a Formal Strategy vs Just Test
+
+| Write a Formal Strategy | Just Start Testing |
+|------------------------|--------------------|
+| New project with multiple teams | Small feature addition |
+| Major architecture change (monolith → microservices) | Bug fix with clear scope |
+| Regulatory/compliance requirements | Internal tool with low risk |
+| Stakeholders need visibility into quality approach | Solo SDET on small team |
+
+### Strategy Anti-Patterns
+
+1. **The novel** — 50 pages nobody reads. Keep it under 5 pages.
+2. **The fossil** — Written once, never updated. Schedule quarterly reviews.
+3. **The wish list** — "We'll automate everything with AI." Be realistic about capacity.
+4. **The vague strategy** — "We will test thoroughly." Quantify: coverage targets, time budgets, quality gates.
+
+---
+
+## Interview and Revision (Layer 6)
+
+
+
+
+| # | Front | Back |
+|---|-------|------|
+| 1 | What is the difference between test strategy and test plan? | Strategy: project-level, long-lived, defines approach/tools/risks. Plan: feature/sprint-level, short-lived, defines specific test cases and assignments |
+| 2 | How do you calculate risk for test prioritization? | Risk = Probability of failure × Impact if it fails. High-probability + high-impact features (payment) get the most test coverage |
+| 3 | Name five components of a test strategy | Scope/objectives, test levels (pyramid), automation approach, environment strategy, risk assessment, quality gates, tools, team responsibilities, schedule, metrics |
+| 4 | What section of the test strategy does an SDET own? | Automation approach: framework architecture, tool selection, CI integration, test data strategy, and maintenance approach |
+| 5 | How do you prevent a test strategy from becoming shelfware? | Keep it concise (2-5 pages), link it from CI configs and onboarding docs, review quarterly, update when architecture changes |
+
+### Mastery Checklist
+
+- [ ] Can write a test strategy outline covering all 10 components
+- [ ] Can distinguish strategy (strategic, long-lived) from plan (tactical, short-lived)
+- [ ] Can perform risk-based prioritization with probability × impact scoring
+- [ ] Can create a sprint-level test plan with specific test cases and assignments
+- [ ] Can articulate common strategy anti-patterns and how to avoid them
+
+---
+
+**Next:** Metrics And Kpis | **Related:** Shift Left Testing
+
+*Last updated: *

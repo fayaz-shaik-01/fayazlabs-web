@@ -1,0 +1,380 @@
+---
+title: "Test Environment Seeding"
+description: "What: Environment seeding is the process of populating a test environment with the data it needs before tests run. This includes reference data (cities, room types, amenities), test accounts (guest, manager, admin users), and baseline entities (hotels, rooms) that tests depend on. Without seeding, tests either fail because expected data doesn't exist or waste time creating prerequisites before every run."
+summary: "SDET Engineering guide: Test Environment Seeding"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "test-data-and-integration"
+lesson: "test-environment-seeding"
+difficulty: "intermediate"
+estimatedMinutes: 30
+prerequisites: []
+tags: ["SDET", "Test Data", "Integration"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/test-data-and-integration/test-environment-seeding"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Test Environment Seeding
+
+> **Module:** 07 — Test Data & Integration  
+> **Prerequisites:** Test Data Strategies, Database Testing Patterns  
+> **Mastery Target:** L3 (Independent) — can design and implement idempotent seed strategies for test environments integrated with CI pipelines
+
+---
+
+## Quick Overview (Layer 1)
+
+**What:** Environment seeding is the process of populating a test environment with the data it needs before tests run. This includes reference data (cities, room types, amenities), test accounts (guest, manager, admin users), and baseline entities (hotels, rooms) that tests depend on. Without seeding, tests either fail because expected data doesn't exist or waste time creating prerequisites before every run.
+
+**Why:** Test environments get destroyed and recreated — during CI runs, after database migrations, when spinning up fresh Docker containers, or when multiple teams share an environment. Without a repeatable seeding process, someone manually inserts data, it works for a week, then a migration wipes it and tests fail mysteriously. Automated seeding makes environments reproducible: run one command, get a fully configured test environment.
+
+**Where:** Before any test execution against a fresh or reset environment. In CI: as a pipeline step between "deploy application" and "run tests." Locally: as a setup script developers run once after cloning the repo. In StayNest: reference data (amenity types, room categories), test user accounts, seed hotels with rooms.
+
+<KeyTakeaways>
+
+1. Seed scripts must be **idempotent** — safe to run multiple times without creating duplicates or errors. Use `INSERT ... ON CONFLICT DO NOTHING` or check-before-insert patterns.
+2. Separate reference data seeds (run once, rarely changes) from test data seeds (run before each test suite, changes frequently).
+3. API-based seeding validates the creation path and respects business rules. SQL-based seeding is faster but bypasses validation.
+4. Seed scripts belong in version control alongside test code — they are as important as the tests themselves.
+5. Every seed must have a corresponding teardown. If you can seed an environment, you must be able to reset it.
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation (Layer 2)
+
+### Seeding Approaches
+
+| Approach | How It Works | Speed | Realism | Idempotency |
+|----------|-------------|-------|---------|-------------|
+| **SQL scripts** | Direct INSERT statements | Fast | Low (bypasses app logic) | Easy with ON CONFLICT |
+| **API-based** | Call application endpoints to create data | Slow | High (exercises real flow) | Medium (need dedup logic) |
+| **Fixture files** | JSON/YAML loaded by a seed runner | Medium | Medium | Depends on runner |
+| **Flyway/Liquibase** | Migration-style versioned scripts | Medium | Low | Built-in (versioned) |
+| **Programmatic** | Java/Python seed classes | Medium | High (flexible logic) | Must be coded |
+
+### The Seeding Hierarchy
+
+```
+Layer 1: Schema (Flyway migrations)
+   └── Tables, indexes, constraints — run once per DB creation
+
+Layer 2: Reference Data (SQL seed)
+   └── Amenity types, room categories, countries — run once, rarely changes
+
+Layer 3: Test Accounts (API or SQL seed)
+   └── Guest, manager, admin users — run once per environment reset
+
+Layer 4: Test Entities (API seed)
+   └── Hotels, rooms, bookings — run before each test suite
+
+Layer 5: Test-Specific Data (created in test)
+   └── Unique data for individual tests — created and cleaned up per test
+```
+
+### Idempotent Patterns
+
+```sql
+-- SQL: INSERT with conflict handling (PostgreSQL)
+INSERT INTO users (email, first_name, last_name, password_hash, role)
+VALUES ('guest@staynest.com', 'Test', 'Guest', '$2a$10$hash...', 'ROLE_GUEST')
+ON CONFLICT (email) DO NOTHING;
+
+-- SQL: Check before insert
+INSERT INTO amenities (name)
+SELECT 'WIFI' WHERE NOT EXISTS (SELECT 1 FROM amenities WHERE name = 'WIFI');
+```
+
+---
+
+## Practical Implementation (Layer 3)
+
+### SQL Seed Script — Reference Data
+
+
+```java
+// File: src/test/resources/seeds/V001_reference_data.sql
+// Run via: TestSeedRunner.executeSqlSeed("seeds/V001_reference_data.sql")
+
+public class SqlSeedRunner {
+
+    public static void executeSqlSeed(String resourcePath) throws Exception {
+        Connection conn = TestConnectionPool.getConnection();
+        String sql = new String(
+            SqlSeedRunner.class.getClassLoader()
+                .getResourceAsStream(resourcePath)
+                .readAllBytes()
+        );
+
+        // Split on semicolons and execute each statement
+        for (String statement : sql.split(";")) {
+            String trimmed = statement.trim();
+            if (!trimmed.isEmpty()) {
+                try (Statement stmt = conn.createStatement()) {
+                    stmt.execute(trimmed);
+                }
+            }
+        }
+    }
+}
+```
+
+**Reference data SQL** (`src/test/resources/seeds/V001_reference_data.sql`):
+
+```sql
+-- Amenities (idempotent with ON CONFLICT)
+INSERT INTO amenities (name) VALUES ('WIFI') ON CONFLICT (name) DO NOTHING;
+INSERT INTO amenities (name) VALUES ('PARKING') ON CONFLICT (name) DO NOTHING;
+INSERT INTO amenities (name) VALUES ('POOL') ON CONFLICT (name) DO NOTHING;
+-- Room categories
+INSERT INTO room_categories (name, max_guests) VALUES ('STANDARD', 2) ON CONFLICT (name) DO NOTHING;
+INSERT INTO room_categories (name, max_guests) VALUES ('DELUXE', 3) ON CONFLICT (name) DO NOTHING;
+INSERT INTO room_categories (name, max_guests) VALUES ('SUITE', 4) ON CONFLICT (name) DO NOTHING;
+```
+
+### API-Based Seeding — Test Accounts and Hotels
+
+
+```java
+import static io.restassured.RestAssured.*;
+
+public class ApiSeedRunner {
+
+    /** Seed test user accounts via signup API. Idempotent: skips if user exists. */
+    public static void seedTestAccounts() {
+        seedUser("guest@staynest.com", "Test", "Guest", "TestPass123!", "ROLE_GUEST");
+        seedUser("manager@staynest.com", "Test", "Manager", "TestPass123!", "ROLE_HOTEL_MANAGER");
+        seedUser("admin@staynest.com", "Test", "Admin", "TestPass123!", "ROLE_ADMIN");
+    }
+
+    private static void seedUser(String email, String firstName, String lastName,
+                                  String password, String role) {
+        // Check if user exists by attempting login
+        int loginStatus = given()
+            .contentType("application/json")
+            .body(String.format("{\"email\":\"%s\",\"password\":\"%s\"}", email, password))
+        .when().post("/auth/login")
+        .then().extract().statusCode();
+
+        if (loginStatus == 200) {
+            System.out.println("User already exists: " + email);
+            return; // Idempotent: skip if already exists
+        }
+
+        // Create user
+        given()
+            .contentType("application/json")
+            .body(String.format("""
+                {
+                    "firstName": "%s",
+                    "lastName": "%s",
+                    "email": "%s",
+                    "password": "%s",
+                    "role": "%s"
+                }""", firstName, lastName, email, password, role))
+        .when().post("/auth/signup")
+        .then().statusCode(201);
+
+        System.out.println("Created user: " + email);
+    }
+
+    /** Seed a test hotel with rooms. Returns hotel ID. */
+    public static long seedHotelWithRooms(String managerToken) {
+        // Create hotel
+        Response hotelResponse = given()
+            .contentType("application/json")
+            .header("Authorization", "Bearer " + managerToken)
+            .body("""
+                {
+                    "name": "Seed Test Hotel",
+                    "city": "Test City",
+                    "photos": [],
+                    "amenities": ["WIFI", "PARKING"],
+                    "contactInfo": {
+                        "address": "123 Seed Street",
+                        "phoneNumber": "555-0001",
+                        "email": "seed-hotel@staynest.com",
+                        "location": "Downtown"
+                    }
+                }""")
+        .when().post("/admin/hotels")
+        .then().statusCode(201).extract().response();
+
+        long hotelId = hotelResponse.jsonPath().getLong("data.id");
+
+        // Add rooms
+        for (int i = 1; i <= 3; i++) {
+            given()
+                .contentType("application/json")
+                .header("Authorization", "Bearer " + managerToken)
+                .body(String.format("""
+                    {
+                        "roomNumber": "10%d",
+                        "type": "STANDARD",
+                        "pricePerNight": %d,
+                        "maxGuests": 2,
+                        "available": true
+                    }""", i, 100 + (i * 25)))
+            .when().post("/admin/hotels/" + hotelId + "/rooms")
+            .then().statusCode(201);
+        }
+
+        return hotelId;
+    }
+}
+```
+
+### Orchestrating the Full Seed Pipeline
+
+
+```java
+public class TestEnvironmentSeeder {
+
+    /**
+     * Master seed method — call from CI pipeline or local setup.
+     * Safe to run multiple times (idempotent).
+     */
+    public static void seedAll() throws Exception {
+        System.out.println("=== Seeding Test Environment ===");
+
+        // Layer 2: Reference data (SQL — fast, idempotent)
+        System.out.println("Step 1/3: Reference data...");
+        SqlSeedRunner.executeSqlSeed("seeds/V001_reference_data.sql");
+
+        // Layer 3: Test accounts (API — validates signup flow)
+        System.out.println("Step 2/3: Test accounts...");
+        ApiSeedRunner.seedTestAccounts();
+
+        // Layer 4: Test entities (API — validates creation flows)
+        System.out.println("Step 3/3: Hotels and rooms...");
+        String managerToken = AuthFactory.manager().getAccessToken();
+        ApiSeedRunner.seedHotelWithRooms(managerToken);
+
+        System.out.println("=== Seeding Complete ===");
+    }
+
+    /** Reset environment to clean state */
+    public static void resetAll() throws Exception {
+        System.out.println("=== Resetting Test Environment ===");
+        Connection conn = TestConnectionPool.getConnection();
+        try (Statement stmt = conn.createStatement()) {
+            stmt.execute("TRUNCATE TABLE bookings, rooms, hotels RESTART IDENTITY CASCADE");
+            // Don't truncate users — they're expensive to recreate
+        }
+        System.out.println("=== Reset Complete ===");
+    }
+
+    public static void main(String[] args) throws Exception {
+        RestAssured.baseURI = System.getProperty("test.base.url", "http://localhost:8080");
+        seedAll();
+    }
+}
+```
+
+### CI Pipeline Integration
+
+In CI, seeding runs as a pipeline step between "deploy application" and "run tests." Use a TestNG suite listener to trigger seeding automatically when the `seed.environment` flag is set:
+
+
+```java
+public class SeedBeforeSuiteListener implements ISuiteListener {
+    @Override
+    public void onStart(ISuite suite) {
+        if (Boolean.getBoolean("seed.environment")) {
+            try { TestEnvironmentSeeder.seedAll(); }
+            catch (Exception e) { throw new RuntimeException("Seeding failed", e); }
+        }
+    }
+}
+// CI command: mvn test -Dseed.environment=true -Dtest.base.url=$APP_URL
+```
+
+---
+
+## Failure and Debugging (Layer 4)
+
+### Failure 1: Seed Script Creates Duplicates
+
+**The Problem:** Running the seed twice creates two "Seed Test Hotel" entries, breaking tests that expect exactly one.
+
+**The fix:** Make API-based seeds check for existence first, or use unique constraints with SQL:
+
+
+```java
+// API approach: check before create
+int count = given().header("Authorization", "Bearer " + token)
+    .queryParam("name", "Seed Test Hotel")
+.when().get("/admin/hotels")
+.then().extract().jsonPath().getInt("data.size()");
+
+if (count == 0) {
+    // Create hotel
+}
+```
+
+### Failure 2: Seed Fails Due to Missing Dependencies
+
+**The Problem:** `seedHotelWithRooms()` fails because test accounts haven't been created yet — no manager token available.
+
+**The fix:** Seeds must execute in dependency order. The orchestrator (`seedAll()`) enforces this. Never run individual seed steps in isolation unless their dependencies are guaranteed.
+
+---
+
+## Engineering Judgment (Layer 5)
+
+### SQL Seed vs API Seed — When to Use Each
+
+| SQL Seed | API Seed |
+|----------|----------|
+| Reference/lookup data that rarely changes | User accounts (validates signup) |
+| Bulk data for performance testing | Business entities (validates creation rules) |
+| Data bypassing business rules (edge cases) | Data that triggers side effects (events, emails) |
+| Speed-critical CI pipelines | Environments shared with manual testers |
+
+### Seed Maintenance Rules
+
+1. **Version your seeds** — `V001_reference_data.sql`, `V002_add_amenities.sql`. Never modify old versions; add new ones.
+2. **One seed, one purpose** — don't combine user creation and hotel creation in one script.
+3. **Test your seeds** — a broken seed blocks the entire test suite. Run seeds in CI as a separate verifiable step.
+4. **Document assumptions** — seeds assume the schema exists (Flyway ran first), the app is running (for API seeds), and the DB is reachable.
+
+---
+
+## Interview and Revision (Layer 6)
+
+
+
+
+| # | Front | Back |
+|---|-------|------|
+| 1 | What does "idempotent seeding" mean? | A seed script that produces the same result whether run once or ten times. No duplicates, no errors on re-run. Achieved via ON CONFLICT DO NOTHING or check-before-insert |
+| 2 | Why separate reference data seeds from test entity seeds? | Reference data is stable and shared (amenities, categories). Test entities are volatile and test-specific. Different change frequency means different update strategies |
+| 3 | When should you use API-based seeding over SQL? | When you want to validate the creation path, trigger side effects (events, emails), or when the schema is complex and SQL inserts would bypass important business rules |
+| 4 | Where do seed scripts run in a CI pipeline? | After application deployment, before test execution. As a separate pipeline step so failures are visible and distinguishable from test failures |
+| 5 | Why version seed scripts like migrations? | To track changes, avoid modifying existing seeds (which may already have run), and enable incremental seeding on environments that already have partial data |
+
+### Mastery Checklist
+
+- [ ] Can write idempotent SQL seed scripts with ON CONFLICT handling
+- [ ] Can implement API-based seeding with existence checks
+- [ ] Can orchestrate a multi-layer seed pipeline (reference → accounts → entities)
+- [ ] Can integrate seeding as a CI pipeline step
+- [ ] Can design a reset strategy that cleans test data without destroying reference data
+
+---
+
+**Related:** Test Data Strategies, Database Testing Patterns, Message Queues And Events
+
+*Last updated: *

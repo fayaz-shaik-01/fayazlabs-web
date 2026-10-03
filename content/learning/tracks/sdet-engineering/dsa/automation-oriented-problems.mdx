@@ -1,0 +1,567 @@
+---
+title: "Automation-Oriented DSA Problems"
+description: "What: This module contains DSA problems specifically designed for automation engineers — each problem mirrors a real scenario you'd encounter in test automation, CI/CD pipelines, or framework development."
+summary: "SDET Engineering guide: Automation-Oriented DSA Problems"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "dsa"
+lesson: "automation-oriented-problems"
+difficulty: "intermediate"
+estimatedMinutes: 36
+prerequisites: []
+tags: ["SDET", "DSA", "Algorithms"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/dsa/automation-oriented-problems"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Automation-Oriented DSA Problems
+
+> **Module:** 01-programming-foundations / dsa
+> **Prerequisites:** Arrays And Strings, Hashmaps And Hashsets, Trees And Graphs, Sorting And Searching
+> **Mastery Target:** L3
+
+---
+
+## Quick Overview (2-minute read)
+
+**What:** This module contains DSA problems specifically designed for automation engineers — each problem mirrors a real scenario you'd encounter in test automation, CI/CD pipelines, or framework development.
+
+**Why:** Standard LeetCode problems teach patterns, but these problems build the bridge between algorithm skills and automation engineering. They demonstrate that DSA isn't academic — it's the backbone of well-built test infrastructure.
+
+**Where:** Test framework internals, CI/CD pipeline optimization, test data management, flaky test analysis, dependency resolution, cron-based scheduling.
+
+### How to Use This Module
+
+Each problem below follows a consistent structure:
+1. **Scenario** — the real-world automation context
+2. **Problem statement** — clearly defined input/output
+3. **Examples** — concrete test cases
+4. **Hints** — progressive hints (try before reading)
+5. **Solution** — complete implementation with explanation
+6. **Complexity** — time and space analysis
+
+---
+
+## Problem 1: Compare Two JSON Arrays Ignoring Order
+
+### Scenario
+You're writing an API test that returns a list of users, but the API doesn't guarantee order. You need to assert the response matches expected data regardless of element order.
+
+### Problem Statement
+Given two lists of maps (representing JSON objects), determine if they contain the same elements ignoring order. Each map has string keys and string values.
+
+### Examples
+
+
+```java
+// Input:
+List<Map<String, String>> expected = List.of(
+    Map.of("name", "Alice", "role", "admin"),
+    Map.of("name", "Bob", "role", "user")
+);
+List<Map<String, String>> actual = List.of(
+    Map.of("name", "Bob", "role", "user"),
+    Map.of("name", "Alice", "role", "admin")
+);
+// Output: true (same elements, different order)
+```
+
+### Hints
+1. Can you sort both lists and compare them element by element?
+2. What key would you sort by? What if there's no single unique key?
+3. Consider converting each map to a canonical string representation and sorting those.
+
+
+
+
+```java
+public static boolean compareJsonArrays(List<Map<String, String>> expected,
+                                         List<Map<String, String>> actual) {
+    if (expected.size() != actual.size()) return false;
+
+    // Convert each map to a sorted canonical string for consistent comparison
+    List<String> expectedCanonical = expected.stream()
+        .map(m -> m.entrySet().stream()
+            .sorted(Map.Entry.comparingByKey())
+            .map(e -> e.getKey() + "=" + e.getValue())
+            .collect(Collectors.joining(",")))
+        .sorted()
+        .collect(Collectors.toList());
+
+    List<String> actualCanonical = actual.stream()
+        .map(m -> m.entrySet().stream()
+            .sorted(Map.Entry.comparingByKey())
+            .map(e -> e.getKey() + "=" + e.getValue())
+            .collect(Collectors.joining(",")))
+        .sorted()
+        .collect(Collectors.toList());
+
+    return expectedCanonical.equals(actualCanonical);
+}
+```
+
+**Techniques used:** Sorting + string comparison
+**Time:** O(n * k * log k + n log n) where n = number of objects, k = keys per object
+**Space:** O(n * k) for canonical strings
+
+
+
+---
+
+## Problem 2: Find Flaky Tests from Test Run Results
+
+### Scenario
+Your CI pipeline runs the same test suite multiple times. A test is "flaky" if it passes in some runs and fails in others. Given multiple test run results, identify which tests are flaky and their flakiness rate.
+
+### Problem Statement
+Given a list of test run results (each result has a test name and a pass/fail status), return a map of flaky test names to their pass rate. A test is flaky if it has both passes and failures.
+
+### Examples
+
+
+```java
+// Input:
+List<TestRun> runs = List.of(
+    new TestRun("testLogin", true),   new TestRun("testLogin", true),
+    new TestRun("testLogin", false),  new TestRun("testSearch", true),
+    new TestRun("testSearch", true),  new TestRun("testCheckout", false),
+    new TestRun("testCheckout", false)
+);
+// Output: {"testLogin": 0.67}
+// testSearch always passes (not flaky), testCheckout always fails (not flaky)
+```
+
+### Hints
+1. Use a HashMap to count passes and total runs per test.
+2. A test is flaky if passes > 0 AND passes &lt; totalRuns.
+3. Could you do this in a single pass?
+
+
+
+
+```java
+public static Map<String, Double> findFlakyTests(List<TestRun> runs) {
+    // Count passes and total runs per test
+    Map<String, int[]> stats = new HashMap<>(); // [passes, total]
+    for (TestRun run : runs) {
+        int[] counts = stats.computeIfAbsent(run.getName(), k -> new int[2]);
+        if (run.isPassed()) counts[0]++;
+        counts[1]++;
+    }
+
+    // Filter to flaky tests (has both passes and failures)
+    Map<String, Double> flaky = new LinkedHashMap<>();
+    for (Map.Entry<String, int[]> entry : stats.entrySet()) {
+        int passes = entry.getValue()[0];
+        int total = entry.getValue()[1];
+        if (passes > 0 && passes < total) {
+            flaky.put(entry.getKey(),
+                Math.round((double) passes / total * 100.0) / 100.0);
+        }
+    }
+    return flaky;
+}
+
+// Supporting class
+record TestRun(String name, boolean passed) {
+    public String getName() { return name; }
+    public boolean isPassed() { return passed; }
+}
+```
+
+**Techniques used:** Frequency counting with HashMap
+**Time:** O(n) single pass + O(k) to filter, where n = total runs, k = unique tests
+**Space:** O(k) for the stats map
+
+
+
+---
+
+## Problem 3: Detect Circular Dependencies in Test Fixtures
+
+### Scenario
+Your test framework has fixtures that depend on other fixtures (e.g., `userFixture` depends on `dbFixture`, `dbFixture` depends on `configFixture`). If there's a circular dependency, the framework will hang. Detect if a circular dependency exists.
+
+### Problem Statement
+Given a map of fixture names to their dependencies, determine if there's a circular dependency. Return the cycle if one exists.
+
+### Examples
+
+
+```java
+// Input:
+Map<String, List<String>> deps = Map.of(
+    "userFixture", List.of("dbFixture"),
+    "dbFixture", List.of("configFixture"),
+    "configFixture", List.of("userFixture")  // CYCLE!
+);
+// Output: true (cycle: userFixture → dbFixture → configFixture → userFixture)
+
+// Input without cycle:
+Map<String, List<String>> deps2 = Map.of(
+    "userFixture", List.of("dbFixture"),
+    "dbFixture", List.of("configFixture"),
+    "configFixture", List.of()
+);
+// Output: false
+```
+
+### Hints
+1. Model this as a directed graph where fixtures are nodes and dependencies are edges.
+2. Use DFS with three states: unvisited, in-progress (on current path), visited (fully explored).
+3. A cycle exists if you visit a node that's currently "in-progress."
+
+
+
+
+```java
+public static boolean hasCircularDependency(Map<String, List<String>> deps) {
+    Set<String> visited = new HashSet<>();
+    Set<String> inProgress = new HashSet<>();
+
+    for (String fixture : deps.keySet()) {
+        if (hasCycleDFS(fixture, deps, visited, inProgress)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+private static boolean hasCycleDFS(String node, Map<String, List<String>> deps,
+                                    Set<String> visited, Set<String> inProgress) {
+    if (inProgress.contains(node)) return true;  // cycle detected!
+    if (visited.contains(node)) return false;     // already fully explored
+
+    inProgress.add(node);
+    for (String dep : deps.getOrDefault(node, List.of())) {
+        if (hasCycleDFS(dep, deps, visited, inProgress)) {
+            return true;
+        }
+    }
+    inProgress.remove(node);
+    visited.add(node);
+    return false;
+}
+```
+
+**Techniques used:** DFS cycle detection with three-color marking
+**Time:** O(V + E) where V = fixtures, E = dependency edges
+**Space:** O(V) for visited/inProgress sets + recursion stack
+
+
+
+---
+
+## Problem 4: Schedule Test Execution to Minimize Total Time
+
+### Scenario
+You have N tests with known execution times and M parallel runners. Assign tests to runners to minimize the total wall-clock time (the time until the last runner finishes).
+
+### Problem Statement
+Given an array of test durations and a number of runners, return the minimum possible total execution time.
+
+### Examples
+
+
+```java
+// Input: durations = [10, 5, 7, 3, 8, 2], runners = 3
+// Optimal assignment:
+//   Runner 1: [10, 2] = 12
+//   Runner 2: [7, 5]  = 12
+//   Runner 3: [8, 3]  = 11
+// Output: 12 (max of all runners)
+```
+
+### Hints
+1. This is a load-balancing problem. A greedy approach works well.
+2. Sort tests by duration descending — assign the longest test first.
+3. Always assign the next test to the runner with the least current load (use a min-heap).
+
+
+
+
+```java
+public static int minimizeExecutionTime(int[] durations, int runners) {
+    // Sort descending — assign longest tests first
+    Integer[] sorted = Arrays.stream(durations).boxed().toArray(Integer[]::new);
+    Arrays.sort(sorted, Comparator.reverseOrder());
+
+    // Min-heap tracks current load per runner
+    PriorityQueue<Integer> runnerLoads = new PriorityQueue<>();
+    for (int i = 0; i < runners; i++) {
+        runnerLoads.offer(0);
+    }
+
+    // Assign each test to the least-loaded runner
+    for (int duration : sorted) {
+        int leastLoaded = runnerLoads.poll();
+        runnerLoads.offer(leastLoaded + duration);
+    }
+
+    // The answer is the maximum load
+    int maxLoad = 0;
+    while (!runnerLoads.isEmpty()) {
+        maxLoad = Math.max(maxLoad, runnerLoads.poll());
+    }
+    return maxLoad;
+}
+```
+
+**Techniques used:** Greedy algorithm + sorting + min-heap (priority queue)
+**Time:** O(n log n) for sorting + O(n log m) for heap operations
+**Space:** O(m) for the heap, where m = number of runners
+
+
+
+---
+
+## Problem 5: Minimum Set of Tests to Cover All Features
+
+### Scenario
+Each test covers certain features. You want to find the smallest set of tests that covers every feature at least once — useful for creating a minimal smoke suite.
+
+### Problem Statement
+Given a map of test names to feature sets, find the minimum number of tests needed to cover all features. (This is a set cover problem — use a greedy approximation.)
+
+### Examples
+
+
+```java
+// Input:
+Map<String, Set<String>> tests = Map.of(
+    "testLogin",    Set.of("auth", "session"),
+    "testDashboard", Set.of("session", "ui", "data"),
+    "testSearch",   Set.of("search", "ui"),
+    "testProfile",  Set.of("auth", "data", "ui")
+);
+// All features: {auth, session, ui, data, search}
+// Greedy selection: testDashboard (covers session, ui, data) → testProfile (covers auth)
+//   → testSearch (covers search) = 3 tests
+```
+
+### Hints
+1. Greedy approach: repeatedly pick the test that covers the most uncovered features.
+2. After picking a test, remove its features from the uncovered set.
+3. Repeat until all features are covered.
+
+
+
+
+```java
+public static List<String> minimumTestCoverage(Map<String, Set<String>> testFeatures) {
+    // Collect all features
+    Set<String> uncovered = new HashSet<>();
+    for (Set<String> features : testFeatures.values()) {
+        uncovered.addAll(features);
+    }
+
+    List<String> selected = new ArrayList<>();
+    Map<String, Set<String>> remaining = new HashMap<>();
+    testFeatures.forEach((k, v) -> remaining.put(k, new HashSet<>(v)));
+
+    while (!uncovered.isEmpty()) {
+        // Find test covering the most uncovered features
+        String bestTest = null;
+        int bestCount = 0;
+        for (Map.Entry<String, Set<String>> entry : remaining.entrySet()) {
+            Set<String> intersection = new HashSet<>(entry.getValue());
+            intersection.retainAll(uncovered);
+            if (intersection.size() > bestCount) {
+                bestCount = intersection.size();
+                bestTest = entry.getKey();
+            }
+        }
+
+        if (bestTest == null) break; // no test covers remaining features
+
+        selected.add(bestTest);
+        uncovered.removeAll(remaining.get(bestTest));
+        remaining.remove(bestTest);
+    }
+    return selected;
+}
+```
+
+**Techniques used:** Greedy set cover approximation
+**Time:** O(t * f * t) where t = number of tests, f = number of features (greedy iterations)
+**Space:** O(t * f) for copies of feature sets
+**Note:** This greedy approach gives a log(n)-approximation to the optimal solution. The exact problem is NP-hard.
+
+
+
+---
+
+## Problem 6: Parse and Validate a Cron Expression
+
+### Scenario
+Your test scheduler accepts cron expressions (e.g., `"0 9 * * 1-5"` for 9 AM weekdays). You need to validate that a cron expression is well-formed.
+
+### Problem Statement
+Validate a standard 5-field cron expression: `minute hour day-of-month month day-of-week`. Each field can be: a number, `*` (any), a range `a-b`, a list `a,b,c`, or a step `*/n`.
+
+### Examples
+
+
+```java
+// Valid:   "0 9 * * 1-5"    → minute=0, hour=9, any day, any month, Mon-Fri
+// Valid:   "*/15 * * * *"   → every 15 minutes
+// Valid:   "0 0 1,15 * *"   → midnight on 1st and 15th of every month
+// Invalid: "60 9 * * *"     → minute must be 0-59
+// Invalid: "0 25 * * *"     → hour must be 0-23
+// Invalid: "0 9 * * 8"      → day-of-week must be 0-7
+// Invalid: "0 9 *"          → must have exactly 5 fields
+```
+
+### Hints
+1. Split the expression by spaces — must have exactly 5 fields.
+2. Define valid ranges for each field: minute (0-59), hour (0-23), day (1-31), month (1-12), day-of-week (0-7).
+3. For each field, parse `*`, ranges (`a-b`), lists (`a,b,c`), and steps (`*/n`).
+
+
+
+
+```java
+public static boolean isValidCron(String expression) {
+    if (expression == null || expression.isBlank()) return false;
+
+    String[] fields = expression.trim().split("\\s+");
+    if (fields.length != 5) return false;
+
+    int[][] ranges = {
+        {0, 59},  // minute
+        {0, 23},  // hour
+        {1, 31},  // day of month
+        {1, 12},  // month
+        {0, 7}    // day of week (0 and 7 both = Sunday)
+    };
+
+    for (int i = 0; i < 5; i++) {
+        if (!isValidField(fields[i], ranges[i][0], ranges[i][1])) {
+            return false;
+        }
+    }
+    return true;
+}
+
+private static boolean isValidField(String field, int min, int max) {
+    if (field.equals("*")) return true;
+
+    // Handle step: */n or n/m
+    if (field.contains("/")) {
+        String[] parts = field.split("/");
+        if (parts.length != 2) return false;
+        if (!parts[0].equals("*") && !isValidNumber(parts[0], min, max)) return false;
+        return isValidNumber(parts[1], 1, max); // step must be >= 1
+    }
+
+    // Handle list: a,b,c
+    if (field.contains(",")) {
+        for (String part : field.split(",")) {
+            if (!isValidFieldSingle(part, min, max)) return false;
+        }
+        return true;
+    }
+
+    return isValidFieldSingle(field, min, max);
+}
+
+private static boolean isValidFieldSingle(String field, int min, int max) {
+    // Handle range: a-b
+    if (field.contains("-")) {
+        String[] parts = field.split("-");
+        if (parts.length != 2) return false;
+        return isValidNumber(parts[0], min, max)
+            && isValidNumber(parts[1], min, max);
+    }
+    return isValidNumber(field, min, max);
+}
+
+private static boolean isValidNumber(String s, int min, int max) {
+    try {
+        int val = Integer.parseInt(s);
+        return val >= min && val <= max;
+    } catch (NumberFormatException e) {
+        return false;
+    }
+}
+```
+
+**Techniques used:** String parsing, validation, divide-and-conquer field parsing
+**Time:** O(n) where n = length of the expression
+**Space:** O(1) — fixed number of fields
+
+
+
+---
+
+## Common Mistakes Across All Problems
+
+### Mistake 1: Not Handling Edge Cases in Comparisons
+
+
+```java
+// Forgetting null checks, empty lists, or single-element inputs
+if (expected.size() != actual.size()) return false; // always check size first
+```
+
+### Mistake 2: Mutating Input Data
+
+
+```java
+// WRONG: modifying the caller's data structure
+uncovered.removeAll(features); // modifies the original set
+
+// RIGHT: work on copies
+Set<String> uncoveredCopy = new HashSet<>(uncovered);
+```
+
+### Mistake 3: Choosing the Wrong Data Structure
+
+
+```java
+// Using ArrayList.contains() inside a loop → O(n^2)
+// Use HashSet for O(1) lookups when checking membership
+```
+
+---
+
+## Interview and Revision
+
+
+
+
+**Q:** How would you compare two JSON arrays ignoring order?
+**A:** Convert each object to a canonical string representation (sorted keys), collect into a list, sort the list, and compare. O(n * k log k + n log n).
+
+**Q:** What algorithm detects circular dependencies?
+**A:** DFS with three-color marking (unvisited, in-progress, visited). A cycle exists if you encounter a node that's currently in-progress on the same DFS path.
+
+**Q:** How do you optimally distribute tests across parallel runners?
+**A:** Greedy: sort tests by duration descending, assign each to the least-loaded runner using a min-heap. This is the LPT (Longest Processing Time) heuristic.
+
+**Q:** What is the greedy set cover approximation?
+**A:** Repeatedly pick the set (test) that covers the most uncovered elements (features). This gives a ln(n)-factor approximation to the optimal NP-hard solution.
+
+### Mastery Checklist
+
+- [ ] Can compare unordered collections using canonical sorting
+- [ ] Can identify flaky tests using frequency counting
+- [ ] Can detect cycles in dependency graphs using DFS
+- [ ] Can apply greedy scheduling with a priority queue
+- [ ] Can implement set cover approximation
+- [ ] Can parse and validate structured string formats
+- [ ] Can identify which DSA pattern maps to each automation problem
+
+---
+
+**Related:** Arrays And Strings, Hashmaps And Hashsets, Trees And Graphs

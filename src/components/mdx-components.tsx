@@ -19,6 +19,14 @@ import {
   ConceptCheckpoint,
   TabGroup,
   MemoryTrick,
+  InterviewTip,
+  AntiPattern,
+  BestPractice,
+  ToolComparison,
+  DebugScenario,
+  StayNestExample,
+  MentalModel,
+  KeyTakeaways,
 } from "@/components/learning/knowledge-components";
 import Visualization from "@/components/visualizations/Visualization";
 
@@ -220,6 +228,15 @@ export const mdxComponents = {
   ConceptCheckpoint,
   TabGroup,
   MemoryTrick,
+  // ── SDET / Test Automation components ───────────────────────────────────
+  InterviewTip,
+  AntiPattern,
+  BestPractice,
+  ToolComparison,
+  DebugScenario,
+  StayNestExample,
+  MentalModel,
+  KeyTakeaways,
   // ── Visualization engine ────────────────────────────────────────────────
   Visualization,
 };

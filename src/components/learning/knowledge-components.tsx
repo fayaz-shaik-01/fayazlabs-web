@@ -524,3 +524,228 @@ export function MemoryTrick({ children }: MemoryTrickProps) {
     </div>
   );
 }
+
+// ════════════════════════════════════════════════════════════════════════════
+// SDET / Test Automation Components
+// ════════════════════════════════════════════════════════════════════════════
+
+// ── InterviewTip ───────────────────────────────────────────────────────────
+// Interview strategy advice for SDET roles.
+
+interface InterviewTipProps {
+  readonly children: React.ReactNode;
+  readonly role?: string; // "SDET" | "QA Lead" etc.
+}
+
+export function InterviewTip({ children, role }: InterviewTipProps) {
+  return (
+    <div className="my-6 rounded-lg border-l-4 border-l-amber-500/60 border border-amber-500/15 bg-amber-500/[0.03] p-5">
+      <div className="flex items-center gap-1.5 mb-2">
+        <GraduationCap className="size-3.5 text-amber-400/80" />
+        <span className="text-xs font-mono font-medium uppercase tracking-wider text-amber-400/80">
+          {role ? `${role} Interview Tip` : "Interview Tip"}
+        </span>
+      </div>
+      <div className="text-[0.9375rem] leading-[1.7] text-foreground/80">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+// ── AntiPattern ────────────────────────────────────────────────────────────
+// Common anti-pattern or mistake in test automation.
+
+interface AntiPatternProps {
+  readonly title?: string;
+  readonly children: React.ReactNode;
+}
+
+export function AntiPattern({ title, children }: AntiPatternProps) {
+  return (
+    <div className="my-6 rounded-lg border-l-4 border-l-red-500/60 border border-red-500/15 bg-red-500/[0.03] p-5">
+      <div className="flex items-center gap-1.5 mb-2">
+        <AlertTriangle className="size-3.5 text-red-400/80" />
+        <span className="text-xs font-mono font-medium uppercase tracking-wider text-red-400/80">
+          {title ?? "Anti-Pattern"}
+        </span>
+      </div>
+      <div className="text-[0.9375rem] leading-[1.7] text-foreground/80">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+// ── BestPractice ───────────────────────────────────────────────────────────
+// Recommended best practice in test automation.
+
+interface BestPracticeProps {
+  readonly title?: string;
+  readonly children: React.ReactNode;
+}
+
+export function BestPractice({ title, children }: BestPracticeProps) {
+  return (
+    <div className="my-6 rounded-lg border-l-4 border-l-green-500/60 border border-green-500/15 bg-green-500/[0.03] p-5">
+      <div className="flex items-center gap-1.5 mb-2">
+        <CheckCircle2 className="size-3.5 text-green-400/80" />
+        <span className="text-xs font-mono font-medium uppercase tracking-wider text-green-400/80">
+          {title ?? "Best Practice"}
+        </span>
+      </div>
+      <div className="text-[0.9375rem] leading-[1.7] text-foreground/80">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+// ── ToolComparison ─────────────────────────────────────────────────────────
+// Side-by-side comparison of testing tools (Selenium vs Playwright, etc.)
+
+interface ToolComparisonProps {
+  readonly tool1: string;
+  readonly tool2: string;
+  readonly children: React.ReactNode;
+}
+
+export function ToolComparison({ tool1, tool2, children }: ToolComparisonProps) {
+  return (
+    <div className="my-6 rounded-lg border border-indigo-500/15 bg-indigo-500/[0.03] overflow-hidden">
+      <div className="grid grid-cols-2 bg-indigo-500/[0.06]">
+        <div className="px-4 py-3 text-sm font-semibold text-indigo-300/90 border-r border-indigo-500/10 text-center">
+          {tool1}
+        </div>
+        <div className="px-4 py-3 text-sm font-semibold text-indigo-300/90 text-center">
+          {tool2}
+        </div>
+      </div>
+      <div className="p-4">
+        <div className="text-[0.9375rem] leading-[1.7] text-foreground/80">
+          {children}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── DebugScenario ──────────────────────────────────────────────────────────
+// Debugging walkthrough with problem, investigation, and solution.
+
+interface DebugScenarioProps {
+  readonly title: string;
+  readonly children: React.ReactNode;
+  readonly solution?: React.ReactNode;
+}
+
+export function DebugScenario({ title, children, solution }: DebugScenarioProps) {
+  const [showSolution, setShowSolution] = useState(false);
+
+  return (
+    <div className="my-6 rounded-lg border border-orange-500/15 bg-orange-500/[0.03] overflow-hidden">
+      <div className="p-5">
+        <div className="flex items-center gap-2 mb-3">
+          <Lightbulb className="size-3.5 text-orange-400/80" />
+          <span className="text-xs font-mono font-medium uppercase tracking-wider text-orange-400/80">
+            Debug Scenario
+          </span>
+        </div>
+        <p className="font-semibold text-foreground mb-3">{title}</p>
+        <div className="text-[0.9375rem] leading-[1.7] text-foreground/80">
+          {children}
+        </div>
+      </div>
+      {solution && (
+        <>
+          <button
+            onClick={() => setShowSolution(!showSolution)}
+            className="w-full flex items-center gap-2 px-5 py-3 text-sm font-medium text-orange-400/80 hover:text-orange-300 bg-orange-500/[0.05] border-t border-orange-500/10 transition-colors"
+          >
+            {showSolution ? (
+              <ChevronDown className="size-4" />
+            ) : (
+              <ChevronRight className="size-4" />
+            )}
+            {showSolution ? "Hide Solution" : "Show Root Cause & Fix"}
+          </button>
+          {showSolution && (
+            <div className="px-5 pb-5 pt-3 border-t border-orange-500/10 text-[0.9375rem] leading-[1.7] text-foreground/80">
+              {solution}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ── StayNestExample ────────────────────────────────────────────────────────
+// Practical example using the StayNest hotel booking application context.
+
+interface StayNestExampleProps {
+  readonly title?: string;
+  readonly children: React.ReactNode;
+}
+
+export function StayNestExample({ title, children }: StayNestExampleProps) {
+  return (
+    <div className="my-6 rounded-lg border-l-4 border-l-teal-500/60 border border-teal-500/15 bg-teal-500/[0.03] p-5">
+      <div className="flex items-center gap-1.5 mb-2">
+        <Globe className="size-3.5 text-teal-400/80" />
+        <span className="text-xs font-mono font-medium uppercase tracking-wider text-teal-400/80">
+          {title ?? "StayNest Example"}
+        </span>
+      </div>
+      <div className="text-[0.9375rem] leading-[1.7] text-foreground/80">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+// ── MentalModel ────────────────────────────────────────────────────────────
+// Conceptual mental model or analogy to aid understanding.
+
+interface MentalModelProps {
+  readonly children: React.ReactNode;
+}
+
+export function MentalModel({ children }: MentalModelProps) {
+  return (
+    <div className="my-6 rounded-lg border-l-4 border-l-sky-500/60 border border-sky-500/15 bg-sky-500/[0.03] p-5">
+      <div className="flex items-center gap-1.5 mb-2">
+        <Sparkles className="size-3.5 text-sky-400/80" />
+        <span className="text-xs font-mono font-medium uppercase tracking-wider text-sky-400/80">
+          Mental Model
+        </span>
+      </div>
+      <div className="text-[0.9375rem] leading-[1.7] text-foreground/80">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+// ── KeyTakeaways ───────────────────────────────────────────────────────────
+// Summary of key points from a section.
+
+interface KeyTakeawaysProps {
+  readonly children: React.ReactNode;
+}
+
+export function KeyTakeaways({ children }: KeyTakeawaysProps) {
+  return (
+    <div className="my-6 rounded-lg border border-violet-500/15 bg-violet-500/[0.03] p-5">
+      <div className="flex items-center gap-1.5 mb-3">
+        <Zap className="size-3.5 text-violet-400/80" />
+        <span className="text-xs font-mono font-medium uppercase tracking-wider text-violet-400/80">
+          Key Takeaways
+        </span>
+      </div>
+      <div className="text-[0.9375rem] leading-[1.7] text-foreground/80">
+        {children}
+      </div>
+    </div>
+  );
+}

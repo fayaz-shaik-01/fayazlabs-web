@@ -1,0 +1,1130 @@
+---
+title: "File I/O and Serialization"
+description: "What: File I/O is Java's mechanism for reading and writing data to the filesystem — test data files, configuration, reports, logs. Serialization is converting Java objects to structured formats (JSON, XML) and back, which is essential for API testing and data-driven frameworks."
+summary: "SDET Engineering guide: File I/O and Serialization"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "java"
+lesson: "file-io-and-serialization"
+difficulty: "beginner"
+estimatedMinutes: 73
+prerequisites: []
+tags: ["SDET", "Java", "Programming"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/java/file-io-and-serialization"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# File I/O and Serialization
+
+> **Module:** 01-Programming Foundations / Java  
+> **Prerequisites:** Oop Fundamentals, Exception Handling, Collections And Generics  
+> **Mastery Target:** L3 (Independent)
+
+---
+
+## Quick Overview (2-minute read)
+
+**What:** File I/O is Java's mechanism for reading and writing data to the filesystem — test data files, configuration, reports, logs. Serialization is converting Java objects to structured formats (JSON, XML) and back, which is essential for API testing and data-driven frameworks.  
+**Why:** Every automation framework reads config from files, loads test data from JSON/CSV, and writes reports or logs. Serialization bridges the gap between raw API responses and typed Java objects you can assert against.  
+**Where:** Properties-based config loading, JSON test data files, API response deserialization, CSV data-driven tests, report generation, log file analysis.
+
+<MentalModel>
+
+Think of **File I/O as reading and writing letters**. You open an envelope (open a file), read the contents (read data), write a reply (write data), and seal it back up (close the resource). If you forget to seal the envelope (forget to close the stream), letters pile up and the mailbox overflows (resource leak).
+
+</MentalModel>
+
+
+Think of **Serialization as packing and unpacking suitcases**. When you serialize, you take a Java object (your clothes, shoes, toiletries) and pack them neatly into a suitcase (JSON string). When you deserialize, you unpack the suitcase back into individual items. If the suitcase label says "3 shirts" but you packed 2, unpacking fails (deserialization error from schema mismatch).
+
+<KeyTakeaways>
+
+1. **Use `java.nio.file` (not `java.io`)** — `Files.readString()`, `Files.readAllLines()`, and `Path.of()` are the modern, concise APIs. Legacy `java.io` streams are only needed for large files or streaming scenarios.
+2. **try-with-resources is non-negotiable** — every stream, reader, and writer must be wrapped in try-with-resources. Resource leaks cause flaky tests in CI where file handles accumulate across thousands of test runs.
+3. **Jackson `ObjectMapper` is the standard** for JSON serialization — learn `readValue()`, `writeValueAsString()`, and `@JsonProperty`. This is how you deserialize API responses into typed POJOs/records.
+4. **Properties files are the simplest config mechanism** — for small frameworks, `config.properties` with a typed loader beats YAML/JSON config in simplicity and zero-dependency setup.
+5. **Always use `Path.of()` for file paths** — never concatenate strings with `/` or `\\`. `Path` handles OS-specific separators portably.
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation
+
+### java.io vs java.nio: Legacy vs Modern
+
+Java has two file I/O packages. For new code, prefer `java.nio.file` unless you need stream-based processing for very large files.
+
+| Aspect | `java.io` (Legacy) | `java.nio.file` (Modern — Java 7+) |
+|--------|---------------------|--------------------------------------|
+| **Core class** | `File`, `FileReader`, `BufferedReader` | `Path`, `Files` |
+| **Path construction** | `new File("data/test.json")` | `Path.of("data", "test.json")` |
+| **Read entire file** | Manual loop with `BufferedReader` | `Files.readString(path)` (Java 11+) |
+| **Read all lines** | Manual loop | `Files.readAllLines(path)` |
+| **Write file** | `FileWriter` + `BufferedWriter` | `Files.writeString(path, content)` |
+| **Check existence** | `file.exists()` | `Files.exists(path)` |
+| **Error handling** | Returns `false` / `null` silently | Throws descriptive `IOException` |
+
+### Path and Paths: Constructing File Paths Portably
+
+`Path` represents a filesystem path in an OS-independent way. Never build paths with string concatenation.
+
+
+```java
+import java.nio.file.Path;
+
+// GOOD: OS-portable path construction
+Path configPath = Path.of("src", "test", "resources", "config.properties");
+Path jsonData = Path.of("src", "test", "resources", "test-data", "users.json");
+
+// Resolving relative paths
+Path baseDir = Path.of("src", "test", "resources");
+Path resolved = baseDir.resolve("test-data").resolve("users.json");
+// → src/test/resources/test-data/users.json
+
+// Getting absolute path (useful for debugging)
+System.out.println(configPath.toAbsolutePath());
+// → /Users/you/project/src/test/resources/config.properties
+
+// Getting filename and parent
+configPath.getFileName();   // config.properties
+configPath.getParent();     // src/test/resources
+
+// BAD: String concatenation — breaks on Windows
+String bad = "src/test/resources" + "/" + "config.properties";
+```
+
+### Reading Files
+
+#### Files.readString — Read Entire File as String (Java 11+)
+
+Best for small-to-medium files (JSON test data, config, HTML templates). Loads everything into memory.
+
+
+```java
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.io.IOException;
+
+// Read entire file into a String
+String content = Files.readString(Path.of("src/test/resources/test-data/booking.json"));
+System.out.println(content);
+```
+
+#### Files.readAllLines — Read as List of Strings
+
+Each line becomes an element. Good for CSV parsing, line-by-line processing.
+
+
+```java
+import java.util.List;
+
+List<String> lines = Files.readAllLines(Path.of("src/test/resources/test-data/users.csv"));
+String header = lines.get(0);            // "name,email,role"
+List<String> dataRows = lines.subList(1, lines.size());  // skip header
+```
+
+#### BufferedReader — For Large Files (Streaming)
+
+When the file is too large to fit in memory (gigabyte log files, massive data sets), use `BufferedReader` to process line by line without loading everything at once.
+
+
+```java
+import java.io.BufferedReader;
+
+// try-with-resources ensures the reader is closed
+try (BufferedReader reader = Files.newBufferedReader(Path.of("large-test-log.txt"))) {
+    String line;
+    while ((line = reader.readLine()) != null) {
+        if (line.contains("ERROR")) {
+            System.out.println("Found error: " + line);
+        }
+    }
+}
+// Reader auto-closed here, even if an exception is thrown
+```
+
+### Writing Files
+
+#### Files.writeString — Write Entire String (Java 11+)
+
+
+```java
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+
+// Write (creates file or overwrites)
+Files.writeString(Path.of("test-report.txt"), "Test Results:\nAll 42 tests passed.");
+
+// Append to existing file
+Files.writeString(
+    Path.of("test-report.txt"),
+    "\nExecution time: 3m 42s",
+    StandardOpenOption.APPEND
+);
+```
+
+#### Files.write — Write Lines
+
+
+```java
+import java.util.List;
+
+List<String> lines = List.of(
+    "name,email,status",
+    "Alice,alice@test.com,PASS",
+    "Bob,bob@test.com,FAIL"
+);
+Files.write(Path.of("results.csv"), lines);
+```
+
+#### BufferedWriter — For Large or Streaming Writes
+
+
+```java
+import java.io.BufferedWriter;
+
+try (BufferedWriter writer = Files.newBufferedWriter(Path.of("detailed-report.txt"))) {
+    writer.write("Test Execution Report");
+    writer.newLine();
+    writer.write("=".repeat(40));
+    writer.newLine();
+    for (int i = 1; i <= 1000; i++) {
+        writer.write(String.format("Test %d: PASSED%n", i));
+    }
+}
+// Writer auto-closed and flushed here
+```
+
+### try-with-resources for All I/O Operations
+
+Every I/O resource implements `AutoCloseable`. Always use try-with-resources — see Exception Handling for the full pattern.
+
+
+```java
+// GOOD: Resource guaranteed to close
+try (BufferedReader reader = Files.newBufferedReader(path)) {
+    return reader.lines().toList();
+}
+
+// BAD: Resource leak if an exception occurs between open and close
+BufferedReader reader = Files.newBufferedReader(path);
+List<String> lines = reader.lines().toList();
+reader.close(); // Never reached if lines() throws
+```
+
+### Properties Files: Loading, Reading, Writing
+
+Properties files are the simplest key-value config format in Java. No external dependencies needed.
+
+**config.properties:**
+```
+# Test environment configuration
+base.url=https://staging.staynest.com
+api.version=v2
+browser=chrome
+headless=true
+timeout.seconds=30
+retry.count=2
+```
+
+
+```java
+import java.util.Properties;
+import java.io.InputStream;
+import java.io.IOException;
+
+// Loading from classpath (src/test/resources is on the classpath)
+Properties props = new Properties();
+try (InputStream is = Thread.currentThread()
+        .getContextClassLoader()
+        .getResourceAsStream("config.properties")) {
+    if (is == null) {
+        throw new IllegalStateException("config.properties not found on classpath");
+    }
+    props.load(is);
+}
+
+// Reading values
+String baseUrl = props.getProperty("base.url");                     // "https://staging.staynest.com"
+String browser = props.getProperty("browser", "chrome");            // with default
+int timeout = Integer.parseInt(props.getProperty("timeout.seconds")); // manual type conversion
+boolean headless = Boolean.parseBoolean(props.getProperty("headless"));
+```
+
+
+```java
+// Writing properties to a file
+Properties outputProps = new Properties();
+outputProps.setProperty("last.run", java.time.Instant.now().toString());
+outputProps.setProperty("total.tests", "42");
+outputProps.setProperty("passed", "40");
+
+try (var out = Files.newOutputStream(Path.of("test-run-metadata.properties"))) {
+    outputProps.store(out, "Test Run Metadata");
+}
+```
+
+### JSON Serialization with Jackson
+
+Jackson is the de facto standard for JSON in Java. It converts between Java objects and JSON strings.
+
+**Maven dependency:**
+```xml
+<dependency>
+    <groupId>com.fasterxml.jackson.core</groupId>
+    <artifactId>jackson-databind</artifactId>
+    <version>2.17.0</version>
+</dependency>
+```
+
+#### ObjectMapper Basics: readValue and writeValueAsString
+
+
+```java
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+ObjectMapper mapper = new ObjectMapper();
+
+// Serialize: Java object → JSON string
+Map<String, Object> booking = Map.of(
+    "guestName", "Alice Smith",
+    "checkIn", "2025-01-15",
+    "nights", 3
+);
+String json = mapper.writeValueAsString(booking);
+// {"guestName":"Alice Smith","checkIn":"2025-01-15","nights":3}
+
+// Deserialize: JSON string → Java object
+String input = """
+    {"guestName": "Bob Jones", "checkIn": "2025-02-01", "nights": 5}
+    """;
+Map<String, Object> parsed = mapper.readValue(input, Map.class);
+String guest = (String) parsed.get("guestName"); // "Bob Jones"
+```
+
+#### @JsonProperty and @JsonIgnore
+
+
+```java
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+
+// Ignore unknown fields globally (critical for API responses that add new fields)
+@JsonIgnoreProperties(ignoreUnknown = true)
+public class Booking {
+
+    private long id;
+
+    @JsonProperty("guest_name")   // Maps JSON snake_case to Java camelCase
+    private String guestName;
+
+    @JsonProperty("check_in")
+    private String checkIn;
+
+    private int nights;
+
+    @JsonIgnore                    // Excluded from serialization/deserialization
+    private String internalNote;
+
+    // Default constructor required by Jackson
+    public Booking() {}
+
+    // Getters and setters
+    public long getId() { return id; }
+    public void setId(long id) { this.id = id; }
+    public String getGuestName() { return guestName; }
+    public void setGuestName(String guestName) { this.guestName = guestName; }
+    public String getCheckIn() { return checkIn; }
+    public void setCheckIn(String checkIn) { this.checkIn = checkIn; }
+    public int getNights() { return nights; }
+    public void setNights(int nights) { this.nights = nights; }
+    public String getInternalNote() { return internalNote; }
+    public void setInternalNote(String internalNote) { this.internalNote = internalNote; }
+}
+```
+
+#### POJO/Record Mapping: Deserializing API Responses
+
+Java records (Java 16+) are ideal for API response models — they're immutable and concise. See Immutability And Records for the full treatment.
+
+
+```java
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+public record BookingResponse(
+    long id,
+    @JsonProperty("guest_name") String guestName,
+    @JsonProperty("check_in") String checkIn,
+    @JsonProperty("check_out") String checkOut,
+    @JsonProperty("total_price") double totalPrice,
+    String status
+) {}
+```
+
+
+```java
+// Deserializing an API response into a typed record
+ObjectMapper mapper = new ObjectMapper();
+
+String apiResponse = """
+    {
+        "id": 1001,
+        "guest_name": "Alice Smith",
+        "check_in": "2025-01-15",
+        "check_out": "2025-01-18",
+        "total_price": 450.00,
+        "status": "CONFIRMED",
+        "created_at": "2025-01-10T08:30:00Z"
+    }
+    """;
+
+BookingResponse booking = mapper.readValue(apiResponse, BookingResponse.class);
+System.out.println(booking.guestName());    // "Alice Smith"
+System.out.println(booking.totalPrice());   // 450.0
+// "created_at" is silently ignored because of @JsonIgnoreProperties(ignoreUnknown = true)
+```
+
+#### JSON Tree Model: JsonNode for Dynamic Navigation
+
+When you don't want to create a POJO for every JSON structure (e.g., one-off assertions, deeply nested responses), use `JsonNode`.
+
+
+```java
+import com.fasterxml.jackson.databind.JsonNode;
+
+String json = """
+    {
+        "data": {
+            "bookings": [
+                {"id": 1, "status": "CONFIRMED"},
+                {"id": 2, "status": "PENDING"},
+                {"id": 3, "status": "CANCELLED"}
+            ],
+            "pagination": {
+                "page": 1,
+                "totalPages": 5
+            }
+        }
+    }
+    """;
+
+JsonNode root = mapper.readTree(json);
+
+// Navigate the tree
+int totalPages = root.path("data").path("pagination").path("totalPages").asInt();
+// → 5
+
+// Iterate over array nodes
+JsonNode bookings = root.path("data").path("bookings");
+for (JsonNode booking : bookings) {
+    System.out.println(booking.path("id").asInt() + ": " + booking.path("status").asText());
+}
+// 1: CONFIRMED
+// 2: PENDING
+// 3: CANCELLED
+
+// Safe navigation — path() returns a "missing node" instead of null
+String missing = root.path("nonexistent").path("field").asText("default");
+// → "default" (no NullPointerException)
+```
+
+### CSV Reading: Basic Line-by-Line Parsing
+
+For simple CSV without quoting complexities, line-by-line parsing is sufficient. No external library needed.
+
+
+```java
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
+import java.util.Map;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+
+public class SimpleCsvReader {
+
+    /**
+     * Reads a CSV file into a list of maps (header → value).
+     * Suitable for simple CSVs without quoted fields containing commas.
+     */
+    public static List<Map<String, String>> readCsv(Path path) throws IOException {
+        List<String> lines = Files.readAllLines(path);
+        if (lines.isEmpty()) return List.of();
+
+        String[] headers = lines.get(0).split(",");
+        List<Map<String, String>> rows = new ArrayList<>();
+
+        for (int i = 1; i < lines.size(); i++) {
+            String[] values = lines.get(i).split(",", -1); // -1 keeps trailing empty strings
+            Map<String, String> row = new LinkedHashMap<>();
+            for (int j = 0; j < headers.length; j++) {
+                row.put(headers[j].trim(), j < values.length ? values[j].trim() : "");
+            }
+            rows.add(row);
+        }
+        return rows;
+    }
+}
+
+// Usage:
+// users.csv:
+// name,email,role
+// Alice,alice@test.com,admin
+// Bob,bob@test.com,guest
+
+List<Map<String, String>> users = SimpleCsvReader.readCsv(Path.of("src/test/resources/users.csv"));
+// [{name=Alice, email=alice@test.com, role=admin}, {name=Bob, email=bob@test.com, role=guest}]
+```
+
+---
+
+## Practical Implementation
+
+### Example 1: Config Loader with Typed Access
+
+A reusable config loader that reads a properties file and provides typed getters. Common pattern in every automation framework.
+
+
+```java
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Properties;
+
+public class ConfigLoader {
+
+    private final Properties properties;
+
+    private ConfigLoader(Properties properties) {
+        this.properties = properties;
+    }
+
+    /**
+     * Loads config from classpath (src/test/resources/).
+     * Falls back to a file path if not found on classpath.
+     */
+    public static ConfigLoader load(String fileName) {
+        Properties props = new Properties();
+
+        // Try classpath first (works in both IDE and Maven/Gradle)
+        try (InputStream is = Thread.currentThread()
+                .getContextClassLoader()
+                .getResourceAsStream(fileName)) {
+            if (is != null) {
+                props.load(is);
+                return new ConfigLoader(props);
+            }
+        } catch (IOException e) {
+            // Fall through to file-based loading
+        }
+
+        // Fallback: load from filesystem path
+        Path filePath = Path.of(fileName);
+        if (Files.exists(filePath)) {
+            try (InputStream is = Files.newInputStream(filePath)) {
+                props.load(is);
+                return new ConfigLoader(props);
+            } catch (IOException e) {
+                throw new RuntimeException("Failed to load config file: " + filePath.toAbsolutePath(), e);
+            }
+        }
+
+        throw new IllegalStateException(
+            "Config file not found on classpath or filesystem: " + fileName);
+    }
+
+    public String getString(String key) {
+        String value = properties.getProperty(key);
+        if (value == null) {
+            throw new IllegalArgumentException("Missing required config key: " + key);
+        }
+        return value;
+    }
+
+    public String getString(String key, String defaultValue) {
+        return properties.getProperty(key, defaultValue);
+    }
+
+    public int getInt(String key) {
+        String value = getString(key);
+        try {
+            return Integer.parseInt(value);
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException(
+                "Config key '" + key + "' is not a valid integer: " + value, e);
+        }
+    }
+
+    public int getInt(String key, int defaultValue) {
+        String value = properties.getProperty(key);
+        if (value == null) return defaultValue;
+        try {
+            return Integer.parseInt(value);
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException(
+                "Config key '" + key + "' is not a valid integer: " + value, e);
+        }
+    }
+
+    public boolean getBoolean(String key) {
+        return Boolean.parseBoolean(getString(key));
+    }
+
+    public boolean getBoolean(String key, boolean defaultValue) {
+        String value = properties.getProperty(key);
+        return value == null ? defaultValue : Boolean.parseBoolean(value);
+    }
+}
+```
+
+**Usage in a test:**
+
+
+```java
+public class BaseTest {
+    protected static final ConfigLoader config = ConfigLoader.load("config.properties");
+
+    @BeforeClass
+    public void setUp() {
+        String baseUrl = config.getString("base.url");
+        int timeout = config.getInt("timeout.seconds", 10);
+        boolean headless = config.getBoolean("headless", false);
+
+        System.out.println("Running against: " + baseUrl);
+        System.out.println("Timeout: " + timeout + "s, Headless: " + headless);
+    }
+}
+```
+
+### Example 2: Deserialize a StayNest API Response into a Java Record
+
+End-to-end example: call an API, deserialize the JSON response, and assert against typed fields.
+
+
+```java
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.List;
+
+// --- Response models ---
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+public record PropertyListing(
+    long id,
+    String title,
+    String description,
+    @JsonProperty("price_per_night") double pricePerNight,
+    @JsonProperty("max_guests") int maxGuests,
+    String city,
+    String status,
+    List<String> amenities
+) {}
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+public record PropertyListResponse(
+    List<PropertyListing> data,
+    @JsonProperty("total_count") int totalCount,
+    int page,
+    @JsonProperty("page_size") int pageSize
+) {}
+
+// --- Deserialization in a test ---
+
+public class PropertyApiTest {
+    private static final ObjectMapper mapper = new ObjectMapper();
+
+    @Test
+    public void testListPropertiesReturnsValidData() throws Exception {
+        // Assume this returns the raw JSON response body from a GET /api/v2/properties call
+        String responseBody = apiClient.get("/api/v2/properties?city=Seattle&page=1");
+
+        PropertyListResponse response = mapper.readValue(responseBody, PropertyListResponse.class);
+
+        // Type-safe assertions — no casting, no string parsing
+        assertTrue(response.totalCount() > 0, "Expected at least one property");
+        assertEquals(response.page(), 1);
+
+        PropertyListing first = response.data().get(0);
+        assertEquals(first.city(), "Seattle");
+        assertTrue(first.pricePerNight() > 0, "Price must be positive");
+        assertTrue(first.maxGuests() >= 1, "Must accommodate at least 1 guest");
+        assertNotNull(first.amenities(), "Amenities list should not be null");
+    }
+}
+```
+
+### Example 3: Read Test Data from a JSON File into a List of Test Case Objects
+
+Load structured test data from a JSON file for data-driven testing.
+
+**test-data/login-test-cases.json:**
+```json
+[
+    {
+        "testCaseId": "TC-LOGIN-001",
+        "email": "valid@staynest.com",
+        "password": "SecureP@ss1",
+        "expectedResult": "SUCCESS",
+        "expectedMessage": "Welcome back!"
+    },
+    {
+        "testCaseId": "TC-LOGIN-002",
+        "email": "invalid@staynest.com",
+        "password": "wrong",
+        "expectedResult": "FAILURE",
+        "expectedMessage": "Invalid credentials"
+    },
+    {
+        "testCaseId": "TC-LOGIN-003",
+        "email": "",
+        "password": "",
+        "expectedResult": "FAILURE",
+        "expectedMessage": "Email is required"
+    }
+]
+```
+
+
+```java
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
+
+// --- Test data model ---
+public record LoginTestCase(
+    String testCaseId,
+    String email,
+    String password,
+    String expectedResult,
+    String expectedMessage
+) {}
+
+// --- Test data loader ---
+public class TestDataLoader {
+    private static final ObjectMapper mapper = new ObjectMapper();
+
+    public static <T> List<T> loadList(String filePath, TypeReference<List<T>> typeRef) {
+        try {
+            String json = Files.readString(Path.of(filePath));
+            return mapper.readValue(json, typeRef);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to load test data from: " + filePath, e);
+        }
+    }
+}
+
+// --- Data-driven test ---
+public class LoginTest {
+
+    @DataProvider(name = "loginTestCases")
+    public Object[][] loginTestCases() {
+        List<LoginTestCase> cases = TestDataLoader.loadList(
+            "src/test/resources/test-data/login-test-cases.json",
+            new TypeReference<List<LoginTestCase>>() {}
+        );
+        return cases.stream()
+            .map(tc -> new Object[]{tc})
+            .toArray(Object[][]::new);
+    }
+
+    @Test(dataProvider = "loginTestCases")
+    public void testLogin(LoginTestCase testCase) {
+        System.out.println("Running: " + testCase.testCaseId());
+
+        // ... perform login with testCase.email(), testCase.password()
+        // ... assert result matches testCase.expectedResult()
+        // ... assert message matches testCase.expectedMessage()
+    }
+}
+```
+
+---
+
+## Failure and Debugging
+
+### Scenario 1: FileNotFoundException — Relative Path vs Absolute Path
+
+**Deliberately Broken Example:**
+
+
+```java
+// BAD: Relative path depends on the working directory at execution time
+@Test
+public void testLoadConfig() throws IOException {
+    String content = Files.readString(Path.of("test-data/config.json"));
+    // Works in IntelliJ (working dir = project root)
+    // FAILS in Maven/Gradle (working dir = module root or different directory)
+    // java.nio.file.NoSuchFileException: test-data/config.json
+}
+```
+
+**Expected:** File is read successfully in all environments.  
+**Actual:** Works locally in the IDE, fails in CI. The relative path `test-data/config.json` resolves against the working directory, which differs between IDEs, Maven, and CI runners.
+
+**Root Cause:** Relative paths are resolved against `System.getProperty("user.dir")`, which is not guaranteed to be the project root.
+
+**Corrected Implementation:**
+
+
+```java
+// GOOD: Load from classpath — works regardless of working directory
+@Test
+public void testLoadConfig() throws IOException {
+    // File at: src/test/resources/test-data/config.json
+    // Classpath resource: test-data/config.json
+    try (InputStream is = getClass().getClassLoader()
+            .getResourceAsStream("test-data/config.json")) {
+        if (is == null) {
+            throw new FileNotFoundException(
+                "test-data/config.json not found on classpath. " +
+                "Ensure it's in src/test/resources/");
+        }
+        String content = new String(is.readAllBytes());
+        // ... use content
+    }
+}
+
+// ALTERNATIVE: If you must use filesystem paths, make them absolute
+Path projectRoot = Path.of(System.getProperty("user.dir"));
+Path configPath = projectRoot.resolve("src/test/resources/test-data/config.json");
+System.out.println("Looking for: " + configPath.toAbsolutePath()); // Debug aid
+String content = Files.readString(configPath);
+```
+
+<BestPractice>
+
+**Prevention:** Default to classpath loading for test resources. Use `getResourceAsStream()` instead of `Files.readString()` with relative paths. Print the absolute path in error messages so you can immediately see where it's looking.
+
+</BestPractice>
+
+
+---
+
+### Scenario 2: Resource Leak — Forgetting to Close Streams
+
+**Deliberately Broken Example:**
+
+
+```java
+// BAD: Stream never closed if an exception occurs after open but before close
+public List<String> readTestNames(String filePath) throws IOException {
+    BufferedReader reader = Files.newBufferedReader(Path.of(filePath));
+    List<String> names = new ArrayList<>();
+    String line;
+    while ((line = reader.readLine()) != null) {
+        if (line.startsWith("#")) continue;        // skip comments
+        names.add(line.trim());
+        if (names.size() > 10000) {
+            throw new IllegalStateException("Too many test cases!"); // Reader leaked!
+        }
+    }
+    reader.close(); // Never reached if exception is thrown above
+    return names;
+}
+```
+
+**Expected:** Reader is always closed, even on error.  
+**Actual:** If the `IllegalStateException` is thrown, the reader is never closed. Over thousands of test runs in CI, file handles accumulate, eventually causing `Too many open files` errors that crash the entire test suite.
+
+**Corrected Implementation:**
+
+
+```java
+// GOOD: try-with-resources guarantees closure
+public List<String> readTestNames(String filePath) throws IOException {
+    try (BufferedReader reader = Files.newBufferedReader(Path.of(filePath))) {
+        List<String> names = new ArrayList<>();
+        String line;
+        while ((line = reader.readLine()) != null) {
+            if (line.startsWith("#")) continue;
+            names.add(line.trim());
+            if (names.size() > 10000) {
+                throw new IllegalStateException("Too many test cases!");
+                // Reader is STILL closed automatically by try-with-resources
+            }
+        }
+        return names;
+    }
+}
+```
+
+<BestPractice>
+
+**Prevention:** Never call `.close()` manually. Always wrap in try-with-resources. If you see a `new BufferedReader(...)` or `Files.newBufferedReader(...)` without a `try (...)` block, it's a code review blocker.
+
+</BestPractice>
+
+
+---
+
+### Scenario 3: Jackson Deserialization Failure — Missing Field, Wrong Type
+
+**Deliberately Broken Example:**
+
+
+```java
+// The API response has evolved — new fields added, types changed
+public record UserProfile(
+    long id,
+    String name,
+    String email,
+    int age           // API now returns age as a string: "25", not 25
+) {}
+
+// JSON from API:
+// {"id": 1, "name": "Alice", "email": "alice@test.com", "age": "25", "role": "admin"}
+
+ObjectMapper mapper = new ObjectMapper();
+UserProfile user = mapper.readValue(apiResponse, UserProfile.class);
+// Throws TWO problems:
+// 1. com.fasterxml.jackson.databind.exc.MismatchedInputException:
+//    Cannot deserialize value of type `int` from String "25"
+// 2. com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException:
+//    Unrecognized field "role" (class UserProfile), not marked as ignorable
+```
+
+**Root Cause:** (1) Type mismatch — the record declares `int age` but the JSON sends `"25"` as a string. (2) Unknown field — the API added a `role` field that the record doesn't have.
+
+**Corrected Implementation:**
+
+
+```java
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+
+// Fix 1: Add @JsonIgnoreProperties to tolerate new fields
+@JsonIgnoreProperties(ignoreUnknown = true)
+public record UserProfile(
+    long id,
+    String name,
+    String email,
+    String age       // Fix 2: Match the actual JSON type (String), parse later if needed
+) {
+    public int ageAsInt() {
+        return Integer.parseInt(age);
+    }
+}
+
+// OR: Configure ObjectMapper globally (better for framework-wide use)
+ObjectMapper mapper = new ObjectMapper();
+mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+
+// Now both problems are resolved
+UserProfile user = mapper.readValue(apiResponse, UserProfile.class);
+```
+
+<BestPractice>
+
+**Prevention:** Always add `@JsonIgnoreProperties(ignoreUnknown = true)` to API response models — APIs evolve and add fields. Match your Java types to the *actual* JSON types, not what you wish they were. Write a smoke test that deserializes a real API response to catch schema drift early.
+
+</BestPractice>
+
+
+---
+
+## Engineering Judgment
+
+### Properties vs YAML vs JSON for Config
+
+| Format | Best For | Trade-offs |
+|--------|----------|------------|
+| **Properties** | Small frameworks, simple key-value config | Zero dependencies, Java-native. No nesting, no lists, no type safety. |
+| **JSON** | Config shared with non-Java tools, API contracts | Jackson already in most projects. Verbose syntax, no comments. |
+| **YAML** | Complex config with nesting and lists (Spring-style) | Readable, supports comments. Requires SnakeYAML dependency. Whitespace-sensitive — indentation bugs are common. |
+
+**Practical guidance:** Start with properties files. They're built into Java, need no dependencies, and cover 90% of automation config needs (`base.url`, `browser`, `timeout`, `headless`). Switch to YAML only when you genuinely need hierarchical config (e.g., environment-specific nested configs). Don't use JSON for config that humans edit — it doesn't support comments.
+
+### Jackson vs Gson
+
+| Aspect | Jackson | Gson |
+|--------|---------|------|
+| **Performance** | Faster (streaming parser) | Slower (tree-based by default) |
+| **Features** | Tree model, streaming, annotations, modules | Simpler API, fewer features |
+| **Industry adoption** | De facto standard, Spring Boot default | Popular in Android, lighter projects |
+| **Record support** | Native since 2.12 | Requires workarounds |
+| **Framework integration** | RestAssured, Spring, every major library | Fewer integrations |
+
+**Practical guidance:** Use Jackson. It's what RestAssured, Spring Boot, and most test frameworks use internally. Learning one library well beats knowing two superficially.
+
+### File Path vs Classpath Resource
+
+| Approach | When to Use |
+|----------|-------------|
+| **Classpath (`getResourceAsStream`)** | Test data and config bundled with the project. Works in IDE, Maven, Gradle, CI identically. Files live in `src/test/resources/`. |
+| **Filesystem (`Files.readString`)** | Generated files, temp files, downloaded artifacts, files outside the project. Path must be absolute or carefully constructed. |
+
+**Practical guidance:** Default to classpath for anything in `src/test/resources`. Use filesystem paths only for dynamically generated or external files. Always log the absolute path in error messages when a file isn't found.
+
+---
+
+## Interview and Revision
+
+### Fundamental Questions
+
+**Q1: What is the difference between `java.io` and `java.nio.file`?**  
+**A:** `java.io` is the legacy I/O package built around `File`, `FileReader`, and stream classes that require manual close management. `java.nio.file` (introduced in Java 7, enhanced through Java 11+) provides `Path` and `Files` utility classes with concise methods like `Files.readString()` and `Files.readAllLines()`. `java.nio` also supports non-blocking I/O and better error reporting. For test automation, always prefer `java.nio.file` — the code is shorter, clearer, and handles encoding properly by default.
+
+**Q2: Why is try-with-resources better than try-finally for I/O?**  
+**A:** try-with-resources automatically closes all declared resources in reverse order when the block exits, handles null checks internally, and properly manages suppressed exceptions (if `close()` throws while another exception is active). With try-finally, you must manually null-check, close in the right order, and handle exceptions from `close()` — any mistake leads to resource leaks or lost exceptions.
+
+**Q3: How does Jackson's `ObjectMapper` deserialize JSON into a Java object?**  
+**A:** `ObjectMapper.readValue(json, TargetClass.class)` parses the JSON string, matches JSON keys to Java field names (or `@JsonProperty` annotations), invokes the no-arg constructor (for POJOs) or canonical constructor (for records), and sets field values. It uses reflection and bytecode generation for performance. Unknown fields cause an error by default unless `@JsonIgnoreProperties(ignoreUnknown = true)` is set. Type mismatches throw `MismatchedInputException`.
+
+**Q4: What is `@JsonIgnoreProperties(ignoreUnknown = true)` and why should you always use it on API response models?**  
+**A:** It tells Jackson to silently skip any JSON fields that don't have a corresponding Java field. Without it, any new field added to the API response breaks deserialization with `UnrecognizedPropertyException`. APIs evolve constantly — adding a field shouldn't break your tests. This annotation makes your models forward-compatible.
+
+**Q5: When would you use `JsonNode` instead of deserializing into a POJO?**  
+**A:** Use `JsonNode` when: (1) the JSON structure varies or is deeply nested and you only need a few fields, (2) you're writing a one-off assertion and don't want to create a whole class, (3) you need to navigate dynamic JSON where the shape isn't known at compile time. Use POJOs/records when you repeatedly deserialize the same structure — type safety catches bugs earlier and code is more readable.
+
+### Coding Questions
+
+**C1: Write a method that reads a JSON file and returns a list of objects of a given type.**
+
+
+```java
+public class JsonFileReader {
+    private static final ObjectMapper mapper = new ObjectMapper();
+
+    public static <T> List<T> readList(String resourcePath, Class<T> elementType) {
+        try (InputStream is = Thread.currentThread()
+                .getContextClassLoader()
+                .getResourceAsStream(resourcePath)) {
+            if (is == null) {
+                throw new IllegalArgumentException("Resource not found: " + resourcePath);
+            }
+            return mapper.readValue(is,
+                mapper.getTypeFactory().constructCollectionType(List.class, elementType));
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to read JSON list from: " + resourcePath, e);
+        }
+    }
+}
+
+// Usage:
+List<LoginTestCase> cases = JsonFileReader.readList("test-data/login-cases.json", LoginTestCase.class);
+```
+
+**C2: Write a method that merges two properties files, where the second file overrides the first.**
+
+
+```java
+public static Properties mergeProperties(String basePath, String overridePath) throws IOException {
+    Properties base = new Properties();
+    Properties override = new Properties();
+
+    try (InputStream baseIs = Files.newInputStream(Path.of(basePath))) {
+        base.load(baseIs);
+    }
+
+    Path overrideFile = Path.of(overridePath);
+    if (Files.exists(overrideFile)) {
+        try (InputStream overrideIs = Files.newInputStream(overrideFile)) {
+            override.load(overrideIs);
+        }
+    }
+
+    // Override entries take precedence
+    base.putAll(override);
+    return base;
+}
+
+// Usage: merge base config with environment-specific overrides
+Properties config = mergeProperties("config.properties", "config-staging.properties");
+```
+
+**C3: Write a method that extracts all values at a given JSON path from an array of objects using `JsonNode`.**
+
+
+```java
+public static List<String> extractField(String json, String fieldName) {
+    ObjectMapper mapper = new ObjectMapper();
+    try {
+        JsonNode root = mapper.readTree(json);
+        List<String> values = new ArrayList<>();
+        if (root.isArray()) {
+            for (JsonNode node : root) {
+                JsonNode field = node.path(fieldName);
+                if (!field.isMissingNode()) {
+                    values.add(field.asText());
+                }
+            }
+        }
+        return values;
+    } catch (Exception e) {
+        throw new RuntimeException("Failed to extract field '" + fieldName + "' from JSON", e);
+    }
+}
+
+// Usage:
+String json = """
+    [{"name": "Alice", "role": "admin"}, {"name": "Bob", "role": "guest"}]
+    """;
+List<String> names = extractField(json, "name");
+// → ["Alice", "Bob"]
+```
+
+
+
+
+**Flashcard 1**  
+**Q:** `Files.readString()` vs `BufferedReader` — when to use which?  
+**A:** `Files.readString()` loads the entire file into memory as a single String — use for small/medium files (JSON test data, config). `BufferedReader` reads line by line without loading everything — use for large files (gigabyte logs, massive CSVs) where memory is a concern.
+
+**Flashcard 2**  
+**Q:** What happens if you deserialize JSON with an unknown field and don't have `@JsonIgnoreProperties(ignoreUnknown = true)`?  
+**A:** Jackson throws `UnrecognizedPropertyException`. The fix is to add `@JsonIgnoreProperties(ignoreUnknown = true)` to the class or configure the `ObjectMapper` with `FAIL_ON_UNKNOWN_PROPERTIES = false`.
+
+**Flashcard 3**  
+**Q:** How do you load a file from the classpath vs the filesystem?  
+**A:** Classpath: `getClass().getClassLoader().getResourceAsStream("path/file.json")` — resolves from `src/test/resources/`. Filesystem: `Files.readString(Path.of("/absolute/path/file.json"))` — resolves from the OS filesystem. Classpath is portable; filesystem depends on the working directory.
+
+**Flashcard 4**  
+**Q:** Why use `Path.of()` instead of string concatenation for file paths?  
+**A:** `Path.of("src", "test", "resources")` uses the OS-appropriate separator (`/` on Linux/Mac, `\` on Windows). String concatenation with `/` breaks on Windows. `Path` also provides `.resolve()`, `.getParent()`, `.toAbsolutePath()` for safe path manipulation.
+
+**Flashcard 5**  
+**Q:** What is the difference between `@JsonProperty` and `@JsonIgnore`?  
+**A:** `@JsonProperty("json_key")` maps a JSON field name to a Java field name (e.g., `snake_case` to `camelCase`). `@JsonIgnore` excludes a Java field from both serialization and deserialization entirely — the field won't appear in JSON output and won't be populated from JSON input.
+
+### Mastery Checklist
+
+- [ ] Can read files using `Files.readString()`, `Files.readAllLines()`, and `BufferedReader`, and knows when to use each
+- [ ] Can write files using `Files.writeString()`, `Files.write()`, and `BufferedWriter`
+- [ ] Can construct file paths portably with `Path.of()` and `resolve()` — never uses string concatenation
+- [ ] Can load properties files from both classpath and filesystem, with typed value access
+- [ ] Can serialize and deserialize Java objects with Jackson `ObjectMapper` (`readValue`, `writeValueAsString`)
+- [ ] Can use `@JsonProperty`, `@JsonIgnore`, and `@JsonIgnoreProperties` correctly
+- [ ] Can deserialize API responses into Java records with proper annotation setup
+- [ ] Can navigate dynamic JSON with `JsonNode` and `path()` without risking `NullPointerException`
+- [ ] Can parse simple CSV files line by line without external libraries
+- [ ] Can diagnose and fix: `FileNotFoundException` from relative paths, resource leaks, Jackson deserialization mismatches
+- [ ] Can articulate when to use properties vs YAML vs JSON for config, and Jackson vs Gson
+- [ ] Can load test data from JSON files into typed objects for data-driven testing
+
+---
+
+**Next:** Immutability And Records | **Related:** Exception Handling, Lambdas And Streams
+
+---
+
+*Last updated: *

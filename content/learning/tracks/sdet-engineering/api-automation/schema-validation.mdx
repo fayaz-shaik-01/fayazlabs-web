@@ -1,0 +1,756 @@
+---
+title: "Schema Validation"
+description: "What: Schema validation verifies the structure of an API response — field names, data types, required fields, nesting, and value constraints — independent of the actual values. Instead of asserting \"name\" equals \"Grand Hotel\", schema validation asserts \"name\" is a string and is always present. It answers: \"Does this response have the right shape?\""
+summary: "SDET Engineering guide: Schema Validation"
+date: "2026-10-03"
+published: true
+track: "sdet-engineering"
+module: "api-automation"
+lesson: "schema-validation"
+difficulty: "intermediate"
+estimatedMinutes: 48
+prerequisites: []
+tags: ["SDET", "API", "REST", "Testing"]
+learningObjectives: []
+concepts: []
+relatedLessons: []
+lessonType: "learn"
+order: 1
+premium: false
+status: "published"
+canonicalPath: "/learning/sdet-engineering/api-automation/schema-validation"
+references: []
+visualizations: []
+knowledgeObjects: []
+---
+
+# Schema Validation
+
+> **Module:** 04 — API Automation  
+> **Prerequisites:** Status Codes Headers And Json, Authentication And Authorization  
+> **Mastery Target:** L3 (Independent) — can write JSON Schemas, integrate schema validation into test suites, and diagnose schema mismatches without guidance
+
+---
+
+## Quick Overview (Layer 1)
+
+**What:** Schema validation verifies the *structure* of an API response — field names, data types, required fields, nesting, and value constraints — independent of the actual values. Instead of asserting `"name" equals "Grand Hotel"`, schema validation asserts `"name" is a string and is always present`. It answers: "Does this response have the right shape?"
+
+**Why:** Value-based assertions (`body("data.name", equalTo(...))`) verify that specific values are correct. Schema validation verifies that the *contract* is intact — no fields were renamed, no types changed, no required fields disappeared. This catches an entire category of bugs that value assertions miss: a developer renames `checkInDate` to `checkin_date`, and every consumer breaks — but your value-based test for a different field still passes. Schema validation catches the rename immediately because the expected field is missing.
+
+**Where:** Schema validation sits between individual value assertions and full contract testing. Add it to your API test suite as a baseline validation layer — every endpoint response should match its schema. It's especially valuable in CI/CD pipelines where it acts as an early warning system for breaking API changes.
+
+<MentalModel>
+
+Think of schema validation as a **blueprint inspection** for a house. You're not checking if the walls are painted blue or if the furniture is in the right place (value assertions). You're checking that the house has the right number of rooms, the doors are in the right locations, and the plumbing connections exist where expected (structural validation). A blueprint inspection catches "the bathroom door is missing" even when the paint job looks perfect.
+
+</MentalModel>
+
+
+<KeyTakeaways>
+
+1. Schema validation tests *structure* (field names, types, required fields); value assertions test *content* (specific values). You need both.
+2. JSON Schema is a standard for describing JSON structure — it defines what a valid response looks like using a JSON document.
+3. Schema validation catches breaking changes early: renamed fields, removed fields, type changes, new required fields.
+4. REST Assured integrates JSON Schema validation with `matchesJsonSchemaInClasspath()` — one line validates the entire response structure.
+5. Schema-first development (define schema → implement API → validate against schema) prevents contract drift. Code-first (implement API → extract schema) captures the current contract for regression testing.
+
+</KeyTakeaways>
+
+
+---
+
+## First-Principles Explanation (Layer 2)
+
+### What Is JSON Schema?
+
+JSON Schema is a vocabulary that allows you to annotate and validate JSON documents. A schema is itself a JSON document that describes the expected structure of another JSON document.
+
+**A simple example — validating a StayNest user profile:**
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "timeStamp": { "type": "string" },
+    "data": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "integer" },
+        "email": { "type": "string", "format": "email" },
+        "name": { "type": "string", "minLength": 1 },
+        "gender": { "type": ["string", "null"] },
+        "dateOfBirth": { "type": ["string", "null"] }
+      },
+      "required": ["id", "email", "name"]
+    },
+    "error": { "type": ["object", "null"] }
+  },
+  "required": ["timeStamp", "data"]
+}
+```
+
+This schema says: "The response must be an object with `timeStamp` (string) and `data` (object). Inside `data`, `id` (integer), `email` (string), and `name` (string) are required. `gender` and `dateOfBirth` can be strings or null."
+
+### JSON Schema Keywords
+
+#### Type Keywords
+
+| Keyword | Values | Example |
+|---------|--------|---------|
+| `type` | `"string"`, `"number"`, `"integer"`, `"boolean"`, `"object"`, `"array"`, `"null"` | `{"type": "string"}` |
+| `type` (multiple) | Array of types (allows null) | `{"type": ["string", "null"]}` |
+
+#### String Constraints
+
+| Keyword | Purpose | Example |
+|---------|---------|---------|
+| `minLength` | Minimum string length | `{"type": "string", "minLength": 1}` — not empty |
+| `maxLength` | Maximum string length | `{"type": "string", "maxLength": 255}` |
+| `pattern` | Regex pattern | `{"type": "string", "pattern": "^[A-Z]+$"}` |
+| `format` | Semantic format | `{"type": "string", "format": "email"}` or `"date"`, `"date-time"`, `"uri"` |
+
+#### Number Constraints
+
+| Keyword | Purpose | Example |
+|---------|---------|---------|
+| `minimum` | Minimum value (inclusive) | `{"type": "number", "minimum": 0}` |
+| `maximum` | Maximum value (inclusive) | `{"type": "number", "maximum": 100}` |
+| `exclusiveMinimum` | Minimum value (exclusive) | `{"type": "number", "exclusiveMinimum": 0}` — must be > 0 |
+
+#### Object Keywords
+
+| Keyword | Purpose | Example |
+|---------|---------|---------|
+| `properties` | Define expected fields and their schemas | See examples below |
+| `required` | Array of field names that must be present | `["id", "name", "email"]` |
+| `additionalProperties` | Allow/disallow fields not listed in `properties` | `false` — strict, no extra fields |
+
+#### Array Keywords
+
+| Keyword | Purpose | Example |
+|---------|---------|---------|
+| `items` | Schema for array elements | `{"type": "array", "items": {"type": "string"}}` |
+| `minItems` | Minimum array length | `{"type": "array", "minItems": 1}` — not empty |
+| `maxItems` | Maximum array length | `{"type": "array", "maxItems": 10}` |
+| `uniqueItems` | All elements must be unique | `{"type": "array", "uniqueItems": true}` |
+
+#### Enum and Const
+
+| Keyword | Purpose | Example |
+|---------|---------|---------|
+| `enum` | Value must be one of a fixed set | `{"type": "string", "enum": ["GUEST", "HOTEL_MANAGER"]}` |
+| `const` | Value must be exactly this | `{"const": "CONFIRMED"}` |
+
+### Why Schema Validation Matters
+
+| Scenario | Value Assertion Catches? | Schema Validation Catches? |
+|----------|--------------------------|---------------------------|
+| Field renamed (`checkInDate` → `checkin_date`) | Only if you assert that specific field | Yes — required field is missing |
+| Type changed (`price: 150` → `price: "150"`) | Only if you check the type | Yes — integer expected, string found |
+| New required field added to response | No — your test doesn't know about it | Yes (if using `additionalProperties: false`) |
+| Optional field removed from response | Only if you assert that field exists | Yes — property not in schema |
+| Nested object structure flattened | Only if you assert nested path | Yes — expected object, found primitive |
+
+### Schema-First vs Code-First
+
+| Approach | How It Works | When to Use |
+|----------|-------------|-------------|
+| **Schema-first** | Write the JSON Schema *before* implementing the API. The schema is the contract. Validate responses against it. | New APIs, APIs with formal contracts, microservices with consumer teams |
+| **Code-first** | Implement the API first, then generate or hand-write schemas from actual responses. Use for regression testing. | Existing APIs without schemas, legacy systems, APIs you don't control |
+
+For StayNest (an existing API), we use **code-first**: capture a known-good response, derive a schema from it, and use that schema to detect future regressions.
+
+---
+
+## Practical Implementation (Layer 3)
+
+### Project Setup for Schema Validation
+
+
+```xml
+<!-- pom.xml — add JSON Schema validation dependency -->
+<dependency>
+    <groupId>io.rest-assured</groupId>
+    <artifactId>json-schema-validator</artifactId>
+    <version>5.4.0</version>
+    <scope>test</scope>
+</dependency>
+```
+
+Schema files go in `src/test/resources/schemas/`:
+
+```
+src/test/resources/
+  schemas/
+    user-profile-response.json
+    hotel-response.json
+    booking-response.json
+    hotel-search-response.json
+    error-response.json
+```
+
+### StayNest JSON Schemas
+
+**User Profile Response Schema** (`user-profile-response.json`):
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "UserProfileResponse",
+  "description": "GET /users/profile response schema",
+  "type": "object",
+  "properties": {
+    "timeStamp": { "type": "string" },
+    "data": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "integer", "minimum": 1 },
+        "email": { "type": "string", "format": "email" },
+        "name": { "type": "string", "minLength": 1 },
+        "gender": {
+          "type": ["string", "null"],
+          "enum": ["MALE", "FEMALE", "OTHER", null]
+        },
+        "dateOfBirth": {
+          "type": ["string", "null"],
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        }
+      },
+      "required": ["id", "email", "name"],
+      "additionalProperties": false
+    },
+    "error": { "type": ["object", "null"] }
+  },
+  "required": ["timeStamp", "data"]
+}
+```
+
+**Hotel Response Schema** (`hotel-response.json`):
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "HotelResponse",
+  "description": "GET /admin/hotels/{id} response schema",
+  "type": "object",
+  "properties": {
+    "timeStamp": { "type": "string" },
+    "data": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "integer", "minimum": 1 },
+        "name": { "type": "string", "minLength": 1 },
+        "city": { "type": "string" },
+        "photos": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "amenities": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["WIFI", "POOL", "PARKING", "GYM", "SPA",
+                     "RESTAURANT", "BAR", "ROOM_SERVICE"]
+          }
+        },
+        "contactInfo": {
+          "type": "object",
+          "properties": {
+            "address": { "type": "string" },
+            "phoneNumber": { "type": "string" },
+            "email": { "type": "string", "format": "email" },
+            "location": { "type": "string" }
+          },
+          "required": ["address", "phoneNumber", "email", "location"]
+        },
+        "active": { "type": "boolean" }
+      },
+      "required": ["id", "name", "city", "contactInfo", "active"]
+    },
+    "error": { "type": ["object", "null"] }
+  },
+  "required": ["timeStamp", "data"]
+}
+```
+
+**Booking Response Schema** (`booking-response.json`):
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "BookingResponse",
+  "description": "POST /bookings/init response schema",
+  "type": "object",
+  "properties": {
+    "timeStamp": { "type": "string" },
+    "data": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "integer", "minimum": 1 },
+        "hotel": { "type": "object" },
+        "room": { "type": "object" },
+        "checkInDate": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "checkOutDate": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "roomsCount": { "type": "integer", "minimum": 1 },
+        "bookingStatus": {
+          "type": "string",
+          "enum": ["RESERVED", "GUESTS_ADDED", "CONFIRMED", "CANCELLED", "EXPIRED"]
+        }
+      },
+      "required": ["id", "checkInDate", "checkOutDate", "roomsCount", "bookingStatus"]
+    },
+    "error": { "type": ["object", "null"] }
+  },
+  "required": ["timeStamp", "data"]
+}
+```
+
+### Using Schema Validation in REST Assured Tests
+
+
+```java
+import org.testng.annotations.Test;
+import static io.restassured.RestAssured.*;
+import static io.restassured.module.jsv.JsonSchemaValidator.matchesJsonSchemaInClasspath;
+import static org.hamcrest.Matchers.*;
+
+/**
+ * Schema validation tests for StayNest endpoints.
+ * These tests validate response STRUCTURE, not specific values.
+ * Run them alongside value-based tests for full coverage.
+ */
+public class SchemaValidationTests {
+
+    private String guestToken = AuthFactory.guest().getAccessToken();
+    private String managerToken = AuthFactory.manager().getAccessToken();
+
+    @Test
+    public void userProfileResponse_matchesSchema() {
+        given()
+            .header("Authorization", "Bearer " + guestToken)
+        .when()
+            .get("/users/profile")
+        .then()
+            .statusCode(200)
+            .body(matchesJsonSchemaInClasspath("schemas/user-profile-response.json"));
+    }
+
+    @Test
+    public void hotelResponse_matchesSchema() {
+        // First create a hotel to have a known ID
+        int hotelId = createTestHotel(managerToken);
+
+        given()
+            .header("Authorization", "Bearer " + managerToken)
+        .when()
+            .get("/admin/hotels/" + hotelId)
+        .then()
+            .statusCode(200)
+            .body(matchesJsonSchemaInClasspath("schemas/hotel-response.json"));
+    }
+
+    @Test
+    public void bookingResponse_matchesSchema() {
+        // Assumes a valid hotel and room exist
+        String bookingBody = """
+            {
+                "hotelId": 1,
+                "roomId": 1,
+                "checkInDate": "2025-08-01",
+                "checkOutDate": "2025-08-05",
+                "roomsCount": 1
+            }
+            """;
+
+        given()
+            .contentType("application/json")
+            .header("Authorization", "Bearer " + guestToken)
+            .body(bookingBody)
+        .when()
+            .post("/bookings/init")
+        .then()
+            .statusCode(200)
+            .body(matchesJsonSchemaInClasspath("schemas/booking-response.json"));
+    }
+
+    /**
+     * Combine schema validation with value assertions.
+     * Schema validates structure; value assertions validate content.
+     */
+    @Test
+    public void createHotel_matchesSchemaAndValues() {
+        String hotelBody = """
+            {
+                "name": "Schema Test Hotel",
+                "city": "Boston",
+                "photos": [],
+                "amenities": ["WIFI"],
+                "contactInfo": {
+                    "address": "789 Pine St",
+                    "phoneNumber": "555-0300",
+                    "email": "schema@staynest.com",
+                    "location": "Downtown"
+                }
+            }
+            """;
+
+        given()
+            .contentType("application/json")
+            .header("Authorization", "Bearer " + managerToken)
+            .body(hotelBody)
+        .when()
+            .post("/admin/hotels")
+        .then()
+            .statusCode(201)
+            // Schema validation — structure is correct
+            .body(matchesJsonSchemaInClasspath("schemas/hotel-response.json"))
+            // Value assertions — content is correct
+            .body("data.name", equalTo("Schema Test Hotel"))
+            .body("data.city", equalTo("Boston"))
+            .body("data.active", equalTo(false));
+    }
+
+    private int createTestHotel(String token) {
+        // Helper method — creates a hotel and returns its ID
+        String body = """
+            {"name":"Test","city":"Test","photos":[],"amenities":[],
+             "contactInfo":{"address":"1 St","phoneNumber":"555-0000",
+             "email":"t@t.com","location":"Test"}}
+            """;
+        return given()
+            .contentType("application/json")
+            .header("Authorization", "Bearer " + token)
+            .body(body)
+        .when()
+            .post("/admin/hotels")
+        .then()
+            .statusCode(201)
+            .extract().jsonPath().getInt("data.id");
+    }
+}
+```
+
+### Error Response Schema Validation
+
+
+```java
+/**
+ * Validate that error responses also follow a consistent schema.
+ * Error structure should be predictable for consumers.
+ */
+public class ErrorSchemaValidationTests {
+
+    @Test
+    public void validationError_matchesErrorSchema() {
+        // Send invalid signup request — missing required fields
+        given()
+            .contentType("application/json")
+            .body("{}")
+        .when()
+            .post("/auth/signup")
+        .then()
+            .statusCode(400)
+            .body(matchesJsonSchemaInClasspath("schemas/error-response.json"));
+    }
+
+    @Test
+    public void notFoundError_matchesErrorSchema() {
+        String token = AuthFactory.manager().getAccessToken();
+
+        given()
+            .header("Authorization", "Bearer " + token)
+        .when()
+            .get("/admin/hotels/999999")
+        .then()
+            .statusCode(404)
+            .body(matchesJsonSchemaInClasspath("schemas/error-response.json"));
+    }
+}
+```
+
+### Generating Schemas from Responses (Code-First Approach)
+
+
+```java
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+
+/**
+ * Utility to generate a basic JSON Schema from an actual API response.
+ * Use this to bootstrap schemas for existing APIs — then refine manually.
+ *
+ * This is a simplified generator. Production tools like
+ * jsonschema.net or quicktype.io produce more comprehensive schemas.
+ */
+public class SchemaGenerator {
+
+    private static final ObjectMapper mapper = new ObjectMapper();
+
+    /**
+     * Generate a schema from a REST Assured response body.
+     *
+     * Usage:
+     *   Response response = given()...get("/users/profile").then().extract().response();
+     *   String schema = SchemaGenerator.fromResponse(response.body().asString());
+     *   // Save to src/test/resources/schemas/ and refine
+     */
+    public static String fromResponse(String jsonResponse) throws Exception {
+        JsonNode root = mapper.readTree(jsonResponse);
+        ObjectNode schema = generateSchema(root);
+        schema.put("$schema", "https://json-schema.org/draft/2020-12/schema");
+        return mapper.writerWithDefaultPrettyPrinter().writeValueAsString(schema);
+    }
+
+    private static ObjectNode generateSchema(JsonNode node) {
+        ObjectNode schema = mapper.createObjectNode();
+
+        if (node.isObject()) {
+            schema.put("type", "object");
+            ObjectNode properties = mapper.createObjectNode();
+            ArrayNode required = mapper.createArrayNode();
+
+            node.fields().forEachRemaining(entry -> {
+                properties.set(entry.getKey(), generateSchema(entry.getValue()));
+                if (!entry.getValue().isNull()) {
+                    required.add(entry.getKey());
+                }
+            });
+
+            schema.set("properties", properties);
+            schema.set("required", required);
+        } else if (node.isArray()) {
+            schema.put("type", "array");
+            if (node.size() > 0) {
+                schema.set("items", generateSchema(node.get(0)));
+            }
+        } else if (node.isTextual()) {
+            schema.put("type", "string");
+        } else if (node.isInt()) {
+            schema.put("type", "integer");
+        } else if (node.isDouble() || node.isFloat()) {
+            schema.put("type", "number");
+        } else if (node.isBoolean()) {
+            schema.put("type", "boolean");
+        } else if (node.isNull()) {
+            schema.put("type", "null");
+        }
+
+        return schema;
+    }
+}
+```
+
+---
+
+## Failure and Debugging (Layer 4)
+
+### Failure 1: Schema Validation Fails Due to Nullable Fields
+
+**The Problem:**
+
+```
+Expected: valid JSON (matching schema in user-profile-response.json)
+Actual:   $.data.gender: expected type: String, found: Null
+```
+
+**Root cause:** The schema defines `"gender": {"type": "string"}` but the actual response has `"gender": null`. JSON Schema requires you to explicitly allow null.
+
+**The fix:**
+
+```json
+// Before — only allows strings
+"gender": { "type": "string" }
+
+// After — allows string or null
+"gender": { "type": ["string", "null"] }
+```
+
+<BestPractice>
+
+**Prevention:** When writing schemas, always ask: "Can this field be null?" Check the API contract or actual responses for nullable fields. In StayNest, `gender` and `dateOfBirth` are optional and can be null.
+
+</BestPractice>
+
+
+### Failure 2: `additionalProperties: false` Breaks When API Adds Fields
+
+**The Problem:**
+
+```
+Expected: valid JSON (matching schema in hotel-response.json)
+Actual:   $.data: additional property 'createdAt' is not allowed
+```
+
+**Root cause:** The schema has `"additionalProperties": false`, but a developer added a new `createdAt` field to the hotel response. The schema rejects any fields not explicitly listed.
+
+**Trade-off decisions:**
+
+```json
+// Strict — catches new fields but breaks when API evolves
+"additionalProperties": false
+
+// Lenient — allows new fields, won't catch unexpected additions
+"additionalProperties": true  // (or simply omit this keyword)
+```
+
+**Recommendation:** Use `"additionalProperties": false` for critical contracts (payment, auth). Use `true` (or omit) for evolving APIs where new fields are expected and non-breaking.
+
+### Failure 3: Schema File Not Found in Classpath
+
+**The Problem:**
+
+
+```java
+.body(matchesJsonSchemaInClasspath("schemas/user-profile-response.json"));
+// Throws: java.lang.IllegalArgumentException: Schema not found in classpath
+```
+
+**Root cause:** The schema file is in the wrong directory. `matchesJsonSchemaInClasspath()` looks in `src/test/resources/` (Maven's test classpath root). If your file is at `src/test/resources/schemas/user-profile-response.json`, the path argument is `"schemas/user-profile-response.json"`.
+
+**The fix:** Verify the file location:
+
+```
+src/test/resources/
+  schemas/
+    user-profile-response.json   ← Must exist here
+```
+
+And ensure your build tool copies resources to the classpath (Maven does this by default; Gradle may need `sourceSets` configuration).
+
+### Failure 4: Integer vs Number Type Mismatch
+
+**The Problem:**
+
+```
+Expected type: integer, found: number (2.0)
+```
+
+**Root cause:** The schema says `"type": "integer"` but the JSON response has `"totalCount": 2.0` (a number with a decimal point). JSON doesn't distinguish integer from float — `2` and `2.0` may be parsed differently by different JSON libraries.
+
+**The fix:** If the field can be either integer or decimal:
+
+```json
+// Allow both integer and number types
+"totalCount": { "type": "number" }
+
+// Or if you want to enforce integers only, ensure the API returns `2` not `2.0`
+```
+
+---
+
+## Engineering Judgment (Layer 5)
+
+### When to Use Schema Validation vs Value Assertions
+
+| Scenario | Use Schema Validation | Use Value Assertions | Use Both |
+|----------|----------------------|---------------------|----------|
+| Regression testing — "did the API shape change?" | Yes | — | — |
+| Functional testing — "does the API return the right data?" | — | Yes | — |
+| Contract testing — "do consumers get what they expect?" | — | — | Yes |
+| Exploring a new API — "what does this endpoint return?" | No (use response logging) | No | — |
+
+**The pragmatic approach:** Use schema validation as a *baseline layer* in every test. Combine it with targeted value assertions for the fields that matter for each test case:
+
+
+```java
+@Test
+public void createBooking_returnsReservedStatus() {
+    given()
+        .contentType("application/json")
+        .header("Authorization", "Bearer " + token)
+        .body(bookingRequest)
+    .when()
+        .post("/bookings/init")
+    .then()
+        .statusCode(200)
+        // Schema: validates ALL fields have correct types and presence
+        .body(matchesJsonSchemaInClasspath("schemas/booking-response.json"))
+        // Value: validates THIS test's specific concern
+        .body("data.bookingStatus", equalTo("RESERVED"));
+}
+```
+
+### How Strict Should Your Schemas Be?
+
+| Strictness Level | What It Catches | What It Breaks On |
+|-----------------|-----------------|-------------------|
+| **Loose** (types only, no `required`, `additionalProperties: true`) | Type changes | Almost nothing — too permissive |
+| **Moderate** (types + `required` fields, `additionalProperties: true`) | Type changes + removed fields | Field removal — which is a breaking change |
+| **Strict** (types + `required` + `additionalProperties: false` + value constraints) | Everything including new fields and value range violations | Any API change — high maintenance |
+
+**Recommendation for StayNest:** Start with **moderate**. Define types and required fields. Allow additional properties. Add value constraints (`enum`, `minimum`, `pattern`) only for fields with known fixed domains (like `bookingStatus` or `gender`).
+
+### Schema Versioning Strategy
+
+When schemas evolve with the API, you need a strategy:
+
+1. **Schema-per-version:** Maintain `v1-hotel-response.json` and `v2-hotel-response.json`. Tests for each API version use their corresponding schema.
+2. **Schema-in-branch:** Keep schemas in the same Git branch as the code. When the API changes, the schema updates in the same PR.
+3. **Schema from OpenAPI:** Generate schemas from the API's OpenAPI/Swagger definition. This ensures schema and API always match.
+
+For most SDET teams, option 2 (schema-in-branch) is the right balance of accuracy and effort.
+
+---
+
+## Interview and Revision (Layer 6)
+
+### Fundamental Questions
+
+**Q1: What is schema validation and why is it important for API testing?**
+
+**A:** Schema validation verifies the structure of an API response — field names, data types, required fields, and nesting — independent of specific values. It's important because it catches breaking changes that value-based assertions miss. If a developer renames a field, changes a type from integer to string, or removes a required field, schema validation fails immediately. Value assertions only catch changes in the specific fields they check. I use schema validation as a baseline layer in every API test, combined with value assertions for business logic verification.
+
+**Q2: What's the difference between `additionalProperties: true` and `false` in JSON Schema?**
+
+**A:** `additionalProperties: false` means the response cannot contain any fields not explicitly listed in `properties` — it's strict and catches unexpected additions. `additionalProperties: true` (the default) allows any extra fields beyond what's defined. I use `false` for stable, critical contracts (auth responses, payment confirmations) where unexpected fields could indicate a bug. I use `true` for evolving APIs where new fields are expected as features are added — this prevents schemas from breaking on every deployment.
+
+**Q3: How would you add schema validation to an existing API test suite?**
+
+**A:** I'd take a code-first approach: (1) Run each endpoint with logging enabled and capture the actual responses. (2) Generate initial schemas from these responses using a tool or a custom generator. (3) Refine the schemas manually — add `required` arrays, mark nullable fields with `["string", "null"]`, add `enum` constraints for known fixed values. (4) Place schema files in `src/test/resources/schemas/`. (5) Add `matchesJsonSchemaInClasspath()` assertions to existing tests — one line per test. (6) Run the suite and fix any legitimate mismatches (usually nullable fields the initial capture didn't cover).
+
+### Scenario-Based Questions
+
+**S1: "A schema validation test fails after a new API deployment, but the QA team says 'nothing changed.' How do you investigate?"**
+
+**A:** The schema test is telling me the response structure changed, even if the change was unintentional. I'd: (1) Read the error message — it tells you exactly which field or type is wrong. (2) Compare the actual response with the schema — run the endpoint with logging to see the real JSON. (3) Check the deployment diff — even if QA says nothing changed, the code diff doesn't lie. Look for model changes, serialization changes, or library upgrades that affect JSON output. (4) If the change is intentional and non-breaking, update the schema. If it's unintentional, file a bug — the schema test caught a regression.
+
+**S2: "Should you version your JSON schemas separately from your test code?"**
+
+**A:** For most teams, no — schemas should live alongside the tests in the same repository and branch. When a developer changes the API, the PR should include the schema update as well, just like updating tests. Separate versioning adds complexity without much benefit unless you have external consumers who validate against your schemas independently (in which case, schemas become a shared contract and should be versioned and published).
+
+
+
+
+| # | Front (Question) | Back (Answer) |
+|---|---|---|
+| 1 | What is the JSON Schema keyword for requiring specific fields? | `"required": ["field1", "field2"]` — an array of field names that must be present. Placed at the object level, not on individual fields. |
+| 2 | How do you allow null in JSON Schema? | Use a type array: `"type": ["string", "null"]`. Single type `"string"` rejects null values. |
+| 3 | What REST Assured method validates JSON Schema? | `matchesJsonSchemaInClasspath("schemas/file.json")` — validates the response body against a schema file in `src/test/resources/`. |
+| 4 | What does `additionalProperties: false` do? | Rejects any field in the response that isn't explicitly defined in `properties`. Catches unexpected fields but breaks when the API adds new fields. |
+| 5 | Schema-first vs code-first: when do you use each? | Schema-first: new APIs where the schema defines the contract before implementation. Code-first: existing APIs where you derive the schema from actual responses for regression testing. |
+
+### Mastery Checklist
+
+- [ ] Can write a JSON Schema from scratch for any StayNest endpoint response
+- [ ] Can handle nullable fields, enums, nested objects, and arrays in schemas
+- [ ] Can integrate `matchesJsonSchemaInClasspath()` into REST Assured tests
+- [ ] Can diagnose schema validation failures: nullable fields, additional properties, type mismatches
+- [ ] Can articulate when to use strict vs lenient schema settings
+- [ ] Can explain the difference between schema validation and value assertions in an interview
+- [ ] Can bootstrap schemas from existing API responses using code-first approach
+
+---
+
+**Next:** Contract Testing | **Related:** Authentication And Authorization
+
+*Last updated: *
