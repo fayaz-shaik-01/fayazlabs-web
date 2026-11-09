@@ -358,6 +358,7 @@ export class PlayerEngine {
       s.el.load();
       s.index = -1;
     }
-    this.loader.dispose();
+    // Release this deck's audio blobs; the loader itself belongs to the session (shared across mode switches).
+    this.loader.keepOnly([]);
   }
 }
