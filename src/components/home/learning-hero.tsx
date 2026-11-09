@@ -1,93 +1,81 @@
-"use client";
-
 import Link from "next/link";
-import { motion } from "framer-motion";
-import { ArrowRight, FolderGit2 } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { buttonVariants } from "@/components/ui/button";
+import type { Catalog } from "@/lib/course/types";
 
-const ease = [0.16, 1, 0.3, 1] as const;
+/**
+ * Home hero. The right-hand card lists the real course levels from the catalog,
+ * so it never shows made-up numbers.
+ */
+export function LearningHomepageHero({ catalog }: Readonly<{ catalog: Catalog }>) {
+  const lessonCount = catalog.levels.reduce((n, l) => n + l.items.length, 0);
 
-export function LearningHomepageHero() {
   return (
-    <section className="relative min-h-[85vh] flex items-center overflow-hidden">
-      {/* Ambient background effects */}
-      <div className="absolute inset-0 bg-gradient-to-b from-background via-background to-surface-1" />
-      <div className="absolute top-0 left-1/4 w-[600px] h-[600px] rounded-full bg-glow-primary/[0.04] blur-[150px]" />
-      <div className="absolute bottom-0 right-1/4 w-[500px] h-[500px] rounded-full bg-glow-accent/[0.03] blur-[130px]" />
-      <div className="absolute top-1/3 right-1/3 w-[400px] h-[400px] rounded-full bg-glow-violet/[0.03] blur-[120px] animate-float" />
-
-      <div className="relative z-10 mx-auto max-w-6xl px-6 pt-32 pb-20 w-full">
-        <div className="max-w-3xl">
-          {/* System init tag */}
-          <motion.div
-            initial={{ opacity: 0, y: 15 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.2, ease }}
-            className="mono-tag text-lab-green mb-6 flex items-center gap-2"
+    <section className="mx-auto grid max-w-6xl items-center gap-10 px-4 pt-32 pb-16 sm:px-6 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)] lg:gap-14 lg:pt-40 lg:pb-20">
+      <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
+        <p className="eyebrow">Projects · Writing · Courses</p>
+        <h1 className="mt-4 text-display-xl text-foreground">
+          Building and testing AI products
+        </h1>
+        <p className="mt-6 max-w-[56ch] text-body-lg text-muted-foreground sm:text-xl">
+          Projects, writing and hands-on courses on engineering and testing
+          software built on LLMs. By{" "}
+          <span className="font-semibold text-foreground">Shaik Fayaz</span>.
+        </p>
+        <div className="mt-8 flex flex-wrap gap-3">
+          <Link
+            href="/learning/ai-product-testing"
+            className={cn(buttonVariants({ size: "lg" }))}
           >
-            <span className="inline-block h-1.5 w-1.5 rounded-full bg-lab-green animate-glow-pulse" />
-            [FAYAZLABS]
-          </motion.div>
-
-          {/* Heading */}
-          <motion.h1
-            initial={{ opacity: 0, y: 25 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 1, delay: 0.35, ease }}
-            className="text-display-2xl text-foreground"
+            Start the course
+            <ArrowRight className="size-4" />
+          </Link>
+          <Link
+            href="/projects"
+            className={cn(buttonVariants({ variant: "outline", size: "lg" }))}
           >
-            Building and testing
-            <br />
-            <span className="text-gradient-hero">AI products</span>
-          </motion.h1>
-
-          {/* Description */}
-          <motion.p
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.7, delay: 0.55, ease }}
-            className="mt-8 text-body-lg text-muted-foreground max-w-xl"
-          >
-            Projects, writing and hands-on courses on engineering and testing
-            software built on LLMs. By{" "}
-            <span className="text-foreground font-semibold">Shaik Fayaz</span>.
-          </motion.p>
-
-          {/* CTAs */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.7, ease }}
-            className="mt-10 flex flex-wrap gap-3"
-          >
-            <Link
-              href="/learning/ai-product-testing"
-              className={cn(
-                buttonVariants({ size: "lg" }),
-                "gap-2.5 rounded-md bg-primary text-primary-foreground shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 transition-all duration-400 text-sm font-semibold px-7 h-11"
-              )}
-            >
-              Start the course
-              <ArrowRight className="h-4 w-4" />
-            </Link>
-            <Link
-              href="/projects"
-              className={cn(
-                buttonVariants({ variant: "outline", size: "lg" }),
-                "gap-2.5 rounded-md border-border bg-card hover:bg-muted hover:border-primary/50 transition-all duration-400 text-sm font-semibold px-7 h-11"
-              )}
-            >
-              <FolderGit2 className="h-4 w-4" />
-              See Projects
-            </Link>
-          </motion.div>
-
+            See projects
+          </Link>
         </div>
       </div>
 
-      {/* Bottom gradient fade */}
-      <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-background to-transparent pointer-events-none" />
+      <aside
+        aria-label="Course outline"
+        className="panel flex flex-col gap-4 p-5 animate-in fade-in slide-in-from-bottom-2 duration-700"
+      >
+        <div className="flex items-center justify-between gap-3">
+          <span className="eyebrow">{catalog.course.title}</span>
+          <span className="chip">Free to start</span>
+        </div>
+        <ol className="flex flex-col">
+          {catalog.levels.map((level) => (
+            <li key={level.id}>
+              <Link
+                href={`/learning/ai-product-testing/levels/${level.id}`}
+                className="group grid grid-cols-[auto_1fr_auto] items-baseline gap-3 rounded-md px-2 py-2.5 transition-colors hover:bg-muted"
+              >
+                <span className="chip">{level.id}</span>
+                <span className="text-[0.9375rem] font-semibold leading-snug text-foreground">
+                  {level.title.replace(/^Level \d+:\s*/, "")}
+                </span>
+                <span className="eyebrow tabular-nums">{level.items.length}</span>
+              </Link>
+            </li>
+          ))}
+        </ol>
+        <div className="flex items-center justify-between border-t border-border pt-3">
+          <span className="eyebrow">
+            {catalog.levels.length} levels · {lessonCount} items
+          </span>
+          <Link
+            href="/learning/ai-product-testing"
+            className="text-sm font-semibold text-primary hover:underline"
+          >
+            Open course →
+          </Link>
+        </div>
+      </aside>
     </section>
   );
 }

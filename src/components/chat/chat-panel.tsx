@@ -115,7 +115,7 @@ export function ChatPanel() {
           <Button
             variant="outline"
             size="icon"
-            className="fixed bottom-6 right-6 z-50 size-12 rounded-full border-primary/30 bg-surface-1/90 backdrop-blur-sm shadow-lg shadow-primary/10 hover:shadow-xl hover:shadow-primary/20 hover:border-primary/50 transition-all duration-300"
+            className="fixed bottom-6 right-6 z-50 size-12 rounded-full border-border bg-card shadow-float hover:border-primary/60 hover:bg-card transition-colors"
             aria-label="Open AI chat"
           />
         }
@@ -126,7 +126,7 @@ export function ChatPanel() {
       <SheetContent
         side="right"
         showCloseButton
-        className="w-full sm:w-[420px] sm:max-w-[420px] p-0 flex flex-col bg-surface-0/95 backdrop-blur-xl border-border"
+        className="w-full sm:w-[420px] sm:max-w-[420px] p-0 flex flex-col bg-background border-border"
       >
         {/* Header */}
         <SheetHeader className="p-4 pb-3 border-b border-border">
@@ -138,7 +138,7 @@ export function ChatPanel() {
               <div>
                 <SheetTitle className="text-sm">Fayaz Labs AI</SheetTitle>
                 <SheetDescription className="text-[11px] font-mono text-lab-green/70">
-                  <span className="inline-block size-1.5 rounded-full bg-lab-green animate-glow-pulse mr-1" />{"ONLINE"}
+                  <span className="inline-block size-1.5 rounded-full bg-lab-green mr-1" />{"ONLINE"}
                 </SheetDescription>
               </div>
             </div>

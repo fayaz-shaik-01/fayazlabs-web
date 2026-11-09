@@ -24,7 +24,7 @@ export function UserMenu() {
 
   if (isLoading) {
     return (
-      <div className="h-8 w-8 rounded-md bg-muted animate-pulse" />
+      <div className="size-9 rounded-lg bg-muted animate-pulse" />
     );
   }
 
@@ -32,9 +32,9 @@ export function UserMenu() {
     return (
       <Link
         href="/login"
-        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+        className="inline-flex size-9 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground hover:text-foreground transition-colors"
       >
-        <LogIn className="h-3.5 w-3.5" />
+        <LogIn className="size-4" />
         <span className="sr-only">Sign in</span>
       </Link>
     );
@@ -54,7 +54,7 @@ export function UserMenu() {
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="flex h-8 w-8 items-center justify-center rounded-md overflow-hidden border border-border bg-muted text-xs font-semibold text-foreground transition-colors hover:bg-muted/80 focus-visible:ring-2 focus-visible:ring-ring"
+        className="flex size-9 items-center justify-center rounded-lg overflow-hidden border border-border bg-accent text-xs font-semibold text-accent-foreground transition-colors hover:bg-accent/80 focus-visible:ring-2 focus-visible:ring-ring"
       >
         {user.avatarUrl ? (
           <img
@@ -69,7 +69,7 @@ export function UserMenu() {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-56 rounded-lg border border-border bg-popover p-1 shadow-lg z-50">
+        <div className="absolute right-0 top-full mt-2 w-56 rounded-xl border border-border bg-popover p-1 shadow-float z-50">
           <div className="px-3 py-2 border-b border-border mb-1">
             <p className="text-sm font-medium truncate">
               {user.displayName ?? "User"}

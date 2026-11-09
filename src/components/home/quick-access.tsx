@@ -1,73 +1,73 @@
-"use client";
-
 import Link from "next/link";
-import { motion } from "framer-motion";
-import { BookOpen, FolderGit2, Mail, PenLine } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 
-const quickLinks = [
+const paths = [
   {
-    title: "Courses",
-    description: "Start the AI Product Testing course, free to start",
+    chip: "Courses",
+    title: "Learn AI product testing",
+    description: "Start the AI Product Testing course, free to start.",
+    meta: "Free to start",
     href: "/learning",
-    icon: <BookOpen className="h-5 w-5" />,
-    color: "text-primary",
-    bgColor: "bg-primary/10",
+    cta: "Open",
   },
   {
-    title: "Projects",
-    description: "Things I have built: AI tooling, automation and backends",
+    chip: "Projects",
+    title: "Things I have built",
+    description: "AI tooling, automation and backends, with the story behind each.",
+    meta: "Case studies",
     href: "/projects",
-    icon: <FolderGit2 className="h-5 w-5" />,
-    color: "text-lab-green",
-    bgColor: "bg-lab-green/10",
+    cta: "Browse",
   },
   {
-    title: "Writing",
-    description: "Articles and deep dives on AI engineering and testing",
+    chip: "Writing",
+    title: "Notes and essays",
+    description: "Articles and deep dives on AI engineering and testing.",
+    meta: "Blog + notebook",
     href: "/writing",
-    icon: <PenLine className="h-5 w-5" />,
-    color: "text-chart-3",
-    bgColor: "bg-chart-3/10",
+    cta: "Read",
   },
   {
-    title: "Contact",
-    description: "Work together, ask a question, or just say hi",
+    chip: "Contact",
+    title: "Work together",
+    description: "Ask a question, discuss a role, or just say hi.",
+    meta: "Get in touch",
     href: "/contact",
-    icon: <Mail className="h-5 w-5" />,
-    color: "text-accent",
-    bgColor: "bg-accent/10",
+    cta: "Write",
   },
 ];
 
 export function QuickAccess() {
   return (
-    <section className="mx-auto max-w-6xl px-6 py-16">
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {quickLinks.map((link, i) => (
-          <motion.div
-            key={link.href}
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.4, delay: i * 0.06 }}
-          >
-            <Link
-              href={link.href}
-              className="group flex flex-col rounded-xl border border-border bg-card p-5 h-full transition-all duration-300 hover:border-primary/50 hover:bg-muted"
-            >
-              <span className={`flex h-10 w-10 items-center justify-center rounded-lg ${link.bgColor} ${link.color} mb-4`}>
-                {link.icon}
-              </span>
-              <h3 className="text-sm font-semibold text-foreground group-hover:text-primary transition-colors mb-1">
-                {link.title}
-              </h3>
-              <p className="text-xs text-muted-foreground/60 line-clamp-2">
-                {link.description}
-              </p>
-            </Link>
-          </motion.div>
-        ))}
+    <section className="mx-auto max-w-6xl px-4 py-12 sm:px-6">
+      <div className="mb-8 flex flex-col gap-2">
+        <span className="eyebrow">Start here</span>
+        <h2 className="text-heading-xl text-foreground">Pick a path</h2>
       </div>
+      <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {paths.map((p) => (
+          <li key={p.href}>
+            <Link
+              href={p.href}
+              className="panel panel-interactive group flex h-full flex-col p-5"
+            >
+              <span className="chip w-fit">{p.chip}</span>
+              <h3 className="mt-3 text-lg font-bold leading-snug text-foreground">
+                {p.title}
+              </h3>
+              <p className="mt-2 text-[0.9375rem] text-muted-foreground">
+                {p.description}
+              </p>
+              <div className="mt-auto flex items-center justify-between pt-5">
+                <span className="eyebrow">{p.meta}</span>
+                <span className="inline-flex items-center gap-1 text-sm font-semibold text-primary">
+                  {p.cta}
+                  <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
+                </span>
+              </div>
+            </Link>
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }
