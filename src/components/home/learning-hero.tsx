@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { buttonVariants } from "@/components/ui/button";
+import { levelShortTitle } from "@/lib/course/catalog";
 import type { Catalog } from "@/lib/course/types";
 
 /**
@@ -57,7 +58,7 @@ export function LearningHomepageHero({ catalog }: Readonly<{ catalog: Catalog }>
               >
                 <span className="chip">{level.id}</span>
                 <span className="text-[0.9375rem] font-semibold leading-snug text-foreground">
-                  {level.title.replace(/^Level \d+:\s*/, "")}
+                  {levelShortTitle(level.title)}
                 </span>
                 <span className="eyebrow tabular-nums">{level.items.length}</span>
               </Link>

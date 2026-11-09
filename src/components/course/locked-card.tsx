@@ -14,12 +14,12 @@ export function LockedCard({
   return (
     <section
       data-testid="locked-card"
-      className="rounded-xl border border-border bg-card/50 p-8 text-center"
+      className="panel p-8 text-center"
     >
-      <span className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
+      <span className="mx-auto mb-4 flex size-12 items-center justify-center rounded-lg bg-accent text-accent-foreground">
         <Lock className="h-5 w-5" />
       </span>
-      <h2 className="text-lg font-semibold text-foreground">{item.title}</h2>
+      <h2 className="text-heading-md text-foreground">{item.title}</h2>
       <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
         {item.summary || "This part of the course is part of the paid plan."}
       </p>

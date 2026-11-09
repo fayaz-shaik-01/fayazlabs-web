@@ -92,20 +92,20 @@ export function PricingClient() {
             <article
               key={plan.code}
               data-testid={`plan-${plan.code}`}
-              className="flex flex-col rounded-xl border border-border bg-card/50 p-6"
+              className="panel flex flex-col p-6"
             >
               <div className="mb-1 flex items-center gap-2">
-                <h2 className="text-lg font-semibold text-foreground">{plan.name}</h2>
+                <h2 className="text-heading-md text-foreground">{plan.name}</h2>
                 {isCurrent && <Badge variant="secondary">Current plan</Badge>}
               </div>
-              <p className="text-3xl font-bold text-foreground">
+              <p className="font-heading text-4xl font-bold text-foreground">
                 {formatAmount(plan.amountPaise, plan.currency)}
                 {!isFree && <span className="ml-1 text-sm font-normal text-muted-foreground">/ {plan.period}</span>}
               </p>
               <ul className="mt-5 mb-6 flex-1 space-y-2 text-sm text-muted-foreground">
                 {plan.features.map((f) => (
                   <li key={f} className="flex items-start gap-2">
-                    <Check className="mt-0.5 h-4 w-4 shrink-0 text-lab-green" />
+                    <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                     {FEATURE_LABELS[f] ?? f}
                   </li>
                 ))}
