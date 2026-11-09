@@ -11,7 +11,7 @@
     "knowledge": "npx tsx scripts/extract-knowledge.ts",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
-    "test:unit": "tsx --test tests/unit.test.ts"
+    "test:unit": "tsx --test tests/unit.test.ts tests/player.test.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.4.1",
@@ -24,6 +24,7 @@
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "date-fns": "^4.1.0",
+    "dompurify": "^3.4.17",
     "feed": "^5.2.1",
     "framer-motion": "^12.38.0",
     "geist": "^1.7.0",

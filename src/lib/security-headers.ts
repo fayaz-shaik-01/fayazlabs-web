@@ -45,7 +45,8 @@ export function buildCsp(env: {
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' https://fonts.gstatic.com data:",
     "img-src 'self' data: blob: https:",
-    ...(media ? [`media-src 'self' ${media}`] : []),
+    // blob: is how the player plays audio it has fetched and decrypted in memory.
+    `media-src 'self' blob:${media ? ` ${media}` : ""}`,
     `connect-src ${connect.join(" ")}`,
     "frame-src https://accounts.google.com https://api.razorpay.com",
     "frame-ancestors 'none'",

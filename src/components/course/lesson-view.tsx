@@ -54,7 +54,7 @@ export function LessonView({ level, item, prev, next }: Readonly<LessonViewProps
       ) : lock.locked ? (
         <LockedCard item={item} reason={lock.reason as "login" | "upgrade"} returnTo={itemHref(item.id)} />
       ) : (
-        <LessonBody itemId={item.id} kind={item.kind} />
+        <LessonBody item={item} />
       )}
 
       <nav className="mt-10 flex justify-between gap-4 text-sm" aria-label="Lesson navigation">

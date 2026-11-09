@@ -69,14 +69,14 @@ describe("locked state", () => {
 describe("CSP", () => {
   test("media origin is added to media-src and connect-src only when set", () => {
     const off = buildCsp({});
-    assert.ok(!off.includes("media-src"));
+    assert.match(off, /media-src 'self' blob:(;|$)/);
     const on = buildCsp({ mediaOrigin: "https://media.example.com/some/path" });
-    assert.match(on, /media-src 'self' https:\/\/media\.example\.com(;|$)/);
+    assert.match(on, /media-src 'self' blob: https:\/\/media\.example\.com(;|$)/);
     assert.match(on, /connect-src [^;]*https:\/\/media\.example\.com/);
   });
   test("ignores a malformed media origin and keeps the strict rules", () => {
     const csp = buildCsp({ mediaOrigin: "not a url" });
-    assert.ok(!csp.includes("media-src"));
+    assert.match(csp, /media-src 'self' blob:(;|$)/);
     assert.match(csp, /default-src 'self'/);
     assert.match(csp, /frame-ancestors 'none'/);
   });

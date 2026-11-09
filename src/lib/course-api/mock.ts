@@ -168,11 +168,23 @@ export const mockTransport: Transport = async (req: TransportRequest) => {
         body: { code: "FEATURE_REQUIRED", feature: "lessons.paid", upgradeHint: "/pricing" },
       };
     }
+    // Test hook: localStorage["fayazlabs_mock_grant"] = {baseUrl, key, ttlMs?, query?}
+    let override: { baseUrl?: string; key?: string; ttlMs?: number; query?: string } = {};
+    try {
+      override = JSON.parse(ls()?.getItem("fayazlabs_mock_grant") ?? "{}");
+    } catch {
+      // ignore a malformed hook
+    }
     return ok({
       itemId,
       feature: itemId.startsWith("L0") ? "free" : "lessons.paid",
-      access: { mode: "public", baseUrl: "https://example.invalid/mock", query: "", expiresAt: new Date(Date.now() + 600_000).toISOString() },
-      key: null,
+      access: {
+        mode: override.key ? "signed" : "public",
+        baseUrl: override.baseUrl ?? "https://example.invalid/mock",
+        query: override.query ?? "",
+        expiresAt: new Date(Date.now() + (override.ttlMs ?? 600_000)).toISOString(),
+      },
+      key: override.key ?? null,
     });
   }
 
