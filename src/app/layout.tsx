@@ -6,6 +6,7 @@ import { Header } from "@/components/layout/header";
 import { Footer } from "@/components/layout/footer";
 import { CommandPalette } from "@/components/layout/command-palette";
 import { GlobalTestRunner } from "@/components/layout/global-test-runner";
+import { SessionNoticeBanner } from "@/components/course/session-notice-banner";
 import { ChatPanel } from "@/components/chat/chat-panel";
 import { siteConfig } from "@/lib/site-config";
 import "katex/dist/katex.min.css";
@@ -86,6 +87,7 @@ export default function RootLayout({
             Skip to content
           </a>
           <Header />
+          <SessionNoticeBanner />
           <main id="main-content" className="flex-1">
             {children}
           </main>

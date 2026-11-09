@@ -10,11 +10,19 @@ import {
 } from "react";
 import type { AuthResponse, UserInfo } from "./api";
 import * as authApi from "./api";
+import {
+  clearAuth,
+  getStoredAuth,
+  saveAuth,
+  subscribeAuth,
+} from "./token-store";
+import { setSessionNotice } from "@/lib/course-api/session-notice";
 
 interface AuthState {
   user: UserInfo | null;
   accessToken: string | null;
   refreshToken: string | null;
+  sessionId: string | null;
   isLoading: boolean;
   isAuthenticated: boolean;
 }
@@ -28,44 +36,36 @@ interface AuthContextValue extends AuthState {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-const STORAGE_KEY = "fayazlabs_auth";
-
-function loadStoredAuth(): { accessToken: string; refreshToken: string } | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (parsed.accessToken && parsed.refreshToken) return parsed;
-  } catch {
-    // corrupted
-  }
-  return null;
-}
-
-function storeAuth(accessToken: string, refreshToken: string) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify({ accessToken, refreshToken }));
-}
-
-function clearAuth() {
-  localStorage.removeItem(STORAGE_KEY);
-}
+const SIGNED_OUT: AuthState = {
+  user: null,
+  accessToken: null,
+  refreshToken: null,
+  sessionId: null,
+  isLoading: false,
+  isAuthenticated: false,
+};
 
 export function AuthProvider({ children }: Readonly<{ children: React.ReactNode }>) {
   const [state, setState] = useState<AuthState>({
     user: null,
     accessToken: null,
     refreshToken: null,
+    sessionId: null,
     isLoading: true,
     isAuthenticated: false,
   });
 
   const setAuthFromResponse = useCallback((res: AuthResponse) => {
-    storeAuth(res.accessToken, res.refreshToken);
+    saveAuth({
+      accessToken: res.accessToken,
+      refreshToken: res.refreshToken,
+      sessionId: res.sessionId,
+    });
     setState({
       user: res.user,
       accessToken: res.accessToken,
       refreshToken: res.refreshToken,
+      sessionId: res.sessionId ?? null,
       isLoading: false,
       isAuthenticated: true,
     });
@@ -73,9 +73,11 @@ export function AuthProvider({ children }: Readonly<{ children: React.ReactNode 
 
   // restore session on mount
   useEffect(() => {
-    const stored = loadStoredAuth();
+    const stored = getStoredAuth();
     if (!stored) {
-      setState((s) => ({ ...s, isLoading: false }));
+      // Nothing stored: not signed in. (Deferred so it is not a synchronous
+      // setState inside the effect body.)
+      queueMicrotask(() => setState((s) => ({ ...s, isLoading: false })));
       return;
     }
 
@@ -86,6 +88,7 @@ export function AuthProvider({ children }: Readonly<{ children: React.ReactNode 
           user,
           accessToken: stored.accessToken,
           refreshToken: stored.refreshToken,
+          sessionId: stored.sessionId ?? null,
           isLoading: false,
           isAuthenticated: true,
         });
@@ -97,15 +100,13 @@ export function AuthProvider({ children }: Readonly<{ children: React.ReactNode 
           .then((res) => {
             setAuthFromResponse(res);
           })
-          .catch(() => {
+          .catch((err: unknown) => {
+            // The server says this account was used somewhere else.
+            if (err instanceof authApi.AuthError && err.code === "SESSION_REVOKED") {
+              setSessionNotice("revoked");
+            }
             clearAuth();
-            setState({
-              user: null,
-              accessToken: null,
-              refreshToken: null,
-              isLoading: false,
-              isAuthenticated: false,
-            });
+            setState(SIGNED_OUT);
           });
       });
   }, [setAuthFromResponse]);
@@ -136,17 +137,29 @@ export function AuthProvider({ children }: Readonly<{ children: React.ReactNode 
 
   const logoutFn = useCallback(async () => {
     if (state.refreshToken) {
-      await authApi.logout(state.refreshToken);
+      await authApi.logout(state.refreshToken, state.accessToken);
     }
     clearAuth();
-    setState({
-      user: null,
-      accessToken: null,
-      refreshToken: null,
-      isLoading: false,
-      isAuthenticated: false,
+    setState(SIGNED_OUT);
+  }, [state.refreshToken, state.accessToken]);
+
+  // Stay in sync when the API client refreshes tokens or signs the user out
+  // (e.g. SESSION_REVOKED from a heartbeat), or another tab does.
+  useEffect(() => {
+    return subscribeAuth(() => {
+      const stored = getStoredAuth();
+      setState((prev) => {
+        if (!stored) return prev.isAuthenticated || prev.accessToken ? SIGNED_OUT : prev;
+        if (prev.accessToken === stored.accessToken) return prev;
+        return {
+          ...prev,
+          accessToken: stored.accessToken,
+          refreshToken: stored.refreshToken,
+          sessionId: stored.sessionId ?? null,
+        };
+      });
     });
-  }, [state.refreshToken]);
+  }, []);
 
   const value = useMemo<AuthContextValue>(
     () => ({
