@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { securityHeaders } from "./src/lib/security-headers";
 
 const nextConfig: NextConfig = {
   turbopack: {
@@ -7,11 +8,11 @@ const nextConfig: NextConfig = {
   images: {
     formats: ["image/avif", "image/webp"],
   },
+  async headers() {
+    return [{ source: "/(.*)", headers: securityHeaders() }];
+  },
   async redirects() {
     return [
-      // Legacy notebook → learning
-      { source: "/notebook", destination: "/learning", permanent: true },
-      { source: "/notebook/:slug", destination: "/learning", permanent: true },
       // Legacy writing → learning (blog content absorbed into curriculum)
       { source: "/writing/agentic-ai-patterns", destination: "/learning/ai-agents/fundamentals/agentic-patterns", permanent: true },
       { source: "/writing/building-ai-test-automation", destination: "/learning/infrastructure/labs/ai-test-automation", permanent: true },
