@@ -124,7 +124,7 @@ export default function AboutPage() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.4, delay: i * 0.07, ease: [0.16, 1, 0.3, 1] }}
-              className="flex items-start gap-3 rounded-md glass-card p-5"
+              className="flex items-start gap-3 rounded-md panel p-5"
             >
               <Award className="h-4 w-4 text-primary flex-shrink-0 mt-0.5" />
               <span className="text-body-sm text-muted-foreground">{achievement}</span>

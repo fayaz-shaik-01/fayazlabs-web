@@ -119,7 +119,7 @@ export function TestRunner({ autoOpen = false }: TestRunnerProps) {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
             transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-            className="hw-module w-[380px] overflow-hidden"
+            className="panel w-[380px] overflow-hidden"
           >
             {/* Header */}
             <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
@@ -157,7 +157,7 @@ export function TestRunner({ autoOpen = false }: TestRunnerProps) {
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           onClick={() => setOpen(true)}
-          className="hw-module p-3 text-primary hover:text-foreground transition-colors"
+          className="panel p-3 text-primary hover:text-foreground transition-colors"
           aria-label="Open test runner"
         >
           <Settings className="h-4 w-4" />

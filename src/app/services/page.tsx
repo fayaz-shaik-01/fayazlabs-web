@@ -121,7 +121,7 @@ export default function ServicesPage() {
         {services.map((service) => (
           <div
             key={service.title}
-            className="group rounded-md glass-card p-7"
+            className="group rounded-md panel p-7"
           >
             <div className="inline-flex h-11 w-11 items-center justify-center rounded-md bg-primary/[0.08] text-primary mb-5 ring-1 ring-primary/10 group-hover:ring-primary/25 group-hover:bg-primary/[0.12] transition-all duration-500">
               <service.icon className="h-5 w-5" />
@@ -145,7 +145,7 @@ export default function ServicesPage() {
         ))}
       </div>
 
-      <div className="relative mt-20 rounded-md glass-card p-8 sm:p-14 text-center overflow-hidden">
+      <div className="relative mt-20 rounded-md panel p-8 sm:p-14 text-center overflow-hidden">
         <div className="relative z-10">
           <h3 className="text-heading-xl mb-4">
             Ready to build something together?

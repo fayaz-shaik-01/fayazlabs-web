@@ -44,7 +44,7 @@ export default function ContactPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
-          className="group relative rounded-md glass-card p-8 overflow-hidden"
+          className="group relative rounded-md panel p-8 overflow-hidden"
         >
           <div className="relative z-10">
             <div className="inline-flex h-11 w-11 items-center justify-center rounded-md bg-primary/[0.08] text-primary mb-5 ring-1 ring-primary/10 group-hover:ring-primary/25 transition-all duration-500">
@@ -72,7 +72,7 @@ export default function ContactPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
-          className="group relative rounded-md glass-card p-8 overflow-hidden"
+          className="group relative rounded-md panel p-8 overflow-hidden"
         >
           <div className="relative z-10">
             <div className="inline-flex h-11 w-11 items-center justify-center rounded-md bg-accent/[0.08] text-accent mb-5 ring-1 ring-accent/10 group-hover:ring-accent/25 transition-all duration-500">
@@ -101,7 +101,7 @@ export default function ContactPage() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6, delay: 0.25, ease: [0.16, 1, 0.3, 1] }}
-        className="rounded-md glass-card p-8 mb-14"
+        className="rounded-md panel p-8 mb-14"
       >
         <h3 className="text-heading-md mb-6">Send a Message</h3>
         {submitted ? (
@@ -149,7 +149,7 @@ export default function ContactPage() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6, delay: 0.3, ease: [0.16, 1, 0.3, 1] }}
-        className="rounded-md glass-card p-8"
+        className="rounded-md panel p-8"
       >
         <h3 className="text-heading-md mb-6">Other Ways to Reach Me</h3>
         <div className="grid gap-4 sm:grid-cols-2">

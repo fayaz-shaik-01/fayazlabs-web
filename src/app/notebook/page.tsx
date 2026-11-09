@@ -30,7 +30,7 @@ export default function NotebookPage() {
           <Link
             key={entry.slug}
             href={`/${entry.slug}`}
-            className="group rounded-md glass-card overflow-hidden transition-all duration-500 hover:shadow-lg hover:shadow-primary/5"
+            className="group rounded-md panel overflow-hidden transition-all duration-500 hover:shadow-lg hover:shadow-primary/5"
           >
             {entry.images[0] && (
               <div className="relative aspect-[4/3] bg-card border-b border-border overflow-hidden">

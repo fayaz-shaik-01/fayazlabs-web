@@ -28,7 +28,7 @@ export default function ProjectsPage() {
           <Link
             key={project.slug}
             href={`/${project.slug}`}
-            className="group relative flex flex-col h-full glass-card rounded-md p-7"
+            className="group relative flex flex-col h-full panel rounded-md p-7"
           >
             
             <div className="relative z-10">

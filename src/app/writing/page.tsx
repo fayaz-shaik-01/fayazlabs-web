@@ -65,7 +65,7 @@ function WritingContent() {
         >
           <Link
             href={`/writing/${featuredPost.slugAsParams}`}
-            className="group relative block rounded-md glass-card p-8 overflow-hidden"
+            className="group relative block rounded-md panel p-8 overflow-hidden"
           >
             <div className="relative z-10">
             <Badge className="mb-3 bg-primary/15 text-primary border-primary/20">Featured</Badge>
@@ -155,7 +155,7 @@ function WritingContent() {
           >
             <Link
               href={`/writing/${post.slugAsParams}`}
-              className="group flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-md glass-card p-5"
+              className="group flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-md panel p-5"
             >
               <div className="flex-1 min-w-0">
                 <h3 className="text-[0.9375rem] font-semibold tracking-[-0.01em] group-hover:text-primary transition-colors truncate">

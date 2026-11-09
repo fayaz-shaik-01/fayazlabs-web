@@ -335,7 +335,6 @@ export function PracticeHub() {
     <>
       {/* Hero */}
       <section className="relative overflow-hidden">
-        <div className="absolute top-0 left-1/3 w-[500px] h-[500px] rounded-full bg-glow-primary/[0.05] blur-[140px]" />
 
         <div className="relative z-10 mx-auto max-w-6xl px-6 pt-32 pb-16 sm:pt-40 sm:pb-20">
           <motion.div

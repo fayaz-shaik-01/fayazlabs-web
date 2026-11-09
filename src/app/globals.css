@@ -47,21 +47,10 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
-  --animate-shimmer: shimmer 2s linear infinite;
-  --animate-float: float 6s ease-in-out infinite;
-  --animate-glow-pulse: glow-pulse 3s ease-in-out infinite;
-  --animate-gradient: gradient-shift 8s ease infinite;
-  --animate-ambient: ambient-drift 20s ease-in-out infinite;
   --color-surface-0: var(--surface-0);
   --color-surface-1: var(--surface-1);
   --color-surface-2: var(--surface-2);
   --color-surface-3: var(--surface-3);
-  --color-glow-primary: var(--glow-primary);
-  --color-glow-accent: var(--glow-accent);
-  --color-glow-violet: var(--glow-violet);
-  --color-lab-green: var(--lab-green);
-  --color-lab-amber: var(--lab-amber);
-  --color-lab-red: var(--lab-red);
   --color-accent-soft: var(--accent-soft);
   --color-warn: var(--warn);
   --color-warn-soft: var(--warn-soft);
@@ -114,13 +103,6 @@
   --surface-2: #e9eff2;
   --surface-3: #dfe7eb;
 
-  /* Legacy names kept so older classes keep working; all point at the new palette */
-  --glow-primary: #0b6e63;
-  --glow-accent: #0b6e63;
-  --glow-violet: #0b6e63;
-  --lab-green: #0b6e63;
-  --lab-amber: #a8500a;
-  --lab-red: #b42318;
 
   /* Shadows are used sparingly: a hairline lift on floating layers only */
   --shadow-float: 0 8px 28px rgb(17 34 46 / 0.12), 0 1px 0 rgb(17 34 46 / 0.04);
@@ -169,12 +151,6 @@
   --surface-2: #17303d;
   --surface-3: #1d3a49;
 
-  --glow-primary: #4fd1be;
-  --glow-accent: #4fd1be;
-  --glow-violet: #4fd1be;
-  --lab-green: #4fd1be;
-  --lab-amber: #f0a566;
-  --lab-red: #f07167;
 
   --shadow-float: 0 10px 32px rgb(0 0 0 / 0.45), 0 0 0 1px rgb(255 255 255 / 0.03);
 }
@@ -366,62 +342,16 @@
   }
 }
 
-/* ─── Keyframes ─── */
-@keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
-}
-
-@keyframes float {
-  0%, 100% { transform: translateY(0px); }
-  50% { transform: translateY(-20px); }
-}
-
-@keyframes glow-pulse {
-  0%, 100% { opacity: 0.4; }
-  50% { opacity: 1; }
-}
-
-@keyframes gradient-shift {
-  0%, 100% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-}
-
-@keyframes ambient-drift {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  25% { transform: translate(10px, -15px) scale(1.02); }
-  50% { transform: translate(-5px, 10px) scale(0.98); }
-  75% { transform: translate(15px, 5px) scale(1.01); }
-}
-
-@keyframes border-glow {
-  0%, 100% { opacity: 0.5; }
-  50% { opacity: 1; }
-}
-
-@keyframes pulse-ring {
-  0% { transform: scale(1); opacity: 0.6; }
-  100% { transform: scale(1.8); opacity: 0; }
-}
-
 /* ─── Utilities ─── */
 @layer utilities {
-  /* Flat surfaces. The old glass/glow/gradient class names stay as aliases so
-     unmigrated components keep rendering, but they no longer glow, blur or blend. */
-  .panel,
-  .glass-panel,
-  .glass-card,
-  .premium-card,
-  .hw-module {
+  /* Flat card surface; add .panel-interactive for the hover border on links */
+  .panel {
     background: var(--card);
     border: 1px solid var(--border);
     border-radius: 0.625rem;
     transition: border-color 0.2s ease, background-color 0.2s ease;
   }
-  .panel-interactive:hover,
-  .glass-card:hover,
-  .premium-card:hover,
-  .hw-module:hover {
+  .panel-interactive:hover {
     border-color: color-mix(in srgb, var(--primary) 55%, var(--border));
   }
 
@@ -437,39 +367,8 @@
     box-shadow: var(--shadow-float);
   }
 
-  /* Neutralised effects */
-  .glow-primary,
-  .glow-accent,
-  .glow-sm,
-  .gradient-border::before,
-  .border-glow::after,
-  .mesh-gradient,
-  .ambient-glow,
-  .dot-pattern,
-  .grid-pattern,
-  .shimmer-bg {
-    box-shadow: none;
-    background-image: none;
-    animation: none;
-  }
-  .gradient-border::before,
-  .border-glow::after {
-    content: none;
-  }
-  .text-glow {
-    text-shadow: none;
-  }
-  .text-gradient,
-  .text-gradient-hero {
-    background: none;
-    -webkit-text-fill-color: currentColor;
-    color: var(--primary);
-    animation: none;
-  }
-
   /* Mono eyebrow label */
-  .eyebrow,
-  .mono-tag {
+  .eyebrow {
     font-family: var(--font-mono), ui-monospace, monospace;
     font-size: 0.75rem;
     font-weight: 500;
@@ -587,9 +486,6 @@
     line-height: 1.6;
   }
 
-  .section-alt {
-    background: var(--surface-1);
-  }
 }
 
 /* ─── Reduced motion ─── */
@@ -603,11 +499,6 @@
     scroll-behavior: auto !important;
   }
 
-  .animate-float,
-  .animate-glow-pulse,
-  .shimmer-bg {
-    animation: none !important;
-  }
 }
 /* ---- Slide player ---- */
 .player-btn {

@@ -146,7 +146,6 @@ export function StudyDashboard() {
     <>
       {/* Hero */}
       <section className="relative overflow-hidden">
-        <div className="absolute top-0 right-1/4 w-[400px] h-[400px] rounded-full bg-glow-primary/[0.05] blur-[120px]" />
 
         <div className="relative z-10 mx-auto max-w-5xl px-6 pt-32 pb-12 sm:pt-40 sm:pb-16">
           <motion.div

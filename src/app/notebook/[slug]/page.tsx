@@ -94,7 +94,7 @@ export default async function NotebookEntryPage({
                 {entry.images.map((img: string, i: number) => (
                   <div
                     key={img}
-                    className="relative rounded-md glass-card p-6 overflow-hidden"
+                    className="relative rounded-md panel p-6 overflow-hidden"
                   >
                     <div className="absolute top-4 left-4">
                       <span className="inline-flex items-center gap-1 rounded-md bg-background/70 backdrop-blur-md border border-border px-2.5 py-1 text-[10px] font-mono font-medium text-muted-foreground">

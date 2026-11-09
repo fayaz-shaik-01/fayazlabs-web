@@ -1,21 +1,47 @@
-# Design notes
+# Design system
 
-**Status: the design revamp is NOT done.** The course design tokens and component CSS live in the private
-course repository, which could not be attached in this session, so no site-wide restyle was attempted
-(inventing a look would have to be redone).
+The site uses a flat, editorial "test report" look: paper-coloured page, white cards with 1px borders,
+one teal accent, mono uppercase labels. There is no glow, glass, gradient text or grid overlay.
 
-What exists:
+## Tokens (`src/app/globals.css`)
 
-- `src/app/course-prose.css` styles lesson fragments under `.course-prose` (callouts, cards, tables, code,
-  quiz blocks, links, reduced motion). It uses the site's existing theme variables (`--foreground`,
-  `--border`, `--card`, `--muted`, `--primary`, `--ring`), so light and dark follow the theme.
-  It is not the private course's CSS.
-- Player styles (`.player-btn`, `.player-watermark`) are at the end of `src/app/globals.css`.
-- `docs/design-review/` has desktop/phone, light/dark screenshots of the lesson page, synthetic content only.
+Semantic shadcn variables carry the palette, so every `ui/*` component follows the theme:
 
-To apply the real tokens: add them as CSS variables in `globals.css` (map them onto the shadcn variables
-above), replace the rules in `course-prose.css` with the course's component rules, then re-run
-`npx playwright test -c playwright.player.config.ts shots` to refresh the screenshots.
+| Token | Light | Dark |
+|---|---|---|
+| `--background` | `#f1f4f6` | `#0d1a22` |
+| `--card` / `--popover` | `#ffffff` | `#132530` |
+| `--foreground` | `#11222e` | `#e5eef2` |
+| `--muted-foreground` | `#55676f` | `#93a6b0` |
+| `--border` | `#d6dfe4` | `#24394a` |
+| `--primary` (teal accent) | `#0b6e63` | `#4fd1be` |
+| `--accent` / `--accent-soft` (tint) | `#dcefeb` | `#13383a` |
+| `--warn` / `--warn-soft` | `#a8500a` / `#f8e8d9` | `#f0a566` / `#3a2a1b` |
+| `--destructive` | `#b42318` | `#f07167` |
+
+`--surface-0..3` are elevation steps (page, card, inset/code, pressed). `--chart-1..5` is the chart palette.
+`--radius` is 0.5rem. Theme switching is `next-themes` with the `.dark` class; the default follows the system.
+
+## Fonts (`src/app/layout.tsx`)
+
+Bricolage Grotesque for headings (`font-heading`), Source Sans 3 for body, JetBrains Mono for labels and code
+(`font-mono`). All three are self-hosted through `next/font/google`.
+
+## Building blocks
+
+- `.panel` (+ `.panel-interactive` for linked cards): flat card surface.
+- `.eyebrow`: mono uppercase label. `.chip`: small tinted pill for IDs and categories (`.chip-warn` variant).
+- `.callout` (dashed accent box) and `.note` (soft warning strip).
+- `.text-display-*`, `.text-heading-*`, `.text-body*`: the type scale.
+- `BrandMark`, `SectionHeader`, `AnimatedSection` (now a plain section with the header offset) in `components/`.
+- Prose: `.prose` (MDX) and `.course-prose` (lesson fragments) share the same look.
+
+## Notes
+
+- Visualization internals (`components/visualizations/*`) keep their own data-series colours; only their
+  surrounding chrome follows the tokens.
+- The course has no per-lesson completion tracking yet, so the course page shows catalog stats, not progress bars.
+- Screenshots: `npx playwright test -c playwright.player.config.ts shots` refreshes `docs/design-review/`.
 
 # Player contract assumptions
 
