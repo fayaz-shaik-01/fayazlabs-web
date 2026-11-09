@@ -18,7 +18,13 @@ export default defineConfig({
   projects: [
     {
       name: "chromium",
-      use: { ...devices["Desktop Chrome"] },
+      use: {
+        ...devices["Desktop Chrome"],
+        // Set CHROMIUM_PATH to use a preinstalled browser (e.g. /opt/pw-browsers/chromium).
+        ...(process.env.CHROMIUM_PATH
+          ? { launchOptions: { executablePath: process.env.CHROMIUM_PATH } }
+          : {}),
+      },
     },
   ],
 
@@ -28,6 +34,8 @@ export default defineConfig({
         command: "npm run dev",
         url: "http://localhost:3000",
         reuseExistingServer: true,
+        // The UI tests run against the in-browser mock of the backend.
+        env: { NEXT_PUBLIC_API_MOCK: "1" },
         timeout: 120_000,
       },
 });

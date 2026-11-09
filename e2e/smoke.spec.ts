@@ -8,19 +8,32 @@ test.describe("Smoke Tests", () => {
 
   test("navigation links are visible", async ({ page }) => {
     await page.goto("/");
-    const nav = page.locator("nav");
+    const nav = page.locator("header nav");
     await expect(nav).toBeVisible();
   });
 
-  test("learning page loads", async ({ page }) => {
+  test("learning hub lists the AI Product Testing product", async ({ page }) => {
     await page.goto("/learning");
-    await expect(page.locator("body")).toContainText(/learning|track/i);
+    await expect(page.getByRole("heading", { name: "AI Product Testing" })).toBeVisible();
+    await expect(page.getByText("Free to start").first()).toBeVisible();
   });
 
-  test("practice page loads", async ({ page }) => {
-    await page.goto("/practice");
-    await expect(page.locator("body")).toContainText(/practice/i);
+  test("removed tracks and flagged routes are gone from the nav", async ({ page }) => {
+    await page.goto("/");
+    const nav = page.locator("header nav");
+    await expect(nav.getByRole("link", { name: "About" }).first()).toBeVisible();
+    for (const name of ["Practice", "Flashcards", "Formulas", "Dashboard"]) {
+      await expect(nav.getByRole("link", { name })).toHaveCount(0);
+    }
+    await expect(page.locator("body")).not.toContainText(/GATE|SDET Engineering/);
   });
+
+  for (const path of ["/practice", "/flashcards", "/formulas", "/exam", "/knowledge-graph", "/dashboard", "/tax"]) {
+    test(`${path} is hidden by default (feature flag off)`, async ({ page }) => {
+      const res = await page.goto(path);
+      expect(res?.status()).toBe(404);
+    });
+  }
 
   test("health check — no console errors on homepage", async ({ page }) => {
     const errors: string[] = [];
