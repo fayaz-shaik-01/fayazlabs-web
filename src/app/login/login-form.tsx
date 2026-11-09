@@ -39,6 +39,13 @@ declare global {
 
 type Mode = "login" | "register";
 
+/** Where to go after signing in: ?next=/some/path (same-site paths only). */
+function nextPath(): string {
+  if (typeof window === "undefined") return "/";
+  const next = new URLSearchParams(window.location.search).get("next");
+  return next && next.startsWith("/") && !next.startsWith("//") ? next : "/";
+}
+
 export function LoginForm() {
   const router = useRouter();
   const { login, register, loginWithGoogle, isAuthenticated } = useAuth();
@@ -54,7 +61,7 @@ export function LoginForm() {
   // redirect if already logged in
   useEffect(() => {
     if (isAuthenticated) {
-      router.replace("/");
+      router.replace(nextPath());
     }
   }, [isAuthenticated, router]);
 
@@ -69,7 +76,7 @@ export function LoginForm() {
       } else {
         await register(email, password, displayName || undefined);
       }
-      router.push("/");
+      router.push(nextPath());
     } catch (err) {
       if (err instanceof AuthError) {
         setError(err.message);
@@ -87,7 +94,7 @@ export function LoginForm() {
       setIsLoading(true);
       try {
         await loginWithGoogle(credential);
-        router.push("/");
+        router.push(nextPath());
       } catch (err) {
         if (err instanceof AuthError) {
           setError(err.message);
