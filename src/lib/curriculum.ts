@@ -75,12 +75,10 @@ export interface EntitlementCheck {
 // ── Manifest loading ──────────────────────────────────────────────────────
 
 // Static imports for all track manifests — enables tree-shaking and SSG
-import gateRa2027 from "../../content/learning/curriculum/gate-ra-2027.json";
-import sdetEngineering from "../../content/learning/curriculum/sdet-engineering.json";
 
 const trackManifestMap: Record<string, TrackMeta> = {
-  "gate-ra-2027.json": gateRa2027 as unknown as TrackMeta,
-  "sdet-engineering.json": sdetEngineering as unknown as TrackMeta,
+  // Track manifests are registered here. The SDET and GATE RA tracks were
+  // moved to content/_archive/ and will be rebuilt later.
 };
 
 const index = tracksIndex as unknown as TracksIndex;
