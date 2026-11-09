@@ -1,0 +1,222 @@
+{
+  "version": 1,
+  "course": {
+    "slug": "ai-product-testing",
+    "title": "AI Product Testing",
+    "summary": "A hands-on course on testing products built on LLMs and agents."
+  },
+  "levels": [
+    {
+      "id": "L0",
+      "title": "Level 0: Foundations",
+      "summary": "Get your bearings: what makes AI products different to test, and how to think about failure.",
+      "items": [
+        {
+          "id": "L0-01",
+          "kind": "lesson",
+          "title": "Why AI products break differently",
+          "summary": "Placeholder summary for the course skeleton.",
+          "minutes": 12,
+          "feature": "free"
+        },
+        {
+          "id": "L0-02",
+          "kind": "lesson",
+          "title": "Probabilistic outputs and what 'correct' means",
+          "summary": "Placeholder summary for the course skeleton.",
+          "minutes": 15,
+          "feature": "free"
+        },
+        {
+          "id": "L0-03",
+          "kind": "lesson",
+          "title": "A tour of the failure modes",
+          "summary": "Placeholder summary for the course skeleton.",
+          "minutes": 14,
+          "feature": "free"
+        },
+        {
+          "id": "L0-04",
+          "kind": "lesson",
+          "title": "Your first test plan for an AI feature",
+          "summary": "Placeholder summary for the course skeleton.",
+          "minutes": 18,
+          "feature": "free"
+        },
+        {
+          "id": "L0-05",
+          "kind": "lesson",
+          "title": "Reading a model's output critically",
+          "summary": "Placeholder summary for the course skeleton.",
+          "minutes": 16,
+          "feature": "free"
+        }
+      ]
+    },
+    {
+      "id": "L1",
+      "title": "Level 1: Core techniques",
+      "summary": "Build the everyday toolkit: golden sets, rubrics and regression checks for model-backed features.",
+      "items": [
+        {
+          "id": "L1-01",
+          "kind": "lesson",
+          "title": "Golden datasets that earn their keep",
+          "summary": "Placeholder summary for the course skeleton.",
+          "minutes": 20,
+          "feature": "lessons.paid"
+        },
+        {
+          "id": "L1-02",
+          "kind": "lesson",
+          "title": "Writing rubrics people agree on",
+          "summary": "Placeholder summary for the course skeleton.",
+          "minutes": 18,
+          "feature": "lessons.paid"
+        },
+        {
+          "id": "L1-03",
+          "kind": "lesson",
+          "title": "Prompt and model regression testing",
+          "summary": "Placeholder summary for the course skeleton.",
+          "minutes": 22,
+          "feature": "lessons.paid"
+        },
+        {
+          "id": "L1-04",
+          "kind": "lesson",
+          "title": "Testing retrieval and context",
+          "summary": "Placeholder summary for the course skeleton.",
+          "minutes": 20,
+          "feature": "lessons.paid"
+        },
+        {
+          "id": "L1-05",
+          "kind": "lesson",
+          "title": "Flakiness, seeds and tolerance bands",
+          "summary": "Placeholder summary for the course skeleton.",
+          "minutes": 16,
+          "feature": "lessons.paid"
+        },
+        {
+          "id": "L1-06",
+          "kind": "lab",
+          "title": "Lab: a regression suite for a support bot",
+          "summary": "Placeholder summary for the course skeleton.",
+          "minutes": 40,
+          "feature": "practice.labs"
+        }
+      ]
+    },
+    {
+      "id": "L2",
+      "title": "Level 2: Evaluation systems",
+      "summary": "Move from checks to systems: automated graders, human review loops and dashboards.",
+      "items": [
+        {
+          "id": "L2-01",
+          "kind": "lesson",
+          "title": "Designing an eval pipeline",
+          "summary": "Placeholder summary for the course skeleton.",
+          "minutes": 24,
+          "feature": "lessons.paid"
+        },
+        {
+          "id": "L2-02",
+          "kind": "lesson",
+          "title": "LLM-as-judge: when it works and when it lies",
+          "summary": "Placeholder summary for the course skeleton.",
+          "minutes": 22,
+          "feature": "lessons.paid"
+        },
+        {
+          "id": "L2-03",
+          "kind": "lesson",
+          "title": "Human review loops at small scale",
+          "summary": "Placeholder summary for the course skeleton.",
+          "minutes": 18,
+          "feature": "lessons.paid"
+        },
+        {
+          "id": "L2-04",
+          "kind": "lesson",
+          "title": "Testing agents and tool use",
+          "summary": "Placeholder summary for the course skeleton.",
+          "minutes": 26,
+          "feature": "lessons.paid"
+        },
+        {
+          "id": "L2-05",
+          "kind": "lesson",
+          "title": "Safety, abuse and red-team basics",
+          "summary": "Placeholder summary for the course skeleton.",
+          "minutes": 24,
+          "feature": "lessons.paid"
+        },
+        {
+          "id": "L2-06",
+          "kind": "lesson",
+          "title": "Cost, latency and quality trade-offs",
+          "summary": "Placeholder summary for the course skeleton.",
+          "minutes": 20,
+          "feature": "lessons.paid"
+        },
+        {
+          "id": "L2-07",
+          "kind": "lab",
+          "title": "Lab: build an eval harness",
+          "summary": "Placeholder summary for the course skeleton.",
+          "minutes": 50,
+          "feature": "practice.labs"
+        }
+      ]
+    },
+    {
+      "id": "L3",
+      "title": "Level 3: Production",
+      "summary": "Keep quality up after launch: monitoring, drift and incident response.",
+      "items": [
+        {
+          "id": "L3-01",
+          "kind": "lesson",
+          "title": "Monitoring quality in production",
+          "summary": "Placeholder summary for the course skeleton.",
+          "minutes": 22,
+          "feature": "lessons.paid"
+        },
+        {
+          "id": "L3-02",
+          "kind": "lesson",
+          "title": "Detecting drift and silent regressions",
+          "summary": "Placeholder summary for the course skeleton.",
+          "minutes": 20,
+          "feature": "lessons.paid"
+        },
+        {
+          "id": "L3-03",
+          "kind": "lesson",
+          "title": "Release gates for AI features",
+          "summary": "Placeholder summary for the course skeleton.",
+          "minutes": 18,
+          "feature": "lessons.paid"
+        },
+        {
+          "id": "L3-04",
+          "kind": "lesson",
+          "title": "Incident response for model failures",
+          "summary": "Placeholder summary for the course skeleton.",
+          "minutes": 20,
+          "feature": "lessons.paid"
+        },
+        {
+          "id": "L3-05",
+          "kind": "lab",
+          "title": "Lab: ship with a quality gate",
+          "summary": "Placeholder summary for the course skeleton.",
+          "minutes": 45,
+          "feature": "practice.labs"
+        }
+      ]
+    }
+  ]
+}
