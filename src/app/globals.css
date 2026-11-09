@@ -301,7 +301,10 @@
     @apply text-primary underline decoration-primary/40 underline-offset-[3px] hover:decoration-primary transition-colors font-semibold;
   }
   /* Heading anchors added by rehype-autolink-headings should read as headings, not links */
-  .prose :is(h2, h3, h4, h5) a {
+  .prose h2 a,
+  .prose h3 a,
+  .prose h4 a,
+  .prose h5 a {
     color: inherit;
     text-decoration: none;
     font-weight: inherit;
