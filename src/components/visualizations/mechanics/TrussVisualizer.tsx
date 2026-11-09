@@ -235,7 +235,7 @@ export default function TrussVisualizer({
 
       {/* Edit panel */}
       {selectedForce && (
-        <div className="space-y-2 border-t border-white/[0.06] pt-3">
+        <div className="space-y-2 border-t border-border pt-3">
           <div className="flex items-center justify-center gap-2 text-xs">
             <span className="font-mono text-muted-foreground font-medium">
               {selectedForce.label ?? `Force @ ${selectedForce.nodeId}`}

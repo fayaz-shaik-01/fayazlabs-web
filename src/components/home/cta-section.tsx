@@ -17,11 +17,11 @@ export function CTASection() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-            className="group relative rounded-[2px] glass-card p-8 sm:p-10 overflow-hidden"
+            className="group relative rounded-md glass-card p-8 sm:p-10 overflow-hidden"
           >
             <div className="absolute inset-0 bg-gradient-to-br from-primary/[0.04] via-transparent to-transparent" />
             <div className="relative z-10">
-              <div className="inline-flex h-12 w-12 items-center justify-center rounded-[2px] bg-primary/[0.08] text-primary mb-5 ring-1 ring-primary/15 group-hover:ring-primary/30 transition-all duration-500">
+              <div className="inline-flex h-12 w-12 items-center justify-center rounded-md bg-primary/[0.08] text-primary mb-5 ring-1 ring-primary/15 group-hover:ring-primary/30 transition-all duration-500">
                 <Briefcase className="h-5 w-5" />
               </div>
               <h3 className="text-heading-lg mb-3">
@@ -35,7 +35,7 @@ export function CTASection() {
                 href="/contact"
                 className={cn(
                   buttonVariants({ size: "lg" }),
-                  "gap-2 rounded-[2px] bg-primary text-primary-foreground shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 transition-all duration-400"
+                  "gap-2 rounded-md bg-primary text-primary-foreground shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 transition-all duration-400"
                 )}
               >
                 Get In Touch
@@ -49,11 +49,11 @@ export function CTASection() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.6, delay: 0.12, ease: [0.16, 1, 0.3, 1] }}
-            className="group relative rounded-[2px] glass-card p-8 sm:p-10 overflow-hidden"
+            className="group relative rounded-md glass-card p-8 sm:p-10 overflow-hidden"
           >
             <div className="absolute inset-0 bg-gradient-to-br from-glow-accent/[0.03] via-transparent to-transparent" />
             <div className="relative z-10">
-              <div className="inline-flex h-12 w-12 items-center justify-center rounded-[2px] bg-accent/[0.08] text-accent mb-5 ring-1 ring-accent/15 group-hover:ring-accent/30 transition-all duration-500">
+              <div className="inline-flex h-12 w-12 items-center justify-center rounded-md bg-accent/[0.08] text-accent mb-5 ring-1 ring-accent/15 group-hover:ring-accent/30 transition-all duration-500">
                 <Code className="h-5 w-5" />
               </div>
               <h3 className="text-heading-lg mb-3">
@@ -67,7 +67,7 @@ export function CTASection() {
                 href="/services"
                 className={cn(
                   buttonVariants({ variant: "outline", size: "lg" }),
-                  "gap-2 rounded-[2px] border-white/10 bg-white/[0.03] hover:bg-white/[0.06] hover:border-white/15 transition-all duration-400"
+                  "gap-2 rounded-md border-border bg-card hover:bg-muted hover:border-primary/50 transition-all duration-400"
                 )}
               >
                 View Services

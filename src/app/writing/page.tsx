@@ -65,7 +65,7 @@ function WritingContent() {
         >
           <Link
             href={`/writing/${featuredPost.slugAsParams}`}
-            className="group relative block rounded-[2px] glass-card p-8 overflow-hidden"
+            className="group relative block rounded-md glass-card p-8 overflow-hidden"
           >
             <div className="absolute inset-0 bg-gradient-to-br from-primary/[0.04] via-transparent to-transparent" />
             <div className="relative z-10">
@@ -92,7 +92,7 @@ function WritingContent() {
             placeholder="Search articles..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="pl-10 rounded-[2px] border-white/10 bg-white/[0.03] focus:border-primary/30 transition-colors"
+            className="pl-10 rounded-md border-border bg-card focus:border-primary/30 transition-colors"
           />
         </div>
 
@@ -100,10 +100,10 @@ function WritingContent() {
           <button
             onClick={() => setSelectedCategory(null)}
             className={cn(
-              "rounded-[2px] px-3 py-1 text-xs font-medium transition-colors",
+              "rounded-md px-3 py-1 text-xs font-medium transition-colors",
               !selectedCategory
                 ? "bg-primary text-primary-foreground"
-                : "bg-white/[0.04] text-muted-foreground hover:text-foreground"
+                : "bg-muted text-muted-foreground hover:text-foreground"
             )}
           >
             All
@@ -115,10 +115,10 @@ function WritingContent() {
                 setSelectedCategory(selectedCategory === cat ? null : cat)
               }
               className={cn(
-                "rounded-[2px] px-3 py-1 text-xs font-medium transition-colors",
+                "rounded-md px-3 py-1 text-xs font-medium transition-colors",
                 selectedCategory === cat
                   ? "bg-primary text-primary-foreground"
-                  : "bg-white/[0.04] text-muted-foreground hover:text-foreground"
+                  : "bg-muted text-muted-foreground hover:text-foreground"
               )}
             >
               {cat}
@@ -134,7 +134,7 @@ function WritingContent() {
                 setSelectedTag(selectedTag === tag ? null : tag)
               }
               className={cn(
-                "rounded-[2px] px-2.5 py-0.5 text-[11px] font-medium font-mono transition-colors",
+                "rounded-md px-2.5 py-0.5 text-[11px] font-medium font-mono transition-colors",
                 selectedTag === tag
                   ? "bg-primary/15 text-primary"
                   : "text-muted-foreground hover:text-foreground"
@@ -156,7 +156,7 @@ function WritingContent() {
           >
             <Link
               href={`/writing/${post.slugAsParams}`}
-              className="group flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-[2px] glass-card p-5"
+              className="group flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-md glass-card p-5"
             >
               <div className="flex-1 min-w-0">
                 <h3 className="text-[0.9375rem] font-semibold tracking-[-0.01em] group-hover:text-primary transition-colors truncate">

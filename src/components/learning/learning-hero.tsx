@@ -80,7 +80,7 @@ export function LearningHero(props: LearningHeroProps) {
             href="#tracks"
             className={cn(
               buttonVariants({ size: "lg" }),
-              "gap-2.5 rounded-[2px] bg-primary text-primary-foreground shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 transition-all duration-400 text-sm font-semibold px-7 h-11"
+              "gap-2.5 rounded-md bg-primary text-primary-foreground shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 transition-all duration-400 text-sm font-semibold px-7 h-11"
             )}
           >
             Start Learning
@@ -90,7 +90,7 @@ export function LearningHero(props: LearningHeroProps) {
             href="#tracks"
             className={cn(
               buttonVariants({ variant: "outline", size: "lg" }),
-              "gap-2.5 rounded-[2px] border-white/10 bg-white/[0.03] hover:bg-white/[0.06] hover:border-white/15 transition-all duration-400 text-sm font-semibold px-7 h-11"
+              "gap-2.5 rounded-md border-border bg-card hover:bg-muted hover:border-primary/50 transition-all duration-400 text-sm font-semibold px-7 h-11"
             )}
           >
             <Layers className="h-4 w-4" />

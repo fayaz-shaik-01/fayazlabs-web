@@ -81,7 +81,7 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
               href={project.github}
               target="_blank"
               rel="noopener noreferrer"
-              className={cn(buttonVariants({ variant: "outline", size: "sm" }), "border-white/10 bg-white/[0.03] hover:bg-white/[0.06]")}
+              className={cn(buttonVariants({ variant: "outline", size: "sm" }), "border-border bg-card hover:bg-muted")}
             >
               GitHub
             </Link>

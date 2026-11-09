@@ -156,7 +156,7 @@ function ProblemCard({
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
       transition={{ duration: 0.4, delay: index * 0.05 }}
-      className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5 sm:p-6"
+      className="rounded-xl border border-border bg-card p-5 sm:p-6"
     >
       {/* Header */}
       <div className="flex items-start justify-between gap-3 mb-4">
@@ -165,7 +165,7 @@ function ProblemCard({
           <span className={`text-[0.625rem] px-2 py-0.5 rounded border font-mono uppercase ${difficultyColor}`}>
             {problem.difficulty}
           </span>
-          <span className="text-[0.625rem] px-2 py-0.5 rounded border border-white/10 font-mono uppercase text-muted-foreground/60">
+          <span className="text-[0.625rem] px-2 py-0.5 rounded border border-border font-mono uppercase text-muted-foreground/60">
             {problem.type}
           </span>
         </div>
@@ -195,7 +195,7 @@ function ProblemCard({
                 disabled={showExplanation}
                 className={cn(
                   "w-full flex items-center gap-3 px-4 py-2.5 rounded-lg border text-left text-sm transition-all",
-                  !showExplanation && !isSelected && "border-white/[0.06] hover:border-white/[0.12] hover:bg-white/[0.03]",
+                  !showExplanation && !isSelected && "border-border hover:border-primary/50 hover:bg-muted",
                   !showExplanation && isSelected && "border-primary/40 bg-primary/5",
                   showExplanation && isAnswer && "border-lab-green/40 bg-lab-green/5 text-lab-green",
                   showExplanation && isSelected && !isAnswer && "border-lab-red/40 bg-lab-red/5 text-lab-red",
@@ -221,7 +221,7 @@ function ProblemCard({
             onChange={(e) => setNumericalAnswer(e.target.value)}
             disabled={showExplanation}
             placeholder="Enter your answer..."
-            className="flex-1 px-4 py-2.5 rounded-lg border border-white/[0.08] bg-white/[0.02] text-sm text-foreground placeholder:text-muted-foreground/40 focus:border-primary/40 focus:outline-none"
+            className="flex-1 px-4 py-2.5 rounded-lg border border-border bg-card text-sm text-foreground placeholder:text-muted-foreground/40 focus:border-primary/40 focus:outline-none"
           />
           {!showExplanation && (
             <button
@@ -272,7 +272,7 @@ function ProblemCard({
       {/* Tags */}
       <div className="mt-4 flex flex-wrap gap-1.5">
         {problem.tags.map((tag) => (
-          <span key={tag} className="text-[0.625rem] px-2 py-0.5 rounded-full bg-white/[0.04] text-muted-foreground/50 font-mono">
+          <span key={tag} className="text-[0.625rem] px-2 py-0.5 rounded-full bg-muted text-muted-foreground/50 font-mono">
             {tag}
           </span>
         ))}
@@ -422,7 +422,7 @@ export function PracticeHub() {
           <select
             value={selectedTrack}
             onChange={(e) => setSelectedTrack(e.target.value)}
-            className="px-3 py-1.5 rounded-lg border border-white/[0.08] bg-white/[0.02] text-xs text-foreground focus:border-primary/40 focus:outline-none"
+            className="px-3 py-1.5 rounded-lg border border-border bg-card text-xs text-foreground focus:border-primary/40 focus:outline-none"
           >
             <option value="all">All Tracks</option>
             {tracks.map((t) => (
@@ -433,7 +433,7 @@ export function PracticeHub() {
           <select
             value={selectedDifficulty}
             onChange={(e) => setSelectedDifficulty(e.target.value)}
-            className="px-3 py-1.5 rounded-lg border border-white/[0.08] bg-white/[0.02] text-xs text-foreground focus:border-primary/40 focus:outline-none"
+            className="px-3 py-1.5 rounded-lg border border-border bg-card text-xs text-foreground focus:border-primary/40 focus:outline-none"
           >
             <option value="all">All Difficulties</option>
             <option value="beginner">Beginner</option>

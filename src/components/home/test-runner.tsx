@@ -122,7 +122,7 @@ export function TestRunner({ autoOpen = false }: TestRunnerProps) {
             className="hw-module w-[380px] overflow-hidden"
           >
             {/* Header */}
-            <div className="flex items-center justify-between border-b border-white/[0.06] px-4 py-2.5">
+            <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
               <span className="mono-tag text-lab-green text-[10px]">Automated Test Runner</span>
               <button
                 onClick={() => setOpen(false)}

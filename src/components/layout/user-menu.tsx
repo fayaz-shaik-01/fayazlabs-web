@@ -24,7 +24,7 @@ export function UserMenu() {
 
   if (isLoading) {
     return (
-      <div className="h-8 w-8 rounded-[2px] bg-muted animate-pulse" />
+      <div className="h-8 w-8 rounded-md bg-muted animate-pulse" />
     );
   }
 
@@ -32,7 +32,7 @@ export function UserMenu() {
     return (
       <Link
         href="/login"
-        className="inline-flex h-8 w-8 items-center justify-center rounded-[2px] text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
       >
         <LogIn className="h-3.5 w-3.5" />
         <span className="sr-only">Sign in</span>
@@ -54,7 +54,7 @@ export function UserMenu() {
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="flex h-8 w-8 items-center justify-center rounded-[2px] overflow-hidden border border-border bg-muted text-xs font-semibold text-foreground transition-colors hover:bg-muted/80 focus-visible:ring-2 focus-visible:ring-ring"
+        className="flex h-8 w-8 items-center justify-center rounded-md overflow-hidden border border-border bg-muted text-xs font-semibold text-foreground transition-colors hover:bg-muted/80 focus-visible:ring-2 focus-visible:ring-ring"
       >
         {user.avatarUrl ? (
           <img

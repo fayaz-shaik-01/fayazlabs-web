@@ -31,7 +31,7 @@ export function TrustStrip() {
             {[...technologies, ...technologies].map((tech, i) => (
               <span
                 key={`${tech}-${i}`}
-                className="whitespace-nowrap rounded-[2px] border border-white/10 bg-white/[0.03] px-4 py-1.5 text-[13px] font-mono font-medium text-foreground/60 hover:text-lab-green hover:border-lab-green/20 hover:bg-lab-green/[0.04] transition-all duration-300"
+                className="whitespace-nowrap rounded-md border border-border bg-card px-4 py-1.5 text-[13px] font-mono font-medium text-foreground/60 hover:text-lab-green hover:border-lab-green/20 hover:bg-lab-green/[0.04] transition-all duration-300"
               >
                 {tech}
               </span>
@@ -49,7 +49,7 @@ export function TrustStrip() {
             {[...technologies2, ...technologies2].map((tech, i) => (
               <span
                 key={`${tech}-${i}`}
-                className="whitespace-nowrap rounded-[2px] border border-white/10 bg-white/[0.03] px-4 py-1.5 text-[13px] font-mono font-medium text-foreground/60 hover:text-lab-green hover:border-lab-green/20 hover:bg-lab-green/[0.04] transition-all duration-300"
+                className="whitespace-nowrap rounded-md border border-border bg-card px-4 py-1.5 text-[13px] font-mono font-medium text-foreground/60 hover:text-lab-green hover:border-lab-green/20 hover:bg-lab-green/[0.04] transition-all duration-300"
               >
                 {tech}
               </span>

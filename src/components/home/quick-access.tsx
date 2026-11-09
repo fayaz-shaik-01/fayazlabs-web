@@ -53,7 +53,7 @@ export function QuickAccess() {
           >
             <Link
               href={link.href}
-              className="group flex flex-col rounded-xl border border-white/[0.06] bg-white/[0.02] p-5 h-full transition-all duration-300 hover:border-white/[0.12] hover:bg-white/[0.04] hover:-translate-y-0.5"
+              className="group flex flex-col rounded-xl border border-border bg-card p-5 h-full transition-all duration-300 hover:border-primary/50 hover:bg-muted"
             >
               <span className={`flex h-10 w-10 items-center justify-center rounded-lg ${link.bgColor} ${link.color} mb-4`}>
                 {link.icon}

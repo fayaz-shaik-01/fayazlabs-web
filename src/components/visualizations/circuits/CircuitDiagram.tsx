@@ -374,7 +374,7 @@ export default function CircuitDiagram({
 
       {/* Edit panel */}
       {selectedComp?.value !== undefined && (
-        <div className="flex items-center justify-center gap-3 text-xs border-t border-white/[0.06] pt-3">
+        <div className="flex items-center justify-center gap-3 text-xs border-t border-border pt-3">
           <span className="font-mono text-muted-foreground">
             {selectedComp.label ?? selectedComp.id}:
           </span>
@@ -382,7 +382,7 @@ export default function CircuitDiagram({
             type="text"
             value={selectedComp.value}
             onChange={(e) => handleValueChange(selectedComp.id, e.target.value)}
-            className="w-24 px-2 py-1 text-xs font-mono rounded bg-white/[0.06] border border-white/[0.08] text-foreground focus:outline-none focus:border-primary"
+            className="w-24 px-2 py-1 text-xs font-mono rounded bg-muted border border-border text-foreground focus:outline-none focus:border-primary"
           />
         </div>
       )}

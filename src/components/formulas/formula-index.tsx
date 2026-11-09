@@ -121,7 +121,7 @@ function FormulaCard({ formula, index }: Readonly<{ formula: Formula; index: num
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
       transition={{ duration: 0.4, delay: index * 0.04 }}
-      className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5 hover:border-white/[0.12] transition-colors group"
+      className="rounded-xl border border-border bg-card p-5 hover:border-primary/50 transition-colors group"
     >
       {/* Header */}
       <div className="flex items-start justify-between mb-3">
@@ -140,7 +140,7 @@ function FormulaCard({ formula, index }: Readonly<{ formula: Formula; index: num
       </div>
 
       {/* LaTeX rendered via KaTeX */}
-      <div className="my-3 p-4 rounded-lg bg-white/[0.02] border border-white/[0.04] text-center overflow-x-auto">
+      <div className="my-3 p-4 rounded-lg bg-card border border-border text-center overflow-x-auto">
         <LatexRenderer latex={formula.latex} display />
       </div>
 
@@ -157,7 +157,7 @@ function FormulaCard({ formula, index }: Readonly<{ formula: Formula; index: num
           {formula.tags.map((tag) => (
             <span
               key={tag}
-              className="text-[0.5625rem] px-1.5 py-0.5 rounded-full bg-white/[0.04] text-muted-foreground/50 font-mono"
+              className="text-[0.5625rem] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground/50 font-mono"
             >
               {tag}
             </span>
@@ -264,7 +264,7 @@ export function FormulaIndex() {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search formulas..."
-              className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-white/[0.08] bg-white/[0.02] text-sm text-foreground placeholder:text-muted-foreground/40 focus:border-primary/40 focus:outline-none"
+              className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-border bg-card text-sm text-foreground placeholder:text-muted-foreground/40 focus:border-primary/40 focus:outline-none"
             />
           </div>
 
@@ -274,7 +274,7 @@ export function FormulaIndex() {
           <select
             value={selectedTrack}
             onChange={(e) => setSelectedTrack(e.target.value)}
-            className="px-3 py-2.5 rounded-lg border border-white/[0.08] bg-white/[0.02] text-xs text-foreground focus:border-primary/40 focus:outline-none"
+            className="px-3 py-2.5 rounded-lg border border-border bg-card text-xs text-foreground focus:border-primary/40 focus:outline-none"
           >
             <option value="all">All Tracks</option>
             {tracks.map((t) => (

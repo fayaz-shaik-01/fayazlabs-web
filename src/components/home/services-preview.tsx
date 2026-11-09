@@ -72,9 +72,9 @@ export function ServicesPreview() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-60px" }}
               transition={{ duration: 0.5, delay: i * 0.07, ease: [0.16, 1, 0.3, 1] }}
-              className="group rounded-[2px] glass-card p-6"
+              className="group rounded-md glass-card p-6"
             >
-              <div className="inline-flex h-10 w-10 items-center justify-center rounded-[2px] bg-primary/[0.08] text-primary mb-4 ring-1 ring-primary/10 group-hover:ring-primary/25 group-hover:bg-primary/[0.12] transition-all duration-500">
+              <div className="inline-flex h-10 w-10 items-center justify-center rounded-md bg-primary/[0.08] text-primary mb-4 ring-1 ring-primary/10 group-hover:ring-primary/25 group-hover:bg-primary/[0.12] transition-all duration-500">
                 <service.icon className="h-4.5 w-4.5" />
               </div>
               <h3 className="text-[0.9375rem] font-semibold mb-2 tracking-[-0.01em] group-hover:text-primary transition-colors duration-300">{service.title}</h3>
@@ -95,7 +95,7 @@ export function ServicesPreview() {
             href="/services"
             className={cn(
               buttonVariants({ variant: "outline", size: "lg" }),
-              "rounded-[2px] border-white/10 bg-white/[0.03] hover:bg-white/[0.06] hover:border-white/15 transition-all duration-400"
+              "rounded-md border-border bg-card hover:bg-muted hover:border-primary/50 transition-all duration-400"
             )}
           >
             View All Services

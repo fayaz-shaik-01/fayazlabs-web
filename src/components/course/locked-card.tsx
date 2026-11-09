@@ -29,13 +29,13 @@ export function LockedCard({
           : "Your current plan does not include this. Upgrade to unlock it."}
       </p>
       <div className="mt-6 flex flex-wrap justify-center gap-3">
-        <Link href="/pricing" className={cn(buttonVariants({ size: "lg" }), "rounded-[2px]")}>
+        <Link href="/pricing" className={cn(buttonVariants({ size: "lg" }), "rounded-md")}>
           Upgrade
         </Link>
         {reason === "login" && (
           <Link
             href={`/login?next=${encodeURIComponent(returnTo)}`}
-            className={cn(buttonVariants({ variant: "outline", size: "lg" }), "rounded-[2px]")}
+            className={cn(buttonVariants({ variant: "outline", size: "lg" }), "rounded-md")}
           >
             Sign in
           </Link>

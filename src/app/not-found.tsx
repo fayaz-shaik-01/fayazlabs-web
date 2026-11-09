@@ -38,7 +38,7 @@ export default function NotFound() {
           href="/projects"
           className={cn(
             buttonVariants({ variant: "outline", size: "lg" }),
-            "gap-2 border-white/10 bg-white/[0.03] hover:bg-white/[0.06] hover:border-white/15"
+            "gap-2 border-border bg-card hover:bg-muted hover:border-primary/50"
           )}
         >
           <ArrowLeft className="h-4 w-4" />

@@ -12,7 +12,7 @@ const config: Record<LessonStatus, { label: string; className: string }> = {
   },
   planned: {
     label: "Planned",
-    className: "bg-white/5 text-muted-foreground border-white/10",
+    className: "bg-muted text-muted-foreground border-border",
   },
   experimental: {
     label: "Experimental",

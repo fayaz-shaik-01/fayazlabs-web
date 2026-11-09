@@ -74,7 +74,7 @@ export function TaxChatClient() {
   }
 
   return (
-    <div className="flex flex-col flex-1 rounded-[2px] border border-border overflow-hidden min-h-0">
+    <div className="flex flex-col flex-1 rounded-md border border-border overflow-hidden min-h-0">
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0">
         {messages.length === 0 && (
@@ -106,7 +106,7 @@ export function TaxChatClient() {
             className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
           >
             <div
-              className={`max-w-[80%] rounded-[2px] px-4 py-2.5 text-sm leading-relaxed ${
+              className={`max-w-[80%] rounded-md px-4 py-2.5 text-sm leading-relaxed ${
                 m.role === "user"
                   ? "bg-primary text-primary-foreground"
                   : "bg-muted text-foreground"
@@ -119,7 +119,7 @@ export function TaxChatClient() {
 
         {loading && (
           <div className="flex justify-start">
-            <div className="bg-muted rounded-[2px] px-4 py-2.5 text-sm text-muted-foreground">
+            <div className="bg-muted rounded-md px-4 py-2.5 text-sm text-muted-foreground">
               Thinking…
             </div>
           </div>
@@ -141,12 +141,12 @@ export function TaxChatClient() {
           onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && sendMessage(input)}
           placeholder="Ask about your taxes…"
           disabled={loading}
-          className="flex-1 rounded-[2px] border border-border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-60"
+          className="flex-1 rounded-md border border-border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-60"
         />
         <button
           onClick={() => sendMessage(input)}
           disabled={loading || !input.trim()}
-          className="rounded-[2px] bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+          className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
         >
           Send
         </button>

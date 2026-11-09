@@ -262,7 +262,7 @@ export default function MatrixDisplay({
               "rounded-md border px-3 py-1 text-xs transition-colors",
               activeOp === -1
                 ? "border-primary bg-primary/10 text-primary"
-                : "border-border/50 text-muted-foreground hover:bg-white/[0.04]",
+                : "border-border/50 text-muted-foreground hover:bg-muted",
             )}
           >
             Original
@@ -276,7 +276,7 @@ export default function MatrixDisplay({
                 "rounded-md border px-3 py-1 text-xs transition-colors",
                 activeOp === i
                   ? "border-primary bg-primary/10 text-primary"
-                  : "border-border/50 text-muted-foreground hover:bg-white/[0.04]",
+                  : "border-border/50 text-muted-foreground hover:bg-muted",
               )}
             >
               {op.label}

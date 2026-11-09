@@ -99,7 +99,7 @@ export default function AboutPage() {
               transition={{ duration: 0.5, delay: i * 0.12, ease: [0.16, 1, 0.3, 1] }}
               className="relative pl-14"
             >
-              <div className="absolute left-0 top-0 flex h-10 w-10 items-center justify-center rounded-[2px] bg-primary/[0.08] ring-1 ring-primary/10">
+              <div className="absolute left-0 top-0 flex h-10 w-10 items-center justify-center rounded-md bg-primary/[0.08] ring-1 ring-primary/10">
                 <item.icon className="h-4 w-4 text-primary" />
               </div>
               <span className="text-[11px] font-semibold uppercase tracking-wider text-primary/70">
@@ -124,7 +124,7 @@ export default function AboutPage() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.4, delay: i * 0.07, ease: [0.16, 1, 0.3, 1] }}
-              className="flex items-start gap-3 rounded-[2px] glass-card p-5"
+              className="flex items-start gap-3 rounded-md glass-card p-5"
             >
               <Award className="h-4 w-4 text-primary flex-shrink-0 mt-0.5" />
               <span className="text-body-sm text-muted-foreground">{achievement}</span>
@@ -140,7 +140,7 @@ export default function AboutPage() {
             href={siteConfig.links.github}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-2.5 text-sm text-muted-foreground hover:text-foreground px-4 py-2.5 rounded-[2px] bg-white/[0.03] border border-white/10 hover:bg-primary/[0.06] hover:border-primary/20 hover:text-primary transition-all duration-300"
+            className="inline-flex items-center gap-2.5 text-sm text-muted-foreground hover:text-foreground px-4 py-2.5 rounded-md bg-card border border-border hover:bg-primary/[0.06] hover:border-primary/20 hover:text-primary transition-all duration-300"
           >
             <GithubIcon className="h-4 w-4" />
             GitHub
@@ -149,14 +149,14 @@ export default function AboutPage() {
             href={siteConfig.links.linkedin}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-2.5 text-sm text-muted-foreground hover:text-foreground px-4 py-2.5 rounded-[2px] bg-white/[0.03] border border-white/10 hover:bg-primary/[0.06] hover:border-primary/20 hover:text-primary transition-all duration-300"
+            className="inline-flex items-center gap-2.5 text-sm text-muted-foreground hover:text-foreground px-4 py-2.5 rounded-md bg-card border border-border hover:bg-primary/[0.06] hover:border-primary/20 hover:text-primary transition-all duration-300"
           >
             <LinkedinIcon className="h-4 w-4" />
             LinkedIn
           </Link>
           <Link
             href={siteConfig.links.email}
-            className="inline-flex items-center gap-2.5 text-sm text-muted-foreground hover:text-foreground px-4 py-2.5 rounded-[2px] bg-white/[0.03] border border-white/10 hover:bg-primary/[0.06] hover:border-primary/20 hover:text-primary transition-all duration-300"
+            className="inline-flex items-center gap-2.5 text-sm text-muted-foreground hover:text-foreground px-4 py-2.5 rounded-md bg-card border border-border hover:bg-primary/[0.06] hover:border-primary/20 hover:text-primary transition-all duration-300"
           >
             Email
           </Link>

@@ -88,7 +88,7 @@ export function TableOfContents() {
           On this page
         </span>
       </div>
-      <ul className="space-y-1 border-l border-white/[0.06]">
+      <ul className="space-y-1 border-l border-border">
         {headings.map((heading) => (
           <li key={heading.id}>
             <button
@@ -98,7 +98,7 @@ export function TableOfContents() {
                 heading.level === 3 ? "pl-6" : "pl-4",
                 activeId === heading.id
                   ? "border-primary text-foreground font-medium"
-                  : "border-transparent text-muted-foreground/70 hover:text-foreground/80 hover:border-white/[0.1]"
+                  : "border-transparent text-muted-foreground/70 hover:text-foreground/80 hover:border-primary/50"
               )}
             >
               {heading.text}

@@ -57,7 +57,7 @@ export default function LearningPage() {
             <li key={product.slug}>
               <Link
                 href={product.href}
-                className="group flex h-full flex-col rounded-xl border border-border bg-card/50 p-6 transition-all duration-300 hover:border-primary/40 hover:-translate-y-0.5"
+                className="group flex h-full flex-col rounded-xl border border-border bg-card/50 p-6 transition-all duration-300 hover:border-primary/40"
               >
                 {product.badge && (
                   <Badge variant="secondary" className="mb-3 w-fit">

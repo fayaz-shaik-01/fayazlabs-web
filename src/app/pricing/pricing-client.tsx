@@ -113,7 +113,7 @@ export function PricingClient() {
               {isFree ? (
                 <Link
                   href="/learning/ai-product-testing"
-                  className={cn(buttonVariants({ variant: "outline", size: "lg" }), "rounded-[2px]")}
+                  className={cn(buttonVariants({ variant: "outline", size: "lg" }), "rounded-md")}
                 >
                   Start free
                 </Link>
@@ -121,7 +121,7 @@ export function PricingClient() {
                 <div>
                   <Button
                     size="lg"
-                    className="w-full rounded-[2px]"
+                    className="w-full rounded-md"
                     disabled={busy !== null || isCurrent}
                     onClick={() => subscribe(plan)}
                   >

@@ -55,7 +55,7 @@ export function CurrentlyBuilding() {
               whileInView={{ opacity: 1, x: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.5, delay: i * 0.1, ease: [0.16, 1, 0.3, 1] }}
-              className="group flex items-start gap-4 rounded-[2px] glass-card p-6"
+              className="group flex items-start gap-4 rounded-md glass-card p-6"
             >
               <div className="mt-1 flex-shrink-0">
                 <span className="relative flex h-3 w-3">
@@ -71,7 +71,7 @@ export function CurrentlyBuilding() {
               <div>
                 <div className="flex items-center gap-2.5 mb-1.5">
                   <h3 className="text-[0.9375rem] font-semibold tracking-[-0.01em] group-hover:text-foreground transition-colors">{item.title}</h3>
-                  <span className={`text-[10px] font-mono font-semibold uppercase tracking-wider px-2 py-0.5 rounded-[2px] ${
+                  <span className={`text-[10px] font-mono font-semibold uppercase tracking-wider px-2 py-0.5 rounded-md ${
                     item.status === "active"
                       ? "text-green-400 bg-green-500/10"
                       : "text-amber-400 bg-amber-500/10"

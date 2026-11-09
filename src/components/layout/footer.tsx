@@ -28,7 +28,7 @@ export function Footer() {
               href="/"
               className="group flex items-center gap-2.5 font-bold text-lg tracking-[-0.02em]"
             >
-              <span className="relative inline-flex h-8 w-8 items-center justify-center rounded-[2px] bg-gradient-to-br from-primary via-chart-3 to-accent text-white text-sm font-bold transition-transform group-hover:scale-105">
+              <span className="relative inline-flex h-8 w-8 items-center justify-center rounded-md bg-gradient-to-br from-primary via-chart-3 to-accent text-white text-sm font-bold transition-transform group-hover:scale-105">
                 F
               </span>
               <span className="text-foreground/80">{siteConfig.name}</span>
@@ -83,7 +83,7 @@ export function Footer() {
                 href={siteConfig.links.github}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex h-9 w-9 items-center justify-center rounded-[2px] bg-white/[0.04] text-muted-foreground hover:text-foreground hover:bg-primary/10 hover:text-primary transition-all duration-300"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-muted text-muted-foreground hover:text-foreground hover:bg-primary/10 hover:text-primary transition-all duration-300"
               >
                 <GithubIcon className="h-4 w-4" />
                 <span className="sr-only">GitHub</span>
@@ -92,14 +92,14 @@ export function Footer() {
                 href={siteConfig.links.linkedin}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex h-9 w-9 items-center justify-center rounded-[2px] bg-white/[0.04] text-muted-foreground hover:text-foreground hover:bg-primary/10 hover:text-primary transition-all duration-300"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-muted text-muted-foreground hover:text-foreground hover:bg-primary/10 hover:text-primary transition-all duration-300"
               >
                 <LinkedinIcon className="h-4 w-4" />
                 <span className="sr-only">LinkedIn</span>
               </Link>
               <Link
                 href={siteConfig.links.email}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-[2px] bg-white/[0.04] text-muted-foreground hover:text-foreground hover:bg-primary/10 hover:text-primary transition-all duration-300"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-muted text-muted-foreground hover:text-foreground hover:bg-primary/10 hover:text-primary transition-all duration-300"
               >
                 <Mail className="h-4 w-4" />
                 <span className="sr-only">Email</span>
@@ -108,7 +108,7 @@ export function Footer() {
           </div>
         </div>
 
-        <div className="mt-14 flex flex-col items-center justify-between gap-4 border-t border-white/[0.05] pt-8 sm:flex-row">
+        <div className="mt-14 flex flex-col items-center justify-between gap-4 border-t border-border pt-8 sm:flex-row">
           <p className="text-xs text-muted-foreground/50">
             &copy; {new Date().getFullYear()} {siteConfig.name}. All rights
             reserved.

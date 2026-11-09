@@ -155,7 +155,7 @@ function FlashcardCard({
               animate={{ rotateY: 0, opacity: 1 }}
               exit={{ rotateY: -90, opacity: 0 }}
               transition={{ duration: 0.3 }}
-              className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-8 sm:p-10 flex flex-col items-center justify-center text-center"
+              className="rounded-xl border border-border bg-card p-8 sm:p-10 flex flex-col items-center justify-center text-center"
               style={{ minHeight: 280 }}
             >
               <div className="mono-tag text-primary mb-4 flex items-center gap-1.5">
@@ -194,7 +194,7 @@ function FlashcardCard({
         {card.tags.map((tag) => (
           <span
             key={tag}
-            className="text-[0.625rem] px-2 py-0.5 rounded-full bg-white/[0.04] text-muted-foreground/50 font-mono"
+            className="text-[0.625rem] px-2 py-0.5 rounded-full bg-muted text-muted-foreground/50 font-mono"
           >
             {tag}
           </span>
@@ -248,7 +248,7 @@ function LeitnerBoxes({ cards }: Readonly<{ cards: Flashcard[] }>) {
       {LEITNER_BOXES.map((box, i) => (
         <div
           key={box.label}
-          className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3 text-center"
+          className="rounded-lg border border-border bg-card p-3 text-center"
         >
           <div className={cn("text-lg font-bold font-mono", box.color)}>
             {boxCounts[i]}
@@ -463,7 +463,7 @@ export function FlashcardHub() {
               setSelectedTrack(e.target.value);
               setCurrentIndex(0);
             }}
-            className="px-3 py-1.5 rounded-lg border border-white/[0.08] bg-white/[0.02] text-xs text-foreground focus:border-primary/40 focus:outline-none"
+            className="px-3 py-1.5 rounded-lg border border-border bg-card text-xs text-foreground focus:border-primary/40 focus:outline-none"
           >
             <option value="all">All Tracks</option>
             {tracks.map((t) => (
@@ -493,7 +493,7 @@ export function FlashcardHub() {
                 <Clock className="h-3 w-3" />
                 Card {(currentIndex % filteredCards.length) + 1} of {filteredCards.length}
               </span>
-              <div className="h-1 flex-1 mx-4 rounded-full bg-white/[0.06] overflow-hidden">
+              <div className="h-1 flex-1 mx-4 rounded-full bg-muted overflow-hidden">
                 <div
                   className="h-full rounded-full bg-primary/60 transition-all duration-300"
                   style={{

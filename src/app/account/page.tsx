@@ -56,7 +56,7 @@ export default function AccountPage() {
         <p className="mt-3 text-sm text-muted-foreground">Sign in to see your plan.</p>
         <Link
           href="/login?next=/account"
-          className={cn(buttonVariants({ size: "lg" }), "mt-6 rounded-[2px]")}
+          className={cn(buttonVariants({ size: "lg" }), "mt-6 rounded-md")}
         >
           Sign in
         </Link>
@@ -105,7 +105,7 @@ export default function AccountPage() {
           </p>
         ) : sub ? (
           <div className="mt-5">
-            <Button variant="outline" onClick={cancel} disabled={cancelling} className="rounded-[2px]">
+            <Button variant="outline" onClick={cancel} disabled={cancelling} className="rounded-md">
               {cancelling && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Cancel at period end
             </Button>
@@ -114,7 +114,7 @@ export default function AccountPage() {
             </p>
           </div>
         ) : (
-          <Link href="/pricing" className={cn(buttonVariants({ size: "lg" }), "mt-5 rounded-[2px]")}>
+          <Link href="/pricing" className={cn(buttonVariants({ size: "lg" }), "mt-5 rounded-md")}>
             See plans
           </Link>
         )}
@@ -130,7 +130,7 @@ export default function AccountPage() {
           You are signed in on this device{sessionId ? ` (session ${sessionId.slice(0, 8)})` : ""}. An account can
           be signed in on one device at a time, so signing in somewhere else will sign this device out.
         </p>
-        <Button variant="ghost" onClick={() => logout()} className="mt-4 rounded-[2px]">
+        <Button variant="ghost" onClick={() => logout()} className="mt-4 rounded-md">
           Sign out
         </Button>
       </section>

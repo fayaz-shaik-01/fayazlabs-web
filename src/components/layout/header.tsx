@@ -42,21 +42,21 @@ export function Header() {
           href="/"
           className="group flex items-center gap-2.5 font-bold tracking-[-0.02em]"
         >
-          <span className="relative inline-flex h-8 w-8 items-center justify-center rounded-[2px] bg-gradient-to-br from-primary via-chart-3 to-accent text-white text-sm font-bold transition-transform group-hover:scale-110">
+          <span className="relative inline-flex h-8 w-8 items-center justify-center rounded-md bg-gradient-to-br from-primary via-chart-3 to-accent text-white text-sm font-bold transition-transform group-hover:scale-110">
             F
-            <span className="absolute inset-0 rounded-[2px] bg-gradient-to-br from-primary via-chart-3 to-accent opacity-0 group-hover:opacity-100 blur-md transition-opacity" />
+            <span className="absolute inset-0 rounded-md bg-gradient-to-br from-primary via-chart-3 to-accent opacity-0 group-hover:opacity-100 blur-md transition-opacity" />
           </span>
           <span className="hidden sm:inline text-foreground/90">{siteConfig.name}</span>
         </Link>
 
-        <div className="hidden md:flex items-center gap-1 rounded-[2px] border border-border bg-muted/30 px-1.5 py-1">
+        <div className="hidden md:flex items-center gap-1 rounded-md border border-border bg-muted/30 px-1.5 py-1">
           {getNav().map((item) => (
             <Link
               key={item.href}
               href={item.href}
               aria-current={isActive(pathname, item.href) ? "page" : undefined}
               className={cn(
-                "relative px-3 py-1.5 text-[0.8125rem] font-medium tracking-[-0.006em] transition-all duration-300 rounded-[2px]",
+                "relative px-3 py-1.5 text-[0.8125rem] font-medium tracking-[-0.006em] transition-all duration-300 rounded-md",
                 isActive(pathname, item.href)
                   ? "text-foreground"
                   : "text-muted-foreground hover:text-foreground"
@@ -65,7 +65,7 @@ export function Header() {
               {isActive(pathname, item.href) && (
                 <motion.span
                   layoutId="nav-indicator"
-                  className="absolute inset-0 rounded-[2px] bg-foreground/[0.06] border border-border"
+                  className="absolute inset-0 rounded-md bg-foreground/[0.06] border border-border"
                   transition={{ type: "spring", bounce: 0.15, duration: 0.5 }}
                 />
               )}
@@ -80,7 +80,7 @@ export function Header() {
           <Button
             variant="ghost"
             size="icon"
-            className="hidden md:inline-flex h-8 w-8 rounded-[2px] text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            className="hidden md:inline-flex h-8 w-8 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
             onClick={() =>
               document.dispatchEvent(
                 new KeyboardEvent("keydown", { key: "k", metaKey: true })
@@ -94,7 +94,7 @@ export function Header() {
           <Button
             variant="ghost"
             size="icon"
-            className="md:hidden h-8 w-8 rounded-[2px] text-muted-foreground hover:text-foreground"
+            className="md:hidden h-8 w-8 rounded-md text-muted-foreground hover:text-foreground"
             onClick={() => setMobileOpen(!mobileOpen)}
           >
             {mobileOpen ? (
@@ -114,7 +114,7 @@ export function Header() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.2 }}
-            className="md:hidden mx-4 mt-2 rounded-[2px] glass-panel overflow-hidden"
+            className="md:hidden mx-4 mt-2 rounded-md glass-panel overflow-hidden"
           >
             <div className="p-3 flex flex-col gap-0.5">
               {getNav().map((item) => (
@@ -124,7 +124,7 @@ export function Header() {
                   onClick={() => setMobileOpen(false)}
                   aria-current={isActive(pathname, item.href) ? "page" : undefined}
                   className={cn(
-                    "px-4 py-2.5 text-sm font-medium rounded-[2px] transition-all",
+                    "px-4 py-2.5 text-sm font-medium rounded-md transition-all",
                     isActive(pathname, item.href)
                       ? "bg-primary/10 text-primary"
                       : "text-muted-foreground hover:text-foreground hover:bg-muted"

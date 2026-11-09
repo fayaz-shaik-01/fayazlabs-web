@@ -22,11 +22,11 @@ export default async function CourseHomePage() {
         <p className="mt-4 text-body-lg text-muted-foreground">{catalog.course.summary}</p>
         <div className="mt-6 flex flex-wrap gap-3">
           {first && (
-            <Link href={itemHref(first.id)} className={cn(buttonVariants({ size: "lg" }), "rounded-[2px]")}>
+            <Link href={itemHref(first.id)} className={cn(buttonVariants({ size: "lg" }), "rounded-md")}>
               Start free
             </Link>
           )}
-          <Link href="/pricing" className={cn(buttonVariants({ variant: "outline", size: "lg" }), "rounded-[2px]")}>
+          <Link href="/pricing" className={cn(buttonVariants({ variant: "outline", size: "lg" }), "rounded-md")}>
             See plans
           </Link>
         </div>

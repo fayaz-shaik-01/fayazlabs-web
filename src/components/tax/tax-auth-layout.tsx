@@ -30,7 +30,7 @@ export async function TaxAuthLayout({
           <Link
             key={item.href}
             href={item.href}
-            className="rounded-[2px] px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            className="rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
           >
             {item.label}
           </Link>
@@ -39,7 +39,7 @@ export async function TaxAuthLayout({
           <form action="/api/tax/auth/logout" method="POST">
             <button
               type="submit"
-              className="w-full rounded-[2px] px-3 py-2 text-left text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              className="w-full rounded-md px-3 py-2 text-left text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
             >
               Sign out
             </button>

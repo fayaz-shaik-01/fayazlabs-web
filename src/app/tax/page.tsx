@@ -64,13 +64,13 @@ export default function TaxLandingPage() {
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-2">
             <Link
               href="/tax/register"
-              className="inline-flex items-center justify-center rounded-[2px] bg-primary px-8 py-3 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="inline-flex items-center justify-center rounded-md bg-primary px-8 py-3 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               Get started free
             </Link>
             <Link
               href="/tax/login"
-              className="inline-flex items-center justify-center rounded-[2px] border border-border px-8 py-3 text-sm font-semibold text-foreground transition-colors hover:bg-accent"
+              className="inline-flex items-center justify-center rounded-md border border-border px-8 py-3 text-sm font-semibold text-foreground transition-colors hover:bg-accent"
             >
               Sign in
             </Link>
@@ -88,7 +88,7 @@ export default function TaxLandingPage() {
             {FEATURES.map((f) => (
               <div
                 key={f.title}
-                className="rounded-[2px] border border-border bg-card p-6 space-y-3"
+                className="rounded-md border border-border bg-card p-6 space-y-3"
               >
                 <div className="text-3xl">{f.icon}</div>
                 <h3 className="font-semibold font-heading">{f.title}</h3>
@@ -122,7 +122,7 @@ export default function TaxLandingPage() {
 
       {/* CTA */}
       <section className="py-20 px-6">
-        <div className="max-w-2xl mx-auto text-center space-y-6 rounded-[2px] border border-primary/20 bg-primary/5 p-10">
+        <div className="max-w-2xl mx-auto text-center space-y-6 rounded-md border border-primary/20 bg-primary/5 p-10">
           <h2 className="text-3xl font-bold font-heading">
             Ready to simplify your taxes?
           </h2>
@@ -132,7 +132,7 @@ export default function TaxLandingPage() {
           </p>
           <Link
             href="/tax/register"
-            className="inline-flex items-center justify-center rounded-[2px] bg-primary px-10 py-3 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
+            className="inline-flex items-center justify-center rounded-md bg-primary px-10 py-3 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
           >
             Create free account
           </Link>

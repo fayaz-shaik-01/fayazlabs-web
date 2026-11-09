@@ -8,7 +8,7 @@ import { AuthProvider } from "@/lib/auth";
 
 export function Providers({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
+    <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
       <AuthProvider>
         <TooltipProvider delay={300}>
           <LazyMotion features={domAnimation}>

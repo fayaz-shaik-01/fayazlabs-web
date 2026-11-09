@@ -30,7 +30,7 @@ export function FeaturedProducts() {
           >
             <Link
               href={product.href}
-              className="group flex h-full flex-col rounded-xl border border-white/[0.06] bg-white/[0.02] p-6 transition-all duration-300 hover:border-white/[0.12] hover:bg-white/[0.04] hover:-translate-y-0.5"
+              className="group flex h-full flex-col rounded-xl border border-border bg-card p-6 transition-all duration-300 hover:border-primary/50 hover:bg-muted"
             >
               {product.badge && (
                 <Badge variant="secondary" className="mb-3 w-fit">
@@ -50,7 +50,7 @@ export function FeaturedProducts() {
           href="/learning"
           className={cn(
             buttonVariants({ variant: "outline", size: "lg" }),
-            "gap-2 rounded-[2px] border-white/10 bg-white/[0.03] hover:bg-white/[0.06] hover:border-white/15 transition-all duration-400 text-sm font-semibold px-7 h-11"
+            "gap-2 rounded-md border-border bg-card hover:bg-muted hover:border-primary/50 transition-all duration-400 text-sm font-semibold px-7 h-11"
           )}
         >
           All courses

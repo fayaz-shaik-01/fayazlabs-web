@@ -45,7 +45,7 @@ export function TrackCard({ track, index }: TrackCardProps) {
     >
       <Link
         href={`/learning/${track.slug}`}
-        className="group relative flex flex-col rounded-xl border border-white/[0.06] bg-white/[0.02] p-5 h-full transition-all duration-300 hover:border-white/[0.12] hover:bg-white/[0.04] hover:-translate-y-0.5"
+        className="group relative flex flex-col rounded-xl border border-border bg-card p-5 h-full transition-all duration-300 hover:border-primary/50 hover:bg-muted"
       >
         <div className="flex items-center gap-3 mb-4">
           <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
@@ -61,7 +61,7 @@ export function TrackCard({ track, index }: TrackCardProps) {
           {track.description}
         </p>
 
-        <div className="mt-auto flex items-center justify-between pt-3 border-t border-white/[0.04]">
+        <div className="mt-auto flex items-center justify-between pt-3 border-t border-border">
           <div className="flex items-center gap-3 text-xs text-muted-foreground/50">
             <span className="flex items-center gap-1">
               <BookOpen className="h-3 w-3" />
@@ -81,7 +81,7 @@ export function TrackCard({ track, index }: TrackCardProps) {
               <span>{stats.publishedLessons} authored</span>
               <span>{Math.round((stats.publishedLessons / stats.totalLessons) * 100)}%</span>
             </div>
-            <div className="h-1 w-full overflow-hidden rounded-full bg-white/[0.06]">
+            <div className="h-1 w-full overflow-hidden rounded-full bg-muted">
               <div
                 className="h-full rounded-full bg-primary/60 transition-all duration-500"
                 style={{ width: `${Math.round((stats.publishedLessons / stats.totalLessons) * 100)}%` }}

@@ -19,7 +19,7 @@ function pct(n: number | null): string {
 function AnalysisCard({ a }: Readonly<{ a: TaxAnalysisResponse }>) {
   const recommended = a.recommendedRegime ?? "—";
   return (
-    <div className="rounded-[2px] border border-border bg-card p-5 space-y-4">
+    <div className="rounded-md border border-border bg-card p-5 space-y-4">
       <div className="flex items-center justify-between">
         <span className="font-semibold font-heading text-sm">FY {a.taxYear}</span>
         <span className="rounded-full bg-primary/10 text-primary px-2 py-0.5 text-xs font-medium">
@@ -53,7 +53,7 @@ function AnalysisCard({ a }: Readonly<{ a: TaxAnalysisResponse }>) {
           <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
             Raw AI Insights
           </summary>
-          <pre className="mt-2 overflow-x-auto rounded-[2px] bg-muted p-3 text-xs font-mono whitespace-pre-wrap">
+          <pre className="mt-2 overflow-x-auto rounded-md bg-muted p-3 text-xs font-mono whitespace-pre-wrap">
             {typeof a.insightsJson === "string"
               ? a.insightsJson
               : JSON.stringify(a.insightsJson, null, 2)}
@@ -94,17 +94,17 @@ export default async function InsightsPage() {
       </div>
 
       {fetchError && (
-        <p className="rounded-[2px] border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+        <p className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
           {fetchError}
         </p>
       )}
 
       {profiles.length === 0 && !fetchError && (
-        <div className="rounded-[2px] border border-dashed border-border bg-card p-12 text-center space-y-3">
+        <div className="rounded-md border border-dashed border-border bg-card p-12 text-center space-y-3">
           <p className="text-muted-foreground">No financial profiles found.</p>
           <Link
             href="/tax/documents"
-            className="inline-flex items-center justify-center rounded-[2px] bg-primary px-6 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
+            className="inline-flex items-center justify-center rounded-md bg-primary px-6 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
           >
             Upload documents first
           </Link>
@@ -112,7 +112,7 @@ export default async function InsightsPage() {
       )}
 
       {analyses.length === 0 && profiles.length > 0 && !fetchError && (
-        <div className="rounded-[2px] border border-dashed border-border bg-card p-12 text-center space-y-3">
+        <div className="rounded-md border border-dashed border-border bg-card p-12 text-center space-y-3">
           <p className="text-muted-foreground">No analysis generated yet.</p>
           <p className="text-xs text-muted-foreground">
             Insights are generated automatically after document processing or you can trigger it manually via API.

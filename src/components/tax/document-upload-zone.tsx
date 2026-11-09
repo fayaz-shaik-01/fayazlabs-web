@@ -106,7 +106,7 @@ export function DocumentUploadZone() {
           <select
             value={docType}
             onChange={(e) => setDocType(e.target.value)}
-            className="rounded-[2px] border border-border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            className="rounded-md border border-border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
           >
             {DOCUMENT_TYPES.map((t) => (
               <option key={t} value={t}>{t.replace(/_/g, " ")}</option>
@@ -120,7 +120,7 @@ export function DocumentUploadZone() {
             value={taxYear}
             onChange={(e) => setTaxYear(e.target.value)}
             placeholder="2024-25"
-            className="rounded-[2px] border border-border bg-background px-3 py-1.5 text-sm w-28 focus:outline-none focus:ring-2 focus:ring-ring"
+            className="rounded-md border border-border bg-background px-3 py-1.5 text-sm w-28 focus:outline-none focus:ring-2 focus:ring-ring"
           />
         </div>
       </div>
@@ -132,7 +132,7 @@ export function DocumentUploadZone() {
         onKeyDown={(e) => e.key === "Enter" && inputRef.current?.click()}
         onDrop={handleDrop}
         onDragOver={(e) => e.preventDefault()}
-        className={`relative flex flex-col items-center justify-center gap-3 rounded-[2px] border-2 border-dashed p-10 text-center cursor-pointer transition-colors ${
+        className={`relative flex flex-col items-center justify-center gap-3 rounded-md border-2 border-dashed p-10 text-center cursor-pointer transition-colors ${
           state === "done"
             ? "border-green-500/40 bg-green-500/5"
             : state === "error"

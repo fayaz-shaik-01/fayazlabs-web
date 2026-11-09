@@ -12,7 +12,7 @@ function fmt(n: number): string {
 
 function ProfileCard({ p }: Readonly<{ p: ProfileSummaryResponse }>) {
   return (
-    <div className="rounded-[2px] border border-border bg-card p-5 space-y-3">
+    <div className="rounded-md border border-border bg-card p-5 space-y-3">
       <div className="flex items-center justify-between">
         <span className="font-semibold font-heading text-sm">FY {p.taxYear}</span>
         <span
@@ -38,13 +38,13 @@ function ProfileCard({ p }: Readonly<{ p: ProfileSummaryResponse }>) {
       <div className="flex gap-2 pt-1">
         <Link
           href={`/tax/insights?year=${p.taxYear}`}
-          className="flex-1 rounded-[2px] border border-border bg-background px-3 py-1.5 text-center text-xs font-medium hover:bg-accent transition-colors"
+          className="flex-1 rounded-md border border-border bg-background px-3 py-1.5 text-center text-xs font-medium hover:bg-accent transition-colors"
         >
           View Insights
         </Link>
         <Link
           href={`/tax/chat?year=${p.taxYear}`}
-          className="flex-1 rounded-[2px] bg-primary px-3 py-1.5 text-center text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+          className="flex-1 rounded-md bg-primary px-3 py-1.5 text-center text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
         >
           Ask AI
         </Link>
@@ -77,27 +77,27 @@ export default async function DashboardPage() {
         </div>
         <Link
           href="/tax/documents"
-          className="rounded-[2px] bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
+          className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
         >
           + Upload Documents
         </Link>
       </div>
 
       {fetchError && (
-        <p className="rounded-[2px] border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+        <p className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
           {fetchError}
         </p>
       )}
 
       {profiles.length === 0 && !fetchError ? (
-        <div className="rounded-[2px] border border-dashed border-border bg-card p-12 text-center space-y-3">
+        <div className="rounded-md border border-dashed border-border bg-card p-12 text-center space-y-3">
           <p className="text-muted-foreground">No financial profiles yet.</p>
           <p className="text-sm text-muted-foreground">
             Upload your Form 16 or Form 26AS to get started.
           </p>
           <Link
             href="/tax/documents"
-            className="inline-flex items-center justify-center rounded-[2px] bg-primary px-6 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
+            className="inline-flex items-center justify-center rounded-md bg-primary px-6 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
           >
             Upload documents
           </Link>
