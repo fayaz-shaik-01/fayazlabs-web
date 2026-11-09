@@ -227,7 +227,7 @@ test("free lesson L0-02 cross-origin: lecture and conversation, published URLs o
   await page.getByTestId("mode-conversation").click();
   await expect(player).toHaveAttribute("data-mode", "conversation");
   await expect(player).toHaveAttribute("data-phase", "paused", { timeout: 15_000 });
-  await expect(page.locator('[data-speaker="E"]')).toContainText("Sam");
+  await expect(page.locator('li[data-speaker="E"]')).toContainText("Sam");
   expect(requested.filter((p) => !PUBLISHED.test(p)), "unexpected content URLs").toEqual([]);
   expect(requested).toEqual(expect.arrayContaining(["/L0-02/lesson.html", "/L0-02/lecture/deck.json", "/L0-02/lecture/s01.mp3", "/L0-02/talk/deck.json", "/L0-02/talk/s01.mp3"]));
 });
