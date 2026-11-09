@@ -164,7 +164,7 @@ function FlashcardCard({
               <p className="text-lg sm:text-xl text-foreground leading-relaxed font-medium">
                 {card.front}
               </p>
-              <p className="mt-6 text-xs text-muted-foreground/40">
+              <p className="mt-6 text-xs text-muted-foreground">
                 Click to reveal answer
               </p>
             </motion.div>
@@ -194,7 +194,7 @@ function FlashcardCard({
         {card.tags.map((tag) => (
           <span
             key={tag}
-            className="text-[0.625rem] px-2 py-0.5 rounded-full bg-muted text-muted-foreground/50 font-mono"
+            className="text-[0.625rem] px-2 py-0.5 rounded-full bg-muted text-muted-foreground font-mono"
           >
             {tag}
           </span>
@@ -253,10 +253,10 @@ function LeitnerBoxes({ cards }: Readonly<{ cards: Flashcard[] }>) {
           <div className={cn("text-lg font-bold font-mono", box.color)}>
             {boxCounts[i]}
           </div>
-          <div className="text-[0.5625rem] text-muted-foreground/50 font-mono mt-0.5">
+          <div className="text-[0.5625rem] text-muted-foreground font-mono mt-0.5">
             BOX {i + 1}
           </div>
-          <div className="text-[0.5rem] text-muted-foreground/30 mt-0.5">
+          <div className="text-[0.5rem] text-muted-foreground mt-0.5">
             {box.interval === 1 ? "Daily" : `${box.interval}d`}
           </div>
         </div>
@@ -472,7 +472,7 @@ export function FlashcardHub() {
           {totalReviewed > 0 && (
             <button
               onClick={handleReset}
-              className="ml-auto flex items-center gap-1.5 text-xs text-muted-foreground/60 hover:text-muted-foreground transition-colors"
+              className="ml-auto flex items-center gap-1.5 text-xs text-muted-foreground hover:text-muted-foreground transition-colors"
             >
               <RotateCcw className="h-3 w-3" /> Reset Session
             </button>
@@ -487,7 +487,7 @@ export function FlashcardHub() {
           <>
             {/* Progress */}
             <div className="flex items-center justify-between mb-6">
-              <span className="text-xs text-muted-foreground/50 font-mono flex items-center gap-1.5">
+              <span className="text-xs text-muted-foreground font-mono flex items-center gap-1.5">
                 <Clock className="h-3 w-3" />
                 Card {(currentIndex % filteredCards.length) + 1} of {filteredCards.length}
               </span>
@@ -499,7 +499,7 @@ export function FlashcardHub() {
                   }}
                 />
               </div>
-              <span className="text-xs text-muted-foreground/50 font-mono">
+              <span className="text-xs text-muted-foreground font-mono">
                 {Math.round((((currentIndex % filteredCards.length) + 1) / filteredCards.length) * 100)}%
               </span>
             </div>
@@ -514,7 +514,7 @@ export function FlashcardHub() {
             )}
           </>
         ) : (
-          <div className="text-center py-16 text-muted-foreground/50">
+          <div className="text-center py-16 text-muted-foreground">
             <Brain className="h-8 w-8 mx-auto mb-3 opacity-40" />
             <p className="text-sm">No flashcards match your filters.</p>
           </div>

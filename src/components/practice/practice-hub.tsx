@@ -165,7 +165,7 @@ function ProblemCard({
           <span className={`text-[0.625rem] px-2 py-0.5 rounded border font-mono uppercase ${difficultyColor}`}>
             {problem.difficulty}
           </span>
-          <span className="text-[0.625rem] px-2 py-0.5 rounded border border-border font-mono uppercase text-muted-foreground/60">
+          <span className="text-[0.625rem] px-2 py-0.5 rounded border border-border font-mono uppercase text-muted-foreground">
             {problem.type}
           </span>
         </div>
@@ -221,7 +221,7 @@ function ProblemCard({
             onChange={(e) => setNumericalAnswer(e.target.value)}
             disabled={showExplanation}
             placeholder="Enter your answer..."
-            className="flex-1 px-4 py-2.5 rounded-lg border border-border bg-card text-sm text-foreground placeholder:text-muted-foreground/40 focus:border-primary/40 focus:outline-none"
+            className="flex-1 px-4 py-2.5 rounded-lg border border-border bg-card text-sm text-foreground placeholder:text-muted-foreground focus:border-primary/40 focus:outline-none"
           />
           {!showExplanation && (
             <button
@@ -261,7 +261,7 @@ function ProblemCard({
             </div>
             <button
               onClick={handleReset}
-              className="mt-3 flex items-center gap-1.5 text-xs text-muted-foreground/60 hover:text-muted-foreground transition-colors"
+              className="mt-3 flex items-center gap-1.5 text-xs text-muted-foreground hover:text-muted-foreground transition-colors"
             >
               <RotateCcw className="h-3 w-3" /> Try Again
             </button>
@@ -272,7 +272,7 @@ function ProblemCard({
       {/* Tags */}
       <div className="mt-4 flex flex-wrap gap-1.5">
         {problem.tags.map((tag) => (
-          <span key={tag} className="text-[0.625rem] px-2 py-0.5 rounded-full bg-muted text-muted-foreground/50 font-mono">
+          <span key={tag} className="text-[0.625rem] px-2 py-0.5 rounded-full bg-muted text-muted-foreground font-mono">
             {tag}
           </span>
         ))}
@@ -439,7 +439,7 @@ export function PracticeHub() {
             <option value="advanced">Advanced</option>
           </select>
 
-          <span className="ml-auto text-xs text-muted-foreground/50 font-mono">
+          <span className="ml-auto text-xs text-muted-foreground font-mono">
             {filtered.length} problem{filtered.length !== 1 ? "s" : ""}
           </span>
         </div>
@@ -452,7 +452,7 @@ export function PracticeHub() {
         </div>
 
         {filtered.length === 0 && (
-          <div className="text-center py-16 text-muted-foreground/50">
+          <div className="text-center py-16 text-muted-foreground">
             <FlaskConical className="h-8 w-8 mx-auto mb-3 opacity-40" />
             <p className="text-sm">No problems match your filters.</p>
           </div>

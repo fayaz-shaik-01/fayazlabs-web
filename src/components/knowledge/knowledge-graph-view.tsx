@@ -382,7 +382,7 @@ export function KnowledgeGraphView() {
           )}
 
           {/* Stats */}
-          <div className="absolute bottom-4 left-4 flex items-center gap-3 text-[0.625rem] text-muted-foreground/50 font-mono">
+          <div className="absolute bottom-4 left-4 flex items-center gap-3 text-[0.625rem] text-muted-foreground font-mono">
             <span>{filteredNodes.length} nodes</span>
             <span>{filteredEdges.length} edges</span>
             <span>{Math.round(zoom * 100)}% zoom</span>

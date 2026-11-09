@@ -26,7 +26,7 @@ export default function GlobalError({
           An unexpected error occurred. Please try again or return to the homepage.
         </p>
         {error.digest && (
-          <p className="text-xs text-muted-foreground/60 font-mono">
+          <p className="text-xs text-muted-foreground font-mono">
             Error ID: {error.digest}
           </p>
         )}

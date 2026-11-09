@@ -158,7 +158,7 @@ export default function ContactPage() {
               <Mail className="h-4 w-4 text-muted-foreground" />
             </div>
             <div>
-              <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/70">Email</p>
+              <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Email</p>
               <Link
                 href={siteConfig.links.email}
                 className="text-sm hover:text-primary transition-colors"
@@ -172,7 +172,7 @@ export default function ContactPage() {
               <MapPin className="h-4 w-4 text-muted-foreground" />
             </div>
             <div>
-              <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/70">Location</p>
+              <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Location</p>
               <p className="text-sm">India (Open to Remote)</p>
             </div>
           </div>
@@ -186,7 +186,7 @@ export default function ContactPage() {
               <GithubIcon className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors" />
             </div>
             <div>
-              <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/70">GitHub</p>
+              <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">GitHub</p>
               <p className="text-sm group-hover:text-primary transition-colors">
                 fayaz-shaik-01
               </p>
@@ -202,7 +202,7 @@ export default function ContactPage() {
               <LinkedinIcon className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors" />
             </div>
             <div>
-              <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/70">LinkedIn</p>
+              <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">LinkedIn</p>
               <p className="text-sm group-hover:text-primary transition-colors">
                 shaik-fayaz
               </p>

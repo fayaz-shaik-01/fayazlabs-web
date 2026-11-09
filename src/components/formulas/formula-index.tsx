@@ -128,7 +128,7 @@ function FormulaCard({ formula, index }: Readonly<{ formula: Formula; index: num
         <h3 className="text-sm font-semibold text-foreground">{formula.name}</h3>
         <button
           onClick={handleCopy}
-          className="flex items-center gap-1 text-[0.625rem] text-muted-foreground/40 hover:text-muted-foreground transition-colors opacity-0 group-hover:opacity-100"
+          className="flex items-center gap-1 text-[0.625rem] text-muted-foreground hover:text-muted-foreground transition-colors opacity-0 group-hover:opacity-100"
           title="Copy LaTeX"
         >
           {copied ? (
@@ -146,7 +146,7 @@ function FormulaCard({ formula, index }: Readonly<{ formula: Formula; index: num
 
       {/* Plain English */}
       {formula.plainEnglish && (
-        <p className="text-xs text-muted-foreground/60 italic mb-3">
+        <p className="text-xs text-muted-foreground italic mb-3">
           {formula.plainEnglish}
         </p>
       )}
@@ -157,13 +157,13 @@ function FormulaCard({ formula, index }: Readonly<{ formula: Formula; index: num
           {formula.tags.map((tag) => (
             <span
               key={tag}
-              className="text-[0.5625rem] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground/50 font-mono"
+              className="text-[0.5625rem] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground font-mono"
             >
               {tag}
             </span>
           ))}
         </div>
-        <span className="text-[0.5625rem] text-muted-foreground/30 font-mono">
+        <span className="text-[0.5625rem] text-muted-foreground font-mono">
           {formula.module}/{formula.lesson}
         </span>
       </div>
@@ -256,13 +256,13 @@ export function FormulaIndex() {
         {/* Search + Filters */}
         <div className="flex flex-wrap items-center gap-3 mb-8">
           <div className="relative flex-1 min-w-[200px]">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/40" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <input
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search formulas..."
-              className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-border bg-card text-sm text-foreground placeholder:text-muted-foreground/40 focus:border-primary/40 focus:outline-none"
+              className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-border bg-card text-sm text-foreground placeholder:text-muted-foreground focus:border-primary/40 focus:outline-none"
             />
           </div>
 
@@ -280,7 +280,7 @@ export function FormulaIndex() {
             ))}
           </select>
 
-          <span className="text-xs text-muted-foreground/50 font-mono">
+          <span className="text-xs text-muted-foreground font-mono">
             {filtered.length} formula{filtered.length !== 1 ? "s" : ""}
           </span>
         </div>
@@ -293,7 +293,7 @@ export function FormulaIndex() {
         </div>
 
         {filtered.length === 0 && (
-          <div className="text-center py-16 text-muted-foreground/50">
+          <div className="text-center py-16 text-muted-foreground">
             <Search className="h-8 w-8 mx-auto mb-3 opacity-40" />
             <p className="text-sm">No formulas match your search.</p>
           </div>

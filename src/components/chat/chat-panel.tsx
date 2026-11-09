@@ -237,7 +237,7 @@ export function ChatPanel() {
               disabled={isLoading}
               rows={1}
               className={cn(
-                "flex-1 resize-none field-sizing-content max-h-24 rounded-md border border-border bg-surface-1 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/60 outline-none focus:border-primary/40 focus:ring-1 focus:ring-primary/20 transition-all disabled:opacity-50",
+                "flex-1 resize-none field-sizing-content max-h-24 rounded-md border border-border bg-surface-1 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-primary/40 focus:ring-1 focus:ring-primary/20 transition-all disabled:opacity-50",
               )}
             />
             <Button
@@ -255,7 +255,7 @@ export function ChatPanel() {
               )}
             </Button>
           </div>
-          <p className="mt-1.5 text-[10px] font-mono text-muted-foreground/40 text-center">
+          <p className="mt-1.5 text-[10px] font-mono text-muted-foreground text-center">
             Powered by RAG &middot; Responses may be inaccurate
           </p>
         </div>

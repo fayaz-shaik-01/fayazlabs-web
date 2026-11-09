@@ -124,7 +124,7 @@ export default async function TrackLessonPage({ params }: LessonPageProps) {
             <p className="text-body-lg text-muted-foreground mb-2">
               {track.title} &rarr; {mod.title}
             </p>
-            <div className="flex items-center justify-center gap-4 text-sm text-muted-foreground/60 mb-8">
+            <div className="flex items-center justify-center gap-4 text-sm text-muted-foreground mb-8">
               <span className="flex items-center gap-1.5">
                 <Clock className="h-4 w-4" />
                 ~{stub.estimatedMinutes} min

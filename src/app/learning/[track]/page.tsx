@@ -99,7 +99,7 @@ export default async function TrackPage({ params }: TrackPageProps) {
           <p className="text-body-lg text-muted-foreground mb-4">
             {track.description}
           </p>
-          <div className="flex items-center gap-4 text-sm text-muted-foreground/60">
+          <div className="flex items-center gap-4 text-sm text-muted-foreground">
             <span className="flex items-center gap-1.5">
               <BookOpen className="h-4 w-4" />
               {stats.totalModules} modules &middot; {stats.totalLessons} lessons
@@ -129,7 +129,7 @@ export default async function TrackPage({ params }: TrackPageProps) {
                       {mod.description}
                     </p>
                   </div>
-                  <span className="text-xs text-muted-foreground/50">
+                  <span className="text-xs text-muted-foreground">
                     {modStats.totalLessons} lessons &middot; ~
                     {modStats.estimatedMinutes}m
                   </span>
@@ -167,7 +167,7 @@ export default async function TrackPage({ params }: TrackPageProps) {
                         <TrackStatusBadge status={lesson.status} />
                         <DifficultyBadge difficulty={lesson.difficulty} />
                       </div>
-                      <div className="flex items-center gap-2 text-muted-foreground/50">
+                      <div className="flex items-center gap-2 text-muted-foreground">
                         <span className="text-xs">
                           {lesson.estimatedMinutes}m
                         </span>

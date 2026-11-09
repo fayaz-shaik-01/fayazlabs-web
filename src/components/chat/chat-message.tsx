@@ -48,7 +48,7 @@ export function ChatMessageBubble({ message }: Readonly<{ message: ChatMessage }
         )}
 
         {message.metadata && (
-          <span className="text-[10px] font-mono text-muted-foreground/60 tabular-nums">
+          <span className="text-[10px] font-mono text-muted-foreground tabular-nums">
             {message.metadata.model} &middot; {message.metadata.latencyMs}ms
           </span>
         )}
