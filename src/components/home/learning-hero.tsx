@@ -1,36 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import {
-  ArrowRight,
-  BookOpen,
-  Brain,
-  Zap,
-  GraduationCap,
-  FlaskConical,
-  Layers,
-} from "lucide-react";
+import { ArrowRight, FolderGit2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { buttonVariants } from "@/components/ui/button";
-import { getGlobalStats } from "@/lib/curriculum";
 
 const ease = [0.16, 1, 0.3, 1] as const;
 
 export function LearningHomepageHero() {
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
-
-  const stats = getGlobalStats();
-
-  const metrics = [
-    { value: `${stats.totalTracks}`, label: "TRACKS", icon: <Layers className="h-3.5 w-3.5" /> },
-    { value: `${stats.totalLessons}`, label: "LESSONS", icon: <BookOpen className="h-3.5 w-3.5" /> },
-    { value: `${stats.publishedLessons}`, label: "AUTHORED", icon: <GraduationCap className="h-3.5 w-3.5" /> },
-    { value: `${stats.estimatedHours}+`, label: "HOURS", icon: <Zap className="h-3.5 w-3.5" /> },
-  ];
-
   return (
     <section className="relative min-h-[85vh] flex items-center overflow-hidden">
       {/* Ambient background effects */}
@@ -49,7 +27,7 @@ export function LearningHomepageHero() {
             className="mono-tag text-lab-green mb-6 flex items-center gap-2"
           >
             <span className="inline-block h-1.5 w-1.5 rounded-full bg-lab-green animate-glow-pulse" />
-            [LEARNING_ENGINE: ACTIVE]
+            [FAYAZLABS]
           </motion.div>
 
           {/* Heading */}
@@ -59,9 +37,9 @@ export function LearningHomepageHero() {
             transition={{ duration: 1, delay: 0.35, ease }}
             className="text-display-2xl text-foreground"
           >
-            Learn Engineering
+            Building and testing
             <br />
-            <span className="text-gradient-hero">From First Principles</span>
+            <span className="text-gradient-hero">AI products</span>
           </motion.h1>
 
           {/* Description */}
@@ -71,9 +49,8 @@ export function LearningHomepageHero() {
             transition={{ duration: 0.7, delay: 0.55, ease }}
             className="mt-8 text-body-lg text-muted-foreground max-w-xl"
           >
-            Structured tracks covering AI engineering, GATE preparation, and
-            systems design — with interactive practice, flashcards, and
-            knowledge graphs. Built by{" "}
+            Projects, writing and hands-on courses on engineering and testing
+            software built on LLMs. By{" "}
             <span className="text-foreground font-semibold">Shaik Fayaz</span>.
           </motion.p>
 
@@ -85,64 +62,27 @@ export function LearningHomepageHero() {
             className="mt-10 flex flex-wrap gap-3"
           >
             <Link
-              href="/learning"
+              href="/learning/ai-product-testing"
               className={cn(
                 buttonVariants({ size: "lg" }),
                 "gap-2.5 rounded-[2px] bg-primary text-primary-foreground shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 transition-all duration-400 text-sm font-semibold px-7 h-11"
               )}
             >
-              Start Learning
+              Start the course
               <ArrowRight className="h-4 w-4" />
             </Link>
             <Link
-              href="/practice"
+              href="/projects"
               className={cn(
                 buttonVariants({ variant: "outline", size: "lg" }),
                 "gap-2.5 rounded-[2px] border-white/10 bg-white/[0.03] hover:bg-white/[0.06] hover:border-white/15 transition-all duration-400 text-sm font-semibold px-7 h-11"
               )}
             >
-              <FlaskConical className="h-4 w-4" />
-              Practice Problems
-            </Link>
-            <Link
-              href="/flashcards"
-              className={cn(
-                buttonVariants({ variant: "outline", size: "lg" }),
-                "gap-2.5 rounded-[2px] border-white/10 bg-white/[0.03] hover:bg-white/[0.06] hover:border-white/15 transition-all duration-400 text-sm font-semibold px-7 h-11"
-              )}
-            >
-              <Brain className="h-4 w-4" />
-              Flashcards
+              <FolderGit2 className="h-4 w-4" />
+              See Projects
             </Link>
           </motion.div>
 
-          {/* Metrics */}
-          {mounted && (
-            <motion.div
-              initial={{ opacity: 0, y: 15 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.7, delay: 0.9, ease }}
-              className="mt-12 grid grid-cols-2 sm:grid-cols-4 gap-6"
-            >
-              {metrics.map((m, i) => (
-                <motion.div
-                  key={m.label}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.4, delay: 1 + i * 0.08, ease }}
-                  className="border-l border-lab-green/20 pl-3"
-                >
-                  <div className="text-2xl sm:text-3xl font-bold text-foreground font-mono tracking-tight">
-                    {m.value}
-                  </div>
-                  <div className="mono-tag text-muted-foreground mt-1 flex items-center gap-1.5">
-                    {m.icon}
-                    {m.label}
-                  </div>
-                </motion.div>
-              ))}
-            </motion.div>
-          )}
         </div>
       </div>
 

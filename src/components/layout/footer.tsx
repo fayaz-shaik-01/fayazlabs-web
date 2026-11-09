@@ -1,13 +1,19 @@
 import Link from "next/link";
 import { Mail } from "lucide-react";
 import { GithubIcon, LinkedinIcon } from "@/components/icons";
-import { siteConfig } from "@/lib/site-config";
+import { getProducts } from "@/lib/products";
+import { siteConfig, getNav } from "@/lib/site-config";
 
 const learningLinks = [
-  { title: "All Tracks", href: "/learning#tracks" },
-  { title: "LLM Engineering", href: "/learning/llm-engineering" },
-  { title: "AI Agents", href: "/learning/ai-agents" },
-  { title: "ML Systems", href: "/learning/ml-systems" },
+  { title: "All Products", href: "/learning" },
+  ...getProducts().map((p) => ({ title: p.title, href: p.href })),
+  { title: "Pricing", href: "/pricing" },
+];
+
+const legalLinks = [
+  { title: "Terms of Service", href: "/legal/terms" },
+  { title: "Privacy Policy", href: "/legal/privacy" },
+  { title: "Refund Policy", href: "/legal/refund" },
 ];
 
 export function Footer() {
@@ -28,14 +34,14 @@ export function Footer() {
               <span className="text-foreground/80">{siteConfig.name}</span>
             </Link>
             <p className="text-body-sm text-muted-foreground/70 max-w-xs">
-              AI engineering learning platform. Master AI from first principles.
+              Personal site and courses by Shaik Fayaz.
             </p>
           </div>
 
           <div className="space-y-4">
             <h4 className="text-[0.6875rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground/50">Pages</h4>
             <div className="flex flex-col gap-2.5">
-              {siteConfig.nav.map((item) => (
+              {getNav().map((item) => (
                 <Link
                   key={item.href}
                   href={item.href}
@@ -107,9 +113,17 @@ export function Footer() {
             &copy; {new Date().getFullYear()} {siteConfig.name}. All rights
             reserved.
           </p>
-          <p className="text-xs text-muted-foreground/50">
-            Built with Next.js, Tailwind CSS, and care.
-          </p>
+          <nav aria-label="Legal" className="flex flex-wrap gap-x-4 gap-y-1">
+            {legalLinks.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="text-xs text-muted-foreground/60 hover:text-foreground transition-colors"
+              >
+                {item.title}
+              </Link>
+            ))}
+          </nav>
         </div>
       </div>
     </footer>

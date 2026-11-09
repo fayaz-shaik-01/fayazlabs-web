@@ -1,6 +1,6 @@
 import { LearningHomepageHero } from "@/components/home/learning-hero";
 import { QuickAccess } from "@/components/home/quick-access";
-import { FeaturedTracks } from "@/components/home/featured-tracks";
+import { FeaturedProducts } from "@/components/home/featured-products";
 import { CTASection } from "@/components/home/cta-section";
 import { siteConfig } from "@/lib/site-config";
 
@@ -36,7 +36,7 @@ export default function Home() {
         name: siteConfig.name,
         url: siteConfig.url,
         description:
-          "Structured learning tracks, practice problems, flashcards, and interactive tools for AI engineering and GATE preparation.",
+          "Projects, writing and hands-on courses on engineering and testing AI products.",
       },
     ],
   };
@@ -49,7 +49,7 @@ export default function Home() {
       />
       <LearningHomepageHero />
       <QuickAccess />
-      <FeaturedTracks />
+      <FeaturedProducts />
       <CTASection />
     </>
   );

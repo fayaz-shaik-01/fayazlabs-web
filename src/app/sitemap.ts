@@ -1,7 +1,7 @@
 import type { MetadataRoute } from "next";
 import { siteConfig } from "@/lib/site-config";
 import { getPublishedPosts, getPublishedProjects } from "@/lib/velite";
-import { getAllTracks, getLessonPath } from "@/lib/curriculum";
+import { getProducts } from "@/lib/products";
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const posts = getPublishedPosts().map((post) => ({
@@ -18,29 +18,21 @@ export default function sitemap(): MetadataRoute.Sitemap {
     priority: 0.8,
   }));
 
-  const tracks = getAllTracks().map((track) => ({
-    url: `${siteConfig.url}/learning/${track.slug}`,
+  const products = getProducts().map((product) => ({
+    url: `${siteConfig.url}${product.href}`,
     lastModified: new Date(),
     changeFrequency: "weekly" as const,
     priority: 0.8,
   }));
-
-  const trackLessons = getAllTracks().flatMap((track) =>
-    track.modules.flatMap((mod) =>
-      mod.lessons.map((lesson) => ({
-        url: `${siteConfig.url}${getLessonPath(track.slug, mod.slug, lesson.slug)}`,
-        lastModified: new Date(),
-        changeFrequency: "weekly" as const,
-        priority: lesson.hasContent ? 0.8 : 0.4,
-      }))
-    )
-  );
 
   const staticPages = [
     "",
     "/learning",
     "/about",
     "/contact",
+    "/projects",
+    "/writing",
+    "/pricing",
   ].map((route) => ({
     url: `${siteConfig.url}${route}`,
     lastModified: new Date(),
@@ -48,5 +40,5 @@ export default function sitemap(): MetadataRoute.Sitemap {
     priority: route === "" ? 1 : 0.8,
   }));
 
-  return [...staticPages, ...posts, ...projects, ...tracks, ...trackLessons];
+  return [...staticPages, ...posts, ...projects, ...products];
 }

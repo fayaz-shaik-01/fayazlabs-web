@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Menu, X, Command } from "lucide-react";
-import { siteConfig } from "@/lib/site-config";
+import { siteConfig, getNav } from "@/lib/site-config";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
@@ -50,7 +50,7 @@ export function Header() {
         </Link>
 
         <div className="hidden md:flex items-center gap-1 rounded-[2px] border border-border bg-muted/30 px-1.5 py-1">
-          {siteConfig.nav.map((item) => (
+          {getNav().map((item) => (
             <Link
               key={item.href}
               href={item.href}
@@ -117,7 +117,7 @@ export function Header() {
             className="md:hidden mx-4 mt-2 rounded-[2px] glass-panel overflow-hidden"
           >
             <div className="p-3 flex flex-col gap-0.5">
-              {siteConfig.nav.map((item) => (
+              {getNav().map((item) => (
                 <Link
                   key={item.href}
                   href={item.href}

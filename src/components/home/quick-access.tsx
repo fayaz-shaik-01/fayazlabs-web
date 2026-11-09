@@ -2,38 +2,38 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { BookOpen, Brain, FlaskConical, Search } from "lucide-react";
+import { BookOpen, FolderGit2, Mail, PenLine } from "lucide-react";
 
 const quickLinks = [
   {
-    title: "Learning Tracks",
-    description: "Structured curriculum from math foundations to production AI",
+    title: "Courses",
+    description: "Start the AI Product Testing course, free to start",
     href: "/learning",
     icon: <BookOpen className="h-5 w-5" />,
     color: "text-primary",
     bgColor: "bg-primary/10",
   },
   {
-    title: "Practice Problems",
-    description: "MCQs, numericals, and short-answer problems with solutions",
-    href: "/practice",
-    icon: <FlaskConical className="h-5 w-5" />,
+    title: "Projects",
+    description: "Things I have built: AI tooling, automation and backends",
+    href: "/projects",
+    icon: <FolderGit2 className="h-5 w-5" />,
     color: "text-lab-green",
     bgColor: "bg-lab-green/10",
   },
   {
-    title: "Flashcards",
-    description: "Spaced repetition with Leitner system for exam prep",
-    href: "/flashcards",
-    icon: <Brain className="h-5 w-5" />,
+    title: "Writing",
+    description: "Articles and deep dives on AI engineering and testing",
+    href: "/writing",
+    icon: <PenLine className="h-5 w-5" />,
     color: "text-chart-3",
     bgColor: "bg-chart-3/10",
   },
   {
-    title: "Formula Index",
-    description: "Quick-access formula reference with LaTeX rendering",
-    href: "/formulas",
-    icon: <Search className="h-5 w-5" />,
+    title: "Contact",
+    description: "Work together, ask a question, or just say hi",
+    href: "/contact",
+    icon: <Mail className="h-5 w-5" />,
     color: "text-accent",
     bgColor: "bg-accent/10",
   },
