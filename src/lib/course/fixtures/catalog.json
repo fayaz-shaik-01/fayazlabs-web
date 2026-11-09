@@ -1,222 +1,1158 @@
 {
-  "version": 1,
-  "course": {
-    "slug": "ai-product-testing",
-    "title": "AI Product Testing",
-    "summary": "A hands-on course on testing products built on LLMs and agents."
+ "schema_version": 1,
+ "course": {
+  "id": "ai-product-testing",
+  "title": "AI Product Testing"
+ },
+ "features": [
+  {
+   "id": "free",
+   "description": "Open to everyone"
   },
-  "levels": [
-    {
-      "id": "L0",
-      "title": "Level 0: Foundations",
-      "summary": "Get your bearings: what makes AI products different to test, and how to think about failure.",
-      "items": [
-        {
-          "id": "L0-01",
-          "kind": "lesson",
-          "title": "Why AI products break differently",
-          "summary": "Placeholder summary for the course skeleton.",
-          "minutes": 12,
-          "feature": "free"
-        },
-        {
-          "id": "L0-02",
-          "kind": "lesson",
-          "title": "Probabilistic outputs and what 'correct' means",
-          "summary": "Placeholder summary for the course skeleton.",
-          "minutes": 15,
-          "feature": "free"
-        },
-        {
-          "id": "L0-03",
-          "kind": "lesson",
-          "title": "A tour of the failure modes",
-          "summary": "Placeholder summary for the course skeleton.",
-          "minutes": 14,
-          "feature": "free"
-        },
-        {
-          "id": "L0-04",
-          "kind": "lesson",
-          "title": "Your first test plan for an AI feature",
-          "summary": "Placeholder summary for the course skeleton.",
-          "minutes": 18,
-          "feature": "free"
-        },
-        {
-          "id": "L0-05",
-          "kind": "lesson",
-          "title": "Reading a model's output critically",
-          "summary": "Placeholder summary for the course skeleton.",
-          "minutes": 16,
-          "feature": "free"
-        }
-      ]
-    },
-    {
-      "id": "L1",
-      "title": "Level 1: Core techniques",
-      "summary": "Build the everyday toolkit: golden sets, rubrics and regression checks for model-backed features.",
-      "items": [
-        {
-          "id": "L1-01",
-          "kind": "lesson",
-          "title": "Golden datasets that earn their keep",
-          "summary": "Placeholder summary for the course skeleton.",
-          "minutes": 20,
-          "feature": "lessons.paid"
-        },
-        {
-          "id": "L1-02",
-          "kind": "lesson",
-          "title": "Writing rubrics people agree on",
-          "summary": "Placeholder summary for the course skeleton.",
-          "minutes": 18,
-          "feature": "lessons.paid"
-        },
-        {
-          "id": "L1-03",
-          "kind": "lesson",
-          "title": "Prompt and model regression testing",
-          "summary": "Placeholder summary for the course skeleton.",
-          "minutes": 22,
-          "feature": "lessons.paid"
-        },
-        {
-          "id": "L1-04",
-          "kind": "lesson",
-          "title": "Testing retrieval and context",
-          "summary": "Placeholder summary for the course skeleton.",
-          "minutes": 20,
-          "feature": "lessons.paid"
-        },
-        {
-          "id": "L1-05",
-          "kind": "lesson",
-          "title": "Flakiness, seeds and tolerance bands",
-          "summary": "Placeholder summary for the course skeleton.",
-          "minutes": 16,
-          "feature": "lessons.paid"
-        },
-        {
-          "id": "L1-06",
-          "kind": "lab",
-          "title": "Lab: a regression suite for a support bot",
-          "summary": "Placeholder summary for the course skeleton.",
-          "minutes": 40,
-          "feature": "practice.labs"
-        }
-      ]
-    },
-    {
-      "id": "L2",
-      "title": "Level 2: Evaluation systems",
-      "summary": "Move from checks to systems: automated graders, human review loops and dashboards.",
-      "items": [
-        {
-          "id": "L2-01",
-          "kind": "lesson",
-          "title": "Designing an eval pipeline",
-          "summary": "Placeholder summary for the course skeleton.",
-          "minutes": 24,
-          "feature": "lessons.paid"
-        },
-        {
-          "id": "L2-02",
-          "kind": "lesson",
-          "title": "LLM-as-judge: when it works and when it lies",
-          "summary": "Placeholder summary for the course skeleton.",
-          "minutes": 22,
-          "feature": "lessons.paid"
-        },
-        {
-          "id": "L2-03",
-          "kind": "lesson",
-          "title": "Human review loops at small scale",
-          "summary": "Placeholder summary for the course skeleton.",
-          "minutes": 18,
-          "feature": "lessons.paid"
-        },
-        {
-          "id": "L2-04",
-          "kind": "lesson",
-          "title": "Testing agents and tool use",
-          "summary": "Placeholder summary for the course skeleton.",
-          "minutes": 26,
-          "feature": "lessons.paid"
-        },
-        {
-          "id": "L2-05",
-          "kind": "lesson",
-          "title": "Safety, abuse and red-team basics",
-          "summary": "Placeholder summary for the course skeleton.",
-          "minutes": 24,
-          "feature": "lessons.paid"
-        },
-        {
-          "id": "L2-06",
-          "kind": "lesson",
-          "title": "Cost, latency and quality trade-offs",
-          "summary": "Placeholder summary for the course skeleton.",
-          "minutes": 20,
-          "feature": "lessons.paid"
-        },
-        {
-          "id": "L2-07",
-          "kind": "lab",
-          "title": "Lab: build an eval harness",
-          "summary": "Placeholder summary for the course skeleton.",
-          "minutes": 50,
-          "feature": "practice.labs"
-        }
-      ]
-    },
-    {
-      "id": "L3",
-      "title": "Level 3: Production",
-      "summary": "Keep quality up after launch: monitoring, drift and incident response.",
-      "items": [
-        {
-          "id": "L3-01",
-          "kind": "lesson",
-          "title": "Monitoring quality in production",
-          "summary": "Placeholder summary for the course skeleton.",
-          "minutes": 22,
-          "feature": "lessons.paid"
-        },
-        {
-          "id": "L3-02",
-          "kind": "lesson",
-          "title": "Detecting drift and silent regressions",
-          "summary": "Placeholder summary for the course skeleton.",
-          "minutes": 20,
-          "feature": "lessons.paid"
-        },
-        {
-          "id": "L3-03",
-          "kind": "lesson",
-          "title": "Release gates for AI features",
-          "summary": "Placeholder summary for the course skeleton.",
-          "minutes": 18,
-          "feature": "lessons.paid"
-        },
-        {
-          "id": "L3-04",
-          "kind": "lesson",
-          "title": "Incident response for model failures",
-          "summary": "Placeholder summary for the course skeleton.",
-          "minutes": 20,
-          "feature": "lessons.paid"
-        },
-        {
-          "id": "L3-05",
-          "kind": "lab",
-          "title": "Lab: ship with a quality gate",
-          "summary": "Placeholder summary for the course skeleton.",
-          "minutes": 45,
-          "feature": "practice.labs"
-        }
-      ]
-    }
+  {
+   "id": "lessons.paid",
+   "description": "Sample paid lessons"
+  },
+  {
+   "id": "audio.paid",
+   "description": "Sample paid audio"
+  },
+  {
+   "id": "practice.labs",
+   "description": "Sample labs"
+  }
+ ],
+ "tiers_example": {
+  "free": [
+   "free"
+  ],
+  "base": [
+   "free",
+   "lessons.paid",
+   "audio.paid"
+  ],
+  "higher": [
+   "free",
+   "lessons.paid",
+   "audio.paid",
+   "practice.labs"
   ]
+ },
+ "levels": [
+  {
+   "id": "L0",
+   "title": "Sample level zero",
+   "weeks": "Weeks 1-2",
+   "folder": "L0-sample",
+   "lessons": [
+    "L0-01",
+    "L0-02",
+    "L0-03",
+    "L0-04"
+   ]
+  },
+  {
+   "id": "L1",
+   "title": "Sample level one",
+   "weeks": "Weeks 3-8",
+   "folder": "L1-sample",
+   "lessons": [
+    "L1-01",
+    "L1-02",
+    "L1-03",
+    "L1-04",
+    "L1-05",
+    "L1-06",
+    "L1-07",
+    "L1-08",
+    "L1-09",
+    "L1-10"
+   ]
+  },
+  {
+   "id": "L2",
+   "title": "Sample level two",
+   "weeks": "Weeks 9-15",
+   "folder": "L2-sample",
+   "lessons": [
+    "L2-01",
+    "L2-02",
+    "L2-03",
+    "L2-04",
+    "L2-05",
+    "L2-06",
+    "L2-07",
+    "L2-08",
+    "L2-09",
+    "L2-10",
+    "L2-11",
+    "L2-12"
+   ]
+  },
+  {
+   "id": "L3",
+   "title": "Sample level three",
+   "weeks": "Weeks 16-20",
+   "folder": "L3-sample",
+   "lessons": [
+    "L3-01",
+    "L3-02",
+    "L3-03",
+    "L3-04",
+    "L3-05",
+    "L3-06",
+    "L3-07",
+    "L3-08"
+   ]
+  }
+ ],
+ "lessons": [
+  {
+   "id": "L0-01",
+   "level": "L0",
+   "number": 1,
+   "slug": "sample-lesson-l0-01",
+   "title": "Sample lesson L0-01",
+   "minutes": 20,
+   "summary": "Invented summary for sample lesson L0-01.",
+   "objectives": [
+    "Sample objective one for L0-01",
+    "Sample objective two for L0-01"
+   ],
+   "feature": "free",
+   "audio_feature": "free",
+   "decks": {
+    "lecture": {
+     "id": "L0-01",
+     "slides": 20,
+     "clips": 24,
+     "duration_seconds": 600.5
+    },
+    "conversation": {
+     "id": "L0-01-talk",
+     "slides": 20,
+     "clips": 90,
+     "duration_seconds": 640.2
+    }
+   }
+  },
+  {
+   "id": "L0-02",
+   "level": "L0",
+   "number": 2,
+   "slug": "sample-lesson-l0-02",
+   "title": "Sample lesson L0-02",
+   "minutes": 21,
+   "summary": "Invented summary for sample lesson L0-02.",
+   "objectives": [
+    "Sample objective one for L0-02",
+    "Sample objective two for L0-02"
+   ],
+   "feature": "free",
+   "audio_feature": "free",
+   "decks": {
+    "lecture": {
+     "id": "L0-02",
+     "slides": 20,
+     "clips": 24,
+     "duration_seconds": 600.5
+    },
+    "conversation": {
+     "id": "L0-02-talk",
+     "slides": 20,
+     "clips": 90,
+     "duration_seconds": 640.2
+    }
+   }
+  },
+  {
+   "id": "L0-03",
+   "level": "L0",
+   "number": 3,
+   "slug": "sample-lesson-l0-03",
+   "title": "Sample lesson L0-03",
+   "minutes": 22,
+   "summary": "Invented summary for sample lesson L0-03.",
+   "objectives": [
+    "Sample objective one for L0-03",
+    "Sample objective two for L0-03"
+   ],
+   "feature": "free",
+   "audio_feature": "free",
+   "decks": {
+    "lecture": {
+     "id": "L0-03",
+     "slides": 20,
+     "clips": 24,
+     "duration_seconds": 600.5
+    },
+    "conversation": {
+     "id": "L0-03-talk",
+     "slides": 20,
+     "clips": 90,
+     "duration_seconds": 640.2
+    }
+   }
+  },
+  {
+   "id": "L0-04",
+   "level": "L0",
+   "number": 4,
+   "slug": "sample-lesson-l0-04",
+   "title": "Sample lesson L0-04",
+   "minutes": 23,
+   "summary": "Invented summary for sample lesson L0-04.",
+   "objectives": [
+    "Sample objective one for L0-04",
+    "Sample objective two for L0-04"
+   ],
+   "feature": "free",
+   "audio_feature": "free",
+   "decks": {
+    "lecture": {
+     "id": "L0-04",
+     "slides": 20,
+     "clips": 24,
+     "duration_seconds": 600.5
+    },
+    "conversation": {
+     "id": "L0-04-talk",
+     "slides": 20,
+     "clips": 90,
+     "duration_seconds": 640.2
+    }
+   }
+  },
+  {
+   "id": "L1-01",
+   "level": "L1",
+   "number": 1,
+   "slug": "sample-lesson-l1-01",
+   "title": "Sample lesson L1-01",
+   "minutes": 20,
+   "summary": "Invented summary for sample lesson L1-01.",
+   "objectives": [
+    "Sample objective one for L1-01",
+    "Sample objective two for L1-01"
+   ],
+   "feature": "lessons.paid",
+   "audio_feature": "audio.paid",
+   "decks": {
+    "lecture": {
+     "id": "L1-01",
+     "slides": 20,
+     "clips": 24,
+     "duration_seconds": 600.5
+    },
+    "conversation": {
+     "id": "L1-01-talk",
+     "slides": 20,
+     "clips": 90,
+     "duration_seconds": 640.2
+    }
+   }
+  },
+  {
+   "id": "L1-02",
+   "level": "L1",
+   "number": 2,
+   "slug": "sample-lesson-l1-02",
+   "title": "Sample lesson L1-02",
+   "minutes": 21,
+   "summary": "Invented summary for sample lesson L1-02.",
+   "objectives": [
+    "Sample objective one for L1-02",
+    "Sample objective two for L1-02"
+   ],
+   "feature": "lessons.paid",
+   "audio_feature": "audio.paid",
+   "decks": {
+    "lecture": {
+     "id": "L1-02",
+     "slides": 20,
+     "clips": 24,
+     "duration_seconds": 600.5
+    },
+    "conversation": {
+     "id": "L1-02-talk",
+     "slides": 20,
+     "clips": 90,
+     "duration_seconds": 640.2
+    }
+   }
+  },
+  {
+   "id": "L1-03",
+   "level": "L1",
+   "number": 3,
+   "slug": "sample-lesson-l1-03",
+   "title": "Sample lesson L1-03",
+   "minutes": 22,
+   "summary": "Invented summary for sample lesson L1-03.",
+   "objectives": [
+    "Sample objective one for L1-03",
+    "Sample objective two for L1-03"
+   ],
+   "feature": "lessons.paid",
+   "audio_feature": "audio.paid",
+   "decks": {
+    "lecture": {
+     "id": "L1-03",
+     "slides": 20,
+     "clips": 24,
+     "duration_seconds": 600.5
+    },
+    "conversation": {
+     "id": "L1-03-talk",
+     "slides": 20,
+     "clips": 90,
+     "duration_seconds": 640.2
+    }
+   }
+  },
+  {
+   "id": "L1-04",
+   "level": "L1",
+   "number": 4,
+   "slug": "sample-lesson-l1-04",
+   "title": "Sample lesson L1-04",
+   "minutes": 23,
+   "summary": "Invented summary for sample lesson L1-04.",
+   "objectives": [
+    "Sample objective one for L1-04",
+    "Sample objective two for L1-04"
+   ],
+   "feature": "lessons.paid",
+   "audio_feature": "audio.paid",
+   "decks": {
+    "lecture": {
+     "id": "L1-04",
+     "slides": 20,
+     "clips": 24,
+     "duration_seconds": 600.5
+    },
+    "conversation": {
+     "id": "L1-04-talk",
+     "slides": 20,
+     "clips": 90,
+     "duration_seconds": 640.2
+    }
+   }
+  },
+  {
+   "id": "L1-05",
+   "level": "L1",
+   "number": 5,
+   "slug": "sample-lesson-l1-05",
+   "title": "Sample lesson L1-05",
+   "minutes": 24,
+   "summary": "Invented summary for sample lesson L1-05.",
+   "objectives": [
+    "Sample objective one for L1-05",
+    "Sample objective two for L1-05"
+   ],
+   "feature": "lessons.paid",
+   "audio_feature": "audio.paid",
+   "decks": {
+    "lecture": {
+     "id": "L1-05",
+     "slides": 20,
+     "clips": 24,
+     "duration_seconds": 600.5
+    },
+    "conversation": {
+     "id": "L1-05-talk",
+     "slides": 20,
+     "clips": 90,
+     "duration_seconds": 640.2
+    }
+   }
+  },
+  {
+   "id": "L1-06",
+   "level": "L1",
+   "number": 6,
+   "slug": "sample-lesson-l1-06",
+   "title": "Sample lesson L1-06",
+   "minutes": 25,
+   "summary": "Invented summary for sample lesson L1-06.",
+   "objectives": [
+    "Sample objective one for L1-06",
+    "Sample objective two for L1-06"
+   ],
+   "feature": "lessons.paid",
+   "audio_feature": "audio.paid",
+   "decks": {
+    "lecture": {
+     "id": "L1-06",
+     "slides": 20,
+     "clips": 24,
+     "duration_seconds": 600.5
+    },
+    "conversation": {
+     "id": "L1-06-talk",
+     "slides": 20,
+     "clips": 90,
+     "duration_seconds": 640.2
+    }
+   }
+  },
+  {
+   "id": "L1-07",
+   "level": "L1",
+   "number": 7,
+   "slug": "sample-lesson-l1-07",
+   "title": "Sample lesson L1-07",
+   "minutes": 26,
+   "summary": "Invented summary for sample lesson L1-07.",
+   "objectives": [
+    "Sample objective one for L1-07",
+    "Sample objective two for L1-07"
+   ],
+   "feature": "lessons.paid",
+   "audio_feature": "audio.paid",
+   "decks": {
+    "lecture": {
+     "id": "L1-07",
+     "slides": 20,
+     "clips": 24,
+     "duration_seconds": 600.5
+    },
+    "conversation": {
+     "id": "L1-07-talk",
+     "slides": 20,
+     "clips": 90,
+     "duration_seconds": 640.2
+    }
+   }
+  },
+  {
+   "id": "L1-08",
+   "level": "L1",
+   "number": 8,
+   "slug": "sample-lesson-l1-08",
+   "title": "Sample lesson L1-08",
+   "minutes": 27,
+   "summary": "Invented summary for sample lesson L1-08.",
+   "objectives": [
+    "Sample objective one for L1-08",
+    "Sample objective two for L1-08"
+   ],
+   "feature": "lessons.paid",
+   "audio_feature": "audio.paid",
+   "decks": {
+    "lecture": {
+     "id": "L1-08",
+     "slides": 20,
+     "clips": 24,
+     "duration_seconds": 600.5
+    },
+    "conversation": {
+     "id": "L1-08-talk",
+     "slides": 20,
+     "clips": 90,
+     "duration_seconds": 640.2
+    }
+   }
+  },
+  {
+   "id": "L1-09",
+   "level": "L1",
+   "number": 9,
+   "slug": "sample-lesson-l1-09",
+   "title": "Sample lesson L1-09",
+   "minutes": 28,
+   "summary": "Invented summary for sample lesson L1-09.",
+   "objectives": [
+    "Sample objective one for L1-09",
+    "Sample objective two for L1-09"
+   ],
+   "feature": "lessons.paid",
+   "audio_feature": "audio.paid",
+   "decks": {
+    "lecture": {
+     "id": "L1-09",
+     "slides": 20,
+     "clips": 24,
+     "duration_seconds": 600.5
+    },
+    "conversation": {
+     "id": "L1-09-talk",
+     "slides": 20,
+     "clips": 90,
+     "duration_seconds": 640.2
+    }
+   }
+  },
+  {
+   "id": "L1-10",
+   "level": "L1",
+   "number": 10,
+   "slug": "sample-lesson-l1-10",
+   "title": "Sample lesson L1-10",
+   "minutes": 29,
+   "summary": "Invented summary for sample lesson L1-10.",
+   "objectives": [
+    "Sample objective one for L1-10",
+    "Sample objective two for L1-10"
+   ],
+   "feature": "lessons.paid",
+   "audio_feature": "audio.paid",
+   "decks": {
+    "lecture": {
+     "id": "L1-10",
+     "slides": 20,
+     "clips": 24,
+     "duration_seconds": 600.5
+    },
+    "conversation": {
+     "id": "L1-10-talk",
+     "slides": 20,
+     "clips": 90,
+     "duration_seconds": 640.2
+    }
+   }
+  },
+  {
+   "id": "L2-01",
+   "level": "L2",
+   "number": 1,
+   "slug": "sample-lesson-l2-01",
+   "title": "Sample lesson L2-01",
+   "minutes": 20,
+   "summary": "Invented summary for sample lesson L2-01.",
+   "objectives": [
+    "Sample objective one for L2-01",
+    "Sample objective two for L2-01"
+   ],
+   "feature": "lessons.paid",
+   "audio_feature": "audio.paid",
+   "decks": {
+    "lecture": {
+     "id": "L2-01",
+     "slides": 20,
+     "clips": 24,
+     "duration_seconds": 600.5
+    },
+    "conversation": {
+     "id": "L2-01-talk",
+     "slides": 20,
+     "clips": 90,
+     "duration_seconds": 640.2
+    }
+   }
+  },
+  {
+   "id": "L2-02",
+   "level": "L2",
+   "number": 2,
+   "slug": "sample-lesson-l2-02",
+   "title": "Sample lesson L2-02",
+   "minutes": 21,
+   "summary": "Invented summary for sample lesson L2-02.",
+   "objectives": [
+    "Sample objective one for L2-02",
+    "Sample objective two for L2-02"
+   ],
+   "feature": "lessons.paid",
+   "audio_feature": "audio.paid",
+   "decks": {
+    "lecture": {
+     "id": "L2-02",
+     "slides": 20,
+     "clips": 24,
+     "duration_seconds": 600.5
+    },
+    "conversation": {
+     "id": "L2-02-talk",
+     "slides": 20,
+     "clips": 90,
+     "duration_seconds": 640.2
+    }
+   }
+  },
+  {
+   "id": "L2-03",
+   "level": "L2",
+   "number": 3,
+   "slug": "sample-lesson-l2-03",
+   "title": "Sample lesson L2-03",
+   "minutes": 22,
+   "summary": "Invented summary for sample lesson L2-03.",
+   "objectives": [
+    "Sample objective one for L2-03",
+    "Sample objective two for L2-03"
+   ],
+   "feature": "lessons.paid",
+   "audio_feature": "audio.paid",
+   "decks": {
+    "lecture": {
+     "id": "L2-03",
+     "slides": 20,
+     "clips": 24,
+     "duration_seconds": 600.5
+    },
+    "conversation": {
+     "id": "L2-03-talk",
+     "slides": 20,
+     "clips": 90,
+     "duration_seconds": 640.2
+    }
+   }
+  },
+  {
+   "id": "L2-04",
+   "level": "L2",
+   "number": 4,
+   "slug": "sample-lesson-l2-04",
+   "title": "Sample lesson L2-04",
+   "minutes": 23,
+   "summary": "Invented summary for sample lesson L2-04.",
+   "objectives": [
+    "Sample objective one for L2-04",
+    "Sample objective two for L2-04"
+   ],
+   "feature": "lessons.paid",
+   "audio_feature": "audio.paid",
+   "decks": {
+    "lecture": {
+     "id": "L2-04",
+     "slides": 20,
+     "clips": 24,
+     "duration_seconds": 600.5
+    },
+    "conversation": {
+     "id": "L2-04-talk",
+     "slides": 20,
+     "clips": 90,
+     "duration_seconds": 640.2
+    }
+   }
+  },
+  {
+   "id": "L2-05",
+   "level": "L2",
+   "number": 5,
+   "slug": "sample-lesson-l2-05",
+   "title": "Sample lesson L2-05",
+   "minutes": 24,
+   "summary": "Invented summary for sample lesson L2-05.",
+   "objectives": [
+    "Sample objective one for L2-05",
+    "Sample objective two for L2-05"
+   ],
+   "feature": "lessons.paid",
+   "audio_feature": "audio.paid",
+   "decks": {
+    "lecture": {
+     "id": "L2-05",
+     "slides": 20,
+     "clips": 24,
+     "duration_seconds": 600.5
+    },
+    "conversation": {
+     "id": "L2-05-talk",
+     "slides": 20,
+     "clips": 90,
+     "duration_seconds": 640.2
+    }
+   }
+  },
+  {
+   "id": "L2-06",
+   "level": "L2",
+   "number": 6,
+   "slug": "sample-lesson-l2-06",
+   "title": "Sample lesson L2-06",
+   "minutes": 25,
+   "summary": "Invented summary for sample lesson L2-06.",
+   "objectives": [
+    "Sample objective one for L2-06",
+    "Sample objective two for L2-06"
+   ],
+   "feature": "lessons.paid",
+   "audio_feature": "audio.paid",
+   "decks": {
+    "lecture": {
+     "id": "L2-06",
+     "slides": 20,
+     "clips": 24,
+     "duration_seconds": 600.5
+    },
+    "conversation": {
+     "id": "L2-06-talk",
+     "slides": 20,
+     "clips": 90,
+     "duration_seconds": 640.2
+    }
+   }
+  },
+  {
+   "id": "L2-07",
+   "level": "L2",
+   "number": 7,
+   "slug": "sample-lesson-l2-07",
+   "title": "Sample lesson L2-07",
+   "minutes": 26,
+   "summary": "Invented summary for sample lesson L2-07.",
+   "objectives": [
+    "Sample objective one for L2-07",
+    "Sample objective two for L2-07"
+   ],
+   "feature": "lessons.paid",
+   "audio_feature": "audio.paid",
+   "decks": {
+    "lecture": {
+     "id": "L2-07",
+     "slides": 20,
+     "clips": 24,
+     "duration_seconds": 600.5
+    },
+    "conversation": {
+     "id": "L2-07-talk",
+     "slides": 20,
+     "clips": 90,
+     "duration_seconds": 640.2
+    }
+   }
+  },
+  {
+   "id": "L2-08",
+   "level": "L2",
+   "number": 8,
+   "slug": "sample-lesson-l2-08",
+   "title": "Sample lesson L2-08",
+   "minutes": 27,
+   "summary": "Invented summary for sample lesson L2-08.",
+   "objectives": [
+    "Sample objective one for L2-08",
+    "Sample objective two for L2-08"
+   ],
+   "feature": "lessons.paid",
+   "audio_feature": "audio.paid",
+   "decks": {
+    "lecture": {
+     "id": "L2-08",
+     "slides": 20,
+     "clips": 24,
+     "duration_seconds": 600.5
+    },
+    "conversation": {
+     "id": "L2-08-talk",
+     "slides": 20,
+     "clips": 90,
+     "duration_seconds": 640.2
+    }
+   }
+  },
+  {
+   "id": "L2-09",
+   "level": "L2",
+   "number": 9,
+   "slug": "sample-lesson-l2-09",
+   "title": "Sample lesson L2-09",
+   "minutes": 28,
+   "summary": "Invented summary for sample lesson L2-09.",
+   "objectives": [
+    "Sample objective one for L2-09",
+    "Sample objective two for L2-09"
+   ],
+   "feature": "lessons.paid",
+   "audio_feature": "audio.paid",
+   "decks": {
+    "lecture": {
+     "id": "L2-09",
+     "slides": 20,
+     "clips": 24,
+     "duration_seconds": 600.5
+    },
+    "conversation": {
+     "id": "L2-09-talk",
+     "slides": 20,
+     "clips": 90,
+     "duration_seconds": 640.2
+    }
+   }
+  },
+  {
+   "id": "L2-10",
+   "level": "L2",
+   "number": 10,
+   "slug": "sample-lesson-l2-10",
+   "title": "Sample lesson L2-10",
+   "minutes": 29,
+   "summary": "Invented summary for sample lesson L2-10.",
+   "objectives": [
+    "Sample objective one for L2-10",
+    "Sample objective two for L2-10"
+   ],
+   "feature": "lessons.paid",
+   "audio_feature": "audio.paid",
+   "decks": {
+    "lecture": {
+     "id": "L2-10",
+     "slides": 20,
+     "clips": 24,
+     "duration_seconds": 600.5
+    },
+    "conversation": {
+     "id": "L2-10-talk",
+     "slides": 20,
+     "clips": 90,
+     "duration_seconds": 640.2
+    }
+   }
+  },
+  {
+   "id": "L2-11",
+   "level": "L2",
+   "number": 11,
+   "slug": "sample-lesson-l2-11",
+   "title": "Sample lesson L2-11",
+   "minutes": 30,
+   "summary": "Invented summary for sample lesson L2-11.",
+   "objectives": [
+    "Sample objective one for L2-11",
+    "Sample objective two for L2-11"
+   ],
+   "feature": "lessons.paid",
+   "audio_feature": "audio.paid",
+   "decks": {
+    "lecture": {
+     "id": "L2-11",
+     "slides": 20,
+     "clips": 24,
+     "duration_seconds": 600.5
+    },
+    "conversation": {
+     "id": "L2-11-talk",
+     "slides": 20,
+     "clips": 90,
+     "duration_seconds": 640.2
+    }
+   }
+  },
+  {
+   "id": "L2-12",
+   "level": "L2",
+   "number": 12,
+   "slug": "sample-lesson-l2-12",
+   "title": "Sample lesson L2-12",
+   "minutes": 31,
+   "summary": "Invented summary for sample lesson L2-12.",
+   "objectives": [
+    "Sample objective one for L2-12",
+    "Sample objective two for L2-12"
+   ],
+   "feature": "lessons.paid",
+   "audio_feature": "audio.paid",
+   "decks": {
+    "lecture": {
+     "id": "L2-12",
+     "slides": 20,
+     "clips": 24,
+     "duration_seconds": 600.5
+    },
+    "conversation": {
+     "id": "L2-12-talk",
+     "slides": 20,
+     "clips": 90,
+     "duration_seconds": 640.2
+    }
+   }
+  },
+  {
+   "id": "L3-01",
+   "level": "L3",
+   "number": 1,
+   "slug": "sample-lesson-l3-01",
+   "title": "Sample lesson L3-01",
+   "minutes": 20,
+   "summary": "Invented summary for sample lesson L3-01.",
+   "objectives": [
+    "Sample objective one for L3-01",
+    "Sample objective two for L3-01"
+   ],
+   "feature": "lessons.paid",
+   "audio_feature": "audio.paid",
+   "decks": {
+    "lecture": {
+     "id": "L3-01",
+     "slides": 20,
+     "clips": 24,
+     "duration_seconds": 600.5
+    },
+    "conversation": {
+     "id": "L3-01-talk",
+     "slides": 20,
+     "clips": 90,
+     "duration_seconds": 640.2
+    }
+   }
+  },
+  {
+   "id": "L3-02",
+   "level": "L3",
+   "number": 2,
+   "slug": "sample-lesson-l3-02",
+   "title": "Sample lesson L3-02",
+   "minutes": 21,
+   "summary": "Invented summary for sample lesson L3-02.",
+   "objectives": [
+    "Sample objective one for L3-02",
+    "Sample objective two for L3-02"
+   ],
+   "feature": "lessons.paid",
+   "audio_feature": "audio.paid",
+   "decks": {
+    "lecture": {
+     "id": "L3-02",
+     "slides": 20,
+     "clips": 24,
+     "duration_seconds": 600.5
+    },
+    "conversation": {
+     "id": "L3-02-talk",
+     "slides": 20,
+     "clips": 90,
+     "duration_seconds": 640.2
+    }
+   }
+  },
+  {
+   "id": "L3-03",
+   "level": "L3",
+   "number": 3,
+   "slug": "sample-lesson-l3-03",
+   "title": "Sample lesson L3-03",
+   "minutes": 22,
+   "summary": "Invented summary for sample lesson L3-03.",
+   "objectives": [
+    "Sample objective one for L3-03",
+    "Sample objective two for L3-03"
+   ],
+   "feature": "lessons.paid",
+   "audio_feature": "audio.paid",
+   "decks": {
+    "lecture": {
+     "id": "L3-03",
+     "slides": 20,
+     "clips": 24,
+     "duration_seconds": 600.5
+    },
+    "conversation": {
+     "id": "L3-03-talk",
+     "slides": 20,
+     "clips": 90,
+     "duration_seconds": 640.2
+    }
+   }
+  },
+  {
+   "id": "L3-04",
+   "level": "L3",
+   "number": 4,
+   "slug": "sample-lesson-l3-04",
+   "title": "Sample lesson L3-04",
+   "minutes": 23,
+   "summary": "Invented summary for sample lesson L3-04.",
+   "objectives": [
+    "Sample objective one for L3-04",
+    "Sample objective two for L3-04"
+   ],
+   "feature": "lessons.paid",
+   "audio_feature": "audio.paid",
+   "decks": {
+    "lecture": {
+     "id": "L3-04",
+     "slides": 20,
+     "clips": 24,
+     "duration_seconds": 600.5
+    },
+    "conversation": {
+     "id": "L3-04-talk",
+     "slides": 20,
+     "clips": 90,
+     "duration_seconds": 640.2
+    }
+   }
+  },
+  {
+   "id": "L3-05",
+   "level": "L3",
+   "number": 5,
+   "slug": "sample-lesson-l3-05",
+   "title": "Sample lesson L3-05",
+   "minutes": 24,
+   "summary": "Invented summary for sample lesson L3-05.",
+   "objectives": [
+    "Sample objective one for L3-05",
+    "Sample objective two for L3-05"
+   ],
+   "feature": "lessons.paid",
+   "audio_feature": "audio.paid",
+   "decks": {
+    "lecture": {
+     "id": "L3-05",
+     "slides": 20,
+     "clips": 24,
+     "duration_seconds": 600.5
+    },
+    "conversation": {
+     "id": "L3-05-talk",
+     "slides": 20,
+     "clips": 90,
+     "duration_seconds": 640.2
+    }
+   }
+  },
+  {
+   "id": "L3-06",
+   "level": "L3",
+   "number": 6,
+   "slug": "sample-lesson-l3-06",
+   "title": "Sample lesson L3-06",
+   "minutes": 25,
+   "summary": "Invented summary for sample lesson L3-06.",
+   "objectives": [
+    "Sample objective one for L3-06",
+    "Sample objective two for L3-06"
+   ],
+   "feature": "lessons.paid",
+   "audio_feature": "audio.paid",
+   "decks": {
+    "lecture": {
+     "id": "L3-06",
+     "slides": 20,
+     "clips": 24,
+     "duration_seconds": 600.5
+    },
+    "conversation": {
+     "id": "L3-06-talk",
+     "slides": 20,
+     "clips": 90,
+     "duration_seconds": 640.2
+    }
+   }
+  },
+  {
+   "id": "L3-07",
+   "level": "L3",
+   "number": 7,
+   "slug": "sample-lesson-l3-07",
+   "title": "Sample lesson L3-07",
+   "minutes": 26,
+   "summary": "Invented summary for sample lesson L3-07.",
+   "objectives": [
+    "Sample objective one for L3-07",
+    "Sample objective two for L3-07"
+   ],
+   "feature": "lessons.paid",
+   "audio_feature": "audio.paid",
+   "decks": {
+    "lecture": {
+     "id": "L3-07",
+     "slides": 20,
+     "clips": 24,
+     "duration_seconds": 600.5
+    },
+    "conversation": {
+     "id": "L3-07-talk",
+     "slides": 20,
+     "clips": 90,
+     "duration_seconds": 640.2
+    }
+   }
+  },
+  {
+   "id": "L3-08",
+   "level": "L3",
+   "number": 8,
+   "slug": "sample-lesson-l3-08",
+   "title": "Sample lesson L3-08",
+   "minutes": 27,
+   "summary": "Invented summary for sample lesson L3-08.",
+   "objectives": [
+    "Sample objective one for L3-08",
+    "Sample objective two for L3-08"
+   ],
+   "feature": "lessons.paid",
+   "audio_feature": "audio.paid",
+   "decks": {
+    "lecture": {
+     "id": "L3-08",
+     "slides": 20,
+     "clips": 24,
+     "duration_seconds": 600.5
+    },
+    "conversation": {
+     "id": "L3-08-talk",
+     "slides": 20,
+     "clips": 90,
+     "duration_seconds": 640.2
+    }
+   }
+  }
+ ],
+ "labs": [
+  {
+   "id": "L0-sample-lab",
+   "level": "L0",
+   "title": "Sample lab L0-sample-lab",
+   "lessons": [
+    "L0-04"
+   ],
+   "files": 2,
+   "size_bytes": 4096,
+   "paths": [
+    "L0/sample.py",
+    "L0/sample.csv"
+   ],
+   "feature": "practice.labs"
+  },
+  {
+   "id": "L1-sample-lab",
+   "level": "L1",
+   "title": "Sample lab L1-sample-lab",
+   "lessons": [
+    "L1-01",
+    "L1-06"
+   ],
+   "files": 1,
+   "size_bytes": 4096,
+   "paths": [
+    "common/sample_client.py"
+   ],
+   "feature": "practice.labs"
+  },
+  {
+   "id": "L2-sample-lab",
+   "level": "L2",
+   "title": "Sample lab L2-sample-lab",
+   "lessons": [
+    "L2-03"
+   ],
+   "files": 2,
+   "size_bytes": 4096,
+   "paths": [
+    "L2/sample/__init__.py",
+    "L2/sample/graders.py"
+   ],
+   "feature": "practice.labs"
+  },
+  {
+   "id": "L3-sample-lab",
+   "level": "L3",
+   "title": "Sample lab L3-sample-lab",
+   "lessons": [
+    "L3-03"
+   ],
+   "files": 1,
+   "size_bytes": 4096,
+   "paths": [
+    "L3/sample/__init__.py"
+   ],
+   "feature": "practice.labs"
+  }
+ ]
 }

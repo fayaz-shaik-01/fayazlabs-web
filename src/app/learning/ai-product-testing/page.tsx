@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { getCatalog, itemHref } from "@/lib/course/catalog";
+import { tryGetCatalog, itemHref } from "@/lib/course/catalog";
+import { CatalogUnavailable } from "@/components/course/catalog-unavailable";
+
+export const revalidate = 60;
 import { LevelList } from "@/components/course/level-list";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -11,7 +14,8 @@ export const metadata: Metadata = {
 };
 
 export default async function CourseHomePage() {
-  const catalog = await getCatalog();
+  const catalog = await tryGetCatalog();
+  if (!catalog) return <CatalogUnavailable />;
   const first = catalog.levels[0]?.items[0];
 
   return (
@@ -19,7 +23,7 @@ export default async function CourseHomePage() {
       <header className="mb-12">
         <p className="mono-tag text-lab-green mb-3">[COURSE]</p>
         <h1 className="text-display-xl text-foreground">{catalog.course.title}</h1>
-        <p className="mt-4 text-body-lg text-muted-foreground">{catalog.course.summary}</p>
+        {catalog.course.summary && <p className="mt-4 text-body-lg text-muted-foreground">{catalog.course.summary}</p>}
         <div className="mt-6 flex flex-wrap gap-3">
           {first && (
             <Link href={itemHref(first.id)} className={cn(buttonVariants({ size: "lg" }), "rounded-[2px]")}>

@@ -46,7 +46,7 @@ export function LevelList({
                     {item.kind === "lab" && <Badge variant="secondary">Lab</Badge>}
                     {item.feature === "free" && <Badge variant="outline">Free</Badge>}
                     {showLock && <Lock className="h-3.5 w-3.5 text-muted-foreground" aria-label="Locked" />}
-                    <span className="w-14 shrink-0 text-right text-xs text-muted-foreground">{item.minutes} min</span>
+                    <span className="w-14 shrink-0 text-right text-xs text-muted-foreground">{item.minutes > 0 ? `${item.minutes} min` : ""}</span>
                   </Link>
                 </li>
               );

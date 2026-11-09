@@ -7,6 +7,8 @@
  * Razorpay hosts are needed for checkout (script, XHR, and its checkout iframe).
  */
 
+import { DEFAULT_MEDIA_ORIGIN } from "./course/media-config";
+
 export function toOrigin(value: string | undefined): string | null {
   if (!value) return null;
   try {
@@ -24,7 +26,8 @@ export function buildCsp(env: {
   mediaOrigin: process.env.NEXT_PUBLIC_MEDIA_ORIGIN,
   platformUrl: process.env.NEXT_PUBLIC_PLATFORM_URL,
 }): string {
-  const media = toOrigin(env.mediaOrigin);
+  // The CDN origin is always allowed (it is the default media origin), plus any override.
+  const medias = [...new Set([toOrigin(DEFAULT_MEDIA_ORIGIN), toOrigin(env.mediaOrigin)].filter((o): o is string => !!o))];
   const platform = toOrigin(env.platformUrl);
 
   const connect = [
@@ -36,7 +39,7 @@ export function buildCsp(env: {
     "https://*.fayazlabs.com",
     "https://api.razorpay.com",
     ...(platform ? [platform] : []),
-    ...(media ? [media] : []),
+    ...medias,
   ];
 
   const directives: string[] = [
@@ -46,7 +49,7 @@ export function buildCsp(env: {
     "font-src 'self' https://fonts.gstatic.com data:",
     "img-src 'self' data: blob: https:",
     // blob: is how the player plays audio it has fetched and decrypted in memory.
-    `media-src 'self' blob:${media ? ` ${media}` : ""}`,
+    `media-src 'self' blob: ${medias.join(" ")}`,
     `connect-src ${connect.join(" ")}`,
     "frame-src https://accounts.google.com https://api.razorpay.com",
     "frame-ancestors 'none'",

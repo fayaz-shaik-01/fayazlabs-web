@@ -41,8 +41,35 @@ describe("catalog fixture", () => {
   });
   test("rejects an unknown feature", () => {
     const bad = structuredClone(fixture) as typeof fixture;
-    (bad.levels[0].items[0] as { feature: string }).feature = "bogus";
+    (bad.lessons[0] as { feature: string }).feature = "bogus";
     assert.throws(() => parseCatalog(bad));
+  });
+  test("the fixture has the REAL published structure with synthetic titles", () => {
+    assert.equal(fixture.schema_version, 1);
+    for (const k of ["course", "features", "tiers_example", "levels", "lessons", "labs"]) assert.ok(k in fixture, k);
+    assert.equal(fixture.lessons.length, 34);
+    const perLevel = Object.fromEntries(fixture.levels.map((l) => [l.id, l.lessons.length]));
+    assert.deepEqual(perLevel, { L0: 4, L1: 10, L2: 12, L3: 8 });
+    assert.ok(fixture.lessons.every((l) => l.title.startsWith("Sample lesson")));
+    for (const k of ["id", "level", "number", "slug", "title", "minutes", "summary", "objectives", "feature", "audio_feature", "decks"]) {
+      assert.ok(k in fixture.lessons[0], k);
+    }
+    for (const k of ["id", "level", "title", "lessons", "files", "size_bytes", "paths", "feature"]) assert.ok(k in fixture.labs[0], k);
+  });
+  test("maps lessons in level order, then labs as kind lab under their level", () => {
+    const c = parseCatalog(fixture);
+    const l0 = c.levels[0];
+    assert.deepEqual(l0.items.slice(0, 4).map((i) => i.id), ["L0-01", "L0-02", "L0-03", "L0-04"]);
+    const lab = l0.items.find((i) => i.kind === "lab");
+    assert.ok(lab && lab.feature === "practice.labs" && lab.lessons?.includes("L0-04"));
+    assert.equal(c.levels.reduce((n, l) => n + l.items.filter((i) => i.kind === "lesson").length, 0), 34);
+    assert.equal(c.levels[0].summary, "Weeks 1-2");
+    assert.equal(c.levels[1].items[0].audioFeature, "audio.paid");
+    assert.equal(l0.items[1].decks?.conversation, true);
+  });
+  test("does not fall back: garbage or an old-shape catalog throws", () => {
+    assert.throws(() => parseCatalog({ version: 1, course: { slug: "x", title: "t", summary: "" }, levels: [] }));
+    assert.throws(() => parseCatalog(null));
   });
 });
 
@@ -67,16 +94,16 @@ describe("locked state", () => {
 });
 
 describe("CSP", () => {
-  test("media origin is added to media-src and connect-src only when set", () => {
+  test("the CDN origin is always allowed; an override is added", () => {
     const off = buildCsp({});
-    assert.match(off, /media-src 'self' blob:(;|$)/);
+    assert.match(off, /media-src 'self' blob: https:\/\/media\.fayazlabs\.com(;|$)/);
     const on = buildCsp({ mediaOrigin: "https://media.example.com/some/path" });
-    assert.match(on, /media-src 'self' blob: https:\/\/media\.example\.com(;|$)/);
+    assert.match(on, /media-src 'self' blob: https:\/\/media\.fayazlabs\.com https:\/\/media\.example\.com(;|$)/);
     assert.match(on, /connect-src [^;]*https:\/\/media\.example\.com/);
   });
   test("ignores a malformed media origin and keeps the strict rules", () => {
     const csp = buildCsp({ mediaOrigin: "not a url" });
-    assert.match(csp, /media-src 'self' blob:(;|$)/);
+    assert.match(csp, /media-src 'self' blob: https:\/\/media\.fayazlabs\.com(;|$)/);
     assert.match(csp, /default-src 'self'/);
     assert.match(csp, /frame-ancestors 'none'/);
   });

@@ -10,6 +10,16 @@ export class LoadError extends Error {
   }
 }
 
+const RETRIES = 2;
+const BACKOFF_MS = 400;
+
+function sleep(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const t = setTimeout(resolve, ms);
+    signal.addEventListener("abort", () => { clearTimeout(t); reject(new DOMException("Aborted", "AbortError")); }, { once: true });
+  });
+}
+
 interface BlobEntry {
   promise: Promise<string>;
   ctl: AbortController;
@@ -32,7 +42,18 @@ export class ContentLoader {
 
   private async fetchRaw(rel: string, signal: AbortSignal, retried = false): Promise<ArrayBuffer> {
     const src = this.source();
-    const res = await fetch(fileUrl(src, rel), { signal, credentials: "omit" });
+    // Network errors and 5xx are retried with backoff; 404 and auth errors are not.
+    let res: Response | undefined;
+    for (let attempt = 0; ; attempt++) {
+      try {
+        res = await fetch(fileUrl(src, rel), { signal, credentials: "omit" });
+        if (res.status < 500 || attempt >= RETRIES) break;
+      } catch (e) {
+        if (signal.aborted || attempt >= RETRIES) throw e instanceof TypeError ? new LoadError(0, `Network error loading ${rel}`) : e;
+      }
+      await sleep(BACKOFF_MS * 3 ** attempt, signal);
+    }
+    if (!res) throw new LoadError(0, `No response for ${rel}`);
     if ((res.status === 401 || res.status === 403) && this.refresh && !retried) {
       // The signed URL may have expired; get a fresh grant once and retry.
       await this.refresh();

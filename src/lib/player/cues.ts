@@ -1,11 +1,11 @@
-import type { Caption } from "./format";
+import type { Cue } from "./format";
 
 /**
  * Index of the caption active at audio time `t`, or -1 before the first one.
  * A caption stays active until the next one starts (no flicker in the gaps),
  * and only the last caption ends at its own `end`.
  */
-export function activeCueIndex(cues: readonly Caption[], t: number): number {
+export function activeCueIndex(cues: readonly Pick<Cue, "start" | "end">[], t: number): number {
   let lo = 0;
   let hi = cues.length - 1;
   let found = -1;
@@ -28,6 +28,31 @@ export function slideProgress(currentTime: number, duration: number): number {
 
 export const SPEEDS = [0.85, 1, 1.25, 1.5, 1.75] as const;
 export const THINK_SECONDS = 6;
+
+/**
+ * Quiz slides are one file: question cues, 250 ms of silence, then answer cues.
+ * The player pauses once the audio clock reaches `question_end`, and after the
+ * think pause jumps to `answer_start`.
+ */
+export function shouldPauseForQuiz(
+  quiz: { question_end: number; answer_start: number } | undefined,
+  currentTime: number,
+  passed: boolean,
+): boolean {
+  return !!quiz && !passed && currentTime >= quiz.question_end;
+}
+
+/** A manual seek past the answer start counts as having passed the quiz. */
+export function quizPassedBySeek(quiz: { answer_start: number } | undefined, t: number): boolean {
+  return !!quiz && t >= quiz.answer_start;
+}
+
+/** Seconds of the whole deck played so far: earlier slides plus this one. */
+export function deckElapsed(durations: readonly number[], index: number, currentTime: number): number {
+  let sum = 0;
+  for (let i = 0; i < index; i++) sum += durations[i] ?? 0;
+  return sum + currentTime;
+}
 
 /** Remaining think time for a quiz, from a monotonic clock (ms). */
 export function thinkRemaining(startedAtMs: number, nowMs: number, total = THINK_SECONDS): number {

@@ -1,9 +1,9 @@
-import { activeCueIndex, thinkRemaining, THINK_SECONDS } from "./cues";
-import type { Deck } from "./format";
+import { activeCueIndex, quizPassedBySeek, shouldPauseForQuiz, thinkRemaining } from "./cues";
+import { slideAudioPath, type Deck } from "./format";
 import type { ContentLoader } from "./loader";
 import { windowFor } from "./prefetch";
 
-export type Phase = "loading" | "playing" | "paused" | "think" | "answer" | "ended" | "error";
+export type Phase = "loading" | "playing" | "paused" | "think" | "ended" | "error";
 
 export interface EngineState {
   index: number;
@@ -13,14 +13,11 @@ export interface EngineState {
   duration: number;
   cue: number;
   thinkLeft: number;
-  choice: number | null;
   blobUrls: number;
   error?: string;
 }
 
 type Slot = { el: HTMLAudioElement; index: number };
-
-const ANSWER_HOLD_S = 5;
 
 /**
  * Plays a deck from the audio clock only. Two audio elements alternate: while
@@ -38,7 +35,7 @@ export class PlayerEngine {
   private disposed = false;
   private wantPlay = true;
   private thinkStart = 0;
-  private answerStart = 0;
+  private quizPassed = false;
   private lastEmit = "";
   private cleanups: (() => void)[] = [];
   state: EngineState;
@@ -61,8 +58,7 @@ export class PlayerEngine {
       time: 0,
       duration: 0,
       cue: -1,
-      thinkLeft: THINK_SECONDS,
-      choice: null,
+      thinkLeft: deck.thinkSeconds,
       blobUrls: 0,
     };
     for (const s of this.slots) {
@@ -93,7 +89,7 @@ export class PlayerEngine {
 
   private emit(force = false) {
     const s = this.state;
-    const key = `${s.index}|${s.phase}|${s.rate}|${s.cue}|${Math.floor(s.time * 4)}|${Math.ceil(s.thinkLeft * 10)}|${s.choice}|${s.blobUrls}|${Math.round(s.duration)}`;
+    const key = `${s.index}|${s.phase}|${s.rate}|${s.cue}|${Math.floor(s.time * 4)}|${Math.ceil(s.thinkLeft * 10)}|${s.blobUrls}|${Math.round(s.duration)}`;
     if (!force && key === this.lastEmit) return;
     this.lastEmit = key;
     this.onChange(this.state);
@@ -108,7 +104,7 @@ export class PlayerEngine {
   }
 
   private rel(i: number) {
-    return this.deck.slides[i].audio;
+    return slideAudioPath(this.deck, this.deck.slides[i]);
   }
 
   /** Read the audio clock and update caption/progress state. */
@@ -122,20 +118,24 @@ export class PlayerEngine {
       else this.emit();
       return;
     }
-    if (phase === "answer") {
-      if ((performance.now() - this.answerStart) / 1000 >= ANSWER_HOLD_S) this.next();
-      else this.emit();
-      return;
-    }
     if (phase !== "playing" && phase !== "paused") return;
     const el = this.active.el;
     if (this.active.index !== index) return;
     const t = el.currentTime;
+    const slide = this.deck.slides[index];
     this.set({
       time: t,
-      duration: Number.isFinite(el.duration) ? el.duration : 0,
-      cue: activeCueIndex(this.deck.slides[index].captions, t),
+      duration: slide.audio.duration || (Number.isFinite(el.duration) ? el.duration : 0),
+      cue: activeCueIndex(slide.cues, t),
     });
+    // Quiz: stop at the end of the question, the think timer runs, then reveal.
+    if (phase === "playing" && shouldPauseForQuiz(slide.quiz, t, this.quizPassed)) {
+      el.pause();
+      this.thinkStart = performance.now();
+      this.set({ phase: "think", thinkLeft: this.deck.thinkSeconds });
+      this.emit(true);
+      return;
+    }
     // A hidden tab can stall rAF; `ended` still fires, but poll it too.
     if (el.ended && phase === "playing") this.handleEnded(this.active);
     else this.emit();
@@ -158,7 +158,8 @@ export class PlayerEngine {
     if (opts.autoplay !== undefined) this.wantPlay = opts.autoplay;
     this.active.el.pause();
     this.idle.el.pause();
-    this.set({ index: i, phase: "loading", time: 0, cue: -1, duration: 0, thinkLeft: THINK_SECONDS, choice: null, error: undefined });
+    this.quizPassed = false;
+    this.set({ index: i, phase: "loading", time: 0, cue: -1, duration: 0, thinkLeft: this.deck.thinkSeconds, error: undefined });
     this.emit(true);
     this.ensureLoop();
 
@@ -180,6 +181,7 @@ export class PlayerEngine {
         this.attach(slot, i, url);
       }
       slot.el.currentTime = opts.at ?? 0;
+      if (quizPassedBySeek(this.deck.slides[i].quiz, opts.at ?? 0)) this.quizPassed = true;
       this.applyRate();
       if (this.wantPlay) {
         await slot.el.play();
@@ -245,28 +247,19 @@ export class PlayerEngine {
 
   private handleEnded(slot: Slot) {
     if (this.disposed || slot !== this.active || this.state.phase !== "playing") return;
-    const i = this.state.index;
-    const quiz = this.deck.slides[i].quiz;
-    if (quiz) {
-      this.thinkStart = performance.now();
-      this.set({ phase: "think", thinkLeft: THINK_SECONDS });
-      this.emit(true);
-      return;
-    }
     this.next();
   }
 
+  /** End the think pause: jump to the answer and play on. */
   private reveal() {
-    this.answerStart = performance.now();
-    this.set({ phase: "answer", thinkLeft: 0 });
+    const quiz = this.deck.slides[this.state.index].quiz;
+    this.quizPassed = true;
+    const el = this.active.el;
+    if (quiz) el.currentTime = quiz.answer_start;
+    this.set({ phase: "playing", thinkLeft: 0 });
+    this.wantPlay = true;
+    void el.play().catch(() => {});
     this.emit(true);
-  }
-
-  choose(choice: number) {
-    if (this.state.phase === "think" || this.state.phase === "playing" || this.state.phase === "paused") {
-      this.set({ choice });
-      this.emit(true);
-    }
   }
 
   skipThink() {
@@ -290,7 +283,8 @@ export class PlayerEngine {
       nxt.el.currentTime = 0;
       this.applyRate();
       void nxt.el.play().catch(() => {});
-      this.set({ index: i + 1, phase: "playing", time: 0, cue: -1, duration: Number.isFinite(nxt.el.duration) ? nxt.el.duration : 0, choice: null });
+      this.quizPassed = false;
+      this.set({ index: i + 1, phase: "playing", time: 0, cue: -1, duration: this.deck.slides[i + 1].audio.duration, thinkLeft: this.deck.thinkSeconds });
       const win = windowFor(i + 1, this.deck.slides.length);
       this.loader.keepOnly(win.map((n) => this.rel(n)));
       this.invalidateOutside(win);
@@ -311,6 +305,8 @@ export class PlayerEngine {
     const el = this.active.el;
     if (this.active.index !== this.state.index) return;
     el.currentTime = Math.max(0, t);
+    if (quizPassedBySeek(this.deck.slides[this.state.index].quiz, t)) this.quizPassed = true;
+    if (this.state.phase === "think") this.set({ phase: "paused" });
     this.sample();
   }
 
@@ -319,6 +315,7 @@ export class PlayerEngine {
     const phase: Phase = this.state.phase;
     if (phase === "loading") return; // the in-flight load will start playback
     if (phase === "ended") return void this.goTo(0, { autoplay: true });
+    if (phase === "think") return this.skipThink();
     if (phase === "paused") {
       if (this.active.index === this.state.index) {
         this.active.el.play().then(() => {
