@@ -2,10 +2,11 @@
 import http from "node:http";
 import { readFileSync, existsSync, statSync } from "node:fs";
 import path from "node:path";
+import { createHash } from "node:crypto";
 import { makeLessonFixture } from "../../tests/fixtures/make-lesson";
 
 const root = path.resolve(__dirname, "../../.tmp-fixture");
-const fx = makeLessonFixture({ outDir: root, itemId: "L2-05", slides: 10, slideSeconds: 4, withQuiz: true });
+const fx = makeLessonFixture({ outDir: root, itemId: "L2-05", slides: 10, slideSeconds: 4, withQuiz: true, fixedKey: createHash("sha256").update("synthetic-demo-key").digest() });
 const port = Number(process.env.FIXTURE_PORT ?? 4100);
 
 http

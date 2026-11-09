@@ -172,6 +172,10 @@ export const mockTransport: Transport = async (req: TransportRequest) => {
     let override: { baseUrl?: string; key?: string; ttlMs?: number; query?: string } = {};
     try {
       override = JSON.parse(ls()?.getItem("fayazlabs_mock_grant") ?? "{}");
+      // Local demo: NEXT_PUBLIC_MOCK_MEDIA_KEY is the synthetic fixture key (not a secret).
+      if (!override.key && process.env.NEXT_PUBLIC_MOCK_MEDIA_KEY) {
+        override = { baseUrl: process.env.NEXT_PUBLIC_MEDIA_ORIGIN || "/course-media", key: process.env.NEXT_PUBLIC_MOCK_MEDIA_KEY };
+      }
     } catch {
       // ignore a malformed hook
     }

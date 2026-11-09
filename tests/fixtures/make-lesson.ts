@@ -22,10 +22,12 @@ export interface FixtureOptions {
   slides: number;
   slideSeconds: number;
   withQuiz?: boolean;
+  /** Deterministic key for local demos (synthetic content only). */
+  fixedKey?: Buffer;
 }
 
 export function makeLessonFixture(o: FixtureOptions) {
-  const key = randomBytes(32);
+  const key = o.fixedKey ?? randomBytes(32);
   const dir = path.join(o.outDir, "paid", o.itemId);
   rmSync(dir, { recursive: true, force: true });
   mkdirSync(path.join(dir, "audio"), { recursive: true });
