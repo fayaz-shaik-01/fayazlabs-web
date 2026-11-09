@@ -208,7 +208,7 @@ export function LessonMentor({
                             "flex h-6 w-6 shrink-0 items-center justify-center rounded-md border text-[10px]",
                             msg.role === "user"
                               ? "border-primary/30 bg-primary/10 text-primary"
-                              : "border-lab-green/30 bg-lab-green/10 text-lab-green",
+                              : "border-primary/30 bg-primary/10 text-primary",
                           )}
                         >
                           {msg.role === "user" ? (
@@ -232,7 +232,7 @@ export function LessonMentor({
 
                     {isLoading && (
                       <div className="flex gap-2.5">
-                        <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-lab-green/30 bg-lab-green/10 text-lab-green">
+                        <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-primary/30 bg-primary/10 text-primary">
                           <Bot className="h-3 w-3" />
                         </div>
                         <div className="rounded-lg bg-card border border-border px-3 py-2">

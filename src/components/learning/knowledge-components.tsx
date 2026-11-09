@@ -385,8 +385,8 @@ export function ConceptCheckpoint({
   return (
     <div className="my-8 rounded-lg border border-border bg-card p-5">
       <div className="flex items-center gap-1.5 mb-3">
-        <CheckCircle2 className="size-3.5 text-lab-green/70" />
-        <span className="text-xs font-mono font-medium uppercase tracking-wider text-lab-green/70">
+        <CheckCircle2 className="size-3.5 text-primary/70" />
+        <span className="text-xs font-mono font-medium uppercase tracking-wider text-primary/70">
           Quick Check
         </span>
       </div>

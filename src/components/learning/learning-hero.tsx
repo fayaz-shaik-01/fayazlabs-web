@@ -28,7 +28,6 @@ export function LearningHero(props: LearningHeroProps) {
   return (
     <section className="relative overflow-hidden">
       {/* Ambient glow */}
-      <div className="absolute inset-0 bg-gradient-to-b from-background via-background to-surface-1" />
       <div className="absolute top-0 left-1/3 w-[500px] h-[500px] rounded-full bg-glow-primary/[0.05] blur-[140px]" />
       <div className="absolute bottom-0 right-1/4 w-[400px] h-[400px] rounded-full bg-glow-accent/[0.04] blur-[120px]" />
       <div className="absolute top-1/2 right-1/3 w-[300px] h-[300px] rounded-full bg-glow-violet/[0.03] blur-[100px] animate-float" />
@@ -39,9 +38,9 @@ export function LearningHero(props: LearningHeroProps) {
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.2, ease }}
-          className="mono-tag text-lab-green mb-6 flex items-center gap-2"
+          className="eyebrow !text-primary mb-6 flex items-center gap-2"
         >
-          <span className="inline-block h-1.5 w-1.5 rounded-full bg-lab-green animate-glow-pulse" />{" "}
+          <span className="inline-block h-1.5 w-1.5 rounded-full bg-primary " />{" "}
           [LEARNING_PLATFORM: ACTIVE]
         </motion.div>
 
@@ -54,7 +53,7 @@ export function LearningHero(props: LearningHeroProps) {
         >
           Master AI Engineering
           <br />
-          <span className="text-gradient-hero">From First Principles</span>
+          <span className="text-primary">From First Principles</span>
         </motion.h1>
 
         {/* Description */}
@@ -111,12 +110,12 @@ export function LearningHero(props: LearningHeroProps) {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.4, delay: 1 + i * 0.08, ease }}
-              className="border-l border-lab-green/20 pl-3"
+              className="border-l border-primary/20 pl-3"
             >
               <div className="text-2xl sm:text-3xl font-bold text-foreground font-mono tracking-tight">
                 {m.value}
               </div>
-              <div className="mono-tag text-muted-foreground mt-1">{m.label}</div>
+              <div className="eyebrow text-muted-foreground mt-1">{m.label}</div>
             </motion.div>
           ))}
         </motion.div>

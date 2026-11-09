@@ -14,7 +14,7 @@ export function ChatMessageBubble({ message }: Readonly<{ message: ChatMessage }
           "flex size-7 shrink-0 items-center justify-center rounded-md border text-xs",
           isUser
             ? "border-primary/30 bg-primary/10 text-primary"
-            : "border-lab-green/30 bg-lab-green/10 text-lab-green",
+            : "border-primary/30 bg-primary/10 text-primary",
         )}
       >
         {isUser ? <User className="size-3.5" /> : <Bot className="size-3.5" />}

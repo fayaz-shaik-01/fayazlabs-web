@@ -212,7 +212,7 @@ export function NotesSidebar({ lessonKey, lessonTitle }: { lessonKey: string; le
           onClick={toggleBookmark}
           className={cn(
             "h-10 w-10 rounded-lg border flex items-center justify-center transition-all shadow-md",
-            isBookmarked ? "border-lab-amber bg-lab-amber/10 text-lab-amber" : "border-border bg-card text-muted-foreground hover:text-foreground"
+            isBookmarked ? "border-warn bg-warn/10 text-warn" : "border-border bg-card text-muted-foreground hover:text-foreground"
           )}
           title={isBookmarked ? "Remove bookmark" : "Bookmark this lesson"}
           aria-label={isBookmarked ? "Remove bookmark" : "Bookmark this lesson"}
@@ -327,7 +327,7 @@ export function BookmarksList() {
     <div className="space-y-2">
       {bookmarks.map((b) => (
         <div key={b.key} className="group flex items-center gap-3 rounded-lg border border-border bg-card p-3 hover:border-primary/30 transition-all">
-          <BookmarkCheck className="h-4 w-4 text-lab-amber flex-shrink-0" />
+          <BookmarkCheck className="h-4 w-4 text-warn flex-shrink-0" />
           <a href={b.href} className="flex-1 min-w-0">
             <p className="text-sm text-foreground truncate">{b.title}</p>
             <p className="text-[0.6rem] text-muted-foreground">{b.type} &middot; {new Date(b.addedAt).toLocaleDateString()}</p>

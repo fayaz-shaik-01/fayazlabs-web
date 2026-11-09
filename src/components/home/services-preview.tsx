@@ -56,7 +56,6 @@ const services = [
 export function ServicesPreview() {
   return (
     <section className="relative py-24 sm:py-32">
-      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-surface-1/30 to-transparent" />
       <div className="mx-auto max-w-6xl px-6 relative">
         <SectionHeader
           label="Services"

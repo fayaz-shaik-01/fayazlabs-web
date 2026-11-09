@@ -46,7 +46,6 @@ export default function TaxLandingPage() {
     <div className="relative">
       {/* Hero */}
       <section className="relative py-24 px-6 text-center overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-b from-primary/5 to-transparent pointer-events-none" />
         <div className="relative max-w-3xl mx-auto space-y-6">
           <span className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-1.5 text-xs font-semibold tracking-wide text-primary uppercase">
             AI Tax Intelligence — FY 2024-25

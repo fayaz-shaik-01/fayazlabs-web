@@ -23,7 +23,7 @@ const metrics = [
 const ease = [0.16, 1, 0.3, 1] as const;
 
 function Crosshair({ position }: Readonly<{ position: "tl" | "tr" | "bl" | "br" }>) {
-  const base = "absolute pointer-events-none text-lab-green/30 z-20 hidden lg:block";
+  const base = "absolute pointer-events-none text-primary/30 z-20 hidden lg:block";
   const size = 32;
   const pos = {
     tl: "top-6 left-6",
@@ -75,7 +75,6 @@ export function Hero() {
   return (
     <section className="relative min-h-screen flex items-center overflow-hidden">
       {/* Ambient background effects */}
-      <div className="absolute inset-0 bg-gradient-to-b from-background via-background to-surface-1" />
       <div className="absolute top-0 left-1/4 w-[600px] h-[600px] rounded-full bg-glow-primary/[0.04] blur-[150px]" />
       <div className="absolute bottom-0 right-1/4 w-[500px] h-[500px] rounded-full bg-glow-accent/[0.03] blur-[130px]" />
       <div className="absolute top-1/3 right-1/3 w-[400px] h-[400px] rounded-full bg-glow-violet/[0.03] blur-[120px] animate-float" />
@@ -109,9 +108,9 @@ export function Hero() {
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.2, ease }}
-            className="mono-tag text-lab-green mb-6 flex items-center gap-2"
+            className="eyebrow !text-primary mb-6 flex items-center gap-2"
           >
-            <span className="inline-block h-1.5 w-1.5 rounded-full bg-lab-green animate-glow-pulse" />
+            <span className="inline-block h-1.5 w-1.5 rounded-full bg-primary " />
             [SYSTEM_INIT: SUCCESS]
           </motion.div>
 
@@ -124,7 +123,7 @@ export function Hero() {
           >
             Building
             <br />
-            <span className="text-gradient-hero">Intelligent</span>
+            <span className="text-primary">Intelligent</span>
             <br />
             <span className="text-foreground/50">Systems</span>
           </motion.h1>
@@ -184,10 +183,10 @@ export function Hero() {
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.4, delay: 1 + i * 0.08, ease }}
-                  className="border-l border-lab-green/20 pl-3"
+                  className="border-l border-primary/20 pl-3"
                 >
                   <div className="text-2xl sm:text-3xl font-bold text-foreground font-mono tracking-tight">{m.value}</div>
-                  <div className="mono-tag text-muted-foreground mt-1">{m.label}</div>
+                  <div className="eyebrow text-muted-foreground mt-1">{m.label}</div>
                 </motion.div>
               ))}
             </motion.div>

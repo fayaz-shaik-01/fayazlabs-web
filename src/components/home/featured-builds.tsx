@@ -78,17 +78,17 @@ export function FeaturedBuilds() {
               >
                 {/* Status & domain tags */}
                 <div className="flex items-center justify-between mb-4">
-                  <span className="mono-tag text-lab-green text-[10px]">[Status: {d.status}]</span>
-                  <span className="mono-tag text-lab-amber text-[10px]">[Domain: {d.domain}]</span>
+                  <span className="eyebrow !text-primary text-[10px]">[Status: {d.status}]</span>
+                  <span className="eyebrow text-warn text-[10px]">[Domain: {d.domain}]</span>
                 </div>
 
                 {/* Title — terminal prompt style */}
                 <div className="flex items-start justify-between mb-2">
-                  <h3 className="text-heading-md group-hover:text-lab-green transition-colors duration-300">
-                    <span className="text-lab-green/60 font-mono mr-1.5 text-sm">&gt;</span>
+                  <h3 className="text-heading-md group-hover:text-primary transition-colors duration-300">
+                    <span className="text-primary/60 font-mono mr-1.5 text-sm">&gt;</span>
                     {d.title}
                   </h3>
-                  <ArrowUpRight className="h-4 w-4 text-muted-foreground opacity-0 -translate-y-1 translate-x-1 transition-all duration-300 group-hover:opacity-100 group-hover:translate-y-0 group-hover:translate-x-0 group-hover:text-lab-green flex-shrink-0 mt-0.5" />
+                  <ArrowUpRight className="h-4 w-4 text-muted-foreground opacity-0 -translate-y-1 translate-x-1 transition-all duration-300 group-hover:opacity-100 group-hover:translate-y-0 group-hover:translate-x-0 group-hover:text-primary flex-shrink-0 mt-0.5" />
                 </div>
 
                 {/* Description */}
@@ -98,8 +98,8 @@ export function FeaturedBuilds() {
 
                 {/* Test & coverage readout */}
                 <div className="hw-module !bg-surface-0 px-3 py-2 mb-4 flex items-center justify-between">
-                  <span className="mono-tag text-lab-green text-[10px]">[Tests: {d.tests}]</span>
-                  <span className="mono-tag text-foreground/50 text-[10px]">[Coverage: {d.coverage}]</span>
+                  <span className="eyebrow !text-primary text-[10px]">[Tests: {d.tests}]</span>
+                  <span className="eyebrow text-foreground/50 text-[10px]">[Coverage: {d.coverage}]</span>
                 </div>
 
                 {/* Tech stack — raw mono */}

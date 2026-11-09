@@ -46,7 +46,6 @@ export default function ContactPage() {
           transition={{ duration: 0.6, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
           className="group relative rounded-md glass-card p-8 overflow-hidden"
         >
-          <div className="absolute inset-0 bg-gradient-to-br from-primary/[0.04] via-transparent to-transparent" />
           <div className="relative z-10">
             <div className="inline-flex h-11 w-11 items-center justify-center rounded-md bg-primary/[0.08] text-primary mb-5 ring-1 ring-primary/10 group-hover:ring-primary/25 transition-all duration-500">
               <Briefcase className="h-5 w-5" />
@@ -75,7 +74,6 @@ export default function ContactPage() {
           transition={{ duration: 0.6, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
           className="group relative rounded-md glass-card p-8 overflow-hidden"
         >
-          <div className="absolute inset-0 bg-gradient-to-br from-glow-accent/[0.03] via-transparent to-transparent" />
           <div className="relative z-10">
             <div className="inline-flex h-11 w-11 items-center justify-center rounded-md bg-accent/[0.08] text-accent mb-5 ring-1 ring-accent/10 group-hover:ring-accent/25 transition-all duration-500">
               <Code className="h-5 w-5" />

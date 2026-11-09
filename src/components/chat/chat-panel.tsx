@@ -132,13 +132,13 @@ export function ChatPanel() {
         <SheetHeader className="p-4 pb-3 border-b border-border">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
-              <div className="flex size-8 items-center justify-center rounded-md border border-lab-green/30 bg-lab-green/10">
-                <Sparkles className="size-4 text-lab-green" />
+              <div className="flex size-8 items-center justify-center rounded-md border border-primary/30 bg-primary/10">
+                <Sparkles className="size-4 text-primary" />
               </div>
               <div>
                 <SheetTitle className="text-sm">Fayaz Labs AI</SheetTitle>
-                <SheetDescription className="text-[11px] font-mono text-lab-green/70">
-                  <span className="inline-block size-1.5 rounded-full bg-lab-green mr-1" />{"ONLINE"}
+                <SheetDescription className="text-[11px] font-mono text-primary/70">
+                  <span className="inline-block size-1.5 rounded-full bg-primary mr-1" />{"ONLINE"}
                 </SheetDescription>
               </div>
             </div>
@@ -205,7 +205,7 @@ export function ChatPanel() {
               animate={{ opacity: 1 }}
               className="flex gap-3"
             >
-              <div className="flex size-7 shrink-0 items-center justify-center rounded-md border border-lab-green/30 bg-lab-green/10 text-lab-green">
+              <div className="flex size-7 shrink-0 items-center justify-center rounded-md border border-primary/30 bg-primary/10 text-primary">
                 <Bot className="size-3.5" />
               </div>
               <div className="rounded-md bg-surface-2 border border-border px-3.5 py-2.5">
@@ -218,7 +218,7 @@ export function ChatPanel() {
           )}
 
           {error && !isLoading && (
-            <div className="flex items-center gap-2 rounded-md border border-lab-red/20 bg-lab-red/5 px-3 py-2 text-xs text-lab-red">
+            <div className="flex items-center gap-2 rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2 text-xs text-destructive">
               <AlertCircle className="size-3 shrink-0" />
               {error}
             </div>

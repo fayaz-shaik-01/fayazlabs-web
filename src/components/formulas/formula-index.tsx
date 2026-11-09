@@ -132,7 +132,7 @@ function FormulaCard({ formula, index }: Readonly<{ formula: Formula; index: num
           title="Copy LaTeX"
         >
           {copied ? (
-            <><Check className="h-3 w-3 text-lab-green" /> Copied</>
+            <><Check className="h-3 w-3 text-primary" /> Copied</>
           ) : (
             <><Copy className="h-3 w-3" /> LaTeX</>
           )}
@@ -200,7 +200,6 @@ export function FormulaIndex() {
     <>
       {/* Hero */}
       <section className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-b from-background via-background to-surface-1" />
         <div className="absolute top-0 left-1/4 w-[500px] h-[500px] rounded-full bg-glow-accent/[0.05] blur-[140px]" />
 
         <div className="relative z-10 mx-auto max-w-6xl px-6 pt-32 pb-16 sm:pt-40 sm:pb-20">
@@ -208,9 +207,9 @@ export function FormulaIndex() {
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.2 }}
-            className="mono-tag text-lab-green mb-6 flex items-center gap-2"
+            className="eyebrow !text-primary mb-6 flex items-center gap-2"
           >
-            <span className="inline-block h-1.5 w-1.5 rounded-full bg-lab-green animate-glow-pulse" />
+            <span className="inline-block h-1.5 w-1.5 rounded-full bg-primary " />
             [FORMULA_INDEX: LOADED]
           </motion.div>
 
@@ -222,7 +221,7 @@ export function FormulaIndex() {
           >
             Formula
             <br />
-            <span className="text-gradient-hero">Quick Reference</span>
+            <span className="text-primary">Quick Reference</span>
           </motion.h1>
 
           <motion.p
@@ -242,9 +241,9 @@ export function FormulaIndex() {
             transition={{ duration: 0.7, delay: 0.7 }}
             className="mt-8 flex items-center gap-6"
           >
-            <div className="border-l border-lab-green/20 pl-3">
+            <div className="border-l border-primary/20 pl-3">
               <div className="text-xl font-bold text-foreground font-mono">{sampleFormulas.length}</div>
-              <div className="mono-tag text-muted-foreground mt-0.5 flex items-center gap-1">
+              <div className="eyebrow text-muted-foreground mt-0.5 flex items-center gap-1">
                 <BookOpen className="h-3 w-3" /> FORMULAS
               </div>
             </div>

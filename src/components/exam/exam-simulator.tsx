@@ -119,16 +119,15 @@ export function ExamSimulator() {
     return (
       <>
         <section className="relative overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-b from-background via-background to-surface-1" />
           <div className="relative z-10 mx-auto max-w-5xl px-6 pt-32 pb-12 sm:pt-40 sm:pb-16">
             <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.2 }}
-              className="mono-tag text-lab-amber mb-6 flex items-center gap-2">
-              <span className="inline-block h-1.5 w-1.5 rounded-full bg-lab-amber animate-glow-pulse" />
+              className="eyebrow text-warn mb-6 flex items-center gap-2">
+              <span className="inline-block h-1.5 w-1.5 rounded-full bg-warn " />
               [EXAM_SIMULATOR: READY]
             </motion.div>
             <motion.h1 initial={{ opacity: 0, y: 25 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 1, delay: 0.35 }}
               className="text-display-xl text-foreground max-w-3xl">
-              Exam<br /><span className="text-gradient-hero">Simulator</span>
+              Exam<br /><span className="text-primary">Simulator</span>
             </motion.h1>
             <motion.p initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, delay: 0.55 }}
               className="mt-6 text-body-lg text-muted-foreground max-w-xl">
@@ -174,7 +173,7 @@ export function ExamSimulator() {
 
         <div className="grid grid-cols-3 gap-4">
           <div className="rounded-xl border border-border bg-card p-4 text-center">
-            <CheckCircle2 className="h-5 w-5 text-lab-green mx-auto mb-1" />
+            <CheckCircle2 className="h-5 w-5 text-primary mx-auto mb-1" />
             <p className="text-lg font-bold text-foreground">{score.correct}</p>
             <p className="text-[0.65rem] text-muted-foreground">Correct</p>
           </div>
@@ -184,7 +183,7 @@ export function ExamSimulator() {
             <p className="text-[0.65rem] text-muted-foreground">Wrong (-{(score.wrong * (questions[0]?.negativeMarks ?? 0.33)).toFixed(2)})</p>
           </div>
           <div className="rounded-xl border border-border bg-card p-4 text-center">
-            <AlertTriangle className="h-5 w-5 text-lab-amber mx-auto mb-1" />
+            <AlertTriangle className="h-5 w-5 text-warn mx-auto mb-1" />
             <p className="text-lg font-bold text-foreground">{score.skipped}</p>
             <p className="text-[0.65rem] text-muted-foreground">Skipped</p>
           </div>
@@ -222,14 +221,14 @@ export function ExamSimulator() {
               <div key={q.id} className="rounded-xl border border-border bg-card p-4">
                 <div className="flex items-start gap-3">
                   <span className={cn("mt-0.5 flex-shrink-0 h-6 w-6 rounded-full flex items-center justify-center text-[0.65rem] font-bold",
-                    isSkipped ? "bg-muted text-muted-foreground" : isCorrect ? "bg-lab-green/20 text-lab-green" : "bg-destructive/20 text-destructive"
+                    isSkipped ? "bg-muted text-muted-foreground" : isCorrect ? "bg-primary/20 text-primary" : "bg-destructive/20 text-destructive"
                   )}>{i + 1}</span>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm text-foreground mb-2">{q.text}</p>
                     <div className="grid grid-cols-2 gap-1.5">
                       {q.options.map((opt, oi) => (
                         <div key={oi} className={cn("px-3 py-1.5 rounded-md text-xs border",
-                          oi === q.correct ? "border-lab-green/40 bg-lab-green/10 text-lab-green" :
+                          oi === q.correct ? "border-primary/40 bg-primary/10 text-primary" :
                           oi === a.selected && oi !== q.correct ? "border-destructive/40 bg-destructive/10 text-destructive" :
                           "border-border text-muted-foreground"
                         )}>{opt}</div>
@@ -279,8 +278,8 @@ export function ExamSimulator() {
           <button key={i} onClick={() => setCurrentQ(i)}
             className={cn("h-7 w-7 rounded-md text-[0.6rem] font-bold border transition-all",
               i === currentQ ? "border-primary bg-primary/10 text-primary" :
-              answers[i]?.selected !== null ? "border-lab-green/40 bg-lab-green/10 text-lab-green" :
-              answers[i]?.flagged ? "border-lab-amber/40 bg-lab-amber/10 text-lab-amber" :
+              answers[i]?.selected !== null ? "border-primary/40 bg-primary/10 text-primary" :
+              answers[i]?.flagged ? "border-warn/40 bg-warn/10 text-warn" :
               "border-border text-muted-foreground"
             )}>
             {i + 1}
@@ -295,7 +294,7 @@ export function ExamSimulator() {
             <div className="flex items-center justify-between mb-4">
               <span className="text-xs text-muted-foreground">{q.topic} &middot; {q.marks} mark{q.marks > 1 ? "s" : ""}</span>
               <button onClick={toggleFlag} className={cn("flex items-center gap-1 text-xs px-2 py-1 rounded-md border transition-all",
-                a.flagged ? "border-lab-amber/40 text-lab-amber bg-lab-amber/10" : "border-border text-muted-foreground hover:text-foreground"
+                a.flagged ? "border-warn/40 text-warn bg-warn/10" : "border-border text-muted-foreground hover:text-foreground"
               )}>
                 <Flag className="h-3 w-3" /> {a.flagged ? "Flagged" : "Flag"}
               </button>

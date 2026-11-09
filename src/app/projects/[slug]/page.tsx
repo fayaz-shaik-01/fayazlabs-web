@@ -60,7 +60,7 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
       </Link>
 
       <header className="mb-12">
-        <h1 className="text-display-lg mb-5 text-glow">
+        <h1 className="text-display-lg mb-5">
           {project.title}
         </h1>
         <p className="text-body-lg text-muted-foreground mb-6">

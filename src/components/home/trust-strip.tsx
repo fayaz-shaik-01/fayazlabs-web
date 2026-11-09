@@ -15,7 +15,6 @@ const technologies2 = [
 export function TrustStrip() {
   return (
     <div className="relative py-10 overflow-hidden">
-      <div className="absolute inset-0 bg-gradient-to-b from-surface-1/50 via-transparent to-transparent" />
       <p className="relative text-center text-[11px] font-medium text-muted-foreground mb-6 tracking-[0.2em] uppercase">
         Technologies I work with
       </p>
@@ -31,7 +30,7 @@ export function TrustStrip() {
             {[...technologies, ...technologies].map((tech, i) => (
               <span
                 key={`${tech}-${i}`}
-                className="whitespace-nowrap rounded-md border border-border bg-card px-4 py-1.5 text-[13px] font-mono font-medium text-foreground/60 hover:text-lab-green hover:border-lab-green/20 hover:bg-lab-green/[0.04] transition-all duration-300"
+                className="whitespace-nowrap rounded-md border border-border bg-card px-4 py-1.5 text-[13px] font-mono font-medium text-foreground/60 hover:text-primary hover:border-primary/20 hover:bg-primary/[0.04] transition-all duration-300"
               >
                 {tech}
               </span>
@@ -49,7 +48,7 @@ export function TrustStrip() {
             {[...technologies2, ...technologies2].map((tech, i) => (
               <span
                 key={`${tech}-${i}`}
-                className="whitespace-nowrap rounded-md border border-border bg-card px-4 py-1.5 text-[13px] font-mono font-medium text-foreground/60 hover:text-lab-green hover:border-lab-green/20 hover:bg-lab-green/[0.04] transition-all duration-300"
+                className="whitespace-nowrap rounded-md border border-border bg-card px-4 py-1.5 text-[13px] font-mono font-medium text-foreground/60 hover:text-primary hover:border-primary/20 hover:bg-primary/[0.04] transition-all duration-300"
               >
                 {tech}
               </span>

@@ -120,7 +120,7 @@ export default async function TrackLessonPage({ params }: LessonPageProps) {
               <DifficultyBadge difficulty={stub.difficulty} />
               <TrackStatusBadge status={stub.status} />
             </div>
-            <h1 className="text-display-lg mb-4 text-glow">{stub.title}</h1>
+            <h1 className="text-display-lg mb-4">{stub.title}</h1>
             <p className="text-body-lg text-muted-foreground mb-2">
               {track.title} &rarr; {mod.title}
             </p>
@@ -189,7 +189,7 @@ export default async function TrackLessonPage({ params }: LessonPageProps) {
                   {stub.lessonType}
                 </span>
               </div>
-              <h1 className="text-display-lg mb-4 text-glow">
+              <h1 className="text-display-lg mb-4">
                 {authored.title}
               </h1>
               <p className="text-body-lg text-muted-foreground mb-4">

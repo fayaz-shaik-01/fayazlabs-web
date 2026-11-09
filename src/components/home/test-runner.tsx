@@ -100,9 +100,9 @@ export function TestRunner({ autoOpen = false }: TestRunnerProps) {
   const colorFor = (type: LogEntry["type"]) => {
     switch (type) {
       case "init":
-        return "text-lab-amber";
+        return "text-warn";
       case "pass":
-        return "text-lab-green";
+        return "text-primary";
       case "summary":
         return "text-foreground/70";
       default:
@@ -123,7 +123,7 @@ export function TestRunner({ autoOpen = false }: TestRunnerProps) {
           >
             {/* Header */}
             <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
-              <span className="mono-tag text-lab-green text-[10px]">Automated Test Runner</span>
+              <span className="eyebrow !text-primary text-[10px]">Automated Test Runner</span>
               <button
                 onClick={() => setOpen(false)}
                 className="text-muted-foreground hover:text-foreground transition-colors"
@@ -144,7 +144,7 @@ export function TestRunner({ autoOpen = false }: TestRunnerProps) {
                 </div>
               ))}
               {lines.length > 0 && lines.length < LOG_SCRIPT.length && (
-                <span className="inline-block w-1.5 h-3.5 bg-lab-green/60 animate-glow-pulse" />
+                <span className="inline-block w-1.5 h-3.5 bg-primary/60 " />
               )}
             </div>
           </motion.div>
@@ -157,7 +157,7 @@ export function TestRunner({ autoOpen = false }: TestRunnerProps) {
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           onClick={() => setOpen(true)}
-          className="hw-module p-3 text-lab-green hover:text-foreground transition-colors"
+          className="hw-module p-3 text-primary hover:text-foreground transition-colors"
           aria-label="Open test runner"
         >
           <Settings className="h-4 w-4" />

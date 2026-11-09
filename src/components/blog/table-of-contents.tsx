@@ -84,7 +84,7 @@ export function TableOfContents() {
     >
       <div className="flex items-center gap-2 mb-4">
         <List className="h-3.5 w-3.5 text-muted-foreground/60" />
-        <span className="mono-tag text-muted-foreground/60 text-[10px]">
+        <span className="eyebrow text-muted-foreground/60 text-[10px]">
           On this page
         </span>
       </div>

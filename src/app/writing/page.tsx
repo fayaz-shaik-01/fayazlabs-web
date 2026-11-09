@@ -45,10 +45,10 @@ function WritingContent() {
         transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
         className="mb-14"
       >
-        <span className="mono-tag text-lab-green mb-4 inline-block">
-          [ Writing ]
+        <span className="eyebrow !text-primary mb-4 inline-block">
+          Writing
         </span>
-        <h1 className="text-heading-xl text-foreground text-glow mb-3">
+        <h1 className="text-heading-xl text-foreground mb-3">
           Thoughts & Technical Writing
         </h1>
         <p className="text-body-lg text-muted-foreground max-w-2xl">
@@ -67,7 +67,6 @@ function WritingContent() {
             href={`/writing/${featuredPost.slugAsParams}`}
             className="group relative block rounded-md glass-card p-8 overflow-hidden"
           >
-            <div className="absolute inset-0 bg-gradient-to-br from-primary/[0.04] via-transparent to-transparent" />
             <div className="relative z-10">
             <Badge className="mb-3 bg-primary/15 text-primary border-primary/20">Featured</Badge>
             <h2 className="text-heading-lg mb-3 group-hover:text-primary transition-colors duration-300">

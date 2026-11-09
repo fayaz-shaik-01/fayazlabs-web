@@ -89,7 +89,7 @@ export default function AboutPage() {
 
       <div className="mb-20">
         <h2 className="text-heading-lg mb-8">Timeline</h2>
-        <div className="relative space-y-10 before:absolute before:left-[19px] before:top-2 before:bottom-2 before:w-px before:bg-gradient-to-b before:from-primary/40 before:via-white/[0.06] before:to-white/[0.03]">
+        <div className="relative space-y-10 before:absolute before:left-[19px] before:top-2 before:bottom-2 before:w-px before:bg-border">
           {timeline.map((item, i) => (
             <motion.div
               key={item.title}

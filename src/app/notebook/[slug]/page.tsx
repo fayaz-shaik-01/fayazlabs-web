@@ -69,7 +69,7 @@ export default async function NotebookEntryPage({
                 <BookOpen className="h-3 w-3" />
                 Engineering Notebook
               </div>
-              <h1 className="text-display-lg mb-4 text-glow">
+              <h1 className="text-display-lg mb-4">
                 {entry.title}
               </h1>
               <p className="text-body-lg text-muted-foreground mb-4">

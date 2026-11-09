@@ -62,8 +62,7 @@ export function ParameterSlider({
         step={step}
         value={value}
         onChange={handleChange}
-        className="w-full h-1.5 rounded-full appearance-none cursor-pointer bg-muted accent-primary
-          [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:w-3.5
+        className="w-full h-1.5 rounded-full appearance-none cursor-pointer bg-muted accent-primary [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:w-3.5
           [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:shadow-sm
           [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-background
           [&::-webkit-slider-thumb]:transition-transform [&::-webkit-slider-thumb]:hover:scale-110"

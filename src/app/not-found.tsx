@@ -5,44 +5,24 @@ import { ArrowLeft, Home } from "lucide-react";
 
 export default function NotFound() {
   return (
-    <div className="mx-auto flex min-h-[60vh] max-w-6xl flex-col items-center justify-center px-6 text-center">
-      <div className="relative">
-        <span className="text-[120px] font-bold leading-none tracking-tighter text-primary/[0.06] sm:text-[180px]">
-          404
-        </span>
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div className="space-y-4">
-            <h1 className="text-heading-xl">
-              Page not found
-            </h1>
-            <p className="text-body text-muted-foreground max-w-md">
-              The page you&apos;re looking for doesn&apos;t exist or has been
-              moved. Let&apos;s get you back on track.
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <div className="mt-8 flex gap-3">
-        <Link
-          href="/"
-          className={cn(
-            buttonVariants({ variant: "default", size: "lg" }),
-            "gap-2"
-          )}
-        >
-          <Home className="h-4 w-4" />
-          Back Home
+    <div className="mx-auto flex min-h-[70vh] max-w-6xl flex-col items-center justify-center px-4 pt-24 text-center sm:px-6">
+      <span className="chip">Error 404</span>
+      <h1 className="mt-5 text-display-lg text-foreground">Page not found</h1>
+      <p className="mt-4 max-w-md text-body-lg text-muted-foreground">
+        The page you&apos;re looking for doesn&apos;t exist or has been moved.
+        Let&apos;s get you back on track.
+      </p>
+      <div className="mt-8 flex flex-wrap justify-center gap-3">
+        <Link href="/" className={cn(buttonVariants({ size: "lg" }), "gap-2")}>
+          <Home className="size-4" />
+          Back home
         </Link>
         <Link
           href="/projects"
-          className={cn(
-            buttonVariants({ variant: "outline", size: "lg" }),
-            "gap-2 border-border bg-card hover:bg-muted hover:border-primary/50"
-          )}
+          className={cn(buttonVariants({ variant: "outline", size: "lg" }), "gap-2")}
         >
-          <ArrowLeft className="h-4 w-4" />
-          View Projects
+          <ArrowLeft className="size-4" />
+          View projects
         </Link>
       </div>
     </div>

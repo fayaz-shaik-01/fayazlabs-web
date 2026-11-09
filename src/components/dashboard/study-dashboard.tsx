@@ -146,7 +146,6 @@ export function StudyDashboard() {
     <>
       {/* Hero */}
       <section className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-b from-background via-background to-surface-1" />
         <div className="absolute top-0 right-1/4 w-[400px] h-[400px] rounded-full bg-glow-primary/[0.05] blur-[120px]" />
 
         <div className="relative z-10 mx-auto max-w-5xl px-6 pt-32 pb-12 sm:pt-40 sm:pb-16">
@@ -154,9 +153,9 @@ export function StudyDashboard() {
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.2 }}
-            className="mono-tag text-lab-green mb-6 flex items-center gap-2"
+            className="eyebrow !text-primary mb-6 flex items-center gap-2"
           >
-            <span className="inline-block h-1.5 w-1.5 rounded-full bg-lab-green animate-glow-pulse" />
+            <span className="inline-block h-1.5 w-1.5 rounded-full bg-primary " />
             [STUDY_DASHBOARD: ACTIVE]
           </motion.div>
 
@@ -168,7 +167,7 @@ export function StudyDashboard() {
           >
             Study
             <br />
-            <span className="text-gradient-hero">Dashboard</span>
+            <span className="text-primary">Dashboard</span>
           </motion.h1>
 
           <motion.p
@@ -202,7 +201,7 @@ export function StudyDashboard() {
             sublabel={`Goal: ${data.dailyGoalMinutes} min`}
           />
           <StatCard
-            icon={<TrendingUp className="h-5 w-5 text-lab-green" />}
+            icon={<TrendingUp className="h-5 w-5 text-primary" />}
             label="This Week"
             value={`${Math.round(weekTotal / 60)}h ${weekTotal % 60}m`}
             sublabel={`${data.sessions.filter((s) => s.minutesStudied > 0).length}/7 active days`}

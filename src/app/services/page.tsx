@@ -146,7 +146,6 @@ export default function ServicesPage() {
       </div>
 
       <div className="relative mt-20 rounded-md glass-card p-8 sm:p-14 text-center overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-primary/[0.04] via-transparent to-transparent" />
         <div className="relative z-10">
           <h3 className="text-heading-xl mb-4">
             Ready to build something together?

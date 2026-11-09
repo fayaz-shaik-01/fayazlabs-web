@@ -95,7 +95,7 @@ export default async function TrackPage({ params }: TrackPageProps) {
           <div className="flex items-center gap-3 mb-4">
             <DifficultyBadge difficulty={track.difficulty} />
           </div>
-          <h1 className="text-display-lg mb-3 text-glow">{track.title}</h1>
+          <h1 className="text-display-lg mb-3">{track.title}</h1>
           <p className="text-body-lg text-muted-foreground mb-4">
             {track.description}
           </p>

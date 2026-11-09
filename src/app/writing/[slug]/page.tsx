@@ -97,7 +97,7 @@ export default async function PostPage({ params }: PostPageProps) {
                 </Badge>
               </div>
 
-              <h1 className="text-display-lg mb-5 text-glow">
+              <h1 className="text-display-lg mb-5">
                 {post.title}
               </h1>
               <p className="text-body-lg text-muted-foreground">
