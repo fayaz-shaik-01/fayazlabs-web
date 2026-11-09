@@ -15,8 +15,8 @@ const lessons = levels.flatMap((l) =>
     const free = l.id === "L0";
     return {
       id, level: l.id, number: i + 1, slug: `sample-lesson-${id.toLowerCase()}`,
-      title: `Sample lesson ${id}`, minutes: 20 + i, summary: `Invented summary for sample lesson ${id}.`,
-      objectives: [`Sample objective one for ${id}`, `Sample objective two for ${id}`],
+      title: `Sample lesson ${i + 1} of ${l.title.toLowerCase()}`, minutes: 20 + i, summary: `Invented summary for sample lesson ${i + 1}.`,
+      objectives: ["Sample objective one", "Sample objective two"],
       feature: free ? "free" : "lessons.paid", audio_feature: free ? "free" : "audio.paid",
       decks: {
         lecture: { id, slides: 20, clips: 24, duration_seconds: 600.5 },

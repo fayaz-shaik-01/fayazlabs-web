@@ -112,12 +112,12 @@
    "level": "L0",
    "number": 1,
    "slug": "sample-lesson-l0-01",
-   "title": "Sample lesson L0-01",
+   "title": "Sample lesson 1 of sample level zero",
    "minutes": 20,
-   "summary": "Invented summary for sample lesson L0-01.",
+   "summary": "Invented summary for sample lesson 1.",
    "objectives": [
-    "Sample objective one for L0-01",
-    "Sample objective two for L0-01"
+    "Sample objective one",
+    "Sample objective two"
    ],
    "feature": "free",
    "audio_feature": "free",
@@ -141,12 +141,12 @@
    "level": "L0",
    "number": 2,
    "slug": "sample-lesson-l0-02",
-   "title": "Sample lesson L0-02",
+   "title": "Sample lesson 2 of sample level zero",
    "minutes": 21,
-   "summary": "Invented summary for sample lesson L0-02.",
+   "summary": "Invented summary for sample lesson 2.",
    "objectives": [
-    "Sample objective one for L0-02",
-    "Sample objective two for L0-02"
+    "Sample objective one",
+    "Sample objective two"
    ],
    "feature": "free",
    "audio_feature": "free",
@@ -170,12 +170,12 @@
    "level": "L0",
    "number": 3,
    "slug": "sample-lesson-l0-03",
-   "title": "Sample lesson L0-03",
+   "title": "Sample lesson 3 of sample level zero",
    "minutes": 22,
-   "summary": "Invented summary for sample lesson L0-03.",
+   "summary": "Invented summary for sample lesson 3.",
    "objectives": [
-    "Sample objective one for L0-03",
-    "Sample objective two for L0-03"
+    "Sample objective one",
+    "Sample objective two"
    ],
    "feature": "free",
    "audio_feature": "free",
@@ -199,12 +199,12 @@
    "level": "L0",
    "number": 4,
    "slug": "sample-lesson-l0-04",
-   "title": "Sample lesson L0-04",
+   "title": "Sample lesson 4 of sample level zero",
    "minutes": 23,
-   "summary": "Invented summary for sample lesson L0-04.",
+   "summary": "Invented summary for sample lesson 4.",
    "objectives": [
-    "Sample objective one for L0-04",
-    "Sample objective two for L0-04"
+    "Sample objective one",
+    "Sample objective two"
    ],
    "feature": "free",
    "audio_feature": "free",
@@ -228,12 +228,12 @@
    "level": "L1",
    "number": 1,
    "slug": "sample-lesson-l1-01",
-   "title": "Sample lesson L1-01",
+   "title": "Sample lesson 1 of sample level one",
    "minutes": 20,
-   "summary": "Invented summary for sample lesson L1-01.",
+   "summary": "Invented summary for sample lesson 1.",
    "objectives": [
-    "Sample objective one for L1-01",
-    "Sample objective two for L1-01"
+    "Sample objective one",
+    "Sample objective two"
    ],
    "feature": "lessons.paid",
    "audio_feature": "audio.paid",
@@ -257,12 +257,12 @@
    "level": "L1",
    "number": 2,
    "slug": "sample-lesson-l1-02",
-   "title": "Sample lesson L1-02",
+   "title": "Sample lesson 2 of sample level one",
    "minutes": 21,
-   "summary": "Invented summary for sample lesson L1-02.",
+   "summary": "Invented summary for sample lesson 2.",
    "objectives": [
-    "Sample objective one for L1-02",
-    "Sample objective two for L1-02"
+    "Sample objective one",
+    "Sample objective two"
    ],
    "feature": "lessons.paid",
    "audio_feature": "audio.paid",
@@ -286,12 +286,12 @@
    "level": "L1",
    "number": 3,
    "slug": "sample-lesson-l1-03",
-   "title": "Sample lesson L1-03",
+   "title": "Sample lesson 3 of sample level one",
    "minutes": 22,
-   "summary": "Invented summary for sample lesson L1-03.",
+   "summary": "Invented summary for sample lesson 3.",
    "objectives": [
-    "Sample objective one for L1-03",
-    "Sample objective two for L1-03"
+    "Sample objective one",
+    "Sample objective two"
    ],
    "feature": "lessons.paid",
    "audio_feature": "audio.paid",
@@ -315,12 +315,12 @@
    "level": "L1",
    "number": 4,
    "slug": "sample-lesson-l1-04",
-   "title": "Sample lesson L1-04",
+   "title": "Sample lesson 4 of sample level one",
    "minutes": 23,
-   "summary": "Invented summary for sample lesson L1-04.",
+   "summary": "Invented summary for sample lesson 4.",
    "objectives": [
-    "Sample objective one for L1-04",
-    "Sample objective two for L1-04"
+    "Sample objective one",
+    "Sample objective two"
    ],
    "feature": "lessons.paid",
    "audio_feature": "audio.paid",
@@ -344,12 +344,12 @@
    "level": "L1",
    "number": 5,
    "slug": "sample-lesson-l1-05",
-   "title": "Sample lesson L1-05",
+   "title": "Sample lesson 5 of sample level one",
    "minutes": 24,
-   "summary": "Invented summary for sample lesson L1-05.",
+   "summary": "Invented summary for sample lesson 5.",
    "objectives": [
-    "Sample objective one for L1-05",
-    "Sample objective two for L1-05"
+    "Sample objective one",
+    "Sample objective two"
    ],
    "feature": "lessons.paid",
    "audio_feature": "audio.paid",
@@ -373,12 +373,12 @@
    "level": "L1",
    "number": 6,
    "slug": "sample-lesson-l1-06",
-   "title": "Sample lesson L1-06",
+   "title": "Sample lesson 6 of sample level one",
    "minutes": 25,
-   "summary": "Invented summary for sample lesson L1-06.",
+   "summary": "Invented summary for sample lesson 6.",
    "objectives": [
-    "Sample objective one for L1-06",
-    "Sample objective two for L1-06"
+    "Sample objective one",
+    "Sample objective two"
    ],
    "feature": "lessons.paid",
    "audio_feature": "audio.paid",
@@ -402,12 +402,12 @@
    "level": "L1",
    "number": 7,
    "slug": "sample-lesson-l1-07",
-   "title": "Sample lesson L1-07",
+   "title": "Sample lesson 7 of sample level one",
    "minutes": 26,
-   "summary": "Invented summary for sample lesson L1-07.",
+   "summary": "Invented summary for sample lesson 7.",
    "objectives": [
-    "Sample objective one for L1-07",
-    "Sample objective two for L1-07"
+    "Sample objective one",
+    "Sample objective two"
    ],
    "feature": "lessons.paid",
    "audio_feature": "audio.paid",
@@ -431,12 +431,12 @@
    "level": "L1",
    "number": 8,
    "slug": "sample-lesson-l1-08",
-   "title": "Sample lesson L1-08",
+   "title": "Sample lesson 8 of sample level one",
    "minutes": 27,
-   "summary": "Invented summary for sample lesson L1-08.",
+   "summary": "Invented summary for sample lesson 8.",
    "objectives": [
-    "Sample objective one for L1-08",
-    "Sample objective two for L1-08"
+    "Sample objective one",
+    "Sample objective two"
    ],
    "feature": "lessons.paid",
    "audio_feature": "audio.paid",
@@ -460,12 +460,12 @@
    "level": "L1",
    "number": 9,
    "slug": "sample-lesson-l1-09",
-   "title": "Sample lesson L1-09",
+   "title": "Sample lesson 9 of sample level one",
    "minutes": 28,
-   "summary": "Invented summary for sample lesson L1-09.",
+   "summary": "Invented summary for sample lesson 9.",
    "objectives": [
-    "Sample objective one for L1-09",
-    "Sample objective two for L1-09"
+    "Sample objective one",
+    "Sample objective two"
    ],
    "feature": "lessons.paid",
    "audio_feature": "audio.paid",
@@ -489,12 +489,12 @@
    "level": "L1",
    "number": 10,
    "slug": "sample-lesson-l1-10",
-   "title": "Sample lesson L1-10",
+   "title": "Sample lesson 10 of sample level one",
    "minutes": 29,
-   "summary": "Invented summary for sample lesson L1-10.",
+   "summary": "Invented summary for sample lesson 10.",
    "objectives": [
-    "Sample objective one for L1-10",
-    "Sample objective two for L1-10"
+    "Sample objective one",
+    "Sample objective two"
    ],
    "feature": "lessons.paid",
    "audio_feature": "audio.paid",
@@ -518,12 +518,12 @@
    "level": "L2",
    "number": 1,
    "slug": "sample-lesson-l2-01",
-   "title": "Sample lesson L2-01",
+   "title": "Sample lesson 1 of sample level two",
    "minutes": 20,
-   "summary": "Invented summary for sample lesson L2-01.",
+   "summary": "Invented summary for sample lesson 1.",
    "objectives": [
-    "Sample objective one for L2-01",
-    "Sample objective two for L2-01"
+    "Sample objective one",
+    "Sample objective two"
    ],
    "feature": "lessons.paid",
    "audio_feature": "audio.paid",
@@ -547,12 +547,12 @@
    "level": "L2",
    "number": 2,
    "slug": "sample-lesson-l2-02",
-   "title": "Sample lesson L2-02",
+   "title": "Sample lesson 2 of sample level two",
    "minutes": 21,
-   "summary": "Invented summary for sample lesson L2-02.",
+   "summary": "Invented summary for sample lesson 2.",
    "objectives": [
-    "Sample objective one for L2-02",
-    "Sample objective two for L2-02"
+    "Sample objective one",
+    "Sample objective two"
    ],
    "feature": "lessons.paid",
    "audio_feature": "audio.paid",
@@ -576,12 +576,12 @@
    "level": "L2",
    "number": 3,
    "slug": "sample-lesson-l2-03",
-   "title": "Sample lesson L2-03",
+   "title": "Sample lesson 3 of sample level two",
    "minutes": 22,
-   "summary": "Invented summary for sample lesson L2-03.",
+   "summary": "Invented summary for sample lesson 3.",
    "objectives": [
-    "Sample objective one for L2-03",
-    "Sample objective two for L2-03"
+    "Sample objective one",
+    "Sample objective two"
    ],
    "feature": "lessons.paid",
    "audio_feature": "audio.paid",
@@ -605,12 +605,12 @@
    "level": "L2",
    "number": 4,
    "slug": "sample-lesson-l2-04",
-   "title": "Sample lesson L2-04",
+   "title": "Sample lesson 4 of sample level two",
    "minutes": 23,
-   "summary": "Invented summary for sample lesson L2-04.",
+   "summary": "Invented summary for sample lesson 4.",
    "objectives": [
-    "Sample objective one for L2-04",
-    "Sample objective two for L2-04"
+    "Sample objective one",
+    "Sample objective two"
    ],
    "feature": "lessons.paid",
    "audio_feature": "audio.paid",
@@ -634,12 +634,12 @@
    "level": "L2",
    "number": 5,
    "slug": "sample-lesson-l2-05",
-   "title": "Sample lesson L2-05",
+   "title": "Sample lesson 5 of sample level two",
    "minutes": 24,
-   "summary": "Invented summary for sample lesson L2-05.",
+   "summary": "Invented summary for sample lesson 5.",
    "objectives": [
-    "Sample objective one for L2-05",
-    "Sample objective two for L2-05"
+    "Sample objective one",
+    "Sample objective two"
    ],
    "feature": "lessons.paid",
    "audio_feature": "audio.paid",
@@ -663,12 +663,12 @@
    "level": "L2",
    "number": 6,
    "slug": "sample-lesson-l2-06",
-   "title": "Sample lesson L2-06",
+   "title": "Sample lesson 6 of sample level two",
    "minutes": 25,
-   "summary": "Invented summary for sample lesson L2-06.",
+   "summary": "Invented summary for sample lesson 6.",
    "objectives": [
-    "Sample objective one for L2-06",
-    "Sample objective two for L2-06"
+    "Sample objective one",
+    "Sample objective two"
    ],
    "feature": "lessons.paid",
    "audio_feature": "audio.paid",
@@ -692,12 +692,12 @@
    "level": "L2",
    "number": 7,
    "slug": "sample-lesson-l2-07",
-   "title": "Sample lesson L2-07",
+   "title": "Sample lesson 7 of sample level two",
    "minutes": 26,
-   "summary": "Invented summary for sample lesson L2-07.",
+   "summary": "Invented summary for sample lesson 7.",
    "objectives": [
-    "Sample objective one for L2-07",
-    "Sample objective two for L2-07"
+    "Sample objective one",
+    "Sample objective two"
    ],
    "feature": "lessons.paid",
    "audio_feature": "audio.paid",
@@ -721,12 +721,12 @@
    "level": "L2",
    "number": 8,
    "slug": "sample-lesson-l2-08",
-   "title": "Sample lesson L2-08",
+   "title": "Sample lesson 8 of sample level two",
    "minutes": 27,
-   "summary": "Invented summary for sample lesson L2-08.",
+   "summary": "Invented summary for sample lesson 8.",
    "objectives": [
-    "Sample objective one for L2-08",
-    "Sample objective two for L2-08"
+    "Sample objective one",
+    "Sample objective two"
    ],
    "feature": "lessons.paid",
    "audio_feature": "audio.paid",
@@ -750,12 +750,12 @@
    "level": "L2",
    "number": 9,
    "slug": "sample-lesson-l2-09",
-   "title": "Sample lesson L2-09",
+   "title": "Sample lesson 9 of sample level two",
    "minutes": 28,
-   "summary": "Invented summary for sample lesson L2-09.",
+   "summary": "Invented summary for sample lesson 9.",
    "objectives": [
-    "Sample objective one for L2-09",
-    "Sample objective two for L2-09"
+    "Sample objective one",
+    "Sample objective two"
    ],
    "feature": "lessons.paid",
    "audio_feature": "audio.paid",
@@ -779,12 +779,12 @@
    "level": "L2",
    "number": 10,
    "slug": "sample-lesson-l2-10",
-   "title": "Sample lesson L2-10",
+   "title": "Sample lesson 10 of sample level two",
    "minutes": 29,
-   "summary": "Invented summary for sample lesson L2-10.",
+   "summary": "Invented summary for sample lesson 10.",
    "objectives": [
-    "Sample objective one for L2-10",
-    "Sample objective two for L2-10"
+    "Sample objective one",
+    "Sample objective two"
    ],
    "feature": "lessons.paid",
    "audio_feature": "audio.paid",
@@ -808,12 +808,12 @@
    "level": "L2",
    "number": 11,
    "slug": "sample-lesson-l2-11",
-   "title": "Sample lesson L2-11",
+   "title": "Sample lesson 11 of sample level two",
    "minutes": 30,
-   "summary": "Invented summary for sample lesson L2-11.",
+   "summary": "Invented summary for sample lesson 11.",
    "objectives": [
-    "Sample objective one for L2-11",
-    "Sample objective two for L2-11"
+    "Sample objective one",
+    "Sample objective two"
    ],
    "feature": "lessons.paid",
    "audio_feature": "audio.paid",
@@ -837,12 +837,12 @@
    "level": "L2",
    "number": 12,
    "slug": "sample-lesson-l2-12",
-   "title": "Sample lesson L2-12",
+   "title": "Sample lesson 12 of sample level two",
    "minutes": 31,
-   "summary": "Invented summary for sample lesson L2-12.",
+   "summary": "Invented summary for sample lesson 12.",
    "objectives": [
-    "Sample objective one for L2-12",
-    "Sample objective two for L2-12"
+    "Sample objective one",
+    "Sample objective two"
    ],
    "feature": "lessons.paid",
    "audio_feature": "audio.paid",
@@ -866,12 +866,12 @@
    "level": "L3",
    "number": 1,
    "slug": "sample-lesson-l3-01",
-   "title": "Sample lesson L3-01",
+   "title": "Sample lesson 1 of sample level three",
    "minutes": 20,
-   "summary": "Invented summary for sample lesson L3-01.",
+   "summary": "Invented summary for sample lesson 1.",
    "objectives": [
-    "Sample objective one for L3-01",
-    "Sample objective two for L3-01"
+    "Sample objective one",
+    "Sample objective two"
    ],
    "feature": "lessons.paid",
    "audio_feature": "audio.paid",
@@ -895,12 +895,12 @@
    "level": "L3",
    "number": 2,
    "slug": "sample-lesson-l3-02",
-   "title": "Sample lesson L3-02",
+   "title": "Sample lesson 2 of sample level three",
    "minutes": 21,
-   "summary": "Invented summary for sample lesson L3-02.",
+   "summary": "Invented summary for sample lesson 2.",
    "objectives": [
-    "Sample objective one for L3-02",
-    "Sample objective two for L3-02"
+    "Sample objective one",
+    "Sample objective two"
    ],
    "feature": "lessons.paid",
    "audio_feature": "audio.paid",
@@ -924,12 +924,12 @@
    "level": "L3",
    "number": 3,
    "slug": "sample-lesson-l3-03",
-   "title": "Sample lesson L3-03",
+   "title": "Sample lesson 3 of sample level three",
    "minutes": 22,
-   "summary": "Invented summary for sample lesson L3-03.",
+   "summary": "Invented summary for sample lesson 3.",
    "objectives": [
-    "Sample objective one for L3-03",
-    "Sample objective two for L3-03"
+    "Sample objective one",
+    "Sample objective two"
    ],
    "feature": "lessons.paid",
    "audio_feature": "audio.paid",
@@ -953,12 +953,12 @@
    "level": "L3",
    "number": 4,
    "slug": "sample-lesson-l3-04",
-   "title": "Sample lesson L3-04",
+   "title": "Sample lesson 4 of sample level three",
    "minutes": 23,
-   "summary": "Invented summary for sample lesson L3-04.",
+   "summary": "Invented summary for sample lesson 4.",
    "objectives": [
-    "Sample objective one for L3-04",
-    "Sample objective two for L3-04"
+    "Sample objective one",
+    "Sample objective two"
    ],
    "feature": "lessons.paid",
    "audio_feature": "audio.paid",
@@ -982,12 +982,12 @@
    "level": "L3",
    "number": 5,
    "slug": "sample-lesson-l3-05",
-   "title": "Sample lesson L3-05",
+   "title": "Sample lesson 5 of sample level three",
    "minutes": 24,
-   "summary": "Invented summary for sample lesson L3-05.",
+   "summary": "Invented summary for sample lesson 5.",
    "objectives": [
-    "Sample objective one for L3-05",
-    "Sample objective two for L3-05"
+    "Sample objective one",
+    "Sample objective two"
    ],
    "feature": "lessons.paid",
    "audio_feature": "audio.paid",
@@ -1011,12 +1011,12 @@
    "level": "L3",
    "number": 6,
    "slug": "sample-lesson-l3-06",
-   "title": "Sample lesson L3-06",
+   "title": "Sample lesson 6 of sample level three",
    "minutes": 25,
-   "summary": "Invented summary for sample lesson L3-06.",
+   "summary": "Invented summary for sample lesson 6.",
    "objectives": [
-    "Sample objective one for L3-06",
-    "Sample objective two for L3-06"
+    "Sample objective one",
+    "Sample objective two"
    ],
    "feature": "lessons.paid",
    "audio_feature": "audio.paid",
@@ -1040,12 +1040,12 @@
    "level": "L3",
    "number": 7,
    "slug": "sample-lesson-l3-07",
-   "title": "Sample lesson L3-07",
+   "title": "Sample lesson 7 of sample level three",
    "minutes": 26,
-   "summary": "Invented summary for sample lesson L3-07.",
+   "summary": "Invented summary for sample lesson 7.",
    "objectives": [
-    "Sample objective one for L3-07",
-    "Sample objective two for L3-07"
+    "Sample objective one",
+    "Sample objective two"
    ],
    "feature": "lessons.paid",
    "audio_feature": "audio.paid",
@@ -1069,12 +1069,12 @@
    "level": "L3",
    "number": 8,
    "slug": "sample-lesson-l3-08",
-   "title": "Sample lesson L3-08",
+   "title": "Sample lesson 8 of sample level three",
    "minutes": 27,
-   "summary": "Invented summary for sample lesson L3-08.",
+   "summary": "Invented summary for sample lesson 8.",
    "objectives": [
-    "Sample objective one for L3-08",
-    "Sample objective two for L3-08"
+    "Sample objective one",
+    "Sample objective two"
    ],
    "feature": "lessons.paid",
    "audio_feature": "audio.paid",
