@@ -13,6 +13,8 @@ export type LegalSlug = (typeof LEGAL_SLUGS)[number];
 export interface LegalDoc {
   slug: LegalSlug;
   title: string;
+  /** "Last updated" date shown under the title, from the front matter. */
+  updated?: string;
   html: string;
 }
 
@@ -36,5 +38,10 @@ export async function getLegalDoc(slug: LegalSlug): Promise<LegalDoc> {
     .use(remarkRehype)
     .use(rehypeStringify)
     .process(content);
-  return { slug, title: String(data.title ?? slug), html: String(file) };
+  return {
+    slug,
+    title: String(data.title ?? slug),
+    updated: data.updated ? String(data.updated) : undefined,
+    html: String(file),
+  };
 }

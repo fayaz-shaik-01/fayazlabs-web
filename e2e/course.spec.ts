@@ -101,11 +101,13 @@ test.describe("legal and headers", () => {
   ] as const;
 
   for (const [path, heading] of pages) {
-    test(`${path} has a draft banner, heading and noindex`, async ({ page }) => {
+    test(`${path} shows the real policy (no draft banner), heading and noindex`, async ({ page }) => {
       await page.goto(path);
-      await expect(page.getByTestId("legal-draft-banner")).toContainText("DRAFT, pending review");
       await expect(page.getByRole("heading", { level: 1, name: heading })).toBeVisible();
-      await expect(page.getByText("Draft text will be added here")).toBeVisible();
+      await expect(page.getByTestId("legal-updated")).toContainText("Last updated");
+      await expect(page.getByTestId("legal-draft-banner")).toHaveCount(0);
+      await expect(page.getByText(/Draft text will be added here|DRAFT, pending review/)).toHaveCount(0);
+      await expect(page.getByRole("heading", { level: 2 }).first()).toBeVisible();
       await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/);
     });
   }

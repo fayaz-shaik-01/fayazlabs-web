@@ -5,7 +5,6 @@ import { Providers } from "@/components/providers";
 import { Header } from "@/components/layout/header";
 import { Footer } from "@/components/layout/footer";
 import { CommandPalette } from "@/components/layout/command-palette";
-import { GlobalTestRunner } from "@/components/layout/global-test-runner";
 import { SessionNoticeBanner } from "@/components/course/session-notice-banner";
 import { ChatPanel } from "@/components/chat/chat-panel";
 import { siteConfig } from "@/lib/site-config";
@@ -94,7 +93,6 @@ export default function RootLayout({
           <Footer />
           <CommandPalette />
           <ChatPanel />
-          <GlobalTestRunner />
         </Providers>
         <Analytics />
       </body>
