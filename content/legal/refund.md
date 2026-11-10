@@ -23,7 +23,7 @@ We will refund a payment if:
 - you were charged after you had cancelled in time, because of an error on our side; or
 - a technical fault on our side stopped you from accessing the paid content you paid for, and we could not fix it within a reasonable time.
 
-To ask, email [fayazshaik1722@gmail.com](mailto:fayazshaik1722@gmail.com) from your account email, with the date of the payment and the Razorpay payment reference. Approved refunds go back to the original payment method. Razorpay and your bank usually take 5 to 10 working days to show them.
+To ask, email [shaikfayaz0701@gmail.com](mailto:shaikfayaz0701@gmail.com) from your account email, with the date of the payment and the Razorpay payment reference. Approved refunds go back to the original payment method. Razorpay and your bank usually take 5 to 10 working days to show them.
 
 ## 4. Cancelling your plan
 
@@ -37,4 +37,4 @@ Cancel before the renewal date to avoid being charged for the next period.
 
 ## 5. Contact
 
-Billing questions: [fayazshaik1722@gmail.com](mailto:fayazshaik1722@gmail.com), or use the [contact page](/contact).
+Billing questions: [shaikfayaz0701@gmail.com](mailto:shaikfayaz0701@gmail.com), or use the [contact page](/contact).

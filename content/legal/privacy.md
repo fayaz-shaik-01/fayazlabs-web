@@ -59,7 +59,7 @@ We use encryption in transit, hashed passwords, access controls and rate limitin
 
 ## 8. Your choices and rights
 
-You can ask us to access, correct or delete the personal information we hold about you, and you can ask us to stop sending you messages. You can also clear your browser's local storage at any time. To make a request, email [fayazshaik1722@gmail.com](mailto:fayazshaik1722@gmail.com) from the address on your account. We will respond within a reasonable time.
+You can ask us to access, correct or delete the personal information we hold about you, and you can ask us to stop sending you messages. You can also clear your browser's local storage at any time. To make a request, email [shaikfayaz0701@gmail.com](mailto:shaikfayaz0701@gmail.com) from the address on your account. We will respond within a reasonable time.
 
 ## 9. Children
 
@@ -71,4 +71,4 @@ If we change this policy in a material way, we will update the date at the top. 
 
 ## 11. Contact
 
-Questions about privacy: [fayazshaik1722@gmail.com](mailto:fayazshaik1722@gmail.com), or use the [contact page](/contact).
+Questions about privacy: [shaikfayaz0701@gmail.com](mailto:shaikfayaz0701@gmail.com), or use the [contact page](/contact).

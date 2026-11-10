@@ -63,4 +63,4 @@ These terms are governed by the laws of India. Courts in India have jurisdiction
 
 ## 11. Contact
 
-Questions about these terms: [fayazshaik1722@gmail.com](mailto:fayazshaik1722@gmail.com), or use the [contact page](/contact).
+Questions about these terms: [shaikfayaz0701@gmail.com](mailto:shaikfayaz0701@gmail.com), or use the [contact page](/contact).
