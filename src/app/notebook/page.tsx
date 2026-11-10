@@ -51,7 +51,7 @@ export default function NotebookPage() {
             )}
 
             <div className="p-5">
-              <h3 className="text-[0.9375rem] font-semibold tracking-[-0.01em] mb-1.5 group-hover:text-primary transition-colors">
+              <h3 className="text-base font-semibold tracking-[-0.01em] mb-1.5 group-hover:text-primary transition-colors">
                 {entry.title}
               </h3>
               <p className="text-body-sm text-muted-foreground mb-3 line-clamp-2">

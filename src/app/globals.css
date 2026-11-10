@@ -104,6 +104,14 @@
   --surface-3: #dfe7eb;
 
 
+  /* Lesson content: info/danger tints and code colours */
+  --info: #1c5a8c;
+  --info-soft: #e0eef9;
+  --bad: #a3262f;
+  --bad-soft: #f8e1e3;
+  --code-bg: #eaeff2;
+  --c-kw: #8b2f9c; --c-str: #0b6e63; --c-com: #6a7b86; --c-num: #a8500a; --c-fn: #1c5a8c;
+
   /* Shadows are used sparingly: a hairline lift on floating layers only */
   --shadow-float: 0 8px 28px rgb(17 34 46 / 0.12), 0 1px 0 rgb(17 34 46 / 0.04);
 }
@@ -152,6 +160,13 @@
   --surface-3: #1d3a49;
 
 
+  --info: #7ab8e8;
+  --info-soft: #172f44;
+  --bad: #f08a92;
+  --bad-soft: #3d1f24;
+  --code-bg: #0a141b;
+  --c-kw: #d9a0e8; --c-str: #7fdccd; --c-com: #7f929d; --c-num: #f0a566; --c-fn: #8cc4ef;
+
   --shadow-float: 0 10px 32px rgb(0 0 0 / 0.45), 0 0 0 1px rgb(255 255 255 / 0.03);
 }
 
@@ -161,8 +176,8 @@
   }
   body {
     @apply bg-background text-foreground;
-    font-size: 1rem;
-    line-height: 1.55;
+    font-size: 1.125rem;
+    line-height: 1.65;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
@@ -250,15 +265,15 @@
     letter-spacing: -0.015em;
     line-height: 1.2;
     margin-top: 3rem;
-    margin-bottom: 1.1rem;
+    margin-bottom: 0.75rem;
   }
   .prose h3 {
     font-family: var(--font-heading), ui-sans-serif, system-ui, sans-serif;
-    @apply text-[1.35rem] font-bold text-foreground;
-    letter-spacing: -0.01em;
-    line-height: 1.3;
-    margin-top: 2.25rem;
-    margin-bottom: 0.9rem;
+    @apply text-[1.3125rem] font-bold text-foreground;
+    letter-spacing: -0.005em;
+    line-height: 1.25;
+    margin-top: 2rem;
+    margin-bottom: 0.5rem;
   }
   .prose h4 {
     font-family: var(--font-mono), ui-monospace, monospace;
@@ -268,14 +283,14 @@
     margin-bottom: 0.6rem;
   }
   .prose p {
-    font-size: 1.0625rem;
-    line-height: 1.75;
+    font-size: 1.125rem;
+    line-height: 1.65;
     color: color-mix(in srgb, var(--foreground) 88%, var(--background));
-    margin-bottom: 1.4rem;
+    margin-bottom: 1rem;
   }
   .prose li {
-    font-size: 1.0625rem;
-    line-height: 1.75;
+    font-size: 1.125rem;
+    line-height: 1.65;
     color: color-mix(in srgb, var(--foreground) 88%, var(--background));
   }
   .prose ul, .prose ol {
@@ -461,21 +476,22 @@
   }
   .text-heading-md {
     font-family: var(--font-heading), ui-sans-serif, system-ui, sans-serif;
-    font-size: clamp(1.1rem, 2vw, 1.3rem);
+    font-size: clamp(1.15rem, 2vw, 1.3125rem);
     font-weight: 700;
     letter-spacing: -0.005em;
     line-height: 1.25;
   }
+  /* Reading scale from the course pages: 20 lead, 18 body, 16 secondary, 15 small */
   .text-body-lg {
+    font-size: 1.25rem;
+    line-height: 1.6;
+  }
+  .text-body {
     font-size: 1.125rem;
     line-height: 1.65;
   }
-  .text-body {
-    font-size: 1rem;
-    line-height: 1.6;
-  }
   .text-body-sm {
-    font-size: 0.875rem;
+    font-size: 1rem;
     line-height: 1.55;
   }
   .text-meta {

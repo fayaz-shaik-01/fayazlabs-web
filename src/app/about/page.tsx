@@ -105,7 +105,7 @@ export default function AboutPage() {
               <span className="text-[11px] font-semibold uppercase tracking-wider text-primary/70">
                 {item.year}
               </span>
-              <h3 className="text-[0.9375rem] font-semibold tracking-[-0.01em] mt-1">{item.title}</h3>
+              <h3 className="text-base font-semibold tracking-[-0.01em] mt-1">{item.title}</h3>
               <p className="text-body-sm text-muted-foreground mt-1.5">
                 {item.description}
               </p>

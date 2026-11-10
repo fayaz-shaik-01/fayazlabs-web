@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { LockedCard } from "./locked-card";
+import { GlossaryOverlay, type GlossaryTarget } from "./glossary-overlay";
+import { findTerm } from "@/lib/course/glossary";
 import { SlidePlayerSlot } from "./slide-player-slot";
 import { itemHref } from "@/lib/course/catalog";
 import type { CatalogItem } from "@/lib/course/types";
@@ -87,11 +89,19 @@ function LessonContent({ item }: Readonly<{ item: CatalogItem }>) {
   }, [loader, item.id, attempt]);
 
   const articleRef = useRef<HTMLElement>(null);
+  const [term, setTerm] = useState<GlossaryTarget | null>(null);
   // Internal links navigate on the client, everything else is left alone.
   const onClick = (e: React.MouseEvent) => {
     if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey) return;
     const a = (e.target as HTMLElement).closest("a");
     if (!a) return;
+    // A glossary term opens its definition next to the word instead of leaving the lesson.
+    const termId = a.getAttribute("data-term");
+    if (termId && findTerm(termId)) {
+      e.preventDefault();
+      setTerm({ id: termId, el: a });
+      return;
+    }
     const href = a.getAttribute("href");
     if (!href || a.target === "_blank") return;
     if (href.startsWith("#")) return;
@@ -130,6 +140,7 @@ function LessonContent({ item }: Readonly<{ item: CatalogItem }>) {
           dangerouslySetInnerHTML={{ __html: html }}
         />
       )}
+      {term && <GlossaryOverlay target={term} onClose={() => setTerm(null)} />}
     </div>
   );
 }

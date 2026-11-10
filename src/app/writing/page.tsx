@@ -158,7 +158,7 @@ function WritingContent() {
               className="group flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-md panel p-5"
             >
               <div className="flex-1 min-w-0">
-                <h3 className="text-[0.9375rem] font-semibold tracking-[-0.01em] group-hover:text-primary transition-colors truncate">
+                <h3 className="text-base font-semibold tracking-[-0.01em] group-hover:text-primary transition-colors truncate">
                   {post.title}
                 </h3>
                 <p className="text-body-sm text-muted-foreground mt-1 line-clamp-1">

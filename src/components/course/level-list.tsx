@@ -48,7 +48,7 @@ export function LevelList({
 
             <div className="border-t border-border px-5 pt-4 pb-5">
               {(level.summary || linkLevels) && (
-                <p className="mb-3 text-[0.9375rem] text-muted-foreground">
+                <p className="mb-3 text-base text-muted-foreground">
                   {level.summary}
                   {linkLevels && (
                     <>
@@ -71,7 +71,7 @@ export function LevelList({
                     <li key={item.id}>
                       <Link
                         href={itemHref(item.id)}
-                        className="grid grid-cols-[3.5rem_1fr_auto] items-baseline gap-x-3 gap-y-1 rounded-md px-2.5 py-2.5 text-[0.9375rem] transition-colors hover:bg-muted sm:grid-cols-[3.5rem_1fr_auto_auto_3.5rem]"
+                        className="grid grid-cols-[3.5rem_1fr_auto] items-baseline gap-x-3 gap-y-1 rounded-md px-2.5 py-2.5 text-base transition-colors hover:bg-muted sm:grid-cols-[3.5rem_1fr_auto_auto_3.5rem]"
                       >
                         <span className="font-mono text-xs text-muted-foreground">{item.id}</span>
                         <span className={cn("font-medium", showLock ? "text-muted-foreground" : "text-foreground")}>

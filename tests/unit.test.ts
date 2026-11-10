@@ -224,3 +224,17 @@ describe("access loading", () => {
     assert.deepEqual(s.features, []);
   });
 });
+
+describe("glossary links", () => {
+  test("reads the term id from the links lesson text uses", async () => {
+    const { termIdFromHref, glossaryHref, findTerm, GLOSSARY } = await import("../src/lib/course/glossary");
+    assert.equal(termIdFromHref("../glossary.html#api"), "api");
+    assert.equal(termIdFromHref("glossary.html#machine-learning"), "machine-learning");
+    assert.equal(termIdFromHref("/learning/ai-product-testing/glossary#llm"), "llm");
+    assert.equal(termIdFromHref("../L0-mindset/index.html"), null);
+    assert.equal(termIdFromHref("https://example.com/page#api"), null);
+    assert.equal(glossaryHref("api"), "/learning/ai-product-testing/glossary#api");
+    assert.ok(findTerm("api")?.definition.length);
+    assert.ok(GLOSSARY.length >= 100);
+  });
+});

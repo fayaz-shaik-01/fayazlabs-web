@@ -24,7 +24,7 @@ export function FeaturedProducts() {
               <h3 className="mt-3 text-xl font-bold text-foreground">
                 {product.title}
               </h3>
-              <p className="mt-2 text-[0.9375rem] text-muted-foreground">
+              <p className="mt-2 text-base text-muted-foreground">
                 {product.blurb}
               </p>
               <span className="mt-auto inline-flex items-center gap-1 pt-5 text-sm font-semibold text-primary">

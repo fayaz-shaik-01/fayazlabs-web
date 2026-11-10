@@ -94,7 +94,7 @@ export function DefinitionCard({ term, children, analogy, id }: DefinitionCardPr
         </span>
       </div>
       <p className="font-semibold text-foreground mb-2">{term}</p>
-      <div className="text-[0.9375rem] leading-[1.7] text-foreground/80">
+      <div className="text-base leading-[1.7] text-foreground/80">
         {children}
       </div>
       {analogy && (
@@ -123,7 +123,7 @@ export function ExamTip({ children, exam }: ExamTipProps) {
           {exam ? `${exam} Exam Tip` : "Exam Tip"}
         </span>
       </div>
-      <div className="text-[0.9375rem] leading-[1.7] text-foreground/80">
+      <div className="text-base leading-[1.7] text-foreground/80">
         {children}
       </div>
     </div>
@@ -147,7 +147,7 @@ export function Warning({ title, children }: WarningProps) {
           {title ?? "Common Mistake"}
         </span>
       </div>
-      <div className="text-[0.9375rem] leading-[1.7] text-foreground/80">
+      <div className="text-base leading-[1.7] text-foreground/80">
         {children}
       </div>
     </div>
@@ -170,7 +170,7 @@ export function EngineeringInsight({ children }: EngineeringInsightProps) {
           Engineering Insight
         </span>
       </div>
-      <div className="text-[0.9375rem] leading-[1.7] text-foreground/80">
+      <div className="text-base leading-[1.7] text-foreground/80">
         {children}
       </div>
     </div>
@@ -194,7 +194,7 @@ export function RealWorldExample({ title, children }: RealWorldExampleProps) {
           {title ?? "Real-World Application"}
         </span>
       </div>
-      <div className="text-[0.9375rem] leading-[1.7] text-foreground/80">
+      <div className="text-base leading-[1.7] text-foreground/80">
         {children}
       </div>
     </div>
@@ -240,7 +240,7 @@ export function ExampleCard({ title, difficulty, children, solution }: ExampleCa
           )}
         </div>
         <p className="font-semibold text-foreground mb-3">{title}</p>
-        <div className="text-[0.9375rem] leading-[1.7] text-foreground/80">
+        <div className="text-base leading-[1.7] text-foreground/80">
           {children}
         </div>
       </div>
@@ -258,7 +258,7 @@ export function ExampleCard({ title, difficulty, children, solution }: ExampleCa
             {showSolution ? "Hide Solution" : "Show Solution"}
           </button>
           {showSolution && (
-            <div className="px-5 pb-5 pt-3 border-t border-emerald-500/10 text-[0.9375rem] leading-[1.7] text-foreground/80">
+            <div className="px-5 pb-5 pt-3 border-t border-emerald-500/10 text-base leading-[1.7] text-foreground/80">
               {solution}
             </div>
           )}
@@ -298,7 +298,7 @@ export function DerivationStep({ label, children }: DerivationStep) {
         {label}
       </button>
       {expanded && (
-        <div className="mt-2 ml-5.5 text-[0.9375rem] leading-[1.7] text-foreground/80">
+        <div className="mt-2 ml-5.5 text-base leading-[1.7] text-foreground/80">
           {children}
         </div>
       )}
@@ -518,7 +518,7 @@ export function MemoryTrick({ children }: MemoryTrickProps) {
           Memory Trick
         </span>
       </div>
-      <div className="text-[0.9375rem] leading-[1.7] text-foreground/80">
+      <div className="text-base leading-[1.7] text-foreground/80">
         {children}
       </div>
     </div>
@@ -546,7 +546,7 @@ export function InterviewTip({ children, role }: InterviewTipProps) {
           {role ? `${role} Interview Tip` : "Interview Tip"}
         </span>
       </div>
-      <div className="text-[0.9375rem] leading-[1.7] text-foreground/80">
+      <div className="text-base leading-[1.7] text-foreground/80">
         {children}
       </div>
     </div>
@@ -570,7 +570,7 @@ export function AntiPattern({ title, children }: AntiPatternProps) {
           {title ?? "Anti-Pattern"}
         </span>
       </div>
-      <div className="text-[0.9375rem] leading-[1.7] text-foreground/80">
+      <div className="text-base leading-[1.7] text-foreground/80">
         {children}
       </div>
     </div>
@@ -594,7 +594,7 @@ export function BestPractice({ title, children }: BestPracticeProps) {
           {title ?? "Best Practice"}
         </span>
       </div>
-      <div className="text-[0.9375rem] leading-[1.7] text-foreground/80">
+      <div className="text-base leading-[1.7] text-foreground/80">
         {children}
       </div>
     </div>
@@ -622,7 +622,7 @@ export function ToolComparison({ tool1, tool2, children }: ToolComparisonProps) 
         </div>
       </div>
       <div className="p-4">
-        <div className="text-[0.9375rem] leading-[1.7] text-foreground/80">
+        <div className="text-base leading-[1.7] text-foreground/80">
           {children}
         </div>
       </div>
@@ -652,7 +652,7 @@ export function DebugScenario({ title, children, solution }: DebugScenarioProps)
           </span>
         </div>
         <p className="font-semibold text-foreground mb-3">{title}</p>
-        <div className="text-[0.9375rem] leading-[1.7] text-foreground/80">
+        <div className="text-base leading-[1.7] text-foreground/80">
           {children}
         </div>
       </div>
@@ -670,7 +670,7 @@ export function DebugScenario({ title, children, solution }: DebugScenarioProps)
             {showSolution ? "Hide Solution" : "Show Root Cause & Fix"}
           </button>
           {showSolution && (
-            <div className="px-5 pb-5 pt-3 border-t border-orange-500/10 text-[0.9375rem] leading-[1.7] text-foreground/80">
+            <div className="px-5 pb-5 pt-3 border-t border-orange-500/10 text-base leading-[1.7] text-foreground/80">
               {solution}
             </div>
           )}
@@ -697,7 +697,7 @@ export function StayNestExample({ title, children }: StayNestExampleProps) {
           {title ?? "StayNest Example"}
         </span>
       </div>
-      <div className="text-[0.9375rem] leading-[1.7] text-foreground/80">
+      <div className="text-base leading-[1.7] text-foreground/80">
         {children}
       </div>
     </div>
@@ -720,7 +720,7 @@ export function MentalModel({ children }: MentalModelProps) {
           Mental Model
         </span>
       </div>
-      <div className="text-[0.9375rem] leading-[1.7] text-foreground/80">
+      <div className="text-base leading-[1.7] text-foreground/80">
         {children}
       </div>
     </div>
@@ -743,7 +743,7 @@ export function KeyTakeaways({ children }: KeyTakeawaysProps) {
           Key Takeaways
         </span>
       </div>
-      <div className="text-[0.9375rem] leading-[1.7] text-foreground/80">
+      <div className="text-base leading-[1.7] text-foreground/80">
         {children}
       </div>
     </div>

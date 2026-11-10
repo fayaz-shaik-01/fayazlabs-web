@@ -65,7 +65,7 @@ export default function LearningPage() {
                 <h2 className="mb-2 text-xl font-bold text-foreground">
                   {product.title}
                 </h2>
-                <p className="text-[0.9375rem] text-muted-foreground">{product.blurb}</p>
+                <p className="text-base text-muted-foreground">{product.blurb}</p>
                 <span className="mt-6 inline-flex items-center gap-1.5 text-sm font-semibold text-primary">
                   Open course
                   <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />

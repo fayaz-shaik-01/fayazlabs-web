@@ -12,7 +12,7 @@ export function CTASection() {
             <Briefcase className="size-5" />
           </span>
           <h3 className="text-heading-md mb-2">Looking for AI Engineering Talent?</h3>
-          <p className="mb-6 text-[0.9375rem] text-muted-foreground">
+          <p className="mb-6 text-base text-muted-foreground">
             I&apos;m open to remote AI engineering, backend engineering, and SDET
             roles. Let&apos;s build something impactful together.
           </p>
@@ -30,7 +30,7 @@ export function CTASection() {
             <Code className="size-5" />
           </span>
           <h3 className="text-heading-md mb-2">Need AI/Automation Consulting?</h3>
-          <p className="mb-6 text-[0.9375rem] text-muted-foreground">
+          <p className="mb-6 text-base text-muted-foreground">
             I help teams build AI agents, automate workflows, and integrate LLM
             capabilities into existing products.
           </p>

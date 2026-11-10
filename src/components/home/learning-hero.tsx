@@ -63,7 +63,7 @@ export function LearningHomepageHero({ catalog }: Readonly<{ catalog: Catalog | 
                 className="group grid grid-cols-[auto_1fr_auto] items-baseline gap-3 rounded-md px-2 py-2.5 transition-colors hover:bg-muted"
               >
                 <span className="chip">{level.id}</span>
-                <span className="text-[0.9375rem] font-semibold leading-snug text-foreground">
+                <span className="text-base font-semibold leading-snug text-foreground">
                   {levelShortTitle(level.title)}
                 </span>
                 <span className="eyebrow tabular-nums">{level.items.length}</span>

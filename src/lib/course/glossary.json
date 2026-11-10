@@ -1,0 +1,538 @@
+[
+ {
+  "id": "abstention",
+  "term": "Abstention",
+  "definition": "A RAG assistant saying it cannot find the answer. Correct when the knowledge base has no answer. A false abstention is saying so when the context does contain it; a missing abstention is answering when the knowledge base has nothing."
+ },
+ {
+  "id": "access-control",
+  "term": "Access control (and tenant)",
+  "definition": "Rules about who may see which documents. In RAG they must be enforced in retrieval, before documents reach the model, because the model cannot keep a secret it has been shown. A tenant is a customer group whose documents are private to it."
+ },
+ {
+  "id": "accuracy",
+  "term": "Accuracy",
+  "definition": "The share of all answers that were right. Misleading when the thing you care about is rare, because a model that never detects anything can still score very high.",
+  "see": "Precision, Recall, Confusion matrix"
+ },
+ {
+  "id": "agent",
+  "term": "Agent",
+  "definition": "A system where a language model decides what to do next, calls tools, reads the results and repeats until a task is finished. Harder to test than a chatbot because it takes many steps and can have real side effects."
+ },
+ {
+  "id": "api",
+  "term": "API",
+  "definition": "A defined way for one program to ask another to do something. Calling a language model means sending an HTTP request with JSON and getting a JSON reply back."
+ },
+ {
+  "id": "ai",
+  "term": "Artificial intelligence (AI)",
+  "definition": "Software that performs tasks that normally need human judgement, such as understanding language or recognising patterns. In practice today it usually means a machine learning model."
+ },
+ {
+  "id": "baseline",
+  "term": "Baseline",
+  "definition": "The measured quality of the current version, recorded so that every later change can be compared against it."
+ },
+ {
+  "id": "bertscore",
+  "term": "BERTScore",
+  "definition": "A metric that compares the embeddings of each word in an answer with those of a reference. Better than word overlap at paraphrases, still weak at subtle factual errors."
+ },
+ {
+  "id": "bleu-rouge",
+  "term": "BLEU and ROUGE",
+  "definition": "Word-overlap metrics from machine translation and summarisation research. They compare the words or word sequences of an answer with a reference and are blind to meaning, so a wrong number can score almost as high as a correct answer."
+ },
+ {
+  "id": "bm25",
+  "term": "BM25 (keyword search)",
+  "definition": "A classic ranking method that scores passages by how many question words they contain, weighting rare words more. Strong on exact terms, blind to synonyms and paraphrases."
+ },
+ {
+  "id": "bootstrap",
+  "term": "Bootstrap (resampling)",
+  "definition": "A way to estimate uncertainty by repeatedly resampling your own data with replacement and recomputing the result. Used in this course to get honest intervals for averages of per-case pass rates."
+ },
+ {
+  "id": "chain-of-thought",
+  "term": "Chain of thought",
+  "definition": "Asking a model to write out its reasoning steps before giving a final answer. Often improves accuracy on multi-step problems at the cost of extra tokens and time."
+ },
+ {
+  "id": "chunk",
+  "term": "Chunk (chunking)",
+  "definition": "A passage cut from a document, the unit that is embedded, retrieved and shown to the model. Chunking is the choice of how to cut: whole documents, sections, or fixed-size windows with or without overlap."
+ },
+ {
+  "id": "citation",
+  "term": "Citation",
+  "definition": "A reference, in an answer, to the passage that supports it. Valid if the cited passage was in the context; supported if that passage actually contains the fact."
+ },
+ {
+  "id": "cohens-kappa",
+  "term": "Cohen's kappa",
+  "definition": "A measure of how much two graders agree, corrected for the agreement you would get by chance. 1 is perfect, 0 is no better than chance."
+ },
+ {
+  "id": "confidence-interval",
+  "term": "Confidence interval",
+  "definition": "A plausible range for the true value of something you measured from a sample. A 95% interval for a pass rate is built so that about 95% of such intervals, over many repeated tests, would contain the true rate."
+ },
+ {
+  "id": "confusion-matrix",
+  "term": "Confusion matrix",
+  "definition": "A table counting true positives, false positives, true negatives and false negatives. Accuracy, precision, recall and F1 are all calculated from it."
+ },
+ {
+  "id": "context-window",
+  "term": "Context window",
+  "definition": "The maximum amount of text (in tokens) a model can read at once, covering the instructions, any documents, the conversation and the reply being written."
+ },
+ {
+  "id": "cosine-similarity",
+  "term": "Cosine similarity",
+  "definition": "A measure of how similar the directions of two embedding vectors are. 1 means the same direction (very similar meaning), around 0 means unrelated."
+ },
+ {
+  "id": "data-leakage",
+  "term": "Data leakage",
+  "definition": "Information from the test set influencing training or tuning, so measured scores look better than real-world performance. Example, tuning a prompt on the same cases you report."
+ },
+ {
+  "id": "dataset",
+  "term": "Dataset (golden dataset)",
+  "definition": "The set of test inputs, usually with expected answers or rules, that you run an evaluation against. A golden dataset is one that has been carefully checked and is treated as the source of truth."
+ },
+ {
+  "id": "deep-learning",
+  "term": "Deep learning",
+  "definition": "Machine learning using neural networks with many layers. The basis of modern language models."
+ },
+ {
+  "id": "dense-retrieval",
+  "term": "Dense retrieval",
+  "definition": "Retrieval that embeds the question and the passages and ranks by similarity of meaning. Handles paraphrases well; depends on the embedding model."
+ },
+ {
+  "id": "determinism",
+  "term": "Determinism",
+  "definition": "Behaviour where the same input always gives the same output. Normal software has it; language models mostly do not."
+ },
+ {
+  "id": "dev-set",
+  "term": "Dev set",
+  "definition": "The part of a dataset you are allowed to study and tune against while improving a system. Kept apart from the held-out set."
+ },
+ {
+  "id": "distractor",
+  "term": "Distractor",
+  "definition": "A retrieved passage that is irrelevant or misleading, such as a superseded policy. Distractors cost tokens and can lead the model to a wrong answer."
+ },
+ {
+  "id": "embedding",
+  "term": "Embedding",
+  "definition": "A list of numbers that represents the meaning of a piece of text, built so that texts with similar meaning get similar lists. Used for search in RAG and for similarity scores."
+ },
+ {
+  "id": "endpoint",
+  "term": "Endpoint",
+  "definition": "The URL a program sends requests to in order to use an API."
+ },
+ {
+  "id": "error-analysis",
+  "term": "Error analysis",
+  "definition": "Reading the failed answers, grouping them into named failure types, counting and ranking the groups, and fixing the biggest one first. The step that turns scores into improvement."
+ },
+ {
+  "id": "eval",
+  "term": "Eval (evaluation)",
+  "definition": "A repeatable measurement of how good an AI system is. It has four parts: a dataset, a system under test, a grader, and a metric with a threshold."
+ },
+ {
+  "id": "harness",
+  "term": "Eval harness",
+  "definition": "The reusable machinery around an evaluation: running the system, grading, recording results, resuming, reporting and comparing. The course's harness is the evalkit package."
+ },
+ {
+  "id": "eval-driven",
+  "term": "Eval-driven development",
+  "definition": "Writing the success criteria and failing test cases for a new AI behaviour first, then changing the prompt or model until the measured results meet the threshold. Test-driven development for AI."
+ },
+ {
+  "id": "backoff",
+  "term": "Exponential backoff",
+  "definition": "Waiting longer after each failed attempt (for example 1s, 2s, 4s) before retrying, so a struggling service is not overwhelmed. Usually combined with jitter."
+ },
+ {
+  "id": "f1",
+  "term": "F1 score",
+  "definition": "A single number that balances precision and recall (their harmonic mean). It is low if either is low."
+ },
+ {
+  "id": "faithfulness",
+  "term": "Faithfulness (groundedness)",
+  "definition": "Whether every claim in an answer is supported by the context the model was given. It measures agreement with the context, not with the real world: an answer faithful to a stale document is faithful and wrong."
+ },
+ {
+  "id": "false-pass",
+  "term": "False pass and false fail",
+  "definition": "A false pass is a bad answer that a grader accepts; a false fail is a good answer that a grader rejects. A judge's two error types have different costs: false passes let defects through."
+ },
+ {
+  "id": "few-shot",
+  "term": "Few-shot prompting",
+  "definition": "Including one or more worked examples of the desired input and output in the prompt. Zero-shot means no examples."
+ },
+ {
+  "id": "fine-tuning",
+  "term": "Fine-tuning",
+  "definition": "Training an already-trained model further on your own examples, to specialise it or change its style."
+ },
+ {
+  "id": "fixture",
+  "term": "Fixture (pytest)",
+  "definition": "A function that prepares something a test needs, such as a loaded dataset or a temporary folder. Tests receive it by naming it as a parameter."
+ },
+ {
+  "id": "g-eval",
+  "term": "G-Eval",
+  "definition": "A judging method where you give criteria in plain language, the judge model writes evaluation steps from them, and then scores the answer by following the steps. Implemented in DeepEval as GEval."
+ },
+ {
+  "id": "grader",
+  "term": "Grader",
+  "definition": "The part of an eval that looks at a model output and scores it. It can be code, a human, or another model."
+ },
+ {
+  "id": "guardrails",
+  "term": "Guardrails",
+  "definition": "Checks placed around a model to block unwanted inputs or outputs, such as attacks, personal data or abusive language."
+ },
+ {
+  "id": "hallucination",
+  "term": "Hallucination",
+  "definition": "A confident statement from a model that is false or has no basis, produced because the model generates likely text rather than verified facts."
+ },
+ {
+  "id": "held-out",
+  "term": "Held-out set",
+  "definition": "Test cases kept apart and not used while tuning a system, so the final score is not inflated."
+ },
+ {
+  "id": "hybrid-search",
+  "term": "Hybrid search and rank fusion",
+  "definition": "Running keyword and dense retrieval together and merging the two rankings, for example by reciprocal rank fusion. Helps when both are of similar quality; can dilute the stronger ranking when they are not."
+ },
+ {
+  "id": "indirect-injection",
+  "term": "Indirect prompt injection",
+  "definition": "Instructions planted in content the model reads on a user's behalf, such as a retrieved document, web page or email, which the model may follow as if the application had written them."
+ },
+ {
+  "id": "inference",
+  "term": "Inference",
+  "definition": "Using a trained model to produce an output for a new input. As opposed to training."
+ },
+ {
+  "id": "infra-error",
+  "term": "Infrastructure error",
+  "definition": "A failure of the test environment, such as the model server being unreachable or a rate limit, as opposed to a quality failure of the system under test. It must be flagged and excluded from quality scores."
+ },
+ {
+  "id": "jitter",
+  "term": "Jitter",
+  "definition": "A small random amount added to a retry delay so that many clients do not all retry at the same instant."
+ },
+ {
+  "id": "json",
+  "term": "JSON",
+  "definition": "A text format for structured data made of objects (key/value pairs), lists, strings, numbers and true/false values. The standard format for API requests and model output."
+ },
+ {
+  "id": "jsonl",
+  "term": "JSONL (JSON Lines)",
+  "definition": "A file with one JSON object per line. The standard format for datasets and logs because lines can be appended and read one at a time."
+ },
+ {
+  "id": "calibration",
+  "term": "Judge calibration",
+  "definition": "Measuring how well an LLM judge agrees with human verdicts on a labelled sample, with agreement, kappa, and separate rates for catching bad answers and accepting good ones."
+ },
+ {
+  "id": "knowledge-cutoff",
+  "term": "Knowledge cutoff",
+  "definition": "The date after which a model has seen no training data, so it knows nothing newer unless given the information."
+ },
+ {
+  "id": "knowledge-base-audit",
+  "term": "Knowledge-base audit",
+  "definition": "A static check of the documents behind a RAG system: stale versions, duplicates, personal data, planted instructions, missing metadata. Static analysis for content."
+ },
+ {
+  "id": "language-model",
+  "term": "Language model",
+  "definition": "A model trained to predict the next piece of text given the text so far. Repeating that prediction produces whole answers."
+ },
+ {
+  "id": "latency",
+  "term": "Latency",
+  "definition": "How long a request takes. Report percentiles such as median and p95, not only the average."
+ },
+ {
+  "id": "llm",
+  "term": "LLM (large language model)",
+  "definition": "A language model with billions of parameters, trained on huge amounts of text. ChatGPT, Claude and Gemini are built on LLMs."
+ },
+ {
+  "id": "llm-judge",
+  "term": "LLM judge",
+  "definition": "A language model used as a grader to score another model's answers against a rubric. Must be validated against human judgement before it is trusted."
+ },
+ {
+  "id": "machine-learning",
+  "term": "Machine learning (ML)",
+  "definition": "Software whose rules are learned from examples instead of written by a person."
+ },
+ {
+  "id": "marker",
+  "term": "Marker (pytest)",
+  "definition": "A label attached to a test, such as slow, so you can include or exclude groups of tests when running."
+ },
+ {
+  "id": "mock",
+  "term": "Mock",
+  "definition": "A stand-in that replaces something real in a test, such as the network, so you can control what it returns and trigger failures on demand."
+ },
+ {
+  "id": "model",
+  "term": "Model",
+  "definition": "A function with adjustable numbers (parameters) inside, whose values are found by training on examples."
+ },
+ {
+  "id": "multimodal",
+  "term": "Multimodal",
+  "definition": "Able to accept or produce more than text, such as images, audio or video."
+ },
+ {
+  "id": "neural-network",
+  "term": "Neural network",
+  "definition": "A model built from many small units arranged in layers, each multiplying its inputs by learned weights and passing the result on."
+ },
+ {
+  "id": "non-determinism",
+  "term": "Non-determinism",
+  "definition": "Behaviour where the same input can give different outputs on different runs, as with sampling from a language model."
+ },
+ {
+  "id": "ollama",
+  "term": "Ollama",
+  "definition": "A free program that runs open-weight language models on your own computer and exposes them through a local API."
+ },
+ {
+  "id": "open-weight",
+  "term": "Open-weight model",
+  "definition": "A model whose trained parameters are published so anyone can download and run it, as opposed to one reachable only through a provider's API."
+ },
+ {
+  "id": "oracle",
+  "term": "Oracle (and the oracle problem)",
+  "definition": "The source of truth a test compares against. The oracle problem is that for AI there is often no single correct answer to compare with."
+ },
+ {
+  "id": "oracle-run",
+  "term": "Oracle run",
+  "definition": "An evaluation where the model is given the ideal context instead of retrieving. It measures what the generation stage can do with perfect retrieval; end-to-end minus oracle is the cost of retrieval."
+ },
+ {
+  "id": "overfitting",
+  "term": "Overfitting",
+  "definition": "When a model memorises its training examples instead of learning a general pattern, scoring well on training data and poorly on new data."
+ },
+ {
+  "id": "p-value",
+  "term": "p-value",
+  "definition": "How often random luck alone would produce a difference at least as large as the one observed, if the two versions were truly identical. Small values suggest the difference is real."
+ },
+ {
+  "id": "parameters",
+  "term": "Parameters",
+  "definition": "The adjustable numbers inside a model. Training finds good values for them. A language model has billions."
+ },
+ {
+  "id": "pass-rate",
+  "term": "Pass rate",
+  "definition": "The share of test runs that pass. The basic metric of AI evaluation, replacing single pass or fail."
+ },
+ {
+  "id": "position-bias",
+  "term": "Position bias",
+  "definition": "In pairwise judging, the tendency of a judge to favour the answer shown first (or second) regardless of quality. Reduced by running each comparison in both orders."
+ },
+ {
+  "id": "precision",
+  "term": "Precision",
+  "definition": "When the model says \"positive\", how often it is right. TP divided by (TP plus FP)."
+ },
+ {
+  "id": "prompt",
+  "term": "Prompt",
+  "definition": "The text sent to a model: instructions, facts, the conversation and the user's message. In a product it is code in all but name."
+ },
+ {
+  "id": "prompt-injection",
+  "term": "Prompt injection",
+  "definition": "Text in the input that tries to override the product's own instructions, such as \"ignore your previous instructions\". Indirect injection hides the text in a document, web page or tool result the model reads."
+ },
+ {
+  "id": "pydantic",
+  "term": "pydantic",
+  "definition": "A Python library for describing the shape of data and checking any data against it, with precise error messages."
+ },
+ {
+  "id": "pytest",
+  "term": "pytest",
+  "definition": "The standard Python test runner. Any function named test_something in a file named test_something.py is a test."
+ },
+ {
+  "id": "quality-gate",
+  "term": "Quality gate",
+  "definition": "An automatic rule in the build pipeline that decides whether a change may proceed, based on measured quality such as pass rates against thresholds and against a baseline."
+ },
+ {
+  "id": "rag",
+  "term": "RAG (retrieval-augmented generation)",
+  "definition": "A way of making a language model answer from your own documents. The system first searches your documents for relevant passages, pastes them into the request, and then asks the model to answer using them."
+ },
+ {
+  "id": "rate-limit",
+  "term": "Rate limit",
+  "definition": "A cap on how many requests or tokens a provider allows per minute. Exceeding it returns HTTP 429, which should be retried after waiting."
+ },
+ {
+  "id": "recall",
+  "term": "Recall",
+  "definition": "Of all the real positives, how many the model caught. TP divided by (TP plus FN)."
+ },
+ {
+  "id": "recall-at-k",
+  "term": "Recall@k, precision@k, MRR, nDCG",
+  "definition": "Retrieval metrics. Recall@k: the share of needed facts found in the top k. Precision@k: the share of the top k that is relevant. MRR: the average of 1 divided by the rank of the first relevant result. nDCG: how well the whole ranking puts relevant results high."
+ },
+ {
+  "id": "reference-answer",
+  "term": "Reference answer",
+  "definition": "An expert-written model answer for a test question. Used by humans and judges to compare against; not an exact-match target."
+ },
+ {
+  "id": "regression",
+  "term": "Regression",
+  "definition": "A change that makes something that used to work stop working. Regression testing reruns the same checks after every change."
+ },
+ {
+  "id": "retriever",
+  "term": "Retriever (retrieval)",
+  "definition": "The part of a RAG system that finds the passages most relevant to a question. Retrieval is the stage that decides whether the right text reaches the model."
+ },
+ {
+  "id": "rubric",
+  "term": "Rubric",
+  "definition": "The written criteria a grader, human or model, applies to decide whether an answer is acceptable. A good rubric is specific, separates criteria, and gives concrete examples."
+ },
+ {
+  "id": "sampling-error",
+  "term": "Sampling error",
+  "definition": "The wobble in a measured result that comes from testing only a sample of all possible cases."
+ },
+ {
+  "id": "schema",
+  "term": "Schema",
+  "definition": "A description of the shape data must have: which fields, which types, which values are allowed."
+ },
+ {
+  "id": "self-preference",
+  "term": "Self-preference bias",
+  "definition": "A model's tendency to rate its own outputs, or outputs in its own style, more highly. A reason to judge with a different model family than the one under test."
+ },
+ {
+  "id": "sign-test",
+  "term": "Sign test (paired comparison)",
+  "definition": "A test for two versions run on the same cases: count the cases where only one version passes and ask whether the split is more lopsided than chance. Also called McNemar's exact test."
+ },
+ {
+  "id": "significant",
+  "term": "Statistically significant",
+  "definition": "Unlikely to be explained by luck alone, conventionally a p-value below 0.05. It says nothing about whether the effect is large or important."
+ },
+ {
+  "id": "stop-reason",
+  "term": "Stop reason",
+  "definition": "The field in a model reply that says why it stopped: finished normally, hit the maximum token limit (truncated), or asked to call a tool."
+ },
+ {
+  "id": "sycophancy",
+  "term": "Sycophancy",
+  "definition": "A model agreeing with the user even when the user is wrong, because training rewards agreeable answers."
+ },
+ {
+  "id": "system-prompt",
+  "term": "System prompt",
+  "definition": "Standing instructions given to a model for a whole conversation, written by the product's builder and not shown to users."
+ },
+ {
+  "id": "sut",
+  "term": "System under test (SUT)",
+  "definition": "The product, or the part of it, that an evaluation measures."
+ },
+ {
+  "id": "temperature",
+  "term": "Temperature",
+  "definition": "A setting that controls how adventurous a model is when choosing the next token. Zero is the most repeatable; higher values give more varied and more error-prone output."
+ },
+ {
+  "id": "test-set",
+  "term": "Test set",
+  "definition": "Data kept separate from training and used only to measure the final quality of a model."
+ },
+ {
+  "id": "token",
+  "term": "Token",
+  "definition": "The piece of text a model reads and writes, usually a few characters. About four characters, or three quarters of a word, in English. Tokens are the unit of cost and of length limits."
+ },
+ {
+  "id": "tool-calling",
+  "term": "Tool calling (function calling)",
+  "definition": "A mechanism where the model replies with a request to run a named function with certain arguments, the application runs it, and the result is sent back to the model."
+ },
+ {
+  "id": "trace",
+  "term": "Trace",
+  "definition": "A record of every step in a request: prompts, retrieved documents, tool calls, replies, timings. Essential for finding which layer caused a wrong answer."
+ },
+ {
+  "id": "training",
+  "term": "Training",
+  "definition": "The process of adjusting a model's parameters to fit examples."
+ },
+ {
+  "id": "transformer",
+  "term": "Transformer",
+  "definition": "The neural network design behind modern language models, particularly good at relating the words in a text to each other."
+ },
+ {
+  "id": "verbosity-bias",
+  "term": "Verbosity bias",
+  "definition": "A judge's tendency to score longer, more elaborate answers higher regardless of correctness."
+ },
+ {
+  "id": "vibe-check",
+  "term": "Vibe check",
+  "definition": "Judging an AI system by trying a handful of examples and going by feel. Fast, but unrepeatable and unrepresentative."
+ },
+ {
+  "id": "wilson",
+  "term": "Wilson interval",
+  "definition": "A confidence interval for a proportion that behaves well for small samples and for rates near 0% or 100%. Used throughout the course for pass rates."
+ }
+]

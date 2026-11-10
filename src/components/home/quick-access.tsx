@@ -54,7 +54,7 @@ export function QuickAccess() {
               <h3 className="mt-3 text-lg font-bold leading-snug text-foreground">
                 {p.title}
               </h3>
-              <p className="mt-2 text-[0.9375rem] text-muted-foreground">
+              <p className="mt-2 text-base text-muted-foreground">
                 {p.description}
               </p>
               <div className="mt-auto flex items-center justify-between pt-5">
