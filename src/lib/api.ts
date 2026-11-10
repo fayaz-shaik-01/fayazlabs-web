@@ -7,6 +7,8 @@ export interface ChatMessage {
   sources?: Source[];
   metadata?: QueryMetadata;
   timestamp: number;
+  /** Assistant replies type out over this many ms (set once, when the reply arrives). */
+  revealMs?: number;
 }
 
 export interface Source {

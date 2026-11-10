@@ -1,4 +1,5 @@
 import { LearningHomepageHero } from "@/components/home/learning-hero";
+import { AskAi } from "@/components/home/ask-ai";
 import { QuickAccess } from "@/components/home/quick-access";
 import { FeaturedProducts } from "@/components/home/featured-products";
 import { CTASection } from "@/components/home/cta-section";
@@ -51,6 +52,7 @@ export default async function Home() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
       <LearningHomepageHero catalog={catalog} />
+      <AskAi />
       <QuickAccess />
       <FeaturedProducts />
       <CTASection />
