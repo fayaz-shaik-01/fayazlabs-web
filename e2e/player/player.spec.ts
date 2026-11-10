@@ -73,6 +73,35 @@ async function instrument(page: Page) {
 const getLog = (page: Page) =>
   page.evaluate(() => (window as unknown as { __log: Record<string, { t?: number; cue?: number; currentTime?: number; rate?: number; rel?: string }[]> }).__log);
 
+test("glossary terms open a definition overlay at the word; the link itself is a real URL", async ({ page }) => {
+  await signInPaid(page);
+  await page.goto(LESSON);
+  const art = page.getByTestId("lesson-article");
+  await expect(art).toBeVisible({ timeout: 20_000 });
+  const term = art.getByRole("link", { name: "term", exact: true });
+  // The dead "../glossary.html" link was rewritten to the site's glossary page.
+  await expect(term).toHaveAttribute("href", "/learning/ai-product-testing/glossary#api");
+  const handle = await term.elementHandle();
+  await term.click();
+  const overlay = page.getByTestId("glossary-overlay");
+  await expect(overlay).toBeVisible();
+  expect(await handle!.evaluate((e) => e.isConnected)).toBe(true); // the lesson text was not rebuilt
+  await expect(overlay).toContainText("A defined way for one program to ask another");
+  await expect(page).toHaveURL(new RegExp(`${LESSON}$`)); // stayed on the lesson
+  // Placed next to the word, inside the viewport (measured once the 150 ms entrance animation is over).
+  await page.waitForTimeout(400);
+  const [o, t] = [await overlay.boundingBox(), await term.boundingBox()];
+  expect(Math.abs(o!.y - (t!.y + t!.height)) < 40 || Math.abs(o!.y + o!.height - t!.y) < 40).toBe(true);
+  await page.keyboard.press("Escape");
+  await expect(overlay).toHaveCount(0);
+  // The full-glossary link goes to the real page, on the right term.
+  await term.click();
+  await overlay.getByRole("link", { name: /Open full glossary/ }).click();
+  await page.waitForURL(/\/learning\/ai-product-testing\/glossary#api$/);
+  await expect(page.getByRole("heading", { level: 1, name: "Glossary" })).toBeVisible();
+  await expect(page.locator("#api")).toBeVisible();
+});
+
 test("paid lesson: decrypt, sanitise, link navigation", async ({ page }) => {
   await signInPaid(page);
   await page.goto(LESSON);

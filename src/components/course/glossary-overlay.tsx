@@ -10,6 +10,8 @@ export interface GlossaryTarget {
   id: string;
   /** The clicked link, used to place the overlay next to it. */
   el: HTMLElement;
+  /** Where the link was when clicked; used if the element is re-rendered away. */
+  rect: DOMRect;
 }
 
 const WIDTH = 380;
@@ -30,7 +32,7 @@ export function GlossaryOverlay({ target, onClose }: Readonly<{ target: Glossary
       const vw = window.innerWidth;
       const vh = window.innerHeight;
       if (vw < 640) return setPos({ top: 0, left: 0, sheet: true });
-      const r = target.el.getBoundingClientRect();
+      const r = target.el.isConnected ? target.el.getBoundingClientRect() : target.rect;
       const h = card.offsetHeight;
       const below = r.bottom + GAP + h <= vh - MARGIN;
       const top = below ? r.bottom + GAP : Math.max(MARGIN, r.top - GAP - h);

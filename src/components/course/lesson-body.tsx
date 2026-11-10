@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { LockedCard } from "./locked-card";
 import { GlossaryOverlay, type GlossaryTarget } from "./glossary-overlay";
@@ -90,6 +90,8 @@ function LessonContent({ item }: Readonly<{ item: CatalogItem }>) {
 
   const articleRef = useRef<HTMLElement>(null);
   const [term, setTerm] = useState<GlossaryTarget | null>(null);
+  // Stable object, so opening the overlay does not make React rebuild the article's DOM.
+  const articleHtml = useMemo(() => ({ __html: html ?? "" }), [html]);
   // Internal links navigate on the client, everything else is left alone.
   const onClick = (e: React.MouseEvent) => {
     if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey) return;
@@ -99,7 +101,7 @@ function LessonContent({ item }: Readonly<{ item: CatalogItem }>) {
     const termId = a.getAttribute("data-term");
     if (termId && findTerm(termId)) {
       e.preventDefault();
-      setTerm({ id: termId, el: a });
+      setTerm({ id: termId, el: a, rect: a.getBoundingClientRect() });
       return;
     }
     const href = a.getAttribute("href");
@@ -137,7 +139,7 @@ function LessonContent({ item }: Readonly<{ item: CatalogItem }>) {
           className="course-prose"
           data-testid="lesson-article"
           onClick={onClick}
-          dangerouslySetInnerHTML={{ __html: html }}
+          dangerouslySetInnerHTML={articleHtml}
         />
       )}
       {term && <GlossaryOverlay target={term} onClose={() => setTerm(null)} />}

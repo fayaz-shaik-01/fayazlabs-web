@@ -94,6 +94,6 @@ export function makeLessonFixture(o: FixtureOptions) {
     decks[mode] = deck;
     write(`${folder}/deck.json`, Buffer.from(JSON.stringify(deck)));
   }
-  write("lesson.html", Buffer.from(`<h2>Sample lesson</h2><p>Invented body text. <a href="/learning/ai-product-testing">Course home</a></p><div class="callout"><p>Sample callout</p></div><img src=x onerror="window.__xss=1"><script>window.__xss=1</script><iframe src="about:blank"></iframe><form><input></form>`));
+  write("lesson.html", Buffer.from(`<h2>Sample lesson</h2><p>Invented body text. <a href="/learning/ai-product-testing">Course home</a> A <a class="term" href="../glossary.html#api">term</a> and <a class="term" href="../glossary.html#no-such-term">unknown</a>.</p><div class="callout"><p>Sample callout</p></div><img src=x onerror="window.__xss=1"><script>window.__xss=1</script><iframe src="about:blank"></iframe><form><input></form>`));
   return { key, keyB64: key.toString("base64"), decks };
 }
