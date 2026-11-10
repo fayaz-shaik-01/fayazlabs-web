@@ -23,6 +23,22 @@ for (const [label, viewport] of [["desktop", { width: 1280, height: 900 }], ["ph
       await page.waitForTimeout(500);
       mkdirSync("docs/design-review", { recursive: true });
       await page.screenshot({ path: `docs/design-review/lesson-${label}-${scheme}.png`, quality: undefined });
+
+      // The speed menu, then the player in full screen. The stage must fill the screen
+      // and the controls must stay on it (nothing pushed below the fold).
+      const player = page.getByTestId("slide-player");
+      await player.scrollIntoViewIfNeeded();
+      await page.getByTestId("speed").click();
+      await page.getByTestId("speed-1.5").waitFor();
+      await page.screenshot({ path: `docs/design-review/player-speed-${label}-${scheme}.png` });
+      await page.keyboard.press("Escape");
+      await page.getByRole("button", { name: "Full screen" }).click();
+      await player.and(page.locator('[data-fs="true"]')).waitFor();
+      await page.waitForTimeout(300);
+      await page.screenshot({ path: `docs/design-review/player-fullscreen-${label}-${scheme}.png` });
+      const box = await page.getByTestId("play-toggle").boundingBox();
+      const inView = !!box && box.y + box.height <= viewport.height && box.y >= 0;
+      if (!inView) throw new Error(`controls fell outside the full-screen viewport: ${JSON.stringify(box)}`);
       await ctx.close();
     });
   }

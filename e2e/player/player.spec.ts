@@ -122,7 +122,8 @@ test("player on fast 4G: start time, gaps, cue latency, memory, protection", asy
   });
   expect(prevented).toBe(true);
 
-  await page.getByTestId("speed").selectOption("1.75");
+  await page.getByTestId("speed").click();
+  await page.getByTestId("speed-1.75").click();
   const t0 = await page.evaluate(() => performance.now());
   await page.getByTestId("play-toggle").click();
   await expect(player).toHaveAttribute("data-phase", "playing", { timeout: 5_000 });

@@ -529,13 +529,37 @@
 
 }
 /* ---- Slide player ---- */
+.player { display: flex; flex-direction: column; }
+.player-stage { aspect-ratio: 16 / 9; container-type: inline-size; }
 .player-btn {
   display: inline-flex; align-items: center; justify-content: center;
-  height: 2.25rem; min-width: 2.25rem; border-radius: 0.5rem;
-  border: 1px solid var(--border); background: var(--card);
+  height: 2.5rem; min-width: 2.5rem; border-radius: 0.625rem;
+  border: 1px solid var(--border); background: var(--card); color: var(--foreground);
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
-.player-btn:hover { background: var(--accent-soft); color: var(--accent-foreground); }
+.player-btn:hover { background: var(--accent); color: var(--accent-foreground); border-color: color-mix(in srgb, var(--primary) 45%, var(--border)); }
 .player-btn:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.player-play { height: 2.75rem; width: 2.75rem; border-radius: 9999px; background: var(--primary); border-color: var(--primary); color: var(--primary-foreground); }
+.player-play:hover { background: color-mix(in srgb, var(--primary) 88%, black); color: var(--primary-foreground); border-color: transparent; }
+
+/* Seek bar: a filled track and a round thumb in the accent colour */
+.player-range { -webkit-appearance: none; appearance: none; height: 1.25rem; background: transparent; cursor: pointer; }
+.player-range:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: 9999px; }
+.player-range::-webkit-slider-runnable-track { height: 6px; border-radius: 9999px; background: linear-gradient(to right, var(--primary) var(--p, 0%), var(--border) var(--p, 0%)); }
+.player-range::-moz-range-track { height: 6px; border-radius: 9999px; background: var(--border); }
+.player-range::-moz-range-progress { height: 6px; border-radius: 9999px; background: var(--primary); }
+.player-range::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 16px; height: 16px; margin-top: -5px; border-radius: 9999px; background: var(--primary); border: 3px solid var(--card); box-shadow: 0 0 0 1px var(--primary); }
+.player-range::-moz-range-thumb { width: 12px; height: 12px; border-radius: 9999px; background: var(--primary); border: 3px solid var(--card); box-shadow: 0 0 0 1px var(--primary); }
+
+/* Full screen: the stage takes whatever the controls leave, and long slides scroll inside it.
+   data-fs is set for both real fullscreen and the viewport-filling fallback. */
+.player[data-fs="true"] {
+  position: fixed; inset: 0; z-index: 80; width: 100vw; height: 100dvh;
+  border-radius: 0; border: 0; background: var(--background);
+}
+.player[data-fs="true"] .player-stage { aspect-ratio: auto; flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: clamp(1.25rem, 4vw, 3.5rem); }
+.player[data-fs="true"] .player-stage > :not(.player-watermark) { max-width: 78rem; width: 100%; margin-inline: auto; }
+.player:fullscreen { background: var(--background); }
 .player-watermark-text { white-space: nowrap; animation: player-wm 38s linear infinite alternate; }
 @keyframes player-wm {
   0% { left: 4%; top: 8%; } 25% { left: 55%; top: 30%; }
