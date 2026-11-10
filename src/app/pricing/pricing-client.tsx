@@ -30,16 +30,18 @@ export function PricingClient() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
+    setError(null);
     getPlans()
       .then((p) => !cancelled && setPlans(p))
       .catch(() => !cancelled && setError("Could not load the plans. Please try again in a moment."));
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [attempt]);
 
   async function subscribe(plan: Plan) {
     setMessage(null);
@@ -77,7 +79,29 @@ export function PricingClient() {
     }
   }
 
-  if (error) return <p role="alert" className="text-sm text-destructive">{error}</p>;
+  if (error) {
+    return (
+      <div role="alert" data-testid="pricing-error" className="panel max-w-xl p-6">
+        <h2 className="text-heading-md text-foreground">Plans are not available right now</h2>
+        <p className="mt-2 text-base text-muted-foreground">{error}</p>
+        <div className="mt-5 flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setAttempt((n) => n + 1)}
+            className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
+          >
+            Try again
+          </button>
+          <Link href="/learning/ai-product-testing" className="text-sm font-semibold text-primary hover:underline">
+            Start with the free lessons →
+          </Link>
+          <Link href="/contact" className="text-sm font-semibold text-muted-foreground hover:text-foreground">
+            Contact me
+          </Link>
+        </div>
+      </div>
+    );
+  }
   if (!plans) return <div className="h-64 animate-pulse rounded-xl bg-muted" aria-busy="true" />;
 
   const currentPlan = access.subscription?.planCode;
