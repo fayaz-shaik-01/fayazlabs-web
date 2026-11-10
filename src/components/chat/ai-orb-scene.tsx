@@ -44,6 +44,17 @@ function usePointer() {
   return p;
 }
 
+/** Small deterministic generator, so the particle layout is the same on every render. */
+function mulberry32(seed: number) {
+  let a = seed;
+  return () => {
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
 const haloVertex = /* glsl */ `
   varying vec3 vNormal;
   void main() {
@@ -73,12 +84,13 @@ function Orb({ status }: Readonly<{ status: OrbStatus }>) {
   const haloUniforms = useMemo(() => ({ uColor: { value: new THREE.Color() }, uIntensity: { value: 1 } }), []);
   const particles = useMemo(() => {
     const n = 260;
+    const rand = mulberry32(42);
     const pos = new Float32Array(n * 3);
     for (let i = 0; i < n; i++) {
-      const a = Math.random() * Math.PI * 2;
-      const r = 1.75 + Math.random() * 0.55;
+      const a = rand() * Math.PI * 2;
+      const r = 1.75 + rand() * 0.55;
       pos[i * 3] = Math.cos(a) * r;
-      pos[i * 3 + 1] = (Math.random() - 0.5) * 0.5;
+      pos[i * 3 + 1] = (rand() - 0.5) * 0.5;
       pos[i * 3 + 2] = Math.sin(a) * r;
     }
     return pos;

@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { cn } from "@/lib/utils";
 import type { OrbStatus } from "@/stores/chat-store";
 
@@ -17,6 +17,16 @@ function webglAvailable(): boolean {
   }
 }
 
+const noSubscribe = () => () => {};
+function clientMode(): "3d" | "css" {
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  return !reduce && webglAvailable() ? "3d" : "css";
+}
+/** "pending" while rendering on the server, then "3d" or "css" once the browser can say. */
+function useOrbMode(): "pending" | "3d" | "css" {
+  return useSyncExternalStore(noSubscribe, clientMode, () => "pending" as const);
+}
+
 /** A cheap CSS version of the orb. The launcher uses it, and it stands in when 3D is unavailable. */
 export function OrbCss({ status = "idle", className }: Readonly<{ status?: OrbStatus; className?: string }>) {
   return <span aria-hidden="true" data-status={status} className={cn("orb-css", className)} />;
@@ -29,14 +39,9 @@ export function OrbCss({ status = "idle", className }: Readonly<{ status?: OrbSt
  */
 export function AiOrb({ status, className }: Readonly<{ status: OrbStatus; className?: string }>) {
   const ref = useRef<HTMLDivElement>(null);
-  const [mode, setMode] = useState<"pending" | "3d" | "css">("pending");
+  const mode = useOrbMode();
   const [visible, setVisible] = useState(false);
   const [tabVisible, setTabVisible] = useState(true);
-
-  useEffect(() => {
-    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    setMode(!reduce && webglAvailable() ? "3d" : "css");
-  }, []);
 
   useEffect(() => {
     const el = ref.current;

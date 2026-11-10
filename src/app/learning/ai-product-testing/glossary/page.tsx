@@ -11,7 +11,6 @@ export const metadata: Metadata = {
 
 export default function GlossaryPage() {
   const letters = Array.from(new Set(GLOSSARY.map((t) => t.term[0].toUpperCase()))).sort();
-  let last = "";
   return (
     <div className="mx-auto max-w-3xl px-4 pt-28 pb-24 sm:px-6 sm:pt-32">
       <Link href={COURSE_BASE} className="mb-6 inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-primary">
@@ -31,10 +30,9 @@ export default function GlossaryPage() {
         ))}
       </nav>
       <dl className="mt-8">
-        {GLOSSARY.map((t) => {
+        {GLOSSARY.map((t, i) => {
           const letter = t.term[0].toUpperCase();
-          const first = letter !== last;
-          last = letter;
+          const first = i === 0 || GLOSSARY[i - 1].term[0].toUpperCase() !== letter;
           return (
             <div key={t.id} id={t.id} className="glossary-entry scroll-mt-24 border-t border-border py-5 first:border-t-0">
               {first && <span id={`letter-${letter}`} className="sr-only scroll-mt-24">{letter}</span>}

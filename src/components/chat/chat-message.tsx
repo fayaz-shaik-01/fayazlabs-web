@@ -64,28 +64,23 @@ function Rich({ text }: Readonly<{ text: string }>) {
 
 /** Reveals `text` word by word over `ms`, then settles on the full text. */
 function useTyped(text: string, ms: number, enabled: boolean): { shown: string; done: boolean } {
-  const [shown, setShown] = useState(enabled ? "" : text);
-  const [done, setDone] = useState(!enabled);
+  const [progress, setProgress] = useState(0); // 0..1
   useEffect(() => {
-    if (!enabled) {
-      setShown(text);
-      setDone(true);
-      return;
-    }
-    setDone(false);
-    const words = text.split(/(\s+)/);
+    if (!enabled) return;
     const start = performance.now();
     let raf = 0;
     const tick = (now: number) => {
       const f = Math.min(1, (now - start) / ms);
-      setShown(words.slice(0, Math.ceil(words.length * f)).join(""));
+      setProgress(f);
       if (f < 1) raf = requestAnimationFrame(tick);
-      else setDone(true);
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
   }, [text, ms, enabled]);
-  return { shown, done };
+
+  if (!enabled || progress >= 1) return { shown: text, done: true };
+  const words = text.split(/(\s+)/);
+  return { shown: words.slice(0, Math.ceil(words.length * progress)).join(""), done: false };
 }
 
 export function ChatMessageBubble({ message }: Readonly<{ message: ChatMessage }>) {
