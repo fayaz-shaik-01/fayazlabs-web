@@ -9,11 +9,16 @@ import type { Catalog } from "@/lib/course/types";
  * Home hero. The right-hand card lists the real course levels from the catalog,
  * so it never shows made-up numbers.
  */
-export function LearningHomepageHero({ catalog }: Readonly<{ catalog: Catalog }>) {
-  const lessonCount = catalog.levels.reduce((n, l) => n + l.items.length, 0);
+export function LearningHomepageHero({ catalog }: Readonly<{ catalog: Catalog | null }>) {
+  const lessonCount = catalog?.levels.reduce((n, l) => n + l.items.length, 0) ?? 0;
 
   return (
-    <section className="mx-auto grid max-w-6xl items-center gap-10 px-4 pt-32 pb-16 sm:px-6 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)] lg:gap-14 lg:pt-40 lg:pb-20">
+    <section
+      className={cn(
+        "mx-auto grid max-w-6xl items-center gap-10 px-4 pt-32 pb-16 sm:px-6 lg:gap-14 lg:pt-40 lg:pb-20",
+        catalog && "lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]"
+      )}
+    >
       <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
         <p className="eyebrow">Projects · Writing · Courses</p>
         <h1 className="mt-4 text-display-xl text-foreground">
@@ -41,6 +46,7 @@ export function LearningHomepageHero({ catalog }: Readonly<{ catalog: Catalog }>
         </div>
       </div>
 
+      {catalog && (
       <aside
         aria-label="Course outline"
         className="panel flex flex-col gap-4 p-5 animate-in fade-in slide-in-from-bottom-2 duration-700"
@@ -77,6 +83,7 @@ export function LearningHomepageHero({ catalog }: Readonly<{ catalog: Catalog }>
           </Link>
         </div>
       </aside>
+      )}
     </section>
   );
 }

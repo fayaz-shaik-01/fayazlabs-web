@@ -3,10 +3,11 @@ import { QuickAccess } from "@/components/home/quick-access";
 import { FeaturedProducts } from "@/components/home/featured-products";
 import { CTASection } from "@/components/home/cta-section";
 import { siteConfig } from "@/lib/site-config";
-import { getCatalog } from "@/lib/course/catalog";
+import { tryGetCatalog } from "@/lib/course/catalog";
 
 export default async function Home() {
-  const catalog = await getCatalog();
+  // The home page must render even when the course catalog is unreachable.
+  const catalog = await tryGetCatalog();
   const jsonLd = {
     "@context": "https://schema.org",
     "@graph": [

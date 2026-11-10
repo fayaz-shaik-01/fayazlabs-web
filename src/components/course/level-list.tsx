@@ -37,7 +37,7 @@ export function LevelList({
                   {levelShortTitle(level.title)}
                 </span>
                 <span className="eyebrow mt-1 block">
-                  {level.items.length} items · {minutes} min
+                  {level.items.length} items{minutes > 0 ? ` · ${minutes} min` : ""}
                 </span>
               </span>
               <ChevronRight
@@ -47,21 +47,22 @@ export function LevelList({
             </summary>
 
             <div className="border-t border-border px-5 pt-4 pb-5">
-              <p className="mb-3 text-[0.9375rem] text-muted-foreground">
-                {linkLevels ? (
-                  <>
-                    {level.summary}{" "}
-                    <Link
-                      href={levelHref(level.id)}
-                      className="font-semibold text-primary hover:underline"
-                    >
-                      Open level
-                    </Link>
-                  </>
-                ) : (
-                  level.summary
-                )}
-              </p>
+              {(level.summary || linkLevels) && (
+                <p className="mb-3 text-[0.9375rem] text-muted-foreground">
+                  {level.summary}
+                  {linkLevels && (
+                    <>
+                      {level.summary && " "}
+                      <Link
+                        href={levelHref(level.id)}
+                        className="font-semibold text-primary hover:underline"
+                      >
+                        Open level
+                      </Link>
+                    </>
+                  )}
+                </p>
+              )}
               <ul className="flex flex-col">
                 {level.items.map((item) => {
                   const lock = getLockState(item, access.features, isAuthenticated);
@@ -85,7 +86,7 @@ export function LevelList({
                             <Lock className="size-3.5 text-muted-foreground" aria-label="Locked" />
                           )}
                         </span>
-                        <span className="eyebrow text-right tabular-nums">{item.minutes} min</span>
+                        <span className="eyebrow text-right tabular-nums">{item.minutes > 0 ? `${item.minutes} min` : ""}</span>
                       </Link>
                     </li>
                   );

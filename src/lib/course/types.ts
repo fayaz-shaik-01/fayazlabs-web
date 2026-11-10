@@ -9,6 +9,14 @@ export interface CatalogItem {
   minutes: number;
   /** Feature the user needs to open this item. */
   feature: Feature;
+  /** Feature the audio needs (lessons only). */
+  audioFeature?: Feature;
+  /** Which audio decks are published for this lesson. */
+  decks?: { lecture?: boolean; conversation?: boolean };
+  /** Labs only: lesson ids that use the lab, and its file list. */
+  lessons?: string[];
+  files?: number;
+  paths?: string[];
 }
 
 export interface CatalogLevel {

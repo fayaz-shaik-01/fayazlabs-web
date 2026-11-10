@@ -46,7 +46,7 @@ export function LessonView({ level, item, prev, next }: Readonly<LessonViewProps
           {item.feature === "free" && <Badge variant="outline">Free</Badge>}
         </div>
         <h1 className="text-display-lg text-foreground">{item.title}</h1>
-        <p className="eyebrow mt-3">{item.minutes} min</p>
+        {item.minutes > 0 && <p className="eyebrow mt-3">{item.minutes} min</p>}
       </header>
 
       {pending ? (

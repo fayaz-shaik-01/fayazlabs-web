@@ -3,7 +3,19 @@ import { writeFileSync, mkdirSync } from "node:fs";
 
 const MEDIA = "http://localhost:4100";
 const LESSON = "/learning/ai-product-testing/lessons/L2-05";
-const SLIDE_S = 4; // fixture: each slide is a 4 s tone, captions switch at 2 s
+// Fixture slide: cue 1 at 0 s, 250 ms of silence, cue 2 at 2.125 s, 4 s in total (quiz on slide 2).
+const CUE_START = [0, 2.125];
+
+// Every request to the content origin must be one of the published paths.
+const PUBLISHED = /^\/(catalog\.json|__key|(paid\/)?L\d-\d{2}\/(lesson\.html(\.enc)?|(lecture|talk)\/(deck\.json(\.enc)?|s\d{2}\.(mp3|enc))))$/;
+function trackRequests(page: Page) {
+  const paths: string[] = [];
+  page.on("request", (r) => {
+    const u = new URL(r.url());
+    if (u.origin === MEDIA) paths.push(u.pathname);
+  });
+  return paths;
+}
 
 async function signInPaid(page: Page, ttlMs = 600_000) {
   await page.goto("/login");
@@ -84,6 +96,7 @@ test("paid lesson: decrypt, sanitise, link navigation", async ({ page }) => {
 
 test("player on fast 4G: start time, gaps, cue latency, memory, protection", async ({ page, context }) => {
   await instrument(page);
+  const requested = trackRequests(page);
   await signInPaid(page);
   const cdp = await context.newCDPSession(page);
   await cdp.send("Network.enable");
@@ -127,7 +140,7 @@ test("player on fast 4G: start time, gaps, cue latency, memory, protection", asy
   const gaps: number[] = [];
   const pl = log.playing as unknown as { t: number; rel: string; dur: number; rate: number; ct: number }[];
   for (let i = 0; i + 1 < pl.length; i++) {
-    if (pl[i].rel === "audio/02.mp3" || pl[i].rel === pl[i + 1].rel) continue;
+    if (pl[i].rel === "lecture/s02.mp3" || pl[i].rel === pl[i + 1].rel) continue;
     const endsAt = pl[i].t + ((pl[i].dur - pl[i].ct) / pl[i].rate) * 1000;
     gaps.push(pl[i + 1].t - endsAt);
   }
@@ -137,7 +150,7 @@ test("player on fast 4G: start time, gaps, cue latency, memory, protection", asy
   const lat: number[] = [];
   for (const c of log.cues) {
     if (c.currentTime === undefined || c.cue === undefined || c.cue < 0) continue;
-    const startAt = c.cue === 0 ? 0.2 : SLIDE_S / 2;
+    const startAt = CUE_START[c.cue] ?? 0;
     lat.push(((c.currentTime - startAt) / (c.rate ?? 1)) * 1000);
   }
   const maxLat = Math.max(...lat);
@@ -161,6 +174,9 @@ test("player on fast 4G: start time, gaps, cue latency, memory, protection", asy
   mkdirSync("test-results", { recursive: true });
   writeFileSync("test-results/player-metrics.json", JSON.stringify(metrics, null, 2));
 
+  expect(requested.filter((p) => !PUBLISHED.test(p)), "unexpected content URLs").toEqual([]);
+  expect(requested).toContain("/paid/L2-05/lecture/deck.json.enc");
+  expect(requested).toContain("/paid/L2-05/lecture/s01.enc");
   expect(startLatency).toBeLessThan(1500);
   expect(Math.max(...gaps)).toBeLessThan(150);
   expect(maxLat).toBeLessThan(100);
@@ -179,4 +195,53 @@ test("SESSION_REVOKED stops playback and drops decrypted data", async ({ page })
   await expect(page.getByTestId("slide-player")).toHaveCount(0);
   await expect(page.locator("audio")).toHaveCount(0); // players are torn down, audio elements gone
   await expect(page.getByTestId("lesson-article")).toHaveCount(0);
+});
+
+test("quiz: pauses at question_end, think countdown, reveal jumps to answer_start", async ({ page }) => {
+  await signInPaid(page);
+  await page.goto(LESSON);
+  const player = page.getByTestId("slide-player");
+  await expect(player).toHaveAttribute("data-phase", "paused", { timeout: 20_000 });
+  await page.getByRole("button", { name: "Go to slide 2", exact: true }).click();
+  await expect(player).toHaveAttribute("data-index", "1");
+  await page.getByTestId("play-toggle").click();
+  await expect(page.getByTestId("think-countdown")).toBeVisible({ timeout: 10_000 });
+  await expect(player).toHaveAttribute("data-phase", "think");
+  const paused = await page.evaluate(() => [...document.querySelectorAll("audio")].every((a) => a.paused));
+  expect(paused).toBe(true);
+  await page.getByTestId("reveal").click();
+  await expect(player).toHaveAttribute("data-phase", "playing");
+  const t = await page.evaluate(() => Math.max(...[...document.querySelectorAll("audio")].filter((a) => !a.paused).map((a) => a.currentTime)));
+  expect(t).toBeGreaterThanOrEqual(2.1);
+});
+
+test("free lesson L0-02 cross-origin: lecture and conversation, published URLs only", async ({ page }) => {
+  const requested = trackRequests(page);
+  await page.goto("/learning/ai-product-testing/lessons/L0-02"); // signed out
+  const player = page.getByTestId("slide-player");
+  await expect(player).toHaveAttribute("data-phase", "paused", { timeout: 20_000 });
+  await expect(page.getByTestId("lesson-article")).toBeVisible();
+  await page.getByTestId("play-toggle").click();
+  await expect(player).toHaveAttribute("data-phase", "playing");
+  await expect(page.getByTestId("caption")).toContainText("Sample caption 1a");
+  await page.getByTestId("mode-conversation").click();
+  await expect(player).toHaveAttribute("data-mode", "conversation");
+  await expect(player).toHaveAttribute("data-phase", "paused", { timeout: 15_000 });
+  await expect(page.locator('li[data-speaker="E"]')).toContainText("Sam");
+  expect(requested.filter((p) => !PUBLISHED.test(p)), "unexpected content URLs").toEqual([]);
+  expect(requested).toEqual(expect.arrayContaining(["/L0-02/lesson.html", "/L0-02/lecture/deck.json", "/L0-02/lecture/s01.mp3", "/L0-02/talk/deck.json", "/L0-02/talk/s01.mp3"]));
+});
+
+test("not published yet shows a friendly message, never an HTTP code", async ({ page }) => {
+  await page.goto("/learning/ai-product-testing/lessons/L0-03");
+  const notice = page.getByTestId("content-notice").first();
+  await expect(notice).toBeVisible({ timeout: 20_000 });
+  await expect(notice).toHaveAttribute("data-failure", "not-published");
+  await expect(notice).not.toContainText(/\b4\d\d\b|\b5\d\d\b|not found/i);
+  await expect(notice.getByRole("button", { name: "Try again" })).toBeVisible();
+});
+
+test("a 503 is retried with backoff and then loads", async ({ page }) => {
+  await page.goto("/learning/ai-product-testing/lessons/L0-04");
+  await expect(page.getByTestId("lesson-article")).toBeVisible({ timeout: 20_000 });
 });

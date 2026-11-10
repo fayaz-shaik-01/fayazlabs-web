@@ -1,10 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { getCatalog, itemHref } from "@/lib/course/catalog";
+import { tryGetCatalog, itemHref } from "@/lib/course/catalog";
+import { CatalogUnavailable } from "@/components/course/catalog-unavailable";
 import { LevelList } from "@/components/course/level-list";
 import { CourseIndex } from "@/components/course/course-index";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+
+export const revalidate = 60;
 
 export const metadata: Metadata = {
   title: "AI Product Testing",
@@ -12,7 +15,8 @@ export const metadata: Metadata = {
 };
 
 export default async function CourseHomePage() {
-  const catalog = await getCatalog();
+  const catalog = await tryGetCatalog();
+  if (!catalog) return <CatalogUnavailable />;
   const first = catalog.levels[0]?.items[0];
   const items = catalog.levels.flatMap((l) => l.items);
   const minutes = items.reduce((n, i) => n + i.minutes, 0);
@@ -21,7 +25,7 @@ export default async function CourseHomePage() {
   const stats = [
     { label: "Levels", value: catalog.levels.length },
     { label: "Items", value: items.length },
-    { label: "Minutes", value: minutes },
+    ...(minutes > 0 ? [{ label: "Minutes", value: minutes }] : []),
     { label: "Free items", value: free },
   ];
 
@@ -33,9 +37,11 @@ export default async function CourseHomePage() {
         <header className="mb-10">
           <p className="eyebrow">Course</p>
           <h1 className="mt-3 text-display-lg text-foreground">{catalog.course.title}</h1>
-          <p className="mt-4 max-w-[60ch] text-body-lg text-muted-foreground">
-            {catalog.course.summary}
-          </p>
+          {catalog.course.summary && (
+            <p className="mt-4 max-w-[60ch] text-body-lg text-muted-foreground">
+              {catalog.course.summary}
+            </p>
+          )}
           <div className="mt-6 flex flex-wrap gap-3">
             {first && (
               <Link href={itemHref(first.id)} className={cn(buttonVariants({ size: "lg" }))}>
