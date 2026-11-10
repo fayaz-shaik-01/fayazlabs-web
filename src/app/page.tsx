@@ -3,8 +3,11 @@ import { QuickAccess } from "@/components/home/quick-access";
 import { FeaturedProducts } from "@/components/home/featured-products";
 import { CTASection } from "@/components/home/cta-section";
 import { siteConfig } from "@/lib/site-config";
+import { tryGetCatalog } from "@/lib/course/catalog";
 
-export default function Home() {
+export default async function Home() {
+  // The home page must render even when the course catalog is unreachable.
+  const catalog = await tryGetCatalog();
   const jsonLd = {
     "@context": "https://schema.org",
     "@graph": [
@@ -47,7 +50,7 @@ export default function Home() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-      <LearningHomepageHero />
+      <LearningHomepageHero catalog={catalog} />
       <QuickAccess />
       <FeaturedProducts />
       <CTASection />

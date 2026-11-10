@@ -30,10 +30,10 @@ export default function NotebookPage() {
           <Link
             key={entry.slug}
             href={`/${entry.slug}`}
-            className="group rounded-[2px] glass-card overflow-hidden transition-all duration-500 hover:shadow-lg hover:shadow-primary/5"
+            className="group rounded-md panel overflow-hidden transition-all duration-500 hover:shadow-lg hover:shadow-primary/5"
           >
             {entry.images[0] && (
-              <div className="relative aspect-[4/3] bg-white/[0.02] border-b border-white/[0.06] overflow-hidden">
+              <div className="relative aspect-[4/3] bg-card border-b border-border overflow-hidden">
                 <Image
                   src={entry.images[0]}
                   alt={entry.title}
@@ -42,7 +42,7 @@ export default function NotebookPage() {
                   className="object-contain p-4 transition-transform group-hover:scale-105"
                 />
                 <div className="absolute top-3 left-3">
-                  <div className="inline-flex items-center gap-1.5 rounded-[2px] bg-background/70 backdrop-blur-md px-2.5 py-1 text-[10px] font-mono font-medium text-muted-foreground border border-white/10">
+                  <div className="inline-flex items-center gap-1.5 rounded-md bg-background/70 backdrop-blur-md px-2.5 py-1 text-[10px] font-mono font-medium text-muted-foreground border border-border">
                     <BookOpen className="h-3 w-3" />
                     Handwritten
                   </div>

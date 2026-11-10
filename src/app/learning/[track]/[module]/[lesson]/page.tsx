@@ -120,11 +120,11 @@ export default async function TrackLessonPage({ params }: LessonPageProps) {
               <DifficultyBadge difficulty={stub.difficulty} />
               <TrackStatusBadge status={stub.status} />
             </div>
-            <h1 className="text-display-lg mb-4 text-glow">{stub.title}</h1>
+            <h1 className="text-display-lg mb-4">{stub.title}</h1>
             <p className="text-body-lg text-muted-foreground mb-2">
               {track.title} &rarr; {mod.title}
             </p>
-            <div className="flex items-center justify-center gap-4 text-sm text-muted-foreground/60 mb-8">
+            <div className="flex items-center justify-center gap-4 text-sm text-muted-foreground mb-8">
               <span className="flex items-center gap-1.5">
                 <Clock className="h-4 w-4" />
                 ~{stub.estimatedMinutes} min
@@ -134,7 +134,7 @@ export default async function TrackLessonPage({ params }: LessonPageProps) {
                 {stub.lessonType}
               </span>
             </div>
-            <div className="rounded-xl border border-dashed border-white/10 bg-white/[0.02] p-12">
+            <div className="rounded-xl border border-dashed border-border bg-card p-12">
               <p className="text-muted-foreground mb-4">
                 This lesson is coming soon.
               </p>
@@ -180,16 +180,16 @@ export default async function TrackLessonPage({ params }: LessonPageProps) {
               <div className="flex items-center gap-2 mb-4">
                 <DifficultyBadge difficulty={stub.difficulty} />
                 <TrackStatusBadge status={stub.status} />
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[0.625rem] font-medium text-muted-foreground">
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted px-2 py-0.5 text-[0.625rem] font-medium text-muted-foreground">
                   <Clock className="h-3 w-3" />
                   {stub.estimatedMinutes}m
                 </span>
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[0.625rem] font-medium text-muted-foreground">
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted px-2 py-0.5 text-[0.625rem] font-medium text-muted-foreground">
                   <BookOpen className="h-3 w-3" />
                   {stub.lessonType}
                 </span>
               </div>
-              <h1 className="text-display-lg mb-4 text-glow">
+              <h1 className="text-display-lg mb-4">
                 {authored.title}
               </h1>
               <p className="text-body-lg text-muted-foreground mb-4">
@@ -246,7 +246,7 @@ function LessonNavigation({
 }>) {
   if (!prev && !next) return null;
   return (
-    <nav className="mt-16 flex items-center justify-between border-t border-white/[0.06] pt-8">
+    <nav className="mt-16 flex items-center justify-between border-t border-border pt-8">
       {prev ? (
         <Link
           href={getLessonPath(trackSlug, prev.moduleSlug, prev.lessonSlug)}

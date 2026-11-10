@@ -121,16 +121,16 @@ export default function ServicesPage() {
         {services.map((service) => (
           <div
             key={service.title}
-            className="group rounded-[2px] glass-card p-7"
+            className="group rounded-md panel p-7"
           >
-            <div className="inline-flex h-11 w-11 items-center justify-center rounded-[2px] bg-primary/[0.08] text-primary mb-5 ring-1 ring-primary/10 group-hover:ring-primary/25 group-hover:bg-primary/[0.12] transition-all duration-500">
+            <div className="inline-flex h-11 w-11 items-center justify-center rounded-md bg-primary/[0.08] text-primary mb-5 ring-1 ring-primary/10 group-hover:ring-primary/25 group-hover:bg-primary/[0.12] transition-all duration-500">
               <service.icon className="h-5 w-5" />
             </div>
             <h3 className="text-heading-md mb-2 group-hover:text-primary transition-colors">{service.title}</h3>
             <p className="text-body-sm text-muted-foreground mb-5">
               {service.description}
             </p>
-            <ul className="space-y-2 pt-4 border-t border-white/[0.06]">
+            <ul className="space-y-2 pt-4 border-t border-border">
               {service.features.map((feature) => (
                 <li
                   key={feature}
@@ -145,8 +145,7 @@ export default function ServicesPage() {
         ))}
       </div>
 
-      <div className="relative mt-20 rounded-[2px] glass-card p-8 sm:p-14 text-center overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-primary/[0.04] via-transparent to-transparent" />
+      <div className="relative mt-20 rounded-md panel p-8 sm:p-14 text-center overflow-hidden">
         <div className="relative z-10">
           <h3 className="text-heading-xl mb-4">
             Ready to build something together?
@@ -159,7 +158,7 @@ export default function ServicesPage() {
             href="/contact"
             className={cn(
               buttonVariants({ size: "lg" }),
-              "gap-2 rounded-[2px] bg-primary text-primary-foreground shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 transition-all duration-400"
+              "gap-2 rounded-md bg-primary text-primary-foreground shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 transition-all duration-400"
             )}
           >
             Get In Touch

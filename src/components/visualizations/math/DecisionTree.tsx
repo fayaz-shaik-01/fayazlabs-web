@@ -322,7 +322,7 @@ export default function DecisionTree({
 
       {/* Edit panel */}
       {selectedNode && (
-        <div className="flex items-center justify-center gap-4 text-xs border-t border-white/[0.06] pt-3">
+        <div className="flex items-center justify-center gap-4 text-xs border-t border-border pt-3">
           <span className="font-mono text-muted-foreground font-medium">{selectedNode.label}</span>
           {selectedNode.probability !== undefined && (
             <label className="flex items-center gap-1">
@@ -334,7 +334,7 @@ export default function DecisionTree({
                 max="1"
                 value={selectedNode.probability}
                 onChange={(e) => handleProbChange(e.target.value)}
-                className="w-16 px-1.5 py-0.5 text-xs font-mono rounded bg-white/[0.06] border border-white/[0.08] text-foreground focus:outline-none focus:border-primary"
+                className="w-16 px-1.5 py-0.5 text-xs font-mono rounded bg-muted border border-border text-foreground focus:outline-none focus:border-primary"
               />
             </label>
           )}
@@ -345,7 +345,7 @@ export default function DecisionTree({
                 type="text"
                 value={String(selectedNode.value)}
                 onChange={(e) => handleValueChange(e.target.value)}
-                className="w-20 px-1.5 py-0.5 text-xs font-mono rounded bg-white/[0.06] border border-white/[0.08] text-foreground focus:outline-none focus:border-primary"
+                className="w-20 px-1.5 py-0.5 text-xs font-mono rounded bg-muted border border-border text-foreground focus:outline-none focus:border-primary"
               />
             </label>
           )}

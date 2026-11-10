@@ -239,7 +239,7 @@ export default function PoleZeroPlot({
       </div>
 
       {/* Controls */}
-      <div className="space-y-3 border-t border-white/[0.06] pt-3">
+      <div className="space-y-3 border-t border-border pt-3">
         <div className="grid grid-cols-2 gap-4 max-w-md mx-auto">
           <ParameterSlider label="Real (σ)" min={-range} max={range} step={0.1} value={newRe} onChange={setNewRe} />
           <ParameterSlider label="Imag (jω)" min={-range} max={range} step={0.1} value={newIm} onChange={setNewIm} />
@@ -262,7 +262,7 @@ export default function PoleZeroPlot({
           <button
             type="button"
             onClick={handleReset}
-            className="px-3 py-1 text-xs rounded bg-white/[0.06] text-muted-foreground hover:bg-white/10 transition-colors"
+            className="px-3 py-1 text-xs rounded bg-muted text-muted-foreground hover:bg-muted transition-colors"
           >
             Reset
           </button>

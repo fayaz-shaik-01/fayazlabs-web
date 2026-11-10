@@ -284,7 +284,7 @@ export default function TreeVisualizer({
 
       {/* Edit panel */}
       {selectedNode && (
-        <div className="space-y-2 border-t border-white/[0.06] pt-3">
+        <div className="space-y-2 border-t border-border pt-3">
           <div className="flex items-center justify-center gap-3 text-xs">
             <label className="flex items-center gap-1 text-muted-foreground font-mono">
               Value:
@@ -292,7 +292,7 @@ export default function TreeVisualizer({
                 type="text"
                 value={selectedNode.value}
                 onChange={(e) => handleValueChange(e.target.value)}
-                className="w-16 px-1.5 py-0.5 rounded bg-muted/50 border border-white/10 text-foreground text-center font-mono text-xs"
+                className="w-16 px-1.5 py-0.5 rounded bg-muted/50 border border-border text-foreground text-center font-mono text-xs"
               />
             </label>
             <button

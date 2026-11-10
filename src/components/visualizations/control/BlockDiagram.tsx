@@ -311,13 +311,13 @@ export default function BlockDiagram({
 
       {/* Edit panel */}
       {selectedBlock && (
-        <div className="flex items-center justify-center gap-3 text-xs border-t border-white/[0.06] pt-3">
+        <div className="flex items-center justify-center gap-3 text-xs border-t border-border pt-3">
           <span className="text-muted-foreground">Transfer Function:</span>
           <input
             type="text"
             value={selectedBlock.label}
             onChange={(e) => handleLabelChange(selectedBlock.id, e.target.value)}
-            className="w-32 px-2 py-1 text-xs font-mono rounded bg-white/[0.06] border border-white/[0.08] text-foreground focus:outline-none focus:border-primary"
+            className="w-32 px-2 py-1 text-xs font-mono rounded bg-muted border border-border text-foreground focus:outline-none focus:border-primary"
           />
         </div>
       )}

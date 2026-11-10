@@ -132,3 +132,8 @@ export function findItem(
 export const COURSE_BASE = "/learning/ai-product-testing";
 export const levelHref = (levelId: string) => `${COURSE_BASE}/levels/${levelId}`;
 export const itemHref = (itemId: string) => `${COURSE_BASE}/lessons/${itemId}`;
+
+/** "Level 0: Foundations" -> "Foundations" (the ID chip already says L0). */
+export function levelShortTitle(title: string): string {
+  return title.replace(/^Level \d+:\s*/i, "");
+}

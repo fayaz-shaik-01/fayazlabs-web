@@ -39,9 +39,9 @@ export default async function LevelPage({ params }: Props) {
   if (!level) notFound();
 
   return (
-    <div className="mx-auto max-w-4xl px-6 pt-32 pb-24">
-      <Link href={COURSE_BASE} className="mb-6 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
-        <ArrowLeft className="h-4 w-4" />
+    <div className="mx-auto max-w-4xl px-4 pt-28 pb-24 sm:px-6 sm:pt-32">
+      <Link href={COURSE_BASE} className="mb-6 inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-primary">
+        <ArrowLeft className="size-4" />
         All levels
       </Link>
       <LevelList levels={[level]} linkLevels={false} />

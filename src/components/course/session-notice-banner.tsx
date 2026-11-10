@@ -14,12 +14,12 @@ export function SessionNoticeBanner() {
     <div
       role="alert"
       data-testid="session-revoked-notice"
-      className="fixed top-16 left-1/2 z-[60] w-[min(92vw,40rem)] -translate-x-1/2 rounded-md border border-amber-500/40 bg-background/95 p-4 shadow-lg backdrop-blur"
+      className="fixed top-16 left-1/2 z-[60] w-[min(92vw,40rem)] -translate-x-1/2 rounded-lg border border-warn/40 bg-warn-soft p-4 shadow-float"
     >
       <div className="flex items-start gap-3">
-        <p className="flex-1 text-sm text-foreground">
+        <p className="flex-1 text-sm text-warn">
           {SESSION_REVOKED_MESSAGE}{" "}
-          <Link href="/login" onClick={dismiss} className="font-medium text-primary underline">
+          <Link href="/login" onClick={dismiss} className="font-semibold underline">
             Sign in
           </Link>
         </p>

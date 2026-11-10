@@ -30,7 +30,7 @@ function LessonSkeleton() {
 /** Labs have no lesson text or audio; their pack is delivered by signed URL (not wired up yet). */
 function LabPanel({ item }: Readonly<{ item: CatalogItem }>) {
   return (
-    <div data-testid="lab-panel" className="rounded-xl border border-border bg-card/50 p-6 text-sm">
+    <div data-testid="lab-panel" className="panel p-6 text-sm">
       <h2 className="text-lg font-semibold text-foreground">Lab files</h2>
       <p className="mt-1 text-muted-foreground">
         Used in {item.lessons?.length ? item.lessons.join(", ") : "this course"}. {item.files ?? 0} files.

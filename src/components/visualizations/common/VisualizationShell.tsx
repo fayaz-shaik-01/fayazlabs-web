@@ -109,7 +109,7 @@ class VisualizationErrorBoundary extends Component<
           <button
             type="button"
             onClick={this.reset}
-            className="mt-2 flex items-center gap-1.5 rounded-md border border-border/50 px-3 py-1.5 text-xs text-muted-foreground hover:bg-white/[0.04] transition-colors"
+            className="mt-2 flex items-center gap-1.5 rounded-md border border-border/50 px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted transition-colors"
           >
             <RotateCcw className="h-3 w-3" />
             Retry
@@ -248,7 +248,7 @@ export function VisualizationShell({
           <button
             type="button"
             onClick={handleExport}
-            className="rounded-md p-1.5 text-muted-foreground hover:bg-white/[0.06] hover:text-foreground transition-colors"
+            className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
             aria-label="Export visualization"
             title="Export as image"
           >
@@ -257,7 +257,7 @@ export function VisualizationShell({
           <button
             type="button"
             onClick={toggleFullscreen}
-            className="rounded-md p-1.5 text-muted-foreground hover:bg-white/[0.06] hover:text-foreground transition-colors"
+            className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
             aria-label={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
             title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
           >

@@ -90,7 +90,7 @@ export const mdxComponents = {
   h2: ({ className, ...props }: React.HTMLAttributes<HTMLHeadingElement>) => (
     <h2
       className={cn(
-        "mt-12 scroll-m-20 border-b border-white/[0.06] pb-2 text-heading-xl first:mt-0",
+        "mt-12 scroll-m-20 border-b border-border pb-2 text-heading-xl first:mt-0",
         className
       )}
       {...props}
@@ -171,7 +171,7 @@ export const mdxComponents = {
   code: ({ className, ...props }: React.HTMLAttributes<HTMLElement>) => (
     <code
       className={cn(
-        "relative rounded-[2px] bg-muted/70 px-[0.4rem] py-[0.2rem] font-mono text-[0.85rem] border border-border/40",
+        "relative rounded-md bg-muted/70 px-[0.4rem] py-[0.2rem] font-mono text-[0.85rem] border border-border/40",
         className
       )}
       {...props}

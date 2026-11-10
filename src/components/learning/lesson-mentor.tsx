@@ -149,15 +149,15 @@ export function LessonMentor({
             <h3 className="text-sm font-semibold text-foreground">
               AI Mentor
             </h3>
-            <p className="text-xs text-muted-foreground/60">
+            <p className="text-xs text-muted-foreground">
               Ask questions about this lesson
             </p>
           </div>
         </div>
         {expanded ? (
-          <ChevronUp className="h-4 w-4 text-muted-foreground/50" />
+          <ChevronUp className="h-4 w-4 text-muted-foreground" />
         ) : (
-          <ChevronDown className="h-4 w-4 text-muted-foreground/50" />
+          <ChevronDown className="h-4 w-4 text-muted-foreground" />
         )}
       </button>
 
@@ -178,7 +178,7 @@ export function LessonMentor({
               >
                 {messages.length === 0 ? (
                   <div className="text-center py-4">
-                    <p className="text-xs text-muted-foreground/50 mb-3">
+                    <p className="text-xs text-muted-foreground mb-3">
                       Try asking:
                     </p>
                     <div className="flex flex-col gap-1.5 max-w-sm mx-auto">
@@ -186,7 +186,7 @@ export function LessonMentor({
                         <button
                           key={s}
                           onClick={() => handleSend(s)}
-                          className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-xs text-muted-foreground/70 hover:text-foreground hover:border-white/[0.12] transition-colors text-left"
+                          className="rounded-lg border border-border bg-card px-3 py-2 text-xs text-muted-foreground hover:text-foreground hover:border-primary/50 transition-colors text-left"
                         >
                           {s}
                         </button>
@@ -208,7 +208,7 @@ export function LessonMentor({
                             "flex h-6 w-6 shrink-0 items-center justify-center rounded-md border text-[10px]",
                             msg.role === "user"
                               ? "border-primary/30 bg-primary/10 text-primary"
-                              : "border-lab-green/30 bg-lab-green/10 text-lab-green",
+                              : "border-primary/30 bg-primary/10 text-primary",
                           )}
                         >
                           {msg.role === "user" ? (
@@ -222,7 +222,7 @@ export function LessonMentor({
                             "rounded-lg px-3 py-2 text-xs leading-relaxed max-w-[85%]",
                             msg.role === "user"
                               ? "bg-primary/10 border border-primary/20 text-foreground"
-                              : "bg-white/[0.03] border border-white/[0.06] text-foreground/90",
+                              : "bg-card border border-border text-foreground/90",
                           )}
                         >
                           <p className="whitespace-pre-wrap">{msg.content}</p>
@@ -232,10 +232,10 @@ export function LessonMentor({
 
                     {isLoading && (
                       <div className="flex gap-2.5">
-                        <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-lab-green/30 bg-lab-green/10 text-lab-green">
+                        <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-primary/30 bg-primary/10 text-primary">
                           <Bot className="h-3 w-3" />
                         </div>
-                        <div className="rounded-lg bg-white/[0.03] border border-white/[0.06] px-3 py-2">
+                        <div className="rounded-lg bg-card border border-border px-3 py-2">
                           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                             <Loader2 className="h-3 w-3 animate-spin" />
                             Thinking...
@@ -258,13 +258,13 @@ export function LessonMentor({
                     placeholder={`Ask about ${lessonTitle}...`}
                     disabled={isLoading || messages.length >= MAX_MESSAGES}
                     rows={1}
-                    className="flex-1 resize-none field-sizing-content max-h-20 rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground/50 outline-none focus:border-primary/40 focus:ring-1 focus:ring-primary/20 transition-all disabled:opacity-50"
+                    className="flex-1 resize-none field-sizing-content max-h-20 rounded-lg border border-border bg-card px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground outline-none focus:border-primary/40 focus:ring-1 focus:ring-primary/20 transition-all disabled:opacity-50"
                   />
                   <div className="flex items-end gap-1.5">
                     {messages.length > 0 && (
                       <button
                         onClick={handleClear}
-                        className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground/50 hover:text-foreground transition-colors"
+                        className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground transition-colors"
                         aria-label="Clear chat"
                       >
                         <RotateCcw className="h-3 w-3" />
@@ -285,11 +285,11 @@ export function LessonMentor({
                   </div>
                 </div>
                 {messages.length >= MAX_MESSAGES && (
-                  <p className="mt-1.5 text-[10px] text-muted-foreground/40 text-center">
+                  <p className="mt-1.5 text-[10px] text-muted-foreground text-center">
                     Message limit reached. Clear chat to continue.
                   </p>
                 )}
-                <p className="mt-1.5 text-[10px] font-mono text-muted-foreground/30 text-center">
+                <p className="mt-1.5 text-[10px] font-mono text-muted-foreground text-center">
                   AI Mentor &middot; Responses may be approximate
                 </p>
               </div>

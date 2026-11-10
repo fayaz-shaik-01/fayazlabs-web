@@ -121,18 +121,18 @@ function FormulaCard({ formula, index }: Readonly<{ formula: Formula; index: num
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
       transition={{ duration: 0.4, delay: index * 0.04 }}
-      className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5 hover:border-white/[0.12] transition-colors group"
+      className="rounded-xl border border-border bg-card p-5 hover:border-primary/50 transition-colors group"
     >
       {/* Header */}
       <div className="flex items-start justify-between mb-3">
         <h3 className="text-sm font-semibold text-foreground">{formula.name}</h3>
         <button
           onClick={handleCopy}
-          className="flex items-center gap-1 text-[0.625rem] text-muted-foreground/40 hover:text-muted-foreground transition-colors opacity-0 group-hover:opacity-100"
+          className="flex items-center gap-1 text-[0.625rem] text-muted-foreground hover:text-muted-foreground transition-colors opacity-0 group-hover:opacity-100"
           title="Copy LaTeX"
         >
           {copied ? (
-            <><Check className="h-3 w-3 text-lab-green" /> Copied</>
+            <><Check className="h-3 w-3 text-primary" /> Copied</>
           ) : (
             <><Copy className="h-3 w-3" /> LaTeX</>
           )}
@@ -140,13 +140,13 @@ function FormulaCard({ formula, index }: Readonly<{ formula: Formula; index: num
       </div>
 
       {/* LaTeX rendered via KaTeX */}
-      <div className="my-3 p-4 rounded-lg bg-white/[0.02] border border-white/[0.04] text-center overflow-x-auto">
+      <div className="my-3 p-4 rounded-lg bg-card border border-border text-center overflow-x-auto">
         <LatexRenderer latex={formula.latex} display />
       </div>
 
       {/* Plain English */}
       {formula.plainEnglish && (
-        <p className="text-xs text-muted-foreground/60 italic mb-3">
+        <p className="text-xs text-muted-foreground italic mb-3">
           {formula.plainEnglish}
         </p>
       )}
@@ -157,13 +157,13 @@ function FormulaCard({ formula, index }: Readonly<{ formula: Formula; index: num
           {formula.tags.map((tag) => (
             <span
               key={tag}
-              className="text-[0.5625rem] px-1.5 py-0.5 rounded-full bg-white/[0.04] text-muted-foreground/50 font-mono"
+              className="text-[0.5625rem] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground font-mono"
             >
               {tag}
             </span>
           ))}
         </div>
-        <span className="text-[0.5625rem] text-muted-foreground/30 font-mono">
+        <span className="text-[0.5625rem] text-muted-foreground font-mono">
           {formula.module}/{formula.lesson}
         </span>
       </div>
@@ -200,17 +200,15 @@ export function FormulaIndex() {
     <>
       {/* Hero */}
       <section className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-b from-background via-background to-surface-1" />
-        <div className="absolute top-0 left-1/4 w-[500px] h-[500px] rounded-full bg-glow-accent/[0.05] blur-[140px]" />
 
         <div className="relative z-10 mx-auto max-w-6xl px-6 pt-32 pb-16 sm:pt-40 sm:pb-20">
           <motion.div
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.2 }}
-            className="mono-tag text-lab-green mb-6 flex items-center gap-2"
+            className="eyebrow !text-primary mb-6 flex items-center gap-2"
           >
-            <span className="inline-block h-1.5 w-1.5 rounded-full bg-lab-green animate-glow-pulse" />
+            <span className="inline-block h-1.5 w-1.5 rounded-full bg-primary " />
             [FORMULA_INDEX: LOADED]
           </motion.div>
 
@@ -222,7 +220,7 @@ export function FormulaIndex() {
           >
             Formula
             <br />
-            <span className="text-gradient-hero">Quick Reference</span>
+            <span className="text-primary">Quick Reference</span>
           </motion.h1>
 
           <motion.p
@@ -242,9 +240,9 @@ export function FormulaIndex() {
             transition={{ duration: 0.7, delay: 0.7 }}
             className="mt-8 flex items-center gap-6"
           >
-            <div className="border-l border-lab-green/20 pl-3">
+            <div className="border-l border-primary/20 pl-3">
               <div className="text-xl font-bold text-foreground font-mono">{sampleFormulas.length}</div>
-              <div className="mono-tag text-muted-foreground mt-0.5 flex items-center gap-1">
+              <div className="eyebrow text-muted-foreground mt-0.5 flex items-center gap-1">
                 <BookOpen className="h-3 w-3" /> FORMULAS
               </div>
             </div>
@@ -258,13 +256,13 @@ export function FormulaIndex() {
         {/* Search + Filters */}
         <div className="flex flex-wrap items-center gap-3 mb-8">
           <div className="relative flex-1 min-w-[200px]">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/40" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <input
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search formulas..."
-              className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-white/[0.08] bg-white/[0.02] text-sm text-foreground placeholder:text-muted-foreground/40 focus:border-primary/40 focus:outline-none"
+              className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-border bg-card text-sm text-foreground placeholder:text-muted-foreground focus:border-primary/40 focus:outline-none"
             />
           </div>
 
@@ -274,7 +272,7 @@ export function FormulaIndex() {
           <select
             value={selectedTrack}
             onChange={(e) => setSelectedTrack(e.target.value)}
-            className="px-3 py-2.5 rounded-lg border border-white/[0.08] bg-white/[0.02] text-xs text-foreground focus:border-primary/40 focus:outline-none"
+            className="px-3 py-2.5 rounded-lg border border-border bg-card text-xs text-foreground focus:border-primary/40 focus:outline-none"
           >
             <option value="all">All Tracks</option>
             {tracks.map((t) => (
@@ -282,7 +280,7 @@ export function FormulaIndex() {
             ))}
           </select>
 
-          <span className="text-xs text-muted-foreground/50 font-mono">
+          <span className="text-xs text-muted-foreground font-mono">
             {filtered.length} formula{filtered.length !== 1 ? "s" : ""}
           </span>
         </div>
@@ -295,7 +293,7 @@ export function FormulaIndex() {
         </div>
 
         {filtered.length === 0 && (
-          <div className="text-center py-16 text-muted-foreground/50">
+          <div className="text-center py-16 text-muted-foreground">
             <Search className="h-8 w-8 mx-auto mb-3 opacity-40" />
             <p className="text-sm">No formulas match your search.</p>
           </div>

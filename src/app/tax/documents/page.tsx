@@ -38,13 +38,13 @@ export default async function DocumentsPage() {
       <DocumentUploadZone />
 
       {fetchError && (
-        <p className="rounded-[2px] border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+        <p className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
           {fetchError}
         </p>
       )}
 
       {documents.length > 0 && (
-        <div className="rounded-[2px] border border-border overflow-hidden">
+        <div className="rounded-md border border-border overflow-hidden">
           <div className="px-4 py-3 border-b border-border bg-card">
             <h2 className="text-sm font-semibold">Uploaded Documents</h2>
           </div>

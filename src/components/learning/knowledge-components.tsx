@@ -334,9 +334,9 @@ interface ComparisonTableProps {
 
 export function ComparisonTable({ leftTitle, rightTitle, children }: ComparisonTableProps) {
   return (
-    <div className="my-6 rounded-lg border border-white/[0.08] overflow-hidden">
-      <div className="grid grid-cols-2 bg-white/[0.03]">
-        <div className="px-4 py-3 text-sm font-semibold text-foreground border-r border-white/[0.06] text-center">
+    <div className="my-6 rounded-lg border border-border overflow-hidden">
+      <div className="grid grid-cols-2 bg-card">
+        <div className="px-4 py-3 text-sm font-semibold text-foreground border-r border-border text-center">
           {leftTitle}
         </div>
         <div className="px-4 py-3 text-sm font-semibold text-foreground text-center">
@@ -344,7 +344,7 @@ export function ComparisonTable({ leftTitle, rightTitle, children }: ComparisonT
         </div>
       </div>
       <table className="w-full">
-        <tbody className="divide-y divide-white/[0.06]">
+        <tbody className="divide-y divide-border">
           {children}
         </tbody>
       </table>
@@ -383,17 +383,17 @@ export function ConceptCheckpoint({
   const isCorrect = selected === correctIndex;
 
   return (
-    <div className="my-8 rounded-lg border border-white/[0.08] bg-white/[0.02] p-5">
+    <div className="my-8 rounded-lg border border-border bg-card p-5">
       <div className="flex items-center gap-1.5 mb-3">
-        <CheckCircle2 className="size-3.5 text-lab-green/70" />
-        <span className="text-xs font-mono font-medium uppercase tracking-wider text-lab-green/70">
+        <CheckCircle2 className="size-3.5 text-primary/70" />
+        <span className="text-xs font-mono font-medium uppercase tracking-wider text-primary/70">
           Quick Check
         </span>
       </div>
       <p className="font-medium text-foreground mb-4">{question}</p>
       <div className="space-y-2 mb-4">
         {options.map((option, i) => {
-          let optionClasses = "border-white/[0.08] hover:border-white/[0.15] hover:bg-white/[0.03]";
+          let optionClasses = "border-border hover:border-primary/50 hover:bg-muted";
           if (submitted && i === correctIndex) {
             optionClasses = "border-green-500/40 bg-green-500/[0.06]";
           } else if (submitted && i === selected && !isCorrect) {
@@ -435,7 +435,7 @@ export function ConceptCheckpoint({
             "text-sm font-medium px-4 py-2 rounded-md transition-all",
             selected !== null
               ? "bg-primary text-primary-foreground hover:bg-primary/90"
-              : "bg-white/[0.05] text-muted-foreground cursor-not-allowed"
+              : "bg-muted text-muted-foreground cursor-not-allowed"
           )}
         >
           Check Answer
@@ -475,8 +475,8 @@ export function TabGroup({ tabs, children }: TabGroupProps) {
   const [active, setActive] = useState(0);
 
   return (
-    <div className="my-6 rounded-lg border border-white/[0.08] overflow-hidden">
-      <div className="flex border-b border-white/[0.06] bg-white/[0.02]">
+    <div className="my-6 rounded-lg border border-border overflow-hidden">
+      <div className="flex border-b border-border bg-card">
         {tabs.map((tab, i) => (
           <button
             key={tab}

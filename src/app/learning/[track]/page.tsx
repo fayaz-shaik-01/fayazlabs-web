@@ -95,11 +95,11 @@ export default async function TrackPage({ params }: TrackPageProps) {
           <div className="flex items-center gap-3 mb-4">
             <DifficultyBadge difficulty={track.difficulty} />
           </div>
-          <h1 className="text-display-lg mb-3 text-glow">{track.title}</h1>
+          <h1 className="text-display-lg mb-3">{track.title}</h1>
           <p className="text-body-lg text-muted-foreground mb-4">
             {track.description}
           </p>
-          <div className="flex items-center gap-4 text-sm text-muted-foreground/60">
+          <div className="flex items-center gap-4 text-sm text-muted-foreground">
             <span className="flex items-center gap-1.5">
               <BookOpen className="h-4 w-4" />
               {stats.totalModules} modules &middot; {stats.totalLessons} lessons
@@ -120,7 +120,7 @@ export default async function TrackPage({ params }: TrackPageProps) {
             return (
               <div
                 key={mod.id}
-                className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-6"
+                className="rounded-xl border border-border bg-card p-6"
               >
                 <div className="flex items-start justify-between mb-4">
                   <div>
@@ -129,7 +129,7 @@ export default async function TrackPage({ params }: TrackPageProps) {
                       {mod.description}
                     </p>
                   </div>
-                  <span className="text-xs text-muted-foreground/50">
+                  <span className="text-xs text-muted-foreground">
                     {modStats.totalLessons} lessons &middot; ~
                     {modStats.estimatedMinutes}m
                   </span>
@@ -147,12 +147,12 @@ export default async function TrackPage({ params }: TrackPageProps) {
                       className={cn(
                         "flex items-center justify-between rounded-lg px-4 py-3 text-sm transition-colors",
                         lesson.hasContent
-                          ? "hover:bg-white/[0.04] cursor-pointer"
+                          ? "hover:bg-muted cursor-pointer"
                           : "opacity-50 cursor-default"
                       )}
                     >
                       <div className="flex items-center gap-3">
-                        <span className="flex h-6 w-6 items-center justify-center rounded-md bg-white/[0.04] text-[10px] font-medium text-muted-foreground">
+                        <span className="flex h-6 w-6 items-center justify-center rounded-md bg-muted text-[10px] font-medium text-muted-foreground">
                           {lesson.order}
                         </span>
                         <span
@@ -167,7 +167,7 @@ export default async function TrackPage({ params }: TrackPageProps) {
                         <TrackStatusBadge status={lesson.status} />
                         <DifficultyBadge difficulty={lesson.difficulty} />
                       </div>
-                      <div className="flex items-center gap-2 text-muted-foreground/50">
+                      <div className="flex items-center gap-2 text-muted-foreground">
                         <span className="text-xs">
                           {lesson.estimatedMinutes}m
                         </span>

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Sora, Inter, JetBrains_Mono } from "next/font/google";
+import { Bricolage_Grotesque, Source_Sans_3, JetBrains_Mono } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import { Providers } from "@/components/providers";
 import { Header } from "@/components/layout/header";
@@ -12,23 +12,25 @@ import { siteConfig } from "@/lib/site-config";
 import "katex/dist/katex.min.css";
 import "./globals.css";
 
-const sora = Sora({
+// Display: Bricolage Grotesque. Body: Source Sans 3. Labels and code: JetBrains Mono.
+const bricolage = Bricolage_Grotesque({
   variable: "--font-heading",
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700", "800"],
+  weight: ["500", "600", "700", "800"],
   display: "swap",
 });
 
-const inter = Inter({
+const sourceSans = Source_Sans_3({
   variable: "--font-sans",
   subsets: ["latin"],
+  style: ["normal", "italic"],
   display: "swap",
 });
 
 const jetbrainsMono = JetBrains_Mono({
   variable: "--font-mono",
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+  weight: ["400", "500", "600"],
   display: "swap",
 });
 
@@ -74,15 +76,13 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${sora.variable} ${inter.variable} ${jetbrainsMono.variable} h-full antialiased`}
+      className={`${bricolage.variable} ${sourceSans.variable} ${jetbrainsMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
         <Providers>
-          {/* Persistent schematic grid overlay */}
-          <div className="fixed inset-0 grid-pattern opacity-[0.04] pointer-events-none z-0" aria-hidden="true" />
           <a
             href="#main-content"
-            className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[100] focus:rounded-[2px] focus:bg-primary focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-primary-foreground focus:outline-none"
+            className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[100] focus:rounded-md focus:bg-primary focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-primary-foreground"
           >
             Skip to content
           </a>

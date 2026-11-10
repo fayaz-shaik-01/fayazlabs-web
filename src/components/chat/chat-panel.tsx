@@ -115,7 +115,7 @@ export function ChatPanel() {
           <Button
             variant="outline"
             size="icon"
-            className="fixed bottom-6 right-6 z-50 size-12 rounded-full border-primary/30 bg-surface-1/90 backdrop-blur-sm shadow-lg shadow-primary/10 hover:shadow-xl hover:shadow-primary/20 hover:border-primary/50 transition-all duration-300"
+            className="fixed bottom-6 right-6 z-50 size-12 rounded-full border-border bg-card shadow-float hover:border-primary/60 hover:bg-card transition-colors"
             aria-label="Open AI chat"
           />
         }
@@ -126,19 +126,19 @@ export function ChatPanel() {
       <SheetContent
         side="right"
         showCloseButton
-        className="w-full sm:w-[420px] sm:max-w-[420px] p-0 flex flex-col bg-surface-0/95 backdrop-blur-xl border-white/[0.06]"
+        className="w-full sm:w-[420px] sm:max-w-[420px] p-0 flex flex-col bg-background border-border"
       >
         {/* Header */}
-        <SheetHeader className="p-4 pb-3 border-b border-white/[0.06]">
+        <SheetHeader className="p-4 pb-3 border-b border-border">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
-              <div className="flex size-8 items-center justify-center rounded-[2px] border border-lab-green/30 bg-lab-green/10">
-                <Sparkles className="size-4 text-lab-green" />
+              <div className="flex size-8 items-center justify-center rounded-md border border-primary/30 bg-primary/10">
+                <Sparkles className="size-4 text-primary" />
               </div>
               <div>
                 <SheetTitle className="text-sm">Fayaz Labs AI</SheetTitle>
-                <SheetDescription className="text-[11px] font-mono text-lab-green/70">
-                  <span className="inline-block size-1.5 rounded-full bg-lab-green animate-glow-pulse mr-1" />{"ONLINE"}
+                <SheetDescription className="text-[11px] font-mono text-primary/70">
+                  <span className="inline-block size-1.5 rounded-full bg-primary mr-1" />{"ONLINE"}
                 </SheetDescription>
               </div>
             </div>
@@ -163,7 +163,7 @@ export function ChatPanel() {
         >
           {messages.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-center px-4">
-              <div className="flex size-14 items-center justify-center rounded-full border border-white/[0.06] bg-surface-2 mb-4">
+              <div className="flex size-14 items-center justify-center rounded-full border border-border bg-surface-2 mb-4">
                 <Sparkles className="size-6 text-primary/60" />
               </div>
               <p className="text-sm font-medium text-foreground/80 mb-1">
@@ -177,7 +177,7 @@ export function ChatPanel() {
                   <button
                     key={s.label}
                     onClick={() => handleSend(s.label, s.queryType)}
-                    className="text-left rounded-[2px] border border-white/[0.06] bg-surface-1 px-3 py-2 text-xs text-muted-foreground hover:text-foreground hover:border-white/10 hover:bg-surface-2 transition-all"
+                    className="text-left rounded-md border border-border bg-surface-1 px-3 py-2 text-xs text-muted-foreground hover:text-foreground hover:border-primary/50 hover:bg-surface-2 transition-all"
                   >
                     {s.label}
                   </button>
@@ -205,10 +205,10 @@ export function ChatPanel() {
               animate={{ opacity: 1 }}
               className="flex gap-3"
             >
-              <div className="flex size-7 shrink-0 items-center justify-center rounded-[2px] border border-lab-green/30 bg-lab-green/10 text-lab-green">
+              <div className="flex size-7 shrink-0 items-center justify-center rounded-md border border-primary/30 bg-primary/10 text-primary">
                 <Bot className="size-3.5" />
               </div>
-              <div className="rounded-[2px] bg-surface-2 border border-white/[0.06] px-3.5 py-2.5">
+              <div className="rounded-md bg-surface-2 border border-border px-3.5 py-2.5">
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   <Loader2 className="size-3 animate-spin" />
                   Thinking...
@@ -218,7 +218,7 @@ export function ChatPanel() {
           )}
 
           {error && !isLoading && (
-            <div className="flex items-center gap-2 rounded-[2px] border border-lab-red/20 bg-lab-red/5 px-3 py-2 text-xs text-lab-red">
+            <div className="flex items-center gap-2 rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2 text-xs text-destructive">
               <AlertCircle className="size-3 shrink-0" />
               {error}
             </div>
@@ -226,7 +226,7 @@ export function ChatPanel() {
         </div>
 
         {/* Input */}
-        <div className="border-t border-white/[0.06] p-3">
+        <div className="border-t border-border p-3">
           <div className="flex gap-2">
             <textarea
               ref={inputRef}
@@ -237,7 +237,7 @@ export function ChatPanel() {
               disabled={isLoading}
               rows={1}
               className={cn(
-                "flex-1 resize-none field-sizing-content max-h-24 rounded-[2px] border border-white/[0.08] bg-surface-1 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/60 outline-none focus:border-primary/40 focus:ring-1 focus:ring-primary/20 transition-all disabled:opacity-50",
+                "flex-1 resize-none field-sizing-content max-h-24 rounded-md border border-border bg-surface-1 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-primary/40 focus:ring-1 focus:ring-primary/20 transition-all disabled:opacity-50",
               )}
             />
             <Button
@@ -245,7 +245,7 @@ export function ChatPanel() {
               size="icon"
               onClick={() => handleSend()}
               disabled={!input.trim() || isLoading}
-              className="shrink-0 rounded-[2px] size-9"
+              className="shrink-0 rounded-md size-9"
               aria-label="Send message"
             >
               {isLoading ? (
@@ -255,7 +255,7 @@ export function ChatPanel() {
               )}
             </Button>
           </div>
-          <p className="mt-1.5 text-[10px] font-mono text-muted-foreground/40 text-center">
+          <p className="mt-1.5 text-[10px] font-mono text-muted-foreground text-center">
             Powered by RAG &middot; Responses may be inaccurate
           </p>
         </div>

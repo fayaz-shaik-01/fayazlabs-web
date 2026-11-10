@@ -77,7 +77,7 @@ const MODULE_COLORS: Record<string, string> = {
 const EDGE_STYLES: Record<string, { color: string; dash: string }> = {
   prerequisite: { color: "var(--primary)", dash: "" },
   related: { color: "var(--muted-foreground)", dash: "4 4" },
-  usedIn: { color: "var(--lab-green)", dash: "8 4" },
+  usedIn: { color: "var(--primary)", dash: "8 4" },
 };
 
 // ── Component ────────────────────────────────────────────────────────────
@@ -246,17 +246,15 @@ export function KnowledgeGraphView() {
     <>
       {/* Hero */}
       <section className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-b from-background via-background to-surface-1" />
-        <div className="absolute top-0 left-1/2 w-[500px] h-[500px] rounded-full bg-glow-violet/[0.05] blur-[140px]" />
 
         <div className="relative z-10 mx-auto max-w-6xl px-6 pt-32 pb-12 sm:pt-40 sm:pb-16">
           <motion.div
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.2 }}
-            className="mono-tag text-lab-green mb-6 flex items-center gap-2"
+            className="eyebrow !text-primary mb-6 flex items-center gap-2"
           >
-            <span className="inline-block h-1.5 w-1.5 rounded-full bg-lab-green animate-glow-pulse" />
+            <span className="inline-block h-1.5 w-1.5 rounded-full bg-primary " />
             [KNOWLEDGE_GRAPH: INTERACTIVE]
           </motion.div>
 
@@ -268,7 +266,7 @@ export function KnowledgeGraphView() {
           >
             Knowledge
             <br />
-            <span className="text-gradient-hero">Graph</span>
+            <span className="text-primary">Graph</span>
           </motion.h1>
 
           <motion.p
@@ -384,7 +382,7 @@ export function KnowledgeGraphView() {
           )}
 
           {/* Stats */}
-          <div className="absolute bottom-4 left-4 flex items-center gap-3 text-[0.625rem] text-muted-foreground/50 font-mono">
+          <div className="absolute bottom-4 left-4 flex items-center gap-3 text-[0.625rem] text-muted-foreground font-mono">
             <span>{filteredNodes.length} nodes</span>
             <span>{filteredEdges.length} edges</span>
             <span>{Math.round(zoom * 100)}% zoom</span>

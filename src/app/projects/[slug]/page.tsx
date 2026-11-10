@@ -60,7 +60,7 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
       </Link>
 
       <header className="mb-12">
-        <h1 className="text-display-lg mb-5 text-glow">
+        <h1 className="text-display-lg mb-5">
           {project.title}
         </h1>
         <p className="text-body-lg text-muted-foreground mb-6">
@@ -81,7 +81,7 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
               href={project.github}
               target="_blank"
               rel="noopener noreferrer"
-              className={cn(buttonVariants({ variant: "outline", size: "sm" }), "border-white/10 bg-white/[0.03] hover:bg-white/[0.06]")}
+              className={cn(buttonVariants({ variant: "outline", size: "sm" }), "border-border bg-card hover:bg-muted")}
             >
               GitHub
             </Link>

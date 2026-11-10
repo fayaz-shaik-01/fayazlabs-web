@@ -65,11 +65,11 @@ export default async function NotebookEntryPage({
             </Link>
 
             <header className="mb-12">
-              <div className="inline-flex items-center gap-1.5 rounded-[2px] bg-white/[0.04] border border-white/10 px-3 py-1 text-xs font-mono font-medium text-muted-foreground mb-4">
+              <div className="inline-flex items-center gap-1.5 rounded-md bg-muted border border-border px-3 py-1 text-xs font-mono font-medium text-muted-foreground mb-4">
                 <BookOpen className="h-3 w-3" />
                 Engineering Notebook
               </div>
-              <h1 className="text-display-lg mb-4 text-glow">
+              <h1 className="text-display-lg mb-4">
                 {entry.title}
               </h1>
               <p className="text-body-lg text-muted-foreground mb-4">
@@ -94,10 +94,10 @@ export default async function NotebookEntryPage({
                 {entry.images.map((img: string, i: number) => (
                   <div
                     key={img}
-                    className="relative rounded-[2px] glass-card p-6 overflow-hidden"
+                    className="relative rounded-md panel p-6 overflow-hidden"
                   >
                     <div className="absolute top-4 left-4">
-                      <span className="inline-flex items-center gap-1 rounded-[2px] bg-background/70 backdrop-blur-md border border-white/10 px-2.5 py-1 text-[10px] font-mono font-medium text-muted-foreground">
+                      <span className="inline-flex items-center gap-1 rounded-md bg-background/70 backdrop-blur-md border border-border px-2.5 py-1 text-[10px] font-mono font-medium text-muted-foreground">
                         <BookOpen className="h-2.5 w-2.5" />
                         Diagram {i + 1}
                       </span>
@@ -107,7 +107,7 @@ export default async function NotebookEntryPage({
                       alt={`${entry.title} - Diagram ${i + 1}`}
                       width={800}
                       height={500}
-                      className="rounded-[2px] mx-auto"
+                      className="rounded-md mx-auto"
                     />
                   </div>
                 ))}

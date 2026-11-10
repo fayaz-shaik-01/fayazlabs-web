@@ -42,9 +42,9 @@ export default function LearningPage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-      <div className="mx-auto max-w-6xl px-6 pt-32 pb-24">
+      <div className="mx-auto max-w-6xl px-4 pt-28 pb-24 sm:px-6 sm:pt-32">
         <header className="mb-12 max-w-2xl">
-          <p className="mono-tag text-lab-green mb-3">[COURSES]</p>
+          <p className="eyebrow mb-3">Courses</p>
           <h1 className="text-display-xl text-foreground">Learning</h1>
           <p className="mt-4 text-body-lg text-muted-foreground">{description}</p>
         </header>
@@ -57,18 +57,16 @@ export default function LearningPage() {
             <li key={product.slug}>
               <Link
                 href={product.href}
-                className="group flex h-full flex-col rounded-xl border border-border bg-card/50 p-6 transition-all duration-300 hover:border-primary/40 hover:-translate-y-0.5"
+                className="panel panel-interactive group flex h-full flex-col p-6"
               >
                 {product.badge && (
-                  <Badge variant="secondary" className="mb-3 w-fit">
-                    {product.badge}
-                  </Badge>
+                  <Badge className="mb-3 w-fit">{product.badge}</Badge>
                 )}
-                <h2 className="mb-2 text-lg font-semibold text-foreground group-hover:text-primary transition-colors">
+                <h2 className="mb-2 text-xl font-bold text-foreground">
                   {product.title}
                 </h2>
-                <p className="text-sm text-muted-foreground">{product.blurb}</p>
-                <span className="mt-6 inline-flex items-center gap-1.5 text-sm font-medium text-primary">
+                <p className="text-[0.9375rem] text-muted-foreground">{product.blurb}</p>
+                <span className="mt-6 inline-flex items-center gap-1.5 text-sm font-semibold text-primary">
                   Open course
                   <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
                 </span>

@@ -145,9 +145,9 @@ function ProblemCard({
   }, []);
 
   const difficultyColor = {
-    beginner: "text-lab-green border-lab-green/30",
-    intermediate: "text-lab-amber border-lab-amber/30",
-    advanced: "text-lab-red border-lab-red/30",
+    beginner: "text-primary border-primary/30",
+    intermediate: "text-warn border-warn/30",
+    advanced: "text-destructive border-destructive/30",
   }[problem.difficulty];
 
   return (
@@ -156,16 +156,16 @@ function ProblemCard({
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
       transition={{ duration: 0.4, delay: index * 0.05 }}
-      className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5 sm:p-6"
+      className="rounded-xl border border-border bg-card p-5 sm:p-6"
     >
       {/* Header */}
       <div className="flex items-start justify-between gap-3 mb-4">
         <div className="flex items-center gap-2">
-          <span className="mono-tag text-muted-foreground">Q{index + 1}</span>
+          <span className="eyebrow text-muted-foreground">Q{index + 1}</span>
           <span className={`text-[0.625rem] px-2 py-0.5 rounded border font-mono uppercase ${difficultyColor}`}>
             {problem.difficulty}
           </span>
-          <span className="text-[0.625rem] px-2 py-0.5 rounded border border-white/10 font-mono uppercase text-muted-foreground/60">
+          <span className="text-[0.625rem] px-2 py-0.5 rounded border border-border font-mono uppercase text-muted-foreground">
             {problem.type}
           </span>
         </div>
@@ -195,17 +195,17 @@ function ProblemCard({
                 disabled={showExplanation}
                 className={cn(
                   "w-full flex items-center gap-3 px-4 py-2.5 rounded-lg border text-left text-sm transition-all",
-                  !showExplanation && !isSelected && "border-white/[0.06] hover:border-white/[0.12] hover:bg-white/[0.03]",
+                  !showExplanation && !isSelected && "border-border hover:border-primary/50 hover:bg-muted",
                   !showExplanation && isSelected && "border-primary/40 bg-primary/5",
-                  showExplanation && isAnswer && "border-lab-green/40 bg-lab-green/5 text-lab-green",
-                  showExplanation && isSelected && !isAnswer && "border-lab-red/40 bg-lab-red/5 text-lab-red",
+                  showExplanation && isAnswer && "border-primary/40 bg-primary/5 text-primary",
+                  showExplanation && isSelected && !isAnswer && "border-destructive/40 bg-destructive/5 text-destructive",
                   showExplanation && !isSelected && !isAnswer && "opacity-50"
                 )}
               >
                 <span className="font-mono text-xs text-muted-foreground w-5">{letter}.</span>
                 <span className="flex-1">{option}</span>
-                {showExplanation && isAnswer && <CheckCircle2 className="h-4 w-4 text-lab-green flex-shrink-0" />}
-                {showExplanation && isSelected && !isAnswer && <XCircle className="h-4 w-4 text-lab-red flex-shrink-0" />}
+                {showExplanation && isAnswer && <CheckCircle2 className="h-4 w-4 text-primary flex-shrink-0" />}
+                {showExplanation && isSelected && !isAnswer && <XCircle className="h-4 w-4 text-destructive flex-shrink-0" />}
               </button>
             );
           })}
@@ -221,7 +221,7 @@ function ProblemCard({
             onChange={(e) => setNumericalAnswer(e.target.value)}
             disabled={showExplanation}
             placeholder="Enter your answer..."
-            className="flex-1 px-4 py-2.5 rounded-lg border border-white/[0.08] bg-white/[0.02] text-sm text-foreground placeholder:text-muted-foreground/40 focus:border-primary/40 focus:outline-none"
+            className="flex-1 px-4 py-2.5 rounded-lg border border-border bg-card text-sm text-foreground placeholder:text-muted-foreground focus:border-primary/40 focus:outline-none"
           />
           {!showExplanation && (
             <button
@@ -247,8 +247,8 @@ function ProblemCard({
             <div className={cn(
               "mt-3 p-4 rounded-lg border text-sm leading-relaxed",
               isCorrect
-                ? "border-lab-green/20 bg-lab-green/5 text-lab-green/90"
-                : "border-lab-amber/20 bg-lab-amber/5 text-lab-amber/90"
+                ? "border-primary/20 bg-primary/5 text-primary/90"
+                : "border-warn/20 bg-warn/5 text-warn/90"
             )}>
               <div className="flex items-center gap-2 font-semibold mb-2">
                 {isCorrect ? (
@@ -261,7 +261,7 @@ function ProblemCard({
             </div>
             <button
               onClick={handleReset}
-              className="mt-3 flex items-center gap-1.5 text-xs text-muted-foreground/60 hover:text-muted-foreground transition-colors"
+              className="mt-3 flex items-center gap-1.5 text-xs text-muted-foreground hover:text-muted-foreground transition-colors"
             >
               <RotateCcw className="h-3 w-3" /> Try Again
             </button>
@@ -272,7 +272,7 @@ function ProblemCard({
       {/* Tags */}
       <div className="mt-4 flex flex-wrap gap-1.5">
         {problem.tags.map((tag) => (
-          <span key={tag} className="text-[0.625rem] px-2 py-0.5 rounded-full bg-white/[0.04] text-muted-foreground/50 font-mono">
+          <span key={tag} className="text-[0.625rem] px-2 py-0.5 rounded-full bg-muted text-muted-foreground font-mono">
             {tag}
           </span>
         ))}
@@ -335,17 +335,15 @@ export function PracticeHub() {
     <>
       {/* Hero */}
       <section className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-b from-background via-background to-surface-1" />
-        <div className="absolute top-0 left-1/3 w-[500px] h-[500px] rounded-full bg-glow-primary/[0.05] blur-[140px]" />
 
         <div className="relative z-10 mx-auto max-w-6xl px-6 pt-32 pb-16 sm:pt-40 sm:pb-20">
           <motion.div
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.2 }}
-            className="mono-tag text-lab-green mb-6 flex items-center gap-2"
+            className="eyebrow !text-primary mb-6 flex items-center gap-2"
           >
-            <span className="inline-block h-1.5 w-1.5 rounded-full bg-lab-green animate-glow-pulse" />
+            <span className="inline-block h-1.5 w-1.5 rounded-full bg-primary " />
             [PRACTICE_ENGINE: ACTIVE]
           </motion.div>
 
@@ -357,7 +355,7 @@ export function PracticeHub() {
           >
             Practice
             <br />
-            <span className="text-gradient-hero">Problems</span>
+            <span className="text-primary">Problems</span>
           </motion.h1>
 
           <motion.p
@@ -377,15 +375,15 @@ export function PracticeHub() {
             transition={{ duration: 0.7, delay: 0.7 }}
             className="mt-8 flex items-center gap-6"
           >
-            <div className="border-l border-lab-green/20 pl-3">
+            <div className="border-l border-primary/20 pl-3">
               <div className="text-xl font-bold text-foreground font-mono">{sampleProblems.length}</div>
-              <div className="mono-tag text-muted-foreground mt-0.5 flex items-center gap-1">
+              <div className="eyebrow text-muted-foreground mt-0.5 flex items-center gap-1">
                 <FlaskConical className="h-3 w-3" /> PROBLEMS
               </div>
             </div>
-            <div className="border-l border-lab-green/20 pl-3">
+            <div className="border-l border-primary/20 pl-3">
               <div className="text-xl font-bold text-foreground font-mono">{tracks.length}</div>
-              <div className="mono-tag text-muted-foreground mt-0.5 flex items-center gap-1">
+              <div className="eyebrow text-muted-foreground mt-0.5 flex items-center gap-1">
                 <BookOpen className="h-3 w-3" /> TRACKS
               </div>
             </div>
@@ -393,13 +391,13 @@ export function PracticeHub() {
               <>
                 <div className="border-l border-primary/20 pl-3">
                   <div className="text-xl font-bold text-foreground font-mono">{stats.totalAttempts}</div>
-                  <div className="mono-tag text-muted-foreground mt-0.5 flex items-center gap-1">
+                  <div className="eyebrow text-muted-foreground mt-0.5 flex items-center gap-1">
                     <TrendingUp className="h-3 w-3" /> ATTEMPTED
                   </div>
                 </div>
-                <div className="border-l border-lab-green/20 pl-3">
-                  <div className="text-xl font-bold text-lab-green font-mono">{Math.round(stats.accuracy)}%</div>
-                  <div className="mono-tag text-muted-foreground mt-0.5 flex items-center gap-1">
+                <div className="border-l border-primary/20 pl-3">
+                  <div className="text-xl font-bold text-primary font-mono">{Math.round(stats.accuracy)}%</div>
+                  <div className="eyebrow text-muted-foreground mt-0.5 flex items-center gap-1">
                     <CheckCircle2 className="h-3 w-3" /> ACCURACY
                   </div>
                 </div>
@@ -422,7 +420,7 @@ export function PracticeHub() {
           <select
             value={selectedTrack}
             onChange={(e) => setSelectedTrack(e.target.value)}
-            className="px-3 py-1.5 rounded-lg border border-white/[0.08] bg-white/[0.02] text-xs text-foreground focus:border-primary/40 focus:outline-none"
+            className="px-3 py-1.5 rounded-lg border border-border bg-card text-xs text-foreground focus:border-primary/40 focus:outline-none"
           >
             <option value="all">All Tracks</option>
             {tracks.map((t) => (
@@ -433,7 +431,7 @@ export function PracticeHub() {
           <select
             value={selectedDifficulty}
             onChange={(e) => setSelectedDifficulty(e.target.value)}
-            className="px-3 py-1.5 rounded-lg border border-white/[0.08] bg-white/[0.02] text-xs text-foreground focus:border-primary/40 focus:outline-none"
+            className="px-3 py-1.5 rounded-lg border border-border bg-card text-xs text-foreground focus:border-primary/40 focus:outline-none"
           >
             <option value="all">All Difficulties</option>
             <option value="beginner">Beginner</option>
@@ -441,7 +439,7 @@ export function PracticeHub() {
             <option value="advanced">Advanced</option>
           </select>
 
-          <span className="ml-auto text-xs text-muted-foreground/50 font-mono">
+          <span className="ml-auto text-xs text-muted-foreground font-mono">
             {filtered.length} problem{filtered.length !== 1 ? "s" : ""}
           </span>
         </div>
@@ -454,7 +452,7 @@ export function PracticeHub() {
         </div>
 
         {filtered.length === 0 && (
-          <div className="text-center py-16 text-muted-foreground/50">
+          <div className="text-center py-16 text-muted-foreground">
             <FlaskConical className="h-8 w-8 mx-auto mb-3 opacity-40" />
             <p className="text-sm">No problems match your filters.</p>
           </div>

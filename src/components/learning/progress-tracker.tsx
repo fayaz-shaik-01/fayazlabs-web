@@ -93,7 +93,7 @@ export function TrackProgressBar({ track }: Readonly<{ track: TrackMeta }>) {
     <div className="rounded-xl border border-border bg-card p-4 mb-6">
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
-          <Trophy className="h-4 w-4 text-lab-amber" />
+          <Trophy className="h-4 w-4 text-warn" />
           <span className="text-sm font-medium text-foreground">Track Progress</span>
         </div>
         <span className="text-xs text-muted-foreground">{stats.completed}/{stats.totalLessons} lessons</span>
@@ -183,7 +183,7 @@ export function LessonCompleteToggle({
       className={cn(
         "flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-medium transition-all",
         isComplete
-          ? "border-lab-green/40 bg-lab-green/10 text-lab-green"
+          ? "border-primary/40 bg-primary/10 text-primary"
           : "border-border text-muted-foreground hover:text-foreground hover:border-foreground/20"
       )}
     >
@@ -212,8 +212,8 @@ export function NextLesson({ track }: Readonly<{ track: TrackMeta }>) {
 
   if (!next) {
     return (
-      <div className="rounded-xl border border-lab-green/30 bg-lab-green/5 p-4 flex items-center gap-3">
-        <Trophy className="h-5 w-5 text-lab-green" />
+      <div className="rounded-xl border border-primary/30 bg-primary/5 p-4 flex items-center gap-3">
+        <Trophy className="h-5 w-5 text-primary" />
         <div>
           <p className="text-sm font-medium text-foreground">Track Complete!</p>
           <p className="text-xs text-muted-foreground">You&apos;ve completed all lessons in this track.</p>

@@ -2,12 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { Menu, X, Command } from "lucide-react";
+import { useState } from "react";
+import { Menu, X } from "lucide-react";
 import { siteConfig, getNav } from "@/lib/site-config";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
+import { BrandMark } from "@/components/layout/brand-mark";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { UserMenu } from "@/components/layout/user-menu";
 
@@ -18,125 +17,99 @@ function isActive(pathname: string, href: string): boolean {
 export function Header() {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [scrolled, setScrolled] = useState(false);
-
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 50);
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
+  const nav = getNav();
 
   return (
-    <header
-      className={cn(
-        "fixed top-0 left-0 right-0 z-50 backdrop-blur-xl transition-all duration-500",
-        scrolled
-          ? "bg-background/85 border-b border-border shadow-[0_1px_24px_oklch(0_0_0/0.08)] dark:shadow-[0_1px_24px_oklch(0_0_0/0.3)]"
-          : "bg-background/60 border-b border-transparent"
-      )}
-    >
+    <header className="fixed top-0 left-0 right-0 z-50 border-b border-border glass">
       <nav
-        className="mx-auto flex h-14 max-w-5xl items-center justify-between px-5"
+        aria-label="Main"
+        className="mx-auto flex h-[60px] max-w-6xl items-center justify-between gap-4 px-4 sm:px-6"
       >
         <Link
           href="/"
-          className="group flex items-center gap-2.5 font-bold tracking-[-0.02em]"
+          className="flex items-center gap-2.5 font-heading text-[1.1875rem] font-bold tracking-[-0.01em]"
         >
-          <span className="relative inline-flex h-8 w-8 items-center justify-center rounded-[2px] bg-gradient-to-br from-primary via-chart-3 to-accent text-white text-sm font-bold transition-transform group-hover:scale-110">
-            F
-            <span className="absolute inset-0 rounded-[2px] bg-gradient-to-br from-primary via-chart-3 to-accent opacity-0 group-hover:opacity-100 blur-md transition-opacity" />
-          </span>
-          <span className="hidden sm:inline text-foreground/90">{siteConfig.name}</span>
+          <BrandMark />
+          <span className="hidden sm:inline">{siteConfig.name}</span>
         </Link>
 
-        <div className="hidden md:flex items-center gap-1 rounded-[2px] border border-border bg-muted/30 px-1.5 py-1">
-          {getNav().map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              aria-current={isActive(pathname, item.href) ? "page" : undefined}
-              className={cn(
-                "relative px-3 py-1.5 text-[0.8125rem] font-medium tracking-[-0.006em] transition-all duration-300 rounded-[2px]",
-                isActive(pathname, item.href)
-                  ? "text-foreground"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              {isActive(pathname, item.href) && (
-                <motion.span
-                  layoutId="nav-indicator"
-                  className="absolute inset-0 rounded-[2px] bg-foreground/[0.06] border border-border"
-                  transition={{ type: "spring", bounce: 0.15, duration: 0.5 }}
-                />
-              )}
-              <span className="relative z-10">{item.title}</span>
-            </Link>
-          ))}
+        <div className="hidden items-center gap-0.5 md:flex">
+          {nav.map((item) => {
+            const active = isActive(pathname, item.href);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                aria-current={active ? "page" : undefined}
+                className={cn(
+                  "rounded-md px-3 py-1.5 text-sm transition-colors",
+                  active
+                    ? "bg-card font-semibold text-foreground ring-1 ring-border"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {item.title}
+              </Link>
+            );
+          })}
         </div>
 
-        <div className="flex items-center gap-1.5">
-          <UserMenu />
-          <ThemeToggle />
-          <Button
-            variant="ghost"
-            size="icon"
-            className="hidden md:inline-flex h-8 w-8 rounded-[2px] text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
             onClick={() =>
               document.dispatchEvent(
                 new KeyboardEvent("keydown", { key: "k", metaKey: true })
               )
             }
+            className="hidden h-9 items-center rounded-lg border border-border bg-card px-2.5 font-mono text-[0.6875rem] text-muted-foreground transition-colors hover:text-foreground md:inline-flex"
           >
-            <Command className="h-3.5 w-3.5" />
+            <span aria-hidden="true">⌘K</span>
             <span className="sr-only">Command palette</span>
-          </Button>
-
-          <Button
-            variant="ghost"
-            size="icon"
-            className="md:hidden h-8 w-8 rounded-[2px] text-muted-foreground hover:text-foreground"
+          </button>
+          <ThemeToggle />
+          <UserMenu />
+          <button
+            type="button"
             onClick={() => setMobileOpen(!mobileOpen)}
+            aria-expanded={mobileOpen}
+            aria-controls="mobile-nav"
+            className="inline-flex size-9 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground transition-colors hover:text-foreground md:hidden"
           >
-            {mobileOpen ? (
-              <X className="h-4 w-4" />
-            ) : (
-              <Menu className="h-4 w-4" />
-            )}
+            {mobileOpen ? <X className="size-4" /> : <Menu className="size-4" />}
             <span className="sr-only">Toggle menu</span>
-          </Button>
+          </button>
         </div>
       </nav>
 
-      <AnimatePresence>
-        {mobileOpen && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.2 }}
-            className="md:hidden mx-4 mt-2 rounded-[2px] glass-panel overflow-hidden"
-          >
-            <div className="p-3 flex flex-col gap-0.5">
-              {getNav().map((item) => (
+      {mobileOpen && (
+        <div
+          id="mobile-nav"
+          className="mx-4 mb-3 overflow-hidden rounded-xl border border-border bg-card p-2 shadow-float animate-in fade-in slide-in-from-top-2 duration-200 md:hidden"
+        >
+          <div className="flex flex-col gap-0.5">
+            {nav.map((item) => {
+              const active = isActive(pathname, item.href);
+              return (
                 <Link
                   key={item.href}
                   href={item.href}
                   onClick={() => setMobileOpen(false)}
-                  aria-current={isActive(pathname, item.href) ? "page" : undefined}
+                  aria-current={active ? "page" : undefined}
                   className={cn(
-                    "px-4 py-2.5 text-sm font-medium rounded-[2px] transition-all",
-                    isActive(pathname, item.href)
-                      ? "bg-primary/10 text-primary"
-                      : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                    "rounded-md px-3 py-2.5 text-sm font-medium transition-colors",
+                    active
+                      ? "bg-accent text-accent-foreground"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
                   )}
                 >
                   {item.title}
                 </Link>
-              ))}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </header>
   );
 }

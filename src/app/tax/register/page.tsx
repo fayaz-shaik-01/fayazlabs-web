@@ -57,7 +57,7 @@ export default function TaxRegisterPage() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {error && (
-            <p className="rounded-[2px] border border-destructive/40 bg-destructive/10 px-4 py-2 text-sm text-destructive">
+            <p className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-2 text-sm text-destructive">
               {error}
             </p>
           )}
@@ -73,7 +73,7 @@ export default function TaxRegisterPage() {
               autoComplete="name"
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
-              className="w-full rounded-[2px] border border-border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
               placeholder="Rahul Sharma"
             />
           </div>
@@ -89,7 +89,7 @@ export default function TaxRegisterPage() {
               autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded-[2px] border border-border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
               placeholder="you@example.com"
             />
           </div>
@@ -106,7 +106,7 @@ export default function TaxRegisterPage() {
               autoComplete="new-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-[2px] border border-border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
               placeholder="Min. 8 characters"
             />
           </div>
@@ -114,7 +114,7 @@ export default function TaxRegisterPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-[2px] bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-60 disabled:cursor-not-allowed"
+            className="w-full rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-60 disabled:cursor-not-allowed"
           >
             {loading ? "Creating account…" : "Create account"}
           </button>

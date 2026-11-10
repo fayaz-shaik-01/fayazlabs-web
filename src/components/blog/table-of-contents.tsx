@@ -83,12 +83,12 @@ export function TableOfContents() {
       className="hidden xl:block sticky top-32 max-h-[calc(100vh-10rem)] overflow-y-auto scrollbar-thin"
     >
       <div className="flex items-center gap-2 mb-4">
-        <List className="h-3.5 w-3.5 text-muted-foreground/60" />
-        <span className="mono-tag text-muted-foreground/60 text-[10px]">
+        <List className="h-3.5 w-3.5 text-muted-foreground" />
+        <span className="eyebrow text-muted-foreground text-[10px]">
           On this page
         </span>
       </div>
-      <ul className="space-y-1 border-l border-white/[0.06]">
+      <ul className="space-y-1 border-l border-border">
         {headings.map((heading) => (
           <li key={heading.id}>
             <button
@@ -98,7 +98,7 @@ export function TableOfContents() {
                 heading.level === 3 ? "pl-6" : "pl-4",
                 activeId === heading.id
                   ? "border-primary text-foreground font-medium"
-                  : "border-transparent text-muted-foreground/70 hover:text-foreground/80 hover:border-white/[0.1]"
+                  : "border-transparent text-muted-foreground hover:text-foreground/80 hover:border-primary/50"
               )}
             >
               {heading.text}

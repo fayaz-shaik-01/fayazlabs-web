@@ -21,10 +21,10 @@ import type { FlashcardStatsResponse } from "@/lib/flashcards/api";
 // ── Leitner Box System ───────────────────────────────────────────────────
 
 const LEITNER_BOXES = [
-  { label: "Box 1 — Daily", interval: 1, color: "text-lab-red" },
-  { label: "Box 2 — Every 3 days", interval: 3, color: "text-lab-amber" },
+  { label: "Box 1 — Daily", interval: 1, color: "text-destructive" },
+  { label: "Box 2 — Every 3 days", interval: 3, color: "text-warn" },
   { label: "Box 3 — Weekly", interval: 7, color: "text-chart-1" },
-  { label: "Box 4 — Biweekly", interval: 14, color: "text-lab-green" },
+  { label: "Box 4 — Biweekly", interval: 14, color: "text-primary" },
   { label: "Box 5 — Monthly", interval: 30, color: "text-primary" },
 ];
 
@@ -155,16 +155,16 @@ function FlashcardCard({
               animate={{ rotateY: 0, opacity: 1 }}
               exit={{ rotateY: -90, opacity: 0 }}
               transition={{ duration: 0.3 }}
-              className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-8 sm:p-10 flex flex-col items-center justify-center text-center"
+              className="rounded-xl border border-border bg-card p-8 sm:p-10 flex flex-col items-center justify-center text-center"
               style={{ minHeight: 280 }}
             >
-              <div className="mono-tag text-primary mb-4 flex items-center gap-1.5">
+              <div className="eyebrow !text-primary mb-4 flex items-center gap-1.5">
                 <Brain className="h-3.5 w-3.5" /> QUESTION
               </div>
               <p className="text-lg sm:text-xl text-foreground leading-relaxed font-medium">
                 {card.front}
               </p>
-              <p className="mt-6 text-xs text-muted-foreground/40">
+              <p className="mt-6 text-xs text-muted-foreground">
                 Click to reveal answer
               </p>
             </motion.div>
@@ -178,7 +178,7 @@ function FlashcardCard({
               className="rounded-xl border border-primary/20 bg-primary/[0.03] p-8 sm:p-10 flex flex-col items-center justify-center text-center"
               style={{ minHeight: 280 }}
             >
-              <div className="mono-tag text-lab-green mb-4 flex items-center gap-1.5">
+              <div className="eyebrow !text-primary mb-4 flex items-center gap-1.5">
                 <CheckCircle2 className="h-3.5 w-3.5" /> ANSWER
               </div>
               <p className="text-base sm:text-lg text-foreground/90 leading-relaxed">
@@ -194,7 +194,7 @@ function FlashcardCard({
         {card.tags.map((tag) => (
           <span
             key={tag}
-            className="text-[0.625rem] px-2 py-0.5 rounded-full bg-white/[0.04] text-muted-foreground/50 font-mono"
+            className="text-[0.625rem] px-2 py-0.5 rounded-full bg-muted text-muted-foreground font-mono"
           >
             {tag}
           </span>
@@ -214,7 +214,7 @@ function FlashcardCard({
               setFlipped(false);
               onDontKnow();
             }}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-lg border border-lab-red/30 bg-lab-red/5 text-lab-red text-sm font-medium hover:bg-lab-red/10 transition-colors"
+            className="flex items-center gap-2 px-5 py-2.5 rounded-lg border border-destructive/30 bg-destructive/5 text-destructive text-sm font-medium hover:bg-destructive/10 transition-colors"
           >
             <XCircle className="h-4 w-4" />
             {"Didn't Know"}
@@ -225,7 +225,7 @@ function FlashcardCard({
               setFlipped(false);
               onKnow();
             }}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-lg border border-lab-green/30 bg-lab-green/5 text-lab-green text-sm font-medium hover:bg-lab-green/10 transition-colors"
+            className="flex items-center gap-2 px-5 py-2.5 rounded-lg border border-primary/30 bg-primary/5 text-primary text-sm font-medium hover:bg-primary/10 transition-colors"
           >
             <CheckCircle2 className="h-4 w-4" />
             Got It
@@ -248,15 +248,15 @@ function LeitnerBoxes({ cards }: Readonly<{ cards: Flashcard[] }>) {
       {LEITNER_BOXES.map((box, i) => (
         <div
           key={box.label}
-          className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3 text-center"
+          className="rounded-lg border border-border bg-card p-3 text-center"
         >
           <div className={cn("text-lg font-bold font-mono", box.color)}>
             {boxCounts[i]}
           </div>
-          <div className="text-[0.5625rem] text-muted-foreground/50 font-mono mt-0.5">
+          <div className="text-[0.5625rem] text-muted-foreground font-mono mt-0.5">
             BOX {i + 1}
           </div>
-          <div className="text-[0.5rem] text-muted-foreground/30 mt-0.5">
+          <div className="text-[0.5rem] text-muted-foreground mt-0.5">
             {box.interval === 1 ? "Daily" : `${box.interval}d`}
           </div>
         </div>
@@ -364,17 +364,15 @@ export function FlashcardHub() {
     <>
       {/* Hero */}
       <section className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-b from-background via-background to-surface-1" />
-        <div className="absolute top-0 right-1/3 w-[500px] h-[500px] rounded-full bg-glow-violet/[0.05] blur-[140px]" />
 
         <div className="relative z-10 mx-auto max-w-6xl px-6 pt-32 pb-16 sm:pt-40 sm:pb-20">
           <motion.div
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.2 }}
-            className="mono-tag text-lab-green mb-6 flex items-center gap-2"
+            className="eyebrow !text-primary mb-6 flex items-center gap-2"
           >
-            <span className="inline-block h-1.5 w-1.5 rounded-full bg-lab-green animate-glow-pulse" />
+            <span className="inline-block h-1.5 w-1.5 rounded-full bg-primary " />
             [SPACED_REPETITION: LEITNER]
           </motion.div>
 
@@ -386,7 +384,7 @@ export function FlashcardHub() {
           >
             Flashcards
             <br />
-            <span className="text-gradient-hero">Spaced Repetition</span>
+            <span className="text-primary">Spaced Repetition</span>
           </motion.h1>
 
           <motion.p
@@ -406,31 +404,31 @@ export function FlashcardHub() {
             transition={{ duration: 0.7, delay: 0.7 }}
             className="mt-8 flex items-center gap-6"
           >
-            <div className="border-l border-lab-green/20 pl-3">
+            <div className="border-l border-primary/20 pl-3">
               <div className="text-xl font-bold text-foreground font-mono">{filteredCards.length}</div>
-              <div className="mono-tag text-muted-foreground mt-0.5 flex items-center gap-1">
+              <div className="eyebrow text-muted-foreground mt-0.5 flex items-center gap-1">
                 <Brain className="h-3 w-3" /> CARDS
               </div>
             </div>
             {apiStats && apiStats.totalCards > 0 && (
               <div className="border-l border-primary/20 pl-3">
                 <div className="text-xl font-bold text-primary font-mono">{apiStats.masteredCards}</div>
-                <div className="mono-tag text-muted-foreground mt-0.5 flex items-center gap-1">
+                <div className="eyebrow text-muted-foreground mt-0.5 flex items-center gap-1">
                   <TrendingUp className="h-3 w-3" /> MASTERED
                 </div>
               </div>
             )}
             {totalReviewed > 0 && (
               <>
-                <div className="border-l border-lab-green/20 pl-3">
-                  <div className="text-xl font-bold text-lab-green font-mono">{sessionStats.correct}</div>
-                  <div className="mono-tag text-muted-foreground mt-0.5 flex items-center gap-1">
+                <div className="border-l border-primary/20 pl-3">
+                  <div className="text-xl font-bold text-primary font-mono">{sessionStats.correct}</div>
+                  <div className="eyebrow text-muted-foreground mt-0.5 flex items-center gap-1">
                     <CheckCircle2 className="h-3 w-3" /> CORRECT
                   </div>
                 </div>
-                <div className="border-l border-lab-red/20 pl-3">
-                  <div className="text-xl font-bold text-lab-red font-mono">{sessionStats.incorrect}</div>
-                  <div className="mono-tag text-muted-foreground mt-0.5 flex items-center gap-1">
+                <div className="border-l border-destructive/20 pl-3">
+                  <div className="text-xl font-bold text-destructive font-mono">{sessionStats.incorrect}</div>
+                  <div className="eyebrow text-muted-foreground mt-0.5 flex items-center gap-1">
                     <XCircle className="h-3 w-3" /> MISSED
                   </div>
                 </div>
@@ -438,7 +436,7 @@ export function FlashcardHub() {
                   <div className="text-xl font-bold text-primary font-mono">
                     {totalReviewed > 0 ? Math.round((sessionStats.correct / totalReviewed) * 100) : 0}%
                   </div>
-                  <div className="mono-tag text-muted-foreground mt-0.5 flex items-center gap-1">
+                  <div className="eyebrow text-muted-foreground mt-0.5 flex items-center gap-1">
                     <Flame className="h-3 w-3" /> ACCURACY
                   </div>
                 </div>
@@ -463,7 +461,7 @@ export function FlashcardHub() {
               setSelectedTrack(e.target.value);
               setCurrentIndex(0);
             }}
-            className="px-3 py-1.5 rounded-lg border border-white/[0.08] bg-white/[0.02] text-xs text-foreground focus:border-primary/40 focus:outline-none"
+            className="px-3 py-1.5 rounded-lg border border-border bg-card text-xs text-foreground focus:border-primary/40 focus:outline-none"
           >
             <option value="all">All Tracks</option>
             {tracks.map((t) => (
@@ -474,7 +472,7 @@ export function FlashcardHub() {
           {totalReviewed > 0 && (
             <button
               onClick={handleReset}
-              className="ml-auto flex items-center gap-1.5 text-xs text-muted-foreground/60 hover:text-muted-foreground transition-colors"
+              className="ml-auto flex items-center gap-1.5 text-xs text-muted-foreground hover:text-muted-foreground transition-colors"
             >
               <RotateCcw className="h-3 w-3" /> Reset Session
             </button>
@@ -489,11 +487,11 @@ export function FlashcardHub() {
           <>
             {/* Progress */}
             <div className="flex items-center justify-between mb-6">
-              <span className="text-xs text-muted-foreground/50 font-mono flex items-center gap-1.5">
+              <span className="text-xs text-muted-foreground font-mono flex items-center gap-1.5">
                 <Clock className="h-3 w-3" />
                 Card {(currentIndex % filteredCards.length) + 1} of {filteredCards.length}
               </span>
-              <div className="h-1 flex-1 mx-4 rounded-full bg-white/[0.06] overflow-hidden">
+              <div className="h-1 flex-1 mx-4 rounded-full bg-muted overflow-hidden">
                 <div
                   className="h-full rounded-full bg-primary/60 transition-all duration-300"
                   style={{
@@ -501,7 +499,7 @@ export function FlashcardHub() {
                   }}
                 />
               </div>
-              <span className="text-xs text-muted-foreground/50 font-mono">
+              <span className="text-xs text-muted-foreground font-mono">
                 {Math.round((((currentIndex % filteredCards.length) + 1) / filteredCards.length) * 100)}%
               </span>
             </div>
@@ -516,7 +514,7 @@ export function FlashcardHub() {
             )}
           </>
         ) : (
-          <div className="text-center py-16 text-muted-foreground/50">
+          <div className="text-center py-16 text-muted-foreground">
             <Brain className="h-8 w-8 mx-auto mb-3 opacity-40" />
             <p className="text-sm">No flashcards match your filters.</p>
           </div>

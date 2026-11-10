@@ -28,7 +28,7 @@ export default function ProjectsPage() {
           <Link
             key={project.slug}
             href={`/${project.slug}`}
-            className="group relative flex flex-col h-full glass-card rounded-[2px] p-7"
+            className="group relative flex flex-col h-full panel rounded-md p-7"
           >
             
             <div className="relative z-10">
@@ -45,13 +45,13 @@ export default function ProjectsPage() {
 
               <div className="flex flex-wrap gap-1.5 mb-4">
                 {project.stack.map((tech) => (
-                  <Badge key={tech} variant="secondary" className="text-[11px] rounded-[2px] border-white/10 bg-white/[0.04] font-mono">
+                  <Badge key={tech} variant="secondary" className="text-[11px] rounded-md border-border bg-muted font-mono">
                     {tech}
                   </Badge>
                 ))}
               </div>
 
-              <div className="flex flex-wrap gap-2 pt-2 border-t border-white/[0.06]">
+              <div className="flex flex-wrap gap-2 pt-2 border-t border-border">
                 {project.tags.map((tag) => (
                   <span
                     key={tag}
