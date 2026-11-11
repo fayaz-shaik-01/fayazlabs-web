@@ -1,6 +1,6 @@
 /*
  * Lesson fragments, scoped to .course-prose. Mirrors the course pages' own
- * stylesheet (site.css): 18px / 1.65 body, Bricolage 700 headings, 12px mono
+ * stylesheet (site.css): 18px / 1.65 body, Space Grotesk headings, 12px mono
  * labels, tinted callouts with a coloured left rule, mono table headers.
  * Everything uses the site's theme variables, so light and dark follow the theme.
  */
@@ -10,7 +10,7 @@
 .course-prose strong { font-weight: 600; }
 .course-prose h1, .course-prose h2, .course-prose h3, .course-prose h4 {
   font-family: var(--font-heading), ui-sans-serif, system-ui, sans-serif;
-  font-weight: 700; text-wrap: balance;
+  font-weight: 600; text-wrap: balance;
 }
 .course-prose h1 { font-size: clamp(2rem, 5vw, 2.875rem); line-height: 1.1; letter-spacing: -0.02em; margin: 0 0 1.1rem; }
 .course-prose h2 { font-size: 1.75rem; line-height: 1.2; letter-spacing: -0.01em; margin: 3rem 0 0.75rem; }

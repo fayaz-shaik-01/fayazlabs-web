@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useState } from "react";
+import { BoltFace } from "@/components/chat/bolt-face";
 import { Check, Copy, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ChatMessage } from "@/lib/api";
@@ -120,7 +121,7 @@ export function ChatMessageBubble({ message }: Readonly<{ message: ChatMessage }
 
   return (
     <div className="group flex gap-3" data-testid="chat-assistant-message">
-      <span aria-hidden="true" className="orb-css mt-1 size-6 shrink-0 !animate-none" />
+      <BoltFace className="mt-1 size-6 shrink-0" />
       <div className="min-w-0 flex-1">
         <div className="text-[0.9375rem] leading-relaxed text-foreground">
           <Rich text={text || " "} />

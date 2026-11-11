@@ -1,10 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowUp, RotateCcw, Sparkles } from "lucide-react";
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { usePathname } from "next/navigation";
+import { ArrowUp, RotateCcw, Sparkles, X } from "lucide-react";
 import { ChatMessageBubble } from "@/components/chat/chat-message";
-import { AiOrb, OrbCss } from "@/components/chat/ai-orb";
+import { BoltFace } from "@/components/chat/bolt-face";
 import { useChatStore, type OrbStatus } from "@/stores/chat-store";
 import type { QueryType } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -16,23 +16,31 @@ export const SUGGESTIONS: { label: string; queryType: QueryType }[] = [
   { label: "How do you test AI products?", queryType: "CHAT" },
 ];
 
+/** Extra questions that fit the page the visitor is on. */
+function contextual(pathname: string): { label: string; queryType: QueryType }[] {
+  if (pathname.startsWith("/learning")) return [{ label: "Where should I start the course?", queryType: "CHAT" }];
+  if (pathname.startsWith("/projects")) return [{ label: "Which project should I read first?", queryType: "PROJECT_QUERY" }];
+  return [];
+}
+
 const STATUS_LABEL: Record<OrbStatus, string> = { idle: "Online", thinking: "Thinking", speaking: "Answering" };
 
-/** The floating launcher: a small live orb plus a label. */
+/** Launcher for when the 3D Bolt is not on screen (phones, reduced motion, no WebGL, or pages where he stays out). */
 function Launcher() {
-  const { open, setOpen, status } = useChatStore();
-  if (open) return null;
+  const { open, setOpen, status, boltActive } = useChatStore();
+  if (open || boltActive) return null;
   return (
     <button
       type="button"
       onClick={() => setOpen(true)}
       aria-label="Open AI chat"
       data-testid="chat-launcher"
-      className="fixed right-4 bottom-4 z-50 flex items-center gap-3 rounded-full border border-border bg-card py-2 pr-4 pl-2 shadow-float transition-[transform,border-color] hover:-translate-y-0.5 hover:border-primary/60 sm:right-6 sm:bottom-6 max-sm:pr-2"
+      data-bolt-ignore
+      className="panel fixed right-4 bottom-4 z-50 flex items-center gap-3 rounded-full py-2 pr-4 pl-2 shadow-float transition-[transform,border-color] hover:-translate-y-0.5 hover:border-primary sm:right-6 sm:bottom-6 max-sm:pr-2"
     >
-      <OrbCss status={status} className="size-9" />
+      <BoltFace status={status} className="size-9" />
       <span className="max-sm:hidden">
-        <span className="block text-sm font-semibold leading-tight">Ask my AI</span>
+        <span className="block text-sm font-semibold leading-tight">Ask Bolt</span>
         <span className="eyebrow block !text-[0.625rem]">{STATUS_LABEL[status]}</span>
       </span>
     </button>
@@ -40,11 +48,13 @@ function Launcher() {
 }
 
 export function ChatPanel() {
-  const { open, setOpen, messages, status, error, ask, clear } = useChatStore();
+  const { open, setOpen, messages, status, error, ask, clear, boltActive } = useChatStore();
+  const pathname = usePathname();
   const [input, setInput] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const busy = status === "thinking";
+  const suggestions = [...contextual(pathname), ...SUGGESTIONS];
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -52,8 +62,18 @@ export function ChatPanel() {
   }, [messages, status]);
 
   useEffect(() => {
-    if (open) setTimeout(() => inputRef.current?.focus(), 250);
-  }, [open]);
+    if (!open) return;
+    const t = setTimeout(() => inputRef.current?.focus(), 250);
+    // Escape closes the chat from anywhere, even before focus has moved into the panel.
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => {
+      clearTimeout(t);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open, setOpen]);
 
   const send = useCallback(
     (text?: string, type: QueryType = "CHAT") => {
@@ -68,47 +88,62 @@ export function ChatPanel() {
   return (
     <>
       <Launcher />
-      <Sheet open={open} onOpenChange={setOpen}>
-        <SheetContent side="right" showCloseButton className="flex w-full flex-col gap-0 border-border bg-background p-0 sm:max-w-[480px]">
-          <SheetHeader className="relative h-[196px] shrink-0 gap-0 overflow-hidden border-b border-border p-0">
-            <div aria-hidden="true" className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_55%,var(--accent)_0%,transparent_70%)]" />
-            <AiOrb status={status} className="absolute inset-y-0 right-0 left-[24%]" />
-            <div className="relative flex items-start justify-between p-4">
-              <div>
-                <SheetTitle className="font-heading text-lg font-bold">Fayaz Labs AI</SheetTitle>
-                <SheetDescription data-testid="chat-status" data-status={status} className="eyebrow mt-0.5 flex items-center gap-1.5 !text-primary">
-                  <span className={cn("size-1.5 rounded-full bg-primary", status !== "idle" && "animate-pulse")} />
-                  {STATUS_LABEL[status]}
-                </SheetDescription>
-              </div>
+      {open && (
+        <section
+          role="dialog"
+          aria-label="Chat with Bolt"
+          aria-modal="false"
+          data-bolt-ignore
+          className={cn(
+            "panel bracket fixed z-50 flex flex-col overflow-hidden shadow-float animate-in fade-in slide-in-from-bottom-4 duration-300",
+            "right-4 bottom-4 w-[min(24rem,calc(100vw-2rem))] sm:right-6 sm:bottom-6",
+            "max-sm:inset-x-2 max-sm:bottom-2 max-sm:h-[78dvh] max-sm:w-auto",
+            boltActive ? "h-[min(29rem,calc(100dvh-20.5rem))] min-h-[21rem]" : "h-[min(36rem,calc(100dvh-6rem))]"
+          )}
+        >
+          <header className="flex items-center gap-3 border-b border-border px-4 py-3">
+            <BoltFace status={status} className="size-9 shrink-0" />
+            <div className="min-w-0 flex-1 leading-tight">
+              <h2 className="font-heading text-[1.0625rem] font-semibold">Bolt</h2>
+              <p data-testid="chat-status" data-status={status} className="eyebrow mt-0.5 flex items-center gap-1.5 !text-[0.625rem] !text-[var(--good)]">
+                <span className={cn("size-1.5 rounded-full bg-[var(--good)]", status !== "idle" && "animate-pulse")} />
+                {STATUS_LABEL[status]} · Fayaz Labs AI
+              </p>
             </div>
             {messages.length > 0 && (
               <button
                 type="button"
                 onClick={clear}
                 aria-label="Clear chat"
-                className="absolute bottom-3 left-3 inline-flex items-center gap-1.5 rounded-md border border-border bg-card/90 px-2 py-1 text-xs font-semibold text-muted-foreground transition-colors hover:text-foreground"
+                className="inline-flex size-8 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:border-primary hover:text-foreground"
               >
-                <RotateCcw className="size-3" />
-                New chat
+                <RotateCcw className="size-3.5" />
               </button>
             )}
-          </SheetHeader>
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              aria-label="Close chat"
+              className="inline-flex size-8 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:border-primary hover:text-foreground"
+            >
+              <X className="size-4" />
+            </button>
+          </header>
 
-          <div ref={scrollRef} className="flex-1 space-y-5 overflow-y-auto px-4 py-5" aria-live="polite">
+          <div ref={scrollRef} className="flex-1 space-y-5 overflow-y-auto px-4 py-4" aria-live="polite">
             {messages.length === 0 ? (
-              <div className="flex h-full flex-col items-center justify-center px-2 text-center">
-                <p className="font-heading text-2xl font-bold">Ask me anything</p>
-                <p className="mt-1.5 max-w-[30ch] text-base text-muted-foreground">
-                  About my projects, tech stack, experience, or how to test AI products.
+              <div className="flex h-full flex-col justify-center">
+                <p className="font-heading text-xl font-semibold">Hi, I&apos;m Bolt.</p>
+                <p className="mt-1 text-[0.9375rem] text-muted-foreground">
+                  I&apos;m the Fayaz Labs assistant. Ask about the projects, the tech stack, or how to test AI products.
                 </p>
-                <div className="mt-6 grid w-full gap-2">
-                  {SUGGESTIONS.map((s) => (
+                <div className="mt-4 grid gap-2">
+                  {suggestions.slice(0, 4).map((s) => (
                     <button
                       key={s.label}
                       type="button"
                       onClick={() => send(s.label, s.queryType)}
-                      className="flex items-center justify-between gap-3 rounded-xl border border-border bg-card px-4 py-3 text-left text-[0.9375rem] font-medium transition-colors hover:border-primary/60"
+                      className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card px-3.5 py-2.5 text-left text-[0.9375rem] font-medium transition-colors hover:border-primary"
                     >
                       {s.label}
                       <Sparkles className="size-4 shrink-0 text-primary" />
@@ -122,7 +157,7 @@ export function ChatPanel() {
 
             {busy && (
               <div className="flex items-center gap-3" data-testid="chat-thinking">
-                <OrbCss status="thinking" className="size-6" />
+                <BoltFace status="thinking" className="size-6" />
                 <span className="flex items-center gap-1" aria-label="Thinking">
                   {[0, 150, 300].map((d) => (
                     <span key={d} className="size-1.5 animate-bounce rounded-full bg-primary" style={{ animationDelay: `${d}ms` }} />
@@ -134,7 +169,7 @@ export function ChatPanel() {
           </div>
 
           <div className="shrink-0 border-t border-border p-3">
-            <div className="flex items-end gap-2 rounded-2xl border border-border bg-card p-1.5 transition-colors focus-within:border-primary/60">
+            <div className="flex items-end gap-2 rounded-lg border border-border bg-card p-1.5 transition-colors focus-within:border-primary">
               <textarea
                 ref={inputRef}
                 value={input}
@@ -145,25 +180,25 @@ export function ChatPanel() {
                     send();
                   }
                 }}
-                placeholder="Ask about my work…"
+                placeholder="Ask Bolt…"
                 aria-label="Message"
                 rows={1}
-                className="max-h-28 flex-1 resize-none bg-transparent px-3 py-2 text-base outline-none field-sizing-content placeholder:text-muted-foreground"
+                className="max-h-28 flex-1 resize-none bg-transparent px-2.5 py-2 text-base outline-none field-sizing-content placeholder:text-muted-foreground"
               />
               <button
                 type="button"
                 onClick={() => send()}
                 disabled={!input.trim() || busy}
                 aria-label="Send message"
-                className="inline-flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-40"
+                className="inline-flex size-9 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-40"
               >
                 <ArrowUp className="size-5" />
               </button>
             </div>
-            <p className="eyebrow mt-2 text-center !text-[0.625rem]">Enter to send · Shift+Enter for a new line · Answers may be inaccurate</p>
+            <p className="eyebrow mt-2 text-center !text-[0.625rem]">Enter to send · Answers may be inaccurate</p>
           </div>
-        </SheetContent>
-      </Sheet>
+        </section>
+      )}
     </>
   );
 }

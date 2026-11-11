@@ -18,6 +18,7 @@ export function FeaturedProducts() {
           <li key={product.slug}>
             <Link
               href={product.href}
+              data-bolt-point
               className="panel panel-interactive group flex h-full flex-col p-6"
             >
               {product.badge && <span className="chip w-fit">{product.badge}</span>}

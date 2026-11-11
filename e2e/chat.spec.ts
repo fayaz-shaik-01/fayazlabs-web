@@ -74,22 +74,48 @@ test.describe("AI chat", () => {
     await expect(page.getByTestId("chat-status")).toHaveAttribute("data-status", "idle");
   });
 
-  test("reduced motion gets the static CSS orb, with no 3D canvas", async ({ browser }) => {
+  test("reduced motion gets the CSS launcher, with no 3D canvas", async ({ browser }) => {
     const ctx = await browser.newContext({ reducedMotion: "reduce" });
     const page = await ctx.newPage();
     await page.goto("/");
-    await page.getByTestId("ai-orb").first().scrollIntoViewIfNeeded();
-    await expect(page.getByTestId("ai-orb").first()).toHaveAttribute("data-mode", "css");
+    await expect(page.getByTestId("chat-launcher")).toBeVisible();
+    await expect(page.getByTestId("bolt-canvas")).toHaveCount(0);
     await expect(page.locator("canvas")).toHaveCount(0);
     await ctx.close();
   });
 
-  test("with motion allowed the 3D orb loads once it scrolls into view", async ({ page }) => {
+  test("on a phone-sized screen Bolt stays out and the CSS launcher is used", async ({ browser }) => {
+    const ctx = await browser.newContext({ viewport: { width: 390, height: 800 } });
+    const page = await ctx.newPage();
     await page.goto("/");
-    await expect(page.locator("canvas")).toHaveCount(0); // not loaded until needed
-    await page.getByTestId("ai-orb").first().scrollIntoViewIfNeeded();
-    const orb = page.getByTestId("ai-orb").first();
-    await expect(orb).toHaveAttribute("data-mode", /3d|css/); // css when the machine has no WebGL
-    if ((await orb.getAttribute("data-mode")) === "3d") await expect(page.locator("canvas")).toHaveCount(1);
+    await expect(page.getByTestId("chat-launcher")).toBeVisible();
+    await expect(page.locator("canvas")).toHaveCount(0);
+    await page.getByTestId("chat-launcher").click();
+    await expect(page.getByRole("dialog", { name: "Chat with Bolt" })).toBeVisible();
+    await ctx.close();
+  });
+
+  test("with motion allowed the 3D Bolt loads on desktop; the launcher is his Ask Bolt pill", async ({ browser }) => {
+    const ctx = await browser.newContext({ reducedMotion: "no-preference", viewport: { width: 1440, height: 900 } });
+    const page = await ctx.newPage();
+    await page.goto("/");
+    // three.js loads after the page settles. A machine with no WebGL keeps the CSS launcher instead.
+    await expect(page.getByTestId("chat-launcher")).toBeVisible();
+    const canvas = page.getByTestId("bolt-canvas");
+    if ((await canvas.count()) > 0) {
+      await expect(canvas).toHaveCount(1);
+      await expect(page.locator("html")).toHaveAttribute("data-bolt", "hero");
+    }
+    await ctx.close();
+  });
+
+  test("Escape closes the chat and the launcher returns", async ({ page }) => {
+    await page.goto("/");
+    await page.getByTestId("chat-launcher").click();
+    const dialog = page.getByRole("dialog", { name: "Chat with Bolt" });
+    await expect(dialog).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(dialog).toHaveCount(0);
+    await expect(page.getByTestId("chat-launcher")).toBeVisible();
   });
 });

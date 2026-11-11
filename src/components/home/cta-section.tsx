@@ -7,7 +7,7 @@ export function CTASection() {
   return (
     <section className="mx-auto max-w-6xl px-4 pt-12 pb-8 sm:px-6">
       <div className="grid gap-4 md:grid-cols-2">
-        <div className="panel flex flex-col p-7 sm:p-8">
+        <div className="panel bracket flex flex-col p-7 sm:p-8">
           <span className="mb-5 inline-flex size-11 items-center justify-center rounded-lg bg-accent text-accent-foreground">
             <Briefcase className="size-5" />
           </span>
@@ -25,7 +25,7 @@ export function CTASection() {
           </Link>
         </div>
 
-        <div className="panel flex flex-col p-7 sm:p-8">
+        <div className="panel bracket flex flex-col p-7 sm:p-8">
           <span className="mb-5 inline-flex size-11 items-center justify-center rounded-lg bg-accent text-accent-foreground">
             <Code className="size-5" />
           </span>

@@ -27,7 +27,7 @@ export function Header() {
       >
         <Link
           href="/"
-          className="flex items-center gap-2.5 font-heading text-[1.1875rem] font-bold tracking-[-0.01em]"
+          className="flex items-center gap-2.5 font-heading text-[1.1875rem] font-semibold tracking-[-0.01em]"
         >
           <BrandMark />
           <span className="hidden sm:inline">{siteConfig.name}</span>
@@ -42,9 +42,9 @@ export function Header() {
                 href={item.href}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "rounded-md px-3 py-1.5 text-sm transition-colors",
+                  "px-3 py-2 font-mono text-xs font-medium tracking-[0.08em] uppercase transition-colors",
                   active
-                    ? "bg-card font-semibold text-foreground ring-1 ring-border"
+                    ? "text-foreground shadow-[inset_0_-2px_0_var(--primary)]"
                     : "text-muted-foreground hover:text-foreground"
                 )}
               >
@@ -55,6 +55,12 @@ export function Header() {
         </div>
 
         <div className="flex items-center gap-2">
+          <Link
+            href="/learning/ai-product-testing"
+            className="hidden rounded-full border border-primary px-3 py-1 font-mono text-[0.6875rem] font-medium tracking-[0.08em] text-primary uppercase transition-colors hover:bg-accent lg:inline-flex"
+          >
+            Level 0 is free
+          </Link>
           <button
             type="button"
             onClick={() =>
@@ -62,7 +68,7 @@ export function Header() {
                 new KeyboardEvent("keydown", { key: "k", metaKey: true })
               )
             }
-            className="hidden h-9 items-center rounded-lg border border-border bg-card px-2.5 font-mono text-[0.6875rem] text-muted-foreground transition-colors hover:text-foreground md:inline-flex"
+            className="hidden h-9 items-center rounded-lg border border-border bg-card px-2.5 font-mono text-[0.6875rem] text-muted-foreground transition-colors hover:border-primary hover:text-foreground md:inline-flex"
           >
             <span aria-hidden="true">⌘K</span>
             <span className="sr-only">Command palette</span>

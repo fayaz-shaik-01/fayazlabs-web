@@ -295,7 +295,7 @@ export function SlidePlayer({
       data-rate={state?.rate ?? 1}
       data-mode={mode}
       data-fs={fs ? "true" : "false"}
-      className="player relative overflow-hidden rounded-xl border border-border bg-card text-card-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="player panel bracket relative overflow-hidden rounded-lg text-card-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       <audio ref={aRef} data-slot="a" className="hidden" {...({ controlsList: "nodownload" } as object)} />
       <audio ref={bRef} data-slot="b" className="hidden" {...({ controlsList: "nodownload" } as object)} />

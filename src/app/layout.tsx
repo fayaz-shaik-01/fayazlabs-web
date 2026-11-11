@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Bricolage_Grotesque, Source_Sans_3, JetBrains_Mono } from "next/font/google";
+import { Space_Grotesk, IBM_Plex_Sans, JetBrains_Mono } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import { Providers } from "@/components/providers";
 import { Header } from "@/components/layout/header";
@@ -7,21 +7,23 @@ import { Footer } from "@/components/layout/footer";
 import { CommandPalette } from "@/components/layout/command-palette";
 import { SessionNoticeBanner } from "@/components/course/session-notice-banner";
 import { ChatPanel } from "@/components/chat/chat-panel";
+import { BoltLayer } from "@/components/bolt/bolt-layer";
 import { siteConfig } from "@/lib/site-config";
 import "katex/dist/katex.min.css";
 import "./globals.css";
 
-// Display: Bricolage Grotesque. Body: Source Sans 3. Labels and code: JetBrains Mono.
-const bricolage = Bricolage_Grotesque({
+// Display: Space Grotesk. Body: IBM Plex Sans. Labels and code: JetBrains Mono.
+const spaceGrotesk = Space_Grotesk({
   variable: "--font-heading",
   subsets: ["latin"],
-  weight: ["500", "600", "700", "800"],
+  weight: ["500", "600", "700"],
   display: "swap",
 });
 
-const sourceSans = Source_Sans_3({
+const plexSans = IBM_Plex_Sans({
   variable: "--font-sans",
   subsets: ["latin"],
+  weight: ["400", "500", "600"],
   style: ["normal", "italic"],
   display: "swap",
 });
@@ -75,7 +77,7 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${bricolage.variable} ${sourceSans.variable} ${jetbrainsMono.variable} h-full antialiased`}
+      className={`${spaceGrotesk.variable} ${plexSans.variable} ${jetbrainsMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
         <Providers>
@@ -87,10 +89,13 @@ export default function RootLayout({
           </a>
           <Header />
           <SessionNoticeBanner />
-          <main id="main-content" className="flex-1">
+          <BoltLayer />
+          <main id="main-content" className="relative z-[1] flex-1">
             {children}
           </main>
-          <Footer />
+          <div className="relative z-[1]">
+            <Footer />
+          </div>
           <CommandPalette />
           <ChatPanel />
         </Providers>

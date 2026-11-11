@@ -14,6 +14,9 @@ export default defineConfig({
     baseURL: process.env.BASE_URL || "http://localhost:3000",
     trace: "on-first-retry",
     screenshot: "only-on-failure",
+    // Bolt (the 3D assistant) is switched off by reduced motion. Most tests do not need him, and
+    // software-rendered WebGL makes headless runs slow. The 3D test opts back in explicitly.
+    contextOptions: { reducedMotion: "reduce" },
   },
 
   projects: [

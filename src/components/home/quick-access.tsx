@@ -48,6 +48,7 @@ export function QuickAccess() {
           <li key={p.href}>
             <Link
               href={p.href}
+              data-bolt-point
               className="panel panel-interactive group flex h-full flex-col p-5"
             >
               <span className="chip w-fit">{p.chip}</span>

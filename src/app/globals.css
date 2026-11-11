@@ -58,116 +58,137 @@
   --color-text-tertiary: var(--text-tertiary);
 }
 
-/* ─── Light palette ("paper") ─── */
+/* ─── Light palette ("studio daylight") ─── */
 :root {
-  --background: #f1f4f6;
-  --foreground: #11222e;
-  --card: #ffffff;
-  --card-foreground: #11222e;
+  --background: #e8edf3;
+  --foreground: #0e1b2a;
+  --card: rgb(255 255 255 / 0.8);
+  --card-foreground: #0e1b2a;
   --popover: #ffffff;
-  --popover-foreground: #11222e;
-  --primary: #0b6e63;
+  --popover-foreground: #0e1b2a;
+  --primary: #0b66b0;
   --primary-foreground: #ffffff;
-  --secondary: #e6ecef;
-  --secondary-foreground: #11222e;
-  --muted: #e6ecef;
-  --muted-foreground: #55676f;
-  --text-tertiary: #5e6f77;
-  --accent: #dcefeb;
-  --accent-foreground: #08574e;
-  --accent-soft: #dcefeb;
-  --warn: #a8500a;
-  --warn-soft: #f8e8d9;
-  --destructive: #b42318;
-  --border: #d6dfe4;
-  --input: #d6dfe4;
-  --ring: #0b6e63;
-  --chart-1: #0b6e63;
-  --chart-2: #2b6cb0;
-  --chart-3: #a8500a;
+  --secondary: #dce3ec;
+  --secondary-foreground: #0e1b2a;
+  --muted: #dde5ee;
+  --muted-foreground: #4f6578;
+  --text-tertiary: #566b7f;
+  --accent: rgb(11 102 176 / 0.1);
+  --accent-foreground: #0a548f;
+  --accent-soft: rgb(11 102 176 / 0.1);
+  --warn: #b25400;
+  --warn-soft: #fbe8d3;
+  --destructive: #c32a3b;
+  --border: rgb(10 100 170 / 0.26);
+  --input: rgb(10 100 170 / 0.28);
+  --ring: #0b66b0;
+  --chart-1: #0b66b0;
+  --chart-2: #158a4e;
+  --chart-3: #b25400;
   --chart-4: #6b4fbb;
   --chart-5: #b83280;
   --radius: 0.5rem;
   --sidebar: #ffffff;
-  --sidebar-foreground: #11222e;
-  --sidebar-primary: #0b6e63;
+  --sidebar-foreground: #0e1b2a;
+  --sidebar-primary: #0b66b0;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #dcefeb;
-  --sidebar-accent-foreground: #08574e;
-  --sidebar-border: #d6dfe4;
-  --sidebar-ring: #0b6e63;
+  --sidebar-accent: rgb(11 102 176 / 0.1);
+  --sidebar-accent-foreground: #0a548f;
+  --sidebar-border: rgb(10 100 170 / 0.26);
+  --sidebar-ring: #0b66b0;
 
   /* Elevation surfaces: 0 page, 1 card, 2 inset (code, wells), 3 pressed */
-  --surface-0: #f1f4f6;
-  --surface-1: #ffffff;
-  --surface-2: #e9eff2;
-  --surface-3: #dfe7eb;
-
+  --surface-0: #e8edf3;
+  --surface-1: rgb(255 255 255 / 0.8);
+  --surface-2: #e1e8f0;
+  --surface-3: #d5dee9;
 
   /* Lesson content: info/danger tints and code colours */
   --info: #1c5a8c;
   --info-soft: #e0eef9;
-  --bad: #a3262f;
+  --bad: #c32a3b;
   --bad-soft: #f8e1e3;
-  --code-bg: #eaeff2;
-  --c-kw: #8b2f9c; --c-str: #0b6e63; --c-com: #6a7b86; --c-num: #a8500a; --c-fn: #1c5a8c;
+  --good: #158a4e;
+  --code-bg: #e1e8f0;
+  --c-kw: #8b2f9c; --c-str: #158a4e; --c-com: #6a7b86; --c-num: #b25400; --c-fn: #0b66b0;
 
-  /* Shadows are used sparingly: a hairline lift on floating layers only */
-  --shadow-float: 0 8px 28px rgb(17 34 46 / 0.12), 0 1px 0 rgb(17 34 46 / 0.04);
+  /* Hairline lift on floating layers only */
+  --shadow-float: 0 12px 34px rgb(14 27 42 / 0.16), 0 1px 0 rgb(255 255 255 / 0.6) inset;
+
+  /* Page backdrop and the 3D robot scene (read by the Bolt layer) */
+  --page-glow: radial-gradient(1000px 640px at 76% 42%, rgb(255 255 255 / 0.9), transparent 62%);
+  --bolt-shell: #eef2f7;
+  --bolt-under: #10161f;
+  --bolt-metal: #c4ccd8;
+  --bolt-line: #0b66b0;
+  --bolt-glow: #c25f00;
+  --bolt-floor: #0b66b0;
+  --bolt-pass: #158a4e;
+  --bolt-hi: #c25f00;
 }
 
-/* ─── Dark palette ("deep teal-navy") ─── */
+/* ─── Dark palette ("night console") ─── */
 .dark {
-  --background: #0d1a22;
-  --foreground: #e5eef2;
-  --card: #132530;
-  --card-foreground: #e5eef2;
-  --popover: #132530;
-  --popover-foreground: #e5eef2;
-  --primary: #4fd1be;
-  --primary-foreground: #0a1a1f;
-  --secondary: #1a303d;
-  --secondary-foreground: #e5eef2;
-  --muted: #1a303d;
-  --muted-foreground: #93a6b0;
-  --text-tertiary: #8499a4;
-  --accent: #13383a;
-  --accent-foreground: #7fe3d3;
-  --accent-soft: #13383a;
-  --warn: #f0a566;
-  --warn-soft: #3a2a1b;
-  --destructive: #f07167;
-  --border: #24394a;
-  --input: #24394a;
-  --ring: #4fd1be;
-  --chart-1: #4fd1be;
-  --chart-2: #6cb2f2;
-  --chart-3: #f0a566;
+  --background: #070a10;
+  --foreground: #e8eff6;
+  --card: rgb(11 19 30 / 0.7);
+  --card-foreground: #e8eff6;
+  --popover: #0d1520;
+  --popover-foreground: #e8eff6;
+  --primary: #6cb8ff;
+  --primary-foreground: #00131f;
+  --secondary: #121c2a;
+  --secondary-foreground: #e8eff6;
+  --muted: #121c2a;
+  --muted-foreground: #8aa0b2;
+  --text-tertiary: #7d93a5;
+  --accent: rgb(108 184 255 / 0.14);
+  --accent-foreground: #9fd0ff;
+  --accent-soft: rgb(108 184 255 / 0.14);
+  --warn: #ffa43a;
+  --warn-soft: #2e2112;
+  --destructive: #ff5d6c;
+  --border: rgb(108 184 255 / 0.26);
+  --input: rgb(108 184 255 / 0.28);
+  --ring: #6cb8ff;
+  --chart-1: #6cb8ff;
+  --chart-2: #4be08f;
+  --chart-3: #ffa43a;
   --chart-4: #a996f0;
   --chart-5: #f08cc0;
-  --sidebar: #0f202a;
-  --sidebar-foreground: #e5eef2;
-  --sidebar-primary: #4fd1be;
-  --sidebar-primary-foreground: #0a1a1f;
-  --sidebar-accent: #13383a;
-  --sidebar-accent-foreground: #7fe3d3;
-  --sidebar-border: #24394a;
-  --sidebar-ring: #4fd1be;
+  --sidebar: #0b111a;
+  --sidebar-foreground: #e8eff6;
+  --sidebar-primary: #6cb8ff;
+  --sidebar-primary-foreground: #00131f;
+  --sidebar-accent: rgb(108 184 255 / 0.14);
+  --sidebar-accent-foreground: #9fd0ff;
+  --sidebar-border: rgb(108 184 255 / 0.26);
+  --sidebar-ring: #6cb8ff;
 
-  --surface-0: #0d1a22;
-  --surface-1: #132530;
-  --surface-2: #17303d;
-  --surface-3: #1d3a49;
-
+  --surface-0: #070a10;
+  --surface-1: rgb(11 19 30 / 0.7);
+  --surface-2: #0f1826;
+  --surface-3: #16233a;
 
   --info: #7ab8e8;
-  --info-soft: #172f44;
-  --bad: #f08a92;
-  --bad-soft: #3d1f24;
-  --code-bg: #0a141b;
-  --c-kw: #d9a0e8; --c-str: #7fdccd; --c-com: #7f929d; --c-num: #f0a566; --c-fn: #8cc4ef;
+  --info-soft: #14283e;
+  --bad: #ff5d6c;
+  --bad-soft: #3a1c22;
+  --good: #4be08f;
+  --code-bg: #0a111c;
+  --c-kw: #d9a0e8; --c-str: #6fe0a8; --c-com: #7f929d; --c-num: #ffa43a; --c-fn: #8cc4ef;
 
-  --shadow-float: 0 10px 32px rgb(0 0 0 / 0.45), 0 0 0 1px rgb(255 255 255 / 0.03);
+  --shadow-float: 0 14px 40px rgb(0 0 0 / 0.5), 0 0 0 1px rgb(108 184 255 / 0.08);
+
+  --page-glow: radial-gradient(1000px 640px at 76% 42%, rgb(108 184 255 / 0.16), transparent 62%);
+  --bolt-shell: #e9eef5;
+  --bolt-under: #0c1219;
+  --bolt-metal: #c4ccd8;
+  --bolt-line: #6cb8ff;
+  --bolt-glow: #ffa43a;
+  --bolt-floor: #6cb8ff;
+  --bolt-pass: #4be08f;
+  --bolt-hi: #ffa43a;
 }
 
 @layer base {
@@ -176,6 +197,8 @@
   }
   body {
     @apply bg-background text-foreground;
+    background-image: var(--page-glow);
+    background-attachment: fixed;
     font-size: 1.125rem;
     line-height: 1.65;
     -webkit-font-smoothing: antialiased;
@@ -214,7 +237,7 @@
   /* Heading font family */
   h1, h2, h3, h4, h5, h6 {
     font-family: var(--font-heading), ui-sans-serif, system-ui, sans-serif;
-    letter-spacing: -0.015em;
+    letter-spacing: -0.025em;
     text-wrap: balance;
   }
   /* Native controls (range, checkbox, radio, progress) use the accent */
@@ -371,22 +394,46 @@
 
 /* ─── Utilities ─── */
 @layer utilities {
-  /* Flat card surface; add .panel-interactive for the hover border on links */
+  /* Glass card surface; add .panel-interactive for the hover border on links */
   .panel {
     background: var(--card);
     border: 1px solid var(--border);
-    border-radius: 0.625rem;
-    transition: border-color 0.2s ease, background-color 0.2s ease;
+    border-radius: 0.5rem;
+    -webkit-backdrop-filter: blur(16px);
+    backdrop-filter: blur(16px);
+    transition: border-color 0.2s ease, background-color 0.2s ease, transform 0.2s ease;
   }
   .panel-interactive:hover {
-    border-color: color-mix(in srgb, var(--primary) 55%, var(--border));
+    border-color: var(--primary);
+  }
+
+  /* Corner brackets: the HUD signature. Use on hero cards, the player and the chat. */
+  .bracket:not(.fixed, .absolute, .sticky) {
+    position: relative;
+  }
+  .bracket::after {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    pointer-events: none;
+    opacity: 0.7;
+    border-radius: inherit;
+    background:
+      linear-gradient(var(--primary), var(--primary)) left top / 16px 2px no-repeat,
+      linear-gradient(var(--primary), var(--primary)) left top / 2px 16px no-repeat,
+      linear-gradient(var(--primary), var(--primary)) right top / 16px 2px no-repeat,
+      linear-gradient(var(--primary), var(--primary)) right top / 2px 16px no-repeat,
+      linear-gradient(var(--primary), var(--primary)) left bottom / 16px 2px no-repeat,
+      linear-gradient(var(--primary), var(--primary)) left bottom / 2px 16px no-repeat,
+      linear-gradient(var(--primary), var(--primary)) right bottom / 16px 2px no-repeat,
+      linear-gradient(var(--primary), var(--primary)) right bottom / 2px 16px no-repeat;
   }
 
   /* Translucent sticky chrome (header only) */
   .glass {
-    background: color-mix(in srgb, var(--background) 88%, transparent);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
+    background: color-mix(in srgb, var(--background) 84%, transparent);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(16px);
   }
 
   /* Floating layers (menus, dialogs) */
@@ -400,8 +447,11 @@
     font-size: 0.75rem;
     font-weight: 500;
     text-transform: uppercase;
-    letter-spacing: 0.06em;
+    letter-spacing: 0.08em;
     color: var(--muted-foreground);
+  }
+  .eyebrow-accent {
+    color: var(--primary);
   }
 
   /* Small pill used for IDs and categories: L2, COURSE, FREE */
@@ -411,16 +461,18 @@
     font-family: var(--font-mono), ui-monospace, monospace;
     font-size: 0.75rem;
     font-weight: 500;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.06em;
     text-transform: uppercase;
     background: var(--accent-soft);
     color: var(--accent-foreground);
+    border: 1px solid color-mix(in srgb, var(--primary) 30%, transparent);
     border-radius: 0.375rem;
-    padding: 0.2rem 0.55rem;
+    padding: 0.15rem 0.5rem;
   }
   .chip-warn {
     background: var(--warn-soft);
     color: var(--warn);
+    border-color: color-mix(in srgb, var(--warn) 35%, transparent);
   }
 
   /* Dashed accent callout and the soft warning strip */
@@ -442,42 +494,42 @@
   .text-display-2xl {
     font-family: var(--font-heading), ui-sans-serif, system-ui, sans-serif;
     font-size: clamp(2.5rem, 7vw, 4.5rem);
-    font-weight: 700;
-    letter-spacing: -0.02em;
+    font-weight: 600;
+    letter-spacing: -0.03em;
     line-height: 1.02;
   }
   .text-display-xl {
     font-family: var(--font-heading), ui-sans-serif, system-ui, sans-serif;
     font-size: clamp(2.25rem, 5.6vw, 3.75rem);
-    font-weight: 700;
-    letter-spacing: -0.02em;
+    font-weight: 600;
+    letter-spacing: -0.03em;
     line-height: 1.05;
   }
   .text-display-lg {
     font-family: var(--font-heading), ui-sans-serif, system-ui, sans-serif;
     font-size: clamp(1.9rem, 4vw, 2.75rem);
-    font-weight: 700;
-    letter-spacing: -0.015em;
+    font-weight: 600;
+    letter-spacing: -0.025em;
     line-height: 1.1;
   }
   .text-heading-xl {
     font-family: var(--font-heading), ui-sans-serif, system-ui, sans-serif;
     font-size: clamp(1.75rem, 3.2vw, 2.25rem);
-    font-weight: 700;
+    font-weight: 600;
     letter-spacing: -0.01em;
     line-height: 1.15;
   }
   .text-heading-lg {
     font-family: var(--font-heading), ui-sans-serif, system-ui, sans-serif;
     font-size: clamp(1.4rem, 2.6vw, 1.75rem);
-    font-weight: 700;
+    font-weight: 600;
     letter-spacing: -0.01em;
     line-height: 1.2;
   }
   .text-heading-md {
     font-family: var(--font-heading), ui-sans-serif, system-ui, sans-serif;
     font-size: clamp(1.15rem, 2vw, 1.3125rem);
-    font-weight: 700;
+    font-weight: 600;
     letter-spacing: -0.005em;
     line-height: 1.25;
   }
@@ -533,7 +585,7 @@
 .player-stage { aspect-ratio: 16 / 9; container-type: inline-size; }
 .player-btn {
   display: inline-flex; align-items: center; justify-content: center;
-  height: 2.5rem; min-width: 2.5rem; border-radius: 0.625rem;
+  height: 2.5rem; min-width: 2.5rem; border-radius: 0.5rem;
   border: 1px solid var(--border); background: var(--card); color: var(--foreground);
   transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
@@ -569,23 +621,43 @@
   .player-watermark-text { animation: none; left: 4%; top: 8%; }
 }
 
-/* ---- AI orb (CSS version: launcher, and fallback when WebGL is unavailable) ---- */
-.orb-css {
-  position: relative; display: block; aspect-ratio: 1; border-radius: 9999px;
-  background:
-    radial-gradient(circle at 32% 28%, color-mix(in srgb, var(--primary) 30%, white) 0%, transparent 38%),
-    radial-gradient(circle at 50% 50%, var(--primary) 40%, color-mix(in srgb, var(--primary) 55%, black) 100%);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary) 40%, transparent), 0 0 28px color-mix(in srgb, var(--primary) 45%, transparent);
-  animation: orb-float 5s ease-in-out infinite;
+/* ---- Bolt: the 3D assistant layer ---- */
+:root { --bolt-gutter: clamp(0px, 17vw, 330px); }
+/* On desktop, pages leave a right-hand gutter for Bolt. The home hero uses the whole width; sections below it make room. */
+@media (min-width: 1000px) {
+  html[data-bolt="companion"] #main-content,
+  html[data-bolt="dim"] #main-content { padding-right: var(--bolt-gutter); }
+  html[data-bolt="hero"] #main-content > section:nth-of-type(n + 2) { margin-right: var(--bolt-gutter); }
 }
-.orb-css::after {
-  content: ""; position: absolute; inset: -22%; border-radius: 9999px; pointer-events: none;
-  border: 1px solid color-mix(in srgb, var(--primary) 45%, transparent);
-  animation: orb-ring 3.2s ease-out infinite;
+.bolt-canvas { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 0; display: block; pointer-events: none; opacity: 1; transition: opacity 0.4s ease; }
+html[data-bolt="dim"] .bolt-canvas { opacity: 0.32; }
+.bolt-fx { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 55; pointer-events: none; }
+.bolt-bubble {
+  position: fixed; left: 0; top: 0; z-index: 45; max-width: 15rem; padding: 0.6rem 0.85rem;
+  font-size: 0.875rem; line-height: 1.4; pointer-events: none; transition: opacity 0.25s ease;
+  background: var(--popover); border: 1px solid var(--border); border-radius: 0.5rem; box-shadow: var(--shadow-float);
 }
-.orb-css[data-status="thinking"] { animation-duration: 1.6s; }
-.orb-css[data-status="thinking"]::after { animation-duration: 1.1s; }
-.orb-css[data-status="speaking"]::after { animation-duration: 1.6s; }
-@keyframes orb-float { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-4%) scale(1.04); } }
-@keyframes orb-ring { 0% { transform: scale(0.82); opacity: 0.8; } 100% { transform: scale(1.18); opacity: 0; } }
-@media (prefers-reduced-motion: reduce) { .orb-css, .orb-css::after { animation: none; } }
+.bolt-bubble::after {
+  content: ""; position: absolute; left: 50%; bottom: -7px; width: 12px; height: 12px; background: var(--popover);
+  border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); transform: translateX(-50%) rotate(45deg);
+}
+.bolt-pill {
+  position: fixed; left: 0; top: 0; z-index: 45; display: inline-flex; align-items: center; gap: 0.5rem;
+  padding: 0.4rem 0.9rem; border-radius: 9999px; border: 1px solid var(--primary); background: var(--card);
+  -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); color: var(--primary); cursor: pointer;
+  font-family: var(--font-mono), ui-monospace, monospace; font-size: 0.6875rem; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase;
+}
+.bolt-pill i { width: 8px; height: 8px; border-radius: 9999px; background: var(--good); animation: bolt-pulse 1.8s ease-in-out infinite; }
+@keyframes bolt-pulse { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--good) 55%, transparent); } 50% { box-shadow: 0 0 0 7px transparent; } }
+/* The small CSS robot face used for the launcher, chat header and non-3D fallback */
+.bolt-face {
+  position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 22%;
+  aspect-ratio: 1.1; border-radius: 34% 34% 40% 40%; background: var(--surface-2); border: 1px solid var(--border);
+}
+.bolt-face i { width: 15%; aspect-ratio: 1; border-radius: 9999px; background: var(--primary); animation: bolt-blink 4s infinite; box-shadow: 0 0 8px var(--primary); }
+.bolt-face[data-status="thinking"] i { animation: bolt-think 0.9s ease-in-out infinite alternate; }
+.bolt-face[data-status="speaking"] i { animation: bolt-talk 0.5s ease-in-out infinite alternate; }
+@keyframes bolt-blink { 0%, 92%, 100% { transform: scaleY(1); } 95% { transform: scaleY(0.1); } }
+@keyframes bolt-think { from { transform: translateY(-20%); } to { transform: translateY(20%); } }
+@keyframes bolt-talk { from { transform: scale(1); } to { transform: scale(1.35); } }
+@media (prefers-reduced-motion: reduce) { .bolt-face i, .bolt-pill i { animation: none; } }

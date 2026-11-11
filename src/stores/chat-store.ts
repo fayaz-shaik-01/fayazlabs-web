@@ -2,15 +2,18 @@ import { create } from "zustand";
 import { sendChatQuery } from "@/lib/api";
 import type { ChatMessage, QueryType } from "@/lib/api";
 
-/** What the assistant is doing. Drives the orb and the status label. */
+/** What the assistant is doing. Drives Bolt's pose and the status label. */
 export type OrbStatus = "idle" | "thinking" | "speaking";
 
 interface ChatState {
   open: boolean;
+  /** True while the 3D Bolt is on screen, so the chat launcher can leave it to Bolt's own pill. */
+  boltActive: boolean;
   messages: ChatMessage[];
   status: OrbStatus;
   error: string | null;
   setOpen: (open: boolean) => void;
+  setBoltActive: (on: boolean) => void;
   /** Send a question. Opens the panel so the answer is visible. */
   ask: (text: string, queryType?: QueryType) => Promise<void>;
   clear: () => void;
@@ -23,11 +26,13 @@ export const revealDuration = (text: string) => Math.min(4500, Math.max(600, tex
 
 export const useChatStore = create<ChatState>((set, get) => ({
   open: false,
+  boltActive: false,
   messages: [],
   status: "idle",
   error: null,
 
   setOpen: (open) => set({ open }),
+  setBoltActive: (boltActive) => set({ boltActive }),
 
   clear: () => {
     clearTimeout(speakTimer);

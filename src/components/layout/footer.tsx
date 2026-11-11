@@ -24,13 +24,13 @@ const socialClass =
 
 export function Footer() {
   return (
-    <footer className="mt-20 border-t border-border">
+    <footer className="relative z-[1] mt-20 border-t border-border glass">
       <div className="mx-auto max-w-6xl px-4 py-14 sm:px-6">
         <div className="grid grid-cols-1 gap-10 sm:grid-cols-2 lg:grid-cols-5">
           <div className="space-y-4 lg:col-span-2">
             <Link
               href="/"
-              className="flex items-center gap-2.5 font-heading text-lg font-bold tracking-[-0.01em]"
+              className="flex items-center gap-2.5 font-heading text-lg font-semibold tracking-[-0.01em]"
             >
               <BrandMark />
               <span>{siteConfig.name}</span>
