@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { PLATFORM_URL } from "@/lib/api";
 import type { LessonContext } from "@/lib/api";
+import { getBearerToken, unauthorized } from "@/lib/ai-proxy";
 
 export async function POST(request: NextRequest) {
+  const token = getBearerToken(request);
+  if (!token) return unauthorized();
+
   try {
     const body = await request.json();
     const { query, lessonContext } = body as {
@@ -28,7 +32,7 @@ export async function POST(request: NextRequest) {
 
     const res = await fetch(upstream, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       body: JSON.stringify({
         query,
         mode: "LESSON_MENTOR",

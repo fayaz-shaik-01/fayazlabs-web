@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useAuth } from "@/lib/auth";
 import { ArrowUp, RotateCcw, Sparkles, X } from "lucide-react";
 import { ChatMessageBubble } from "@/components/chat/chat-message";
 import { BoltFace } from "@/components/chat/bolt-face";
@@ -48,8 +50,10 @@ function Launcher() {
 }
 
 export function ChatPanel() {
-  const { open, setOpen, messages, status, error, ask, clear, boltActive } = useChatStore();
+  const { open, setOpen, messages, status, error, ask, clear, boltActive, authRequired } = useChatStore();
+  const { isAuthenticated } = useAuth();
   const pathname = usePathname();
+  const needsSignIn = authRequired && !isAuthenticated;
   const [input, setInput] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -163,6 +167,18 @@ export function ChatPanel() {
                     <span key={d} className="size-1.5 animate-bounce rounded-full bg-primary" style={{ animationDelay: `${d}ms` }} />
                   ))}
                 </span>
+              </div>
+            )}
+            {needsSignIn && (
+              <div role="status" data-testid="chat-signin" className="rounded-lg border border-border bg-card p-4">
+                <p className="font-heading text-base font-semibold">Sign in to chat with Bolt</p>
+                <p className="mt-1 text-sm text-muted-foreground">The assistant is available to signed-in visitors.</p>
+                <Link
+                  href={`/login?next=${encodeURIComponent(pathname || "/")}`}
+                  className="mt-3 inline-flex h-9 items-center rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground hover:bg-primary/90"
+                >
+                  Sign in
+                </Link>
               </div>
             )}
             {error && !busy && <p role="status" className="note !text-xs">{error}</p>}

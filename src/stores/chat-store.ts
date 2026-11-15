@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { sendChatQuery } from "@/lib/api";
+import { AuthRequiredError, sendChatQuery } from "@/lib/api";
 import type { ChatMessage, QueryType } from "@/lib/api";
 
 /** What the assistant is doing. Drives Bolt's pose and the status label. */
@@ -12,6 +12,9 @@ interface ChatState {
   messages: ChatMessage[];
   status: OrbStatus;
   error: string | null;
+  /** True when the last question was refused for lack of a sign-in; the panel shows a sign-in prompt. */
+  authRequired: boolean;
+  setAuthRequired: (v: boolean) => void;
   setOpen: (open: boolean) => void;
   setBoltActive: (on: boolean) => void;
   /** Send a question. Opens the panel so the answer is visible. */
@@ -30,13 +33,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
   messages: [],
   status: "idle",
   error: null,
+  authRequired: false,
+  setAuthRequired: (authRequired) => set({ authRequired }),
 
   setOpen: (open) => set({ open }),
   setBoltActive: (boltActive) => set({ boltActive }),
 
   clear: () => {
     clearTimeout(speakTimer);
-    set({ messages: [], error: null, status: "idle" });
+    set({ messages: [], error: null, status: "idle", authRequired: false });
   },
 
   ask: async (text, queryType = "CHAT") => {
@@ -45,7 +50,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     clearTimeout(speakTimer);
 
     const user: ChatMessage = { id: crypto.randomUUID(), role: "user", content: query, timestamp: Date.now() };
-    set((s) => ({ open: true, error: null, status: "thinking", messages: [...s.messages, user] }));
+    set((s) => ({ open: true, error: null, authRequired: false, status: "thinking", messages: [...s.messages, user] }));
 
     try {
       const res = await sendChatQuery(query, queryType);
@@ -62,6 +67,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
       set((s) => ({ status: "speaking", messages: [...s.messages, reply] }));
       speakTimer = setTimeout(() => set({ status: "idle" }), revealMs);
     } catch (err) {
+      if (err instanceof AuthRequiredError) {
+        // Drop the unanswered question; the panel asks the visitor to sign in instead.
+        set((s) => ({ status: "idle", authRequired: true, error: null, messages: s.messages.filter((m) => m.id !== user.id) }));
+        return;
+      }
       const reply: ChatMessage = {
         id: crypto.randomUUID(),
         role: "assistant",

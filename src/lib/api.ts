@@ -1,3 +1,6 @@
+import { getAccessToken } from "@/lib/auth/token-store";
+import { refreshTokens } from "@/lib/course-api/client";
+
 const PLATFORM_URL = process.env.PLATFORM_URL ?? process.env.NEXT_PUBLIC_PLATFORM_URL ?? "http://localhost:8080";
 
 export interface ChatMessage {
@@ -52,19 +55,39 @@ export interface LessonContext {
   module?: string;
 }
 
-export async function sendChatQuery(
-  query: string,
-  queryType: QueryType = "CHAT",
-): Promise<ChatQueryResponse> {
-  const res = await fetch("/api/chat", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ query, queryType }),
-  });
+/** Thrown when the visitor isn't signed in (or the session can't be refreshed). The UI shows a sign-in prompt. */
+export class AuthRequiredError extends Error {
+  constructor(message = "Sign in to use the AI assistant") {
+    super(message);
+    this.name = "AuthRequiredError";
+  }
+}
+
+/** POST to one of our AI proxy routes with the caller's access token. Refreshes once on a 401. */
+async function postAi(path: string, payload: unknown, failure: string): Promise<ChatQueryResponse> {
+  const send = (token: string) =>
+    fetch(path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify(payload),
+    });
+
+  const token = getAccessToken();
+  if (!token) throw new AuthRequiredError();
+
+  let res = await send(token);
+  if (res.status === 401) {
+    try {
+      res = await send((await refreshTokens()).accessToken);
+    } catch {
+      throw new AuthRequiredError();
+    }
+    if (res.status === 401) throw new AuthRequiredError();
+  }
 
   if (!res.ok) {
     const text = await res.text().catch(() => "Unknown error");
-    throw new Error(`Chat request failed: ${text}`);
+    throw new Error(`${failure}: ${text}`);
   }
 
   const json: ApiResponse<ChatQueryResponse> = await res.json();
@@ -76,28 +99,12 @@ export async function sendChatQuery(
   return json.data;
 }
 
-export async function sendLessonMentorQuery(
-  query: string,
-  lessonContext: LessonContext,
-): Promise<ChatQueryResponse> {
-  const res = await fetch("/api/lesson/query", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ query, lessonContext }),
-  });
+export function sendChatQuery(query: string, queryType: QueryType = "CHAT"): Promise<ChatQueryResponse> {
+  return postAi("/api/chat", { query, queryType }, "Chat request failed");
+}
 
-  if (!res.ok) {
-    const text = await res.text().catch(() => "Unknown error");
-    throw new Error(`Lesson mentor request failed: ${text}`);
-  }
-
-  const json: ApiResponse<ChatQueryResponse> = await res.json();
-
-  if (!json.success || !json.data) {
-    throw new Error(json.error?.message ?? json.message ?? "Unknown error");
-  }
-
-  return json.data;
+export function sendLessonMentorQuery(query: string, lessonContext: LessonContext): Promise<ChatQueryResponse> {
+  return postAi("/api/lesson/query", { query, lessonContext }, "Lesson mentor request failed");
 }
 
 export { PLATFORM_URL };

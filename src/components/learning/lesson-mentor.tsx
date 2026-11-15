@@ -12,7 +12,7 @@ import {
   ChevronDown,
   ChevronUp,
 } from "lucide-react";
-import { sendLessonMentorQuery } from "@/lib/api";
+import { AuthRequiredError, sendLessonMentorQuery } from "@/lib/api";
 import type { ChatMessage } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -101,12 +101,14 @@ export function LessonMentor({
           timestamp: Date.now(),
         };
         setMessages((prev) => [...prev, assistantMessage]);
-      } catch {
+      } catch (err) {
+        const signedOut = err instanceof AuthRequiredError;
         const errorMessage: ChatMessage = {
           id: crypto.randomUUID(),
           role: "assistant",
-          content:
-            "Sorry, the AI Mentor is temporarily unavailable. Please try again later.",
+          content: signedOut
+            ? "Please sign in to use the AI Mentor, then ask again."
+            : "Sorry, the AI Mentor is temporarily unavailable. Please try again later.",
           timestamp: Date.now(),
         };
         setMessages((prev) => [...prev, errorMessage]);
