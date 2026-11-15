@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { AuthError } from "@/lib/auth/api";
+import { safeNextPath } from "@/lib/safe-url";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Mail, Lock, User, Eye, EyeOff, Loader2 } from "lucide-react";
@@ -39,11 +40,10 @@ declare global {
 
 type Mode = "login" | "register";
 
-/** Where to go after signing in: ?next=/some/path (same-site paths only). */
+/** Where to go after signing in: ?next=/some/path (same-origin only). */
 function nextPath(): string {
   if (typeof window === "undefined") return "/";
-  const next = new URLSearchParams(window.location.search).get("next");
-  return next && next.startsWith("/") && !next.startsWith("//") ? next : "/";
+  return safeNextPath(new URLSearchParams(window.location.search).get("next"), window.location.origin);
 }
 
 export function LoginForm() {
