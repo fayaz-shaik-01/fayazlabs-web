@@ -11,7 +11,6 @@ export const ALLOWED_LINK_HOSTS: readonly string[] = [
   "www.linkedin.com",
 ];
 
-// eslint-disable-next-line no-control-regex
 const CONTROL_OR_BACKSLASH = /[\\\u0000-\u001f\u007f]/;
 
 /**
