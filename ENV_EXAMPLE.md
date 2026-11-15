@@ -38,7 +38,6 @@ NEXT_PUBLIC_PLATFORM_URL=http://localhost:8080
 # NEXT_PUBLIC_FEATURE_EXAM=1
 # NEXT_PUBLIC_FEATURE_KNOWLEDGE_GRAPH=1
 # NEXT_PUBLIC_FEATURE_DASHBOARD=1
-# NEXT_PUBLIC_FEATURE_TAX=1
 ```
 
 The Content-Security-Policy is built in `src/lib/security-headers.ts` and served from

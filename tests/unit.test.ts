@@ -19,7 +19,7 @@ describe("feature flags", () => {
   test("every flag is off by default", () => {
     const flags = getFeatureFlags({});
     assert.ok(Object.values(flags).every((v) => v === false));
-    assert.equal(Object.keys(flags).length, 7);
+    assert.equal(Object.keys(flags).length, 6);
   });
   test("a flag turns on from its env value", () => {
     assert.equal(getFeatureFlags({ flashcards: "1" }).flashcards, true);

@@ -17,7 +17,7 @@ function preset(kind: "hero" | "companion" | "chat"): CamPreset {
 }
 
 /** Pages where Bolt stays out of the way entirely (forms, dense tools, legal text). */
-const OFF = ["/legal", "/login", "/account", "/tax", "/dashboard", "/practice", "/flashcards", "/formulas", "/exam", "/knowledge-graph", "/learning/visualizations"];
+const OFF = ["/legal", "/login", "/account", "/dashboard", "/practice", "/flashcards", "/formulas", "/exam", "/knowledge-graph", "/learning/visualizations"];
 /** Reading pages: he stays, but faded, so long text stays easy to read. */
 const DIM = ["/learning/ai-product-testing/lessons", "/writing/", "/projects/", "/notebook"];
 

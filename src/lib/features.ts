@@ -12,8 +12,7 @@ export type FeatureName =
   | "formulas"
   | "exam"
   | "knowledgeGraph"
-  | "dashboard"
-  | "tax";
+  | "dashboard";
 
 export function parseFlag(value: string | undefined): boolean {
   if (!value) return false;
@@ -29,7 +28,6 @@ export function getFeatureFlags(
     exam: process.env.NEXT_PUBLIC_FEATURE_EXAM,
     knowledgeGraph: process.env.NEXT_PUBLIC_FEATURE_KNOWLEDGE_GRAPH,
     dashboard: process.env.NEXT_PUBLIC_FEATURE_DASHBOARD,
-    tax: process.env.NEXT_PUBLIC_FEATURE_TAX,
   },
 ): Record<FeatureName, boolean> {
   return {
@@ -39,7 +37,6 @@ export function getFeatureFlags(
     exam: parseFlag(env.exam),
     knowledgeGraph: parseFlag(env.knowledgeGraph),
     dashboard: parseFlag(env.dashboard),
-    tax: parseFlag(env.tax),
   };
 }
 

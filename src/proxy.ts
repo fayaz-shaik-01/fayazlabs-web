@@ -1,13 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getFeatureFlags, type FeatureName } from "@/lib/features";
 
-const AUTHENTICATED_PATHS = [
-  "/tax/dashboard",
-  "/tax/documents",
-  "/tax/insights",
-  "/tax/chat",
-];
-
 // Route prefixes behind a feature flag. The route layouts also call
 // notFound(), but the loading UI streams a 200 before that runs, so we answer
 // with a real 404 here.
@@ -18,7 +11,6 @@ const FLAGGED_PREFIXES: [string, FeatureName][] = [
   ["/exam", "exam"],
   ["/knowledge-graph", "knowledgeGraph"],
   ["/dashboard", "dashboard"],
-  ["/tax", "tax"],
 ];
 
 function matchesPrefix(pathname: string, prefix: string): boolean {
@@ -35,16 +27,6 @@ export function proxy(request: NextRequest) {
     }
   }
 
-  const isProtected = AUTHENTICATED_PATHS.some((p) => pathname.startsWith(p));
-  if (!isProtected) return NextResponse.next();
-
-  const token = request.cookies.get("tax-token")?.value;
-  if (!token) {
-    const loginUrl = new URL("/tax/login", request.url);
-    loginUrl.searchParams.set("next", pathname);
-    return NextResponse.redirect(loginUrl);
-  }
-
   return NextResponse.next();
 }
 
@@ -56,6 +38,5 @@ export const config = {
     "/exam/:path*",
     "/knowledge-graph/:path*",
     "/dashboard/:path*",
-    "/tax/:path*",
   ],
 };
