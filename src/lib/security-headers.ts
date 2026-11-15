@@ -63,7 +63,10 @@ export function securityHeaders(): { key: string; value: string }[] {
   return [
     { key: "X-Content-Type-Options", value: "nosniff" },
     { key: "X-Frame-Options", value: "DENY" },
-    { key: "X-XSS-Protection", value: "1; mode=block" },
+    // 0 disables the legacy XSS auditor, which can itself introduce holes; the CSP is the real control.
+    { key: "X-XSS-Protection", value: "0" },
+    // allow-popups (not same-origin): Google sign-in and Razorpay checkout open popups that must reach back to this window.
+    { key: "Cross-Origin-Opener-Policy", value: "same-origin-allow-popups" },
     { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
     { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
     { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), interest-cohort=()" },

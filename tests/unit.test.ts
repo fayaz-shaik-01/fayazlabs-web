@@ -4,7 +4,7 @@ import { parseFlag, getFeatureFlags } from "../src/lib/features";
 import { getLockState } from "../src/lib/course/access";
 import { parseCatalog, findItem } from "../src/lib/course/catalog";
 import fixture from "../src/lib/course/fixtures/catalog.json";
-import { buildCsp } from "../src/lib/security-headers";
+import { buildCsp, securityHeaders } from "../src/lib/security-headers";
 import { setAuthStorage, saveAuth, getStoredAuth } from "../src/lib/auth/token-store";
 import { apiRequest, setTransport, type Transport } from "../src/lib/course-api/client";
 import { ApiError } from "../src/lib/course-api/errors";
@@ -237,4 +237,11 @@ describe("glossary links", () => {
     assert.ok(findTerm("api")?.definition.length);
     assert.ok(GLOSSARY.length >= 100);
   });
+});
+
+describe("security headers", () => {
+  const get = (k: string) => securityHeaders().find((h) => h.key === k)?.value;
+  test("legacy XSS auditor is off", () => assert.equal(get("X-XSS-Protection"), "0"));
+  test("COOP isolates the window but keeps sign-in and checkout popups working", () =>
+    assert.equal(get("Cross-Origin-Opener-Policy"), "same-origin-allow-popups"));
 });
