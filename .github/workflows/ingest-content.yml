@@ -84,7 +84,7 @@ jobs:
                       with open(path) as content_file:
                           content = content_file.read()
                       files.append({
-                          'filePath': path,
+                          'file_path': path,
                           'content': content,
                           'action': 'upsert'
                       })
@@ -98,7 +98,7 @@ jobs:
                   if not path:
                       continue
                   files.append({
-                      'filePath': path,
+                      'file_path': path,
                       'content': '',
                       'action': 'delete'
                   })
@@ -109,14 +109,14 @@ jobs:
 
           import os
           MODE=os.environ['MODE']
-          clear_existing = 'true' if MODE == 'rebuild' else 'false'
+          clear_existing = MODE == 'rebuild'
 
           # Save files list for batching
           with open('files.json', 'w') as f:
               json.dump(files, f)
 
           print(f'Total files: {len(files)} ({sum(1 for f in files if f[\"action\"]==\"upsert\")} upsert, {sum(1 for f in files if f[\"action\"]==\"delete\")} delete)')
-          print(f'clearExisting: {clear_existing}')
+          print(f'clear_existing: {clear_existing}')
           "
 
           # Send files in batches to avoid 8KB payload limit
@@ -128,7 +128,7 @@ jobs:
 
           import os
           MODE=os.environ['MODE']
-          clear_existing = 'true' if MODE == 'rebuild' else 'false'
+          clear_existing = MODE == 'rebuild'
 
           # The admin secret goes in a 0600 header file passed with curl -H @file,
           # so it never appears on the command line (process list / logs).
@@ -148,7 +148,7 @@ jobs:
 
               payload = {
                   'files': batch,
-                  'clearExisting': clear_existing if i == 0 else 'false'  # Only clear on first batch
+                  'clear_existing': clear_existing if i == 0 else False  # Only clear on first batch
               }
 
               body = tempfile.NamedTemporaryFile('w', delete=False, suffix='.json')

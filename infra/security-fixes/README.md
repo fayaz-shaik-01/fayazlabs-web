@@ -36,9 +36,7 @@ everywhere), do it deliberately; nothing in this branch depends on it.
 
 ## Open items / follow-ups
 
-- **F-19 payload field name:** the workflow still sends `filePath`. I could not read the platform DTO
-  from this session, so I did not change it. Check the platform `AdminIngestRequest` file field
-  (`filePath` vs `file_path`) and adjust the two `'filePath'` keys in `ingest-content.yml` if needed.
+- **F-19 payload keys:** the workflow now sends `file_path` per file and a boolean `clear_existing`, matching the platform's `AdminIngestRequest` (contract confirmed by the platform session, not read directly from this repo). Worth one real ingest run after deploy to confirm.
 - **COOP:** set to `same-origin-allow-popups`, not `same-origin`, because Google sign-in and Razorpay
   checkout use popups that need to reach back to the page. Tighten only after testing both.
 - **F-12 not started (needs platform work):**
