@@ -5,12 +5,13 @@ import { BoltFace } from "@/components/chat/bolt-face";
 import { Check, Copy, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ChatMessage } from "@/lib/api";
+import { safeChatHref, sourceHref } from "@/lib/safe-url";
 
 // Replies that have already typed out; remounting (reopening the panel) shows them in full.
 const revealed = new Set<string>();
 
 /** **bold**, `code`, [text](/path) and bare links, as React elements (never raw HTML). */
-function inline(text: string): React.ReactNode[] {
+export function inline(text: string): React.ReactNode[] {
   const out: React.ReactNode[] = [];
   const re = /(\*\*[^*]+\*\*|`[^`]+`|\[[^\]]+\]\((?:https?:\/\/|\/)[^)\s]+\)|https?:\/\/[^\s)]+)/g;
   let last = 0;
@@ -23,12 +24,17 @@ function inline(text: string): React.ReactNode[] {
     else if (tok.startsWith("`")) out.push(<code key={key} className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]">{tok.slice(1, -1)}</code>);
     else {
       const link = /^\[([^\]]+)\]\(([^)]+)\)$/.exec(tok);
-      const href = link ? link[2] : tok;
-      out.push(
-        <a key={key} href={href} target={href.startsWith("/") ? undefined : "_blank"} rel="noopener noreferrer" className="font-semibold text-primary underline underline-offset-2">
-          {link ? link[1] : tok}
-        </a>
-      );
+      const safe = safeChatHref(link ? link[2] : tok);
+      if (!safe) {
+        // Not an on-site path or an allow-listed https link: show the text, never a link.
+        out.push(link ? link[1] : tok);
+      } else {
+        out.push(
+          <a key={key} href={safe.href} target={safe.external ? "_blank" : undefined} rel="noopener noreferrer" className="font-semibold text-primary underline underline-offset-2">
+            {link ? link[1] : tok}
+          </a>
+        );
+      }
     }
     last = m.index + tok.length;
   }
@@ -107,7 +113,7 @@ export function ChatMessageBubble({ message }: Readonly<{ message: ChatMessage }
     }
   };
 
-  const sources = (message.sources ?? []).filter((s) => s.slug);
+  const sources = (message.sources ?? []).filter((s) => s.slug && sourceHref(s.slug));
 
   if (isUser) {
     return (
@@ -132,7 +138,7 @@ export function ChatMessageBubble({ message }: Readonly<{ message: ChatMessage }
             {sources.map((s) => (
               <li key={s.slug}>
                 <a
-                  href={s.slug.startsWith("/") ? s.slug : `/${s.slug}`}
+                  href={sourceHref(s.slug) ?? "/"}
                   className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card px-3 py-2 text-sm transition-colors hover:border-primary/50"
                 >
                   <span className="min-w-0">
