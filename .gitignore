@@ -56,3 +56,7 @@ next-env.d.ts
 /test-results/
 /playwright-report/
 /public/course-media/
+
+# leaked/scratch files (F-01)
+/payload.json
+/files_array.txt
