@@ -2,7 +2,7 @@ name: Ingest Content to AI Service
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main]
     paths:
       - 'content/**'
       - '.github/workflows/ingest-content.yml'
@@ -17,9 +17,14 @@ on:
         - 'true'
         - 'false'
 
+permissions:
+  contents: read
+
 jobs:
   ingest:
     runs-on: ubuntu-latest
+    # Secrets live in the protected 'production' environment (required reviewers / main-only).
+    environment: production
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -28,9 +33,11 @@ jobs:
 
       - name: Detect changed content files
         id: detect
+        env:
+          FORCE: ${{ github.event.inputs.force_reingest }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
-          FORCE="${{ github.event.inputs.force_reingest }}"
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "$FORCE" = "true" ]; then
+          if [ "$EVENT_NAME" = "workflow_dispatch" ] && [ "$FORCE" = "true" ]; then
             echo "mode=rebuild" >> $GITHUB_OUTPUT
             find content -name "*.mdx" -type f > upsert_files.txt
             touch deleted_files.txt
@@ -56,6 +63,10 @@ jobs:
 
       - name: Build and send index payload
         if: steps.detect.outputs.total != '0'
+        env:
+          MODE: ${{ steps.detect.outputs.mode }}
+          PLATFORM_URL: ${{ secrets.PLATFORM_URL }}
+          ADMIN_INGEST_SECRET: ${{ secrets.ADMIN_INGEST_SECRET }}
         run: |
           # Build JSON payload using Python — matches AdminIngestRequest format
           python3 -c "
@@ -96,7 +107,8 @@ jobs:
               print('No files to process')
               sys.exit(0)
 
-          MODE='${{ steps.detect.outputs.mode }}'
+          import os
+          MODE=os.environ['MODE']
           clear_existing = 'true' if MODE == 'rebuild' else 'false'
 
           # Save files list for batching
@@ -109,13 +121,22 @@ jobs:
 
           # Send files in batches to avoid 8KB payload limit
           python3 -c "
-          import json, subprocess, sys
+          import json, os, subprocess, sys, tempfile
 
           with open('files.json') as f:
               files = json.load(f)
 
-          MODE='${{ steps.detect.outputs.mode }}'
+          import os
+          MODE=os.environ['MODE']
           clear_existing = 'true' if MODE == 'rebuild' else 'false'
+
+          # The admin secret goes in a 0600 header file passed with curl -H @file,
+          # so it never appears on the command line (process list / logs).
+          hdr = tempfile.NamedTemporaryFile('w', delete=False, suffix='.hdr')
+          os.chmod(hdr.name, 0o600)
+          hdr.write('X-Admin-Ingest-Secret: ' + os.environ['ADMIN_INGEST_SECRET'] + '\n')
+          hdr.close()
+          url = os.environ['PLATFORM_URL'] + '/api/admin/ingest'
 
           # Send 2 files per batch (conservative for MDX content)
           batch_size = 2
@@ -130,18 +151,20 @@ jobs:
                   'clearExisting': clear_existing if i == 0 else 'false'  # Only clear on first batch
               }
 
-              with open('payload.json', 'w') as f:
-                  json.dump(payload, f)
+              body = tempfile.NamedTemporaryFile('w', delete=False, suffix='.json')
+              json.dump(payload, body)
+              body.close()
 
               print(f'Sending batch {batch_num}/{total_batches} ({len(batch)} files)...')
               result = subprocess.run([
                   'curl', '-s', '-X', 'POST',
-                  '${{ secrets.PLATFORM_URL }}/api/admin/ingest',
+                  url,
                   '-H', 'Content-Type: application/json',
-                  '-H', 'X-Admin-Ingest-Secret: ${{ secrets.ADMIN_INGEST_SECRET }}',
-                  '-d', '@payload.json',
+                  '-H', '@' + hdr.name,
+                  '-d', '@' + body.name,
                   '-w', '\n%{http_code}'
               ], capture_output=True, text=True)
+              os.unlink(body.name)
 
               output = result.stdout
               http_code = output.split('\n')[-1]
@@ -153,6 +176,7 @@ jobs:
                   print(f'Batch {batch_num} failed: {response_body}')
                   sys.exit(1)
 
+          os.unlink(hdr.name)
           print('All batches sent successfully')
           "
 
