@@ -60,7 +60,7 @@ const defaultConfig: Partial<Config> = {
   responsive: true,
   displayModeBar: true,
   modeBarButtonsToRemove: [
-    "sendDataToCloud",
+    "sendChartToCloud",
     "lasso2d",
     "select2d",
     "autoScale2d",

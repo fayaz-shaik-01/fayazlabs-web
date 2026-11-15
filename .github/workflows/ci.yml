@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
+      - name: Generate content types
+        run: npx velite
+      - name: Typecheck
+        run: npx tsc --noEmit
+      - name: Unit tests
+        run: npm run test:unit
+      # Lint is not gated yet: the repo has pre-existing eslint errors (React-compiler
+      # and no-explicit-any rules). Add `npm run lint` here once those are cleaned up.
