@@ -5,7 +5,7 @@ import { grantContent, type ContentGrant } from "@/lib/course-api";
 import { useSessionNotice } from "@/lib/course-api/hooks";
 import { useAuth } from "@/lib/auth";
 import type { CatalogItem } from "@/lib/course/types";
-import type { ContentSource } from "./format";
+import { grantBase, type ContentSource } from "./format";
 import { ContentLoader } from "./loader";
 import { currentMediaEnv, resolveMediaBase } from "@/lib/course/media-config";
 import { classifyFailure, logContentError, type ContentFailure } from "./errors";
@@ -22,7 +22,7 @@ export function sourceFromGrant(itemId: string, g: ContentGrant, encrypted: bool
   return {
     itemId,
     encrypted,
-    baseUrl: g.access.baseUrl.replace(/\/$/, ""),
+    baseUrl: grantBase(g.access.baseUrl, itemId),
     query: g.access.query ?? "",
     key: g.key,
   };

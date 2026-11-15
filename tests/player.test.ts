@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
 import { decryptBlob, decryptText, DecryptError } from "../src/lib/player/crypto";
 import { encryptFile } from "./fixtures/make-lesson";
-import { aadFor, fileUrl, maskEmail, parseDeck, storedName } from "../src/lib/player/format";
+import { aadFor, fileUrl, grantBase, maskEmail, parseDeck, storedName } from "../src/lib/player/format";
 import { deckElapsed, quizPassedBySeek, shouldPauseForQuiz } from "../src/lib/player/cues";
 import { classifyFailure } from "../src/lib/player/errors";
 import { LoadError } from "../src/lib/player/loader";
@@ -56,6 +56,21 @@ describe("format", () => {
     assert.equal(fileUrl(paid, "lecture/deck.json"), "https://media.fayazlabs.com/paid/L2-05/lecture/deck.json.enc?sig=1");
     assert.equal(fileUrl(paid, "lecture/s03.mp3"), "https://media.fayazlabs.com/paid/L2-05/lecture/s03.enc?sig=1");
     assert.equal(storedName("talk/s12.mp3", true), "talk/s12.enc");
+  });
+  test("a grant's baseUrl (the item folder) is reduced to the origin, so urls are not doubled", () => {
+    // what the platform returns: "<origin>/paid/<ITEM>/"
+    const fromGrant = { ...paid, baseUrl: grantBase("https://media.fayazlabs.com/paid/L2-05/", "L2-05") };
+    assert.equal(fromGrant.baseUrl, "https://media.fayazlabs.com");
+    assert.equal(fileUrl(fromGrant, "lecture/s01.mp3"), "https://media.fayazlabs.com/paid/L2-05/lecture/s01.enc?sig=1");
+    assert.equal(fileUrl(fromGrant, "lesson.html"), "https://media.fayazlabs.com/paid/L2-05/lesson.html.enc?sig=1");
+    // origin only, with or without a trailing slash: unchanged
+    assert.equal(grantBase("https://media.fayazlabs.com", "L2-05"), "https://media.fayazlabs.com");
+    assert.equal(grantBase("https://media.fayazlabs.com/", "L2-05"), "https://media.fayazlabs.com");
+    // free grant shape "<origin>/<ITEM>/" and a path-style origin
+    assert.equal(grantBase("https://media.fayazlabs.com/L0-02/", "L0-02"), "https://media.fayazlabs.com");
+    assert.equal(grantBase("/course-media", "L2-05"), "/course-media");
+    // another item's folder is not stripped
+    assert.equal(grantBase("https://media.fayazlabs.com/paid/L9-99/", "L2-05"), "https://media.fayazlabs.com/paid/L9-99");
   });
   test("no url is ever the old hard-coded layout", () => {
     for (const src of [free, paid]) for (const rel of ["deck.json", "audio/01.mp3"]) {

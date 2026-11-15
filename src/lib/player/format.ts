@@ -91,6 +91,19 @@ export function storedName(relPath: string, encrypted: boolean): string {
   return relPath.endsWith(".mp3") ? relPath.replace(/\.mp3$/, ".enc") : `${relPath}.enc`;
 }
 
+/**
+ * The platform's grant returns the item's own folder as baseUrl ("<origin>/paid/<ITEM>/" for signed access), and the
+ * signed query covers exactly that prefix. fileUrl() adds "/paid/<ITEM>" itself, so reduce the grant's baseUrl to the
+ * media origin first. An origin-only baseUrl (older grants, the mock API) is returned unchanged.
+ */
+export function grantBase(baseUrl: string, itemId: string): string {
+  const base = baseUrl.replace(/\/+$/, "");
+  for (const tail of [`/paid/${itemId}`, `/${itemId}`]) {
+    if (base.endsWith(tail)) return base.slice(0, -tail.length);
+  }
+  return base;
+}
+
 export function fileUrl(src: ContentSource, relPath: string): string {
   const root = src.encrypted ? `${src.baseUrl}/paid/${src.itemId}` : `${src.baseUrl}/${src.itemId}`;
   const q = src.query ? `?${src.query.replace(/^\?/, "")}` : "";
