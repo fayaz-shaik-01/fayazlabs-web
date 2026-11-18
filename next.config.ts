@@ -15,9 +15,6 @@ const nextConfig: NextConfig = {
     return [
       // Legacy writing → learning (blog content absorbed into curriculum)
       { source: "/writing/agentic-ai-patterns", destination: "/learning/ai-agents/fundamentals/agentic-patterns", permanent: true },
-      { source: "/writing/building-ai-test-automation", destination: "/learning/infrastructure/labs/ai-test-automation", permanent: true },
-      // Legacy project routes → curriculum
-      { source: "/projects/ai-test-automation", destination: "/learning/infrastructure/labs/ai-test-automation", permanent: true },
       // Legacy lesson slugs → new track-based URLs
       { source: "/learning/lesson/tokenization", destination: "/learning/llm-engineering/tokenization/tokenizers", permanent: true },
       { source: "/learning/lesson/attention-mechanism", destination: "/learning/llm-engineering/transformers/attention", permanent: true },
