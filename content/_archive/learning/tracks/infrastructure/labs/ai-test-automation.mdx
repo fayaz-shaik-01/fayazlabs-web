@@ -1,7 +1,7 @@
 ---
 title: "Building AI-Powered Test Automation"
-description: "How I built an intelligent test automation assistant that converts natural language test cases into executable Selenium scripts using LLM-driven DOM analysis."
-summary: "Case study building an AI test automation tool with multi-strategy element resolution combining heuristic matching, LLM DOM parsing, and vision fallback."
+description: "How I built a tool that takes test cases written in plain English, runs them in a real browser, and generates Java/Selenium/TestNG or Playwright code from what actually worked."
+summary: "A write-up of an AI test automation tool I built: parsing English test steps, finding elements with a cache, heuristics, LLM and vision, a small memory in SQLite, and code generation. Also what the results were, and what I would fix."
 date: "2025-01-15"
 published: true
 track: "infrastructure"
@@ -10,11 +10,12 @@ lesson: "ai-test-automation"
 difficulty: "advanced"
 estimatedMinutes: 35
 prerequisites: []
-tags: ["AI", "Automation", "LLM", "Selenium", "Testing"]
+tags: ["AI", "Automation", "LLM", "Playwright", "Selenium", "Testing"]
 learningObjectives:
-  - "Design multi-strategy AI resolution systems"
-  - "Combine heuristic and LLM-based approaches for reliability"
-  - "Build production-grade AI-powered developer tools"
+  - "Design an element resolution chain that tries cheap methods before expensive ones"
+  - "Treat LLM output as untrusted input and validate it against the live page"
+  - "Explain how a tool can learn from stored data without training a model"
+  - "Read an AI tool's results honestly, including what the numbers do not show"
 concepts:
   - "multi-strategy-resolution"
   - "llm-dom-analysis"
@@ -35,47 +36,131 @@ recommendedBackground:
 mentorPriority: "low"
 ---
 
-## The Problem
+## Why I built this
 
-Manual test script creation is time-consuming. QA engineers spend hours translating test cases into executable automation scripts, dealing with fragile element selectors and dynamic web pages.
+I have written a lot of UI automation, and the boring part is always the same. Someone writes a test case in simple English, like "log in, open the status page, check the number". Then I sit and turn that into locators, page objects and waits. A few weeks later a developer renames a button and half of it breaks.
 
-I wanted to build a tool that could understand test cases written in plain English and automatically generate production-quality Selenium test scripts.
+The test case was never the hard part. The translation was. So I wondered if I could keep the test in plain English and let a tool do the translating, find the elements, and write the boilerplate code.
 
-## Architecture Overview
+This is a write-up of how that went. I will cover how it works, why I built it this way, what the results were, and what I would still fix.
 
-The system uses a multi-strategy approach:
+## What it does
 
-1. **Natural Language Processing** — Parse test cases into structured action steps
-2. **LLM-Driven DOM Analysis** — Use language models to understand page structure and identify target elements
-3. **Multi-Strategy Element Resolution** — Combine heuristic matching, LLM-based DOM parsing, and vision-based fallback
-4. **Code Generation** — Generate Java test code with Page Object Model structure
+You type a test case in English. An LLM breaks it into structured steps, each with an action, a target and some data. Playwright then runs those steps in a real browser. For every element, the tool figures out how to find it. Whatever works gets saved. After the run, it writes the automation code from what actually happened, either a Java, Selenium and TestNG project with page objects, or a Playwright spec.
 
-```python
-class ElementResolver:
-    def resolve(self, action: str, page_dom: str) -> Element:
-        # Strategy 1: Heuristic matching
-        element = self.heuristic_match(action, page_dom)
-        if element and element.confidence > 0.8:
-            return element
+The whole flow looks like this:
 
-        # Strategy 2: LLM-based DOM parsing
-        element = self.llm_resolve(action, page_dom)
-        if element:
-            return element
-
-        # Strategy 3: Vision-based fallback
-        return self.vision_resolve(action)
+```text
+English text / video recording / browser recorder
+        |
+   parse into structured steps
+        |
+   check an existing framework (reuse or generate)
+        |
+   plan the flow (expected pages, critical vs non-critical steps)
+        |
+   run it: step by step, or with an agent loop
+        |
+   find each element, Playwright performs the action
+        |
+   update memory, generate and validate code
 ```
 
-## Key Results
+A small orchestrator runs these stages in order and keeps one context object with the timings and any errors, so I can always see what happened in a run.
 
-- **60% reduction** in test script creation time
-- **Multi-strategy element resolution** for robust identification
-- **Streamlit UI** for test case management and real-time execution monitoring
-- **Automated Java test code generation** with POM structure
+## The main idea: LLM calls are expensive, so use them last
 
-## Lessons Learned
+An LLM call is slow, it costs money, and it may not give the same answer twice. A cache lookup is instant and always the same. So the tool never starts with the LLM. It starts with the cheap options and moves down only when it has to.
 
-Building AI-powered tools for testing taught me that the gap between proof-of-concept and production reliability is significant. The multi-strategy fallback approach was crucial — no single method works 100% of the time on dynamic web pages.
+To find a "Login" button, it goes down this list and stops at the first thing that works:
 
-The combination of heuristic rules (fast, predictable) with LLM intelligence (flexible, context-aware) created a system that's both reliable and adaptable.
+| Step | What happens | LLM call |
+|---|---|---|
+| Cache | Check if this element was found on this page before | No |
+| Heuristics | Match on id, name, test id, aria attributes and visible text | No |
+| LLM on the DOM | Send a trimmed piece of the page and ask which element matches. If vision is switched on, send a screenshot with the HTML | Yes |
+| Vision | Find the element from a screenshot alone | Yes |
+| Self-correction | If a locator failed, tell the LLM why and let it try again, a couple of times at most | Yes |
+| Give up | Fail, and list every strategy that was tried and how many LLM calls it used | No |
+
+Two small things that matter here. The page is cleaned and cut down to a short snippet around the target before it goes to the model, so the prompts stay small. And I never trust a locator just because the model suggested it. It is checked on the live page, and only used if the element is actually visible.
+
+```python
+# rough shape of the chain, simplified
+def resolve(step, page):
+    for strategy in (cache, heuristic, llm_or_multimodal, vision, self_correct):
+        result = strategy(step, page)
+        if result and page.is_visible(result.locator):
+            remember(result)
+            return result
+    return failure_with_diagnostics()
+```
+
+Here is how it plays out for "Click the login button". The first time, the cache is empty and the heuristics are not sure, so the LLM reads the snippet and suggests a locator. The tool checks it, uses it and saves it. The second time, the cache gives the locator straight away and there is no LLM call. Over a full suite, that adds up. The pages it already knows get faster and cheaper.
+
+## How it learns
+
+People hear "gets better with every run" and think machine learning. Nothing is trained here. The tool just keeps notes in SQLite and uses them next time.
+
+| What is stored | What it keeps | Why it helps |
+|---|---|---|
+| Element cache | Page and description mapped to a locator, with a confidence score | Skips the LLM on repeat runs |
+| App knowledge | Pages, elements, navigation flows, login patterns | Better planning and prompts |
+| Pattern learner | Synonyms like "sign in" and "login", step macros, earlier parses | Skips the LLM for phrases it has seen |
+| Execution history | Past runs and step details | Analytics and re-runs |
+| Feedback | Corrections I make by hand | These get priority next time |
+
+Notes also go out of date, so they expire. A cached locator loses some confidence for every day since it was last verified, loses more when it fails, and is ignored once it falls below a limit. If a page changes, the old entries fade out and the element gets found again.
+
+## Ways to give it a test
+
+The test does not have to start as typed English. It can come from a screen recording, where key frames are picked out and a vision model describes the steps. It can also come from a browser recorder that captures real clicks and typing. All three end up as the same structured test case, so everything after parsing is shared.
+
+There are also two ways to run it. Step by step mode follows the parsed steps and only uses AI to find elements and recover from problems. It is predictable and cheaper. Agent mode only gets a goal and loops through look at the page, decide, act. It copes with messier scenarios, but it uses more LLM calls and is harder to predict.
+
+Agent mode needed the most care. It checks for loops where the same action keeps repeating. When a popup keeps blocking a click, it is told to stop clicking the same element and look for a way to close the popup. And when the model makes up a selector that is not on the page, the tool matches it to the closest real element.
+
+## Not trusting the model
+
+I treat everything the LLM returns as untrusted input.
+
+- The output has to be valid JSON. I strip markdown fences, and if it is not JSON or has zero steps, the tool stops with a clear error instead of carrying on.
+- Parsing uses a low temperature and retries.
+- Every locator is checked on the live page.
+- Every LLM call is logged with its purpose, tokens, time taken, estimated cost and status. Every resolution attempt is recorded too. When something fails, I can see which strategy ran and what it was given.
+- Generated Java goes through a checker for unbalanced braces, bad `@FindBy` values, duplicate fields and undefined variables.
+- Playwright has selectors Selenium does not (text matching, role selectors, chaining). A translator converts them so the generated Java actually compiles.
+
+## Code that fits an existing project
+
+Generating code from scratch is easy. Generating code that a team will accept is harder. If an existing framework is indexed (Java Selenium, Playwright, Python Selenium or Cypress), the tool reads its page objects, locators and style. For each step it asks whether a page object or method for this already exists. If yes, it reuses it. It only writes the new parts, in the same naming and structure. The index only rebuilds when files change, which it tracks with content hashes.
+
+## A second feature: test cases from user stories
+
+I added a companion tool that turns a user story into test cases in two passes. First it breaks the story into testable areas, like calculations, display, permissions, settings and edge cases. Then it writes several detailed test cases for each area, passing along the titles it already wrote so it does not repeat itself. Duplicates are removed afterwards, weak cases are rejected, and the result exports to a test management CSV. It can read stories from an issue tracker API, an Excel export or a CSV file.
+
+## Results
+
+The main number is about 40% less effort on test authoring. I compared the monthly effort over four months in the previous year, when we did not use any AI tool, with the same measure using this tool. Repeat runs also make fewer LLM calls because locators come from the cache, and the generated code follows the page object pattern and can reuse an existing framework.
+
+I want to be careful about that 40%. It is a before and after comparison on real work, not a controlled experiment. Other things changed between those periods, like the team and the size of the stories. So it tells me the tool helped, but I would not claim the exact figure is precise.
+
+## How I built it
+
+I designed the tool and built it with AI coding assistants. I decided the problem, the order of the resolution chain, the memory and the idea of reusing an existing framework. I tested it against a real application and kept fixing what failed. The assistants did a lot of the typing. I think it is worth saying that openly. Building an AI testing tool with AI also showed me exactly where AI output needs checking, which is the same thing the tool itself depends on.
+
+## What I would fix next
+
+- **Tests for the tool.** It has no automated test suite of its own. I would add a set of English test cases with the steps I expect, run each one several times to measure how often elements are found, and compare whenever the model or a prompt changes. LLM calls would be mocked in the unit tests.
+- **Stale cache hits.** A cached locator can still match the wrong element after a page changes. The visibility check and the expiry help, but they do not fully solve it.
+- **Assertions.** Vision based checks are probabilistic. Important checks should compare exact text or element state.
+- **Reporting.** One step type still uses a fixed wait, and skipped conditional steps are reported as passed. Both hide things a reader would want to see.
+- **Documentation.** The code grew faster than the README. Docs that drift from the code are a quiet bug of their own.
+
+## What I took away
+
+The cheap and predictable options first, then the smart and flexible ones, worked better than any single method, because no method works on every dynamic page. LLM output needs to be treated like any other untrusted input. Logging every call and every attempt turned "it failed" into "it failed here, for this reason", and that helped more than any clever strategy. A cache with expiry gave me most of what people expect from machine learning, without training anything. And a smaller result that I can explain is worth more than a bigger number I cannot defend.
+
+## Stack
+
+Python, Playwright, Streamlit for the UI, Pydantic for the models, Jinja2 for the code templates, BeautifulSoup for DOM parsing, and SQLite for memory and logs. The LLM providers (OpenAI, AWS Bedrock, Groq and Euron) sit behind one interface, so I can swap a model without touching the engine.

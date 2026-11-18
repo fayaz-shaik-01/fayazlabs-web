@@ -42,7 +42,7 @@ const achievements = [
   "98.60 percentile in JEE Mains (1.2M+ candidates)",
   "All India Rank 61 in AP EAMCET 2019",
   "First prize at zonal level in SIMO Olympiad",
-  "60% reduction in test script creation time with AI tool",
+  "About 40% reduction in test authoring effort with AI tool",
   "Led automation for team of 5 at Enphase Energy",
 ];
 
